@@ -1,0 +1,330 @@
+Wrench *
+Hook @ -
+Sprung block S S S S # # #
+Wound sping  $ $ # # #
+Block with gap  # # _ # #
+Pivot  o -
+Ball  O
+
+Ratchet:
+   S S # _ # _ #           
+
+   $ # \ # _ #
+	o -
+       /                
+
+   S S # / # _ #
+      - o  
+         \
+
+			\ /
+                       - @ -
+     /      \           / \
+  - o        o -
+   \ \      / /
+    o -    - o
+   /          \
+#    
+ _    
+# # # #
+   #  
+
+
+
+Physics:
+
+Forces try to push entities in hexdirs. Forces can necessitate other forces.
+Resolution involves moving each entity one hex in the given hexdir. These
+forces can be inconsistent, resulting in nullification or transferral of the
+forces. Note that inconsistency is a complicated business, pairwise
+consistency not being enough.
+
+Furthermore, we need some notion of equilibrium: a block with springs on both
+ends should settle with equal numbers wound on each end. The wrench,
+meanwhile, should be forceful enough to wind arbitrarily many springs.
+
+Importantly, forces are always about something moving into a particular hex.
+This means that multiple forces acting in different directions must be
+inconsistent and will all fail. So we only need to add when there are forces
+acting in diametrically opposite directions.
+
+Adjacent tiles can be connected together into 'entities'. This can be
+represented graphically drawing a connected entity in one colour, and ensuring
+adjacent distinct entities are always drawn in different colours (cf 4-colour
+theorem; or maybe 5-colour theorem - see linear time algorithm here:
+https://en.wikipedia.org/wiki/Five_color_theorem ). The physics could also
+allow non-connected entities, we can't really draw them (requires
+arbitrarily many colours) so let's disallow that for now (except for the
+uncoloured fixed frame).
+
+Entities which are connected to no spring are fixed in place, and needn't be
+coloured; they are considered to form a single "lock body" entity.
+
+One of the tile types which can form part of an entity is the pivot. Pivots
+have one-hex arms emanating from them (with colours indicating the
+connection). Forces on arms translate to torque on the pivot.
+
+The hook pick acts as a pivot with one arm and user-applied torque. It can
+move laterally, but can't apply lateral force.
+
+The wrench is always pushing in some direction. You can reset the direction
+only when it's stopped.
+
+Balls are special one-hex pieces which don't experience friction so can
+transfer momentum - once pushed, they continue moving in the direction until
+they hit something, then push that.
+
+Springs connect two entities in a principal direction. One entity is the root.
+The spring never given rise to a force on the root, except when it's fully
+wound and is pushed on rootwards. To avoid unpleasantness, a sprung entity
+must be rooted by a single spring - although it can act as the root for
+arbitrarily many other sprung entities.
+
+Graphical representation of springs: '|' for the root in the root's colour,
+'=' for the connection to the sprung entity in its colour, '$' for wound
+spring, 'S' for unwound (each '$' unwinds to two 'S's).
+
+   #                     
+    = # | $ $ = #      #               
+     S         #        = # | S S S S = #
+      S                  $             #
+       |                  |          
+
+We can also have unsprung yet moveable entities, by having them rooted to
+points on linear tracks (which can be part of other entities), represented by
+'| - = - |' etc.
+                                     
+Origins of forces:
+    wrench
+    turning hook
+    wound springs
+    ball collisions
+
+Force resolution:
+    A force is always actually just of the form "entity E wants to move in
+    hexdir D", and a torque is of the form "pivot P wants to turn +/-". If
+    there's something in the way, the force is transferred to the blocking
+    entity in the same direction. Forces on an arm are converted to torques on
+    the pivot.
+
+    We could use something more confusingly ornate, but I suggest the
+    following very simple resolution: as soon as two forces act in different
+    directions on the same entity, even if the directions are diametrically
+    opposed, the piece gets 'stuck' and no motion results.
+
+    So for each top-level force, we cascade down to determine resulting
+    forces, watching out that we don't get lost in a loop. The force is
+    self-consistent if no entity gets two different forces, and no entity gets
+    a force in a direction in which it is fixed. Two forces are mutually
+    consistent if the union has this property. With these rules, pairwise
+    consistency is enough - so after throwing away first the self-inconsistent
+    top-level forces which are inconsistent with themselves and then those
+    which are inconsistent with some other remaining top-level force, we're
+    left with a consistent set of forces.
+
+    (note we do need to throw away self-inconsistent forces first, or we have
+    situations where a silly force can block a non-silly one)
+
+    Problem: this doesn't handle the case of winding springs, where we really
+    do want opposing forces not to lead to stuckness.
+
+    Solution: there are two levels of force - player-instigated, and
+    environmental. The former overrules the latter.
+
+    So force resolution works as follows: first remove self-inconsistent
+    forces; then look for pairwise inconsistencies, and remove any force which
+    is inconsistent with a force of equal or greater strength.
+
+    Problem: we haven't handled moving roots.
+    Solution: have the strength of a spring decrease with depth in the
+    tree of rootedness - which we do require to be a tree.
+
+    Winding springs: during force propagation, a spring of equal or greater
+    strength will always pass the force through, while one of lesser strength
+    will pass the force through iff it is already fully wound.
+
+    Ball collisions can be the weakest level of force, so they will never wind
+    springs but can push other balls and tracked entities.
+
+    A spring-force which is inconsistent should be replaced with a reaction
+    force on the root entity, with the same strength, with this then being
+    checked for self- and (from the top) pairwise-consistency.
+
+    Hmm. Would be much neater to not have different strengths for different
+    springs. Can we avoid it?
+
+    Yes:
+	A spring will resist a force on the sprung entity which tends to
+	extend/compress the spring, unless the force is player-strength.
+
+	For remaining forces: a push/pull is transferred through a spring iff
+	the spring is at minimal/maximal extension or the spring is at an
+	angle to the force.
+
+	A spring not at its rest-length will generate a force on the sprung
+	entity. This never yields a force on the root.
+
+    Problem: pairwise consistency *isn't* enough.
+	e.g. consider a line of interlocked sprung entities with compressed
+	springs, such that the springs must decompress together.       
+
+	Consider this as a SAT problem, where we favour certain answers?
+	No.
+
+    Another problem: colliding entities.
+	If two entities are forced to move into the same hex by forces of the
+	same strength, we need to decide what to do. Currently I think it
+	would be better to block them both, rather than to introduce some
+	arbitrary rule to decide which gets precedence. The idea would be that
+	the gridded nature of the lock isn't just an artifact of our discrete
+	physics simulation, it's part of the underlying architecture of the
+	lock itself.
+
+	However, this does mean that checking for consistency is *not* simply
+	a matter of inducing forces and checking for multiple different forces
+	induced on the same entity. Actually it wasn't anyway; pivots can
+	break that too.
+
+Reworking:
+    Forget "strengths". Instead, we split into two phases: player-generated
+    movement, then environment-generated movement.
+
+    Player-generated:
+	Hook and wrench forces are considered equal, and can block each other;
+	the hook never gets pushed around by the wrench.
+	Springs can be stretched and compressed freely within their limits.
+
+    Environment-generated:
+	A force on a sprung block is blocked if the spring's length isn't such
+	as to be generating the same force.
+
+	Allowing moveable pivots other than the hook results in unpleasantness
+	when forces and torques combine. So only fixed pivots are allowed.
+
+	(alternative would be to allow pivots on entities, but consider them
+	'locked' when there's a force on the entity, so any torque is blocked)
+    
+    Blocking:
+	note we still need to have forces propogating beyond a blockage to
+	block other forces - otherwise we easily get strange loops of the
+	"blocked iff not blocked" sort, leading to unintuitive complexity.
+
+Detailed force resolution algorithm:
+    (to be run first for player forces, then for environmental forces)
+
+    Unoptimised version:
+	For each source force, propagate:
+	    neighbouring entities get pushed,
+	    neighbouring pushed arms induce torque on the pivot,
+	    springs transmit forces where they can't absorb them.
+	
+	Record with the propagated force the sources which gave rise to it.
+
+	Look for blockages:
+	    forces on fixed objects
+		(player objects are fixed during environmental stage),
+	    environmental forces on sprung entities not according with the
+		spring length,
+	    multiple forces in different directions on the same entity,
+	    collisions;
+	in each case, mark the source forces involved as blocked.
+	Blockedness of a force is irrelevant when determining blockages.
+
+	Enact all forces with at least one unblocked source.
+
+	A ball which pushed something loses its momentum; a ball with a
+	resulting force gets momentum as well as moving.
+
+	A wrench whose force is blocked loses its momentum.
+
+    Optimising:
+	Just check for blockages while propagating.
+	    
+	Could try to avoid propagating the same force twice from different
+	sources, but it would be more complicated than it's worth.
+
+Architecture:
+    Board state consists of:
+	list of entities:
+	    type (hook, wrench, pivot, block, ball, frame)
+	    shape
+	    position
+	    springs:
+		root entity and position
+		direction and natural length of spring
+		position on current entity of connection
+		    (redundant, but included for debugging)
+	    momentum
+    
+    The force resolution algorithm above simply maps states to states.
+    
+	
+Overgame:
+(writing under the influence of Castle Doctrine (although I'd been planning
+something like this since long before I heard of CD!))
+
+The players are the members of the Guild of Locksmiths. A venerable tradition
+in this guild has the honour of a member determined by the number of silver
+hook picks they possess. Tradition further has it that members must store
+their collection of picks in coffers in the main hall of the guild, locked
+behind fiendish yet pickable locks of their own devising. Members may freely
+attempt to pick their fellows' locks, using their silver hooks, and take the
+picks found within. New members start with 5(?) hooks. If a hook gets stuck
+during an attempt on a coffer, it goes in that coffer.
+
+Problems: there needs to be some cost to producing your own locks, or optimal
+play would have you put each hook in a separate well-locked coffer, leading
+to tiresomeness. And having every lock be maximally complicated would be a bit
+boring - there should be costs associated to making complex locks. Also,
+there's every incentive to not bother making a proper lock until you've made
+some winnings, and to keep starting new characters until you have.
+
+So forget the silver hooks - replace with a generic guild-internal currency,
+which can be spent on picks and on coffers and lock components.
+
+To deal with the latter problem: could make it such that lock designs are
+one-offs - you can't edit it once it's complete, you can't pick other
+locks until you have designed a lock to store any gains behind, and you can't
+design further locks until your existing locks have withstood a few pick
+attempts. This would also do something to minimize the cd-style "just one more
+little edit" addictiveness.
+
+To prevent cheating, we should give the client every possible convenience
+feature. If there's no hidden information, then that includes undo. With undo, 
+we need a time-limit for there to be any challenge.
+
+Considering hidden information:
+    How to ensure that locks are nonetheless fun, in the way cd's often
+    aren't?
+
+    It would be thematic to have vision based on sound and touch: so every time a
+    part of the lock moves, it is shown, and everything in the vicinity of your
+    tools is shown. 
+
+    But however we do it, hidden information of a kind which prevents
+    undo-cheating will surely end up allowing traps avoidable only through
+    lucky guessing. Hrm.
+
+So instead aim to have the mechanics sufficiently complicated that locks can
+be made which are not susceptible to brute-force attacks, even ones guided by
+an undo-wielding, keysmashing, unthoughtful human. With 15 possible moves each
+turn, that perhaps isn't so implausible.
+
+We can also make the time limit more severe by having a turn limit as well as
+a time limit, and then using a fischer-clock system for the time limit, such
+that you have to commit to some moves reasonably quickly. That would make undo
+much less useful (although it should still be incorporated into the official
+client, even if not well advertised). Turn and hence time limit would be, say,
+triple the number of turns it took the creator when sey demonstrated
+solvability.
+
+Foiling sock-puppet attempts to get around the "one attempt per lock per
+player" rule: don't give the players free choice over which locks to attempt.
+Either only give them access to some random subset of the available locks, or
+perhaps don't let them pick locks at all - instead they just indicate the
+general hardness they want to go for.
+
+Problem: if the complexity of a lock is bounded by cost, we should expect
+cheap locks, however ingenious, to be consistently beatable by experienced
+players. Solution: make sure this isn't true! Also: make the wager you stand
+to lose if you fail to pick a lock be based on your own wealth?
