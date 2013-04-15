@@ -243,6 +243,21 @@ Detailed force resolution algorithm:
 	Could try to avoid propagating the same force twice from different
 	sources, but it would be more complicated than it's worth.
 
+Problem:
+    This algorithm doesn't allow for gearing of the kind I'd envisioned.
+
+    Idea: split the concept of blocking into two: blocks and locks. A blocked
+	force is one which is "immediately self-inconsistent", e.g. which
+	pushes an entity against a fixed object or in a direction in which it
+	is fixed. A lock involves another object or another force or spring
+	tension. The idea then is that when a pivot turns, its arms try to
+	push against things in the obvious direction, but if that's blocked
+	(as opposed to locked) they try in the next-to-obvious direction
+	instead.
+
+	Quite intuitive, and shouldn't be hard to implement.
+
+
 Architecture:
     Board state consists of:
 	list of entities:

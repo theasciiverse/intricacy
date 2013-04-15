@@ -2,7 +2,27 @@
 
 An abstract hex board type.
 
-We co-ordinatize by the integer points of the hyperplane x+y+z=0:
+We coordinatize by the integral points of the hyperplane x+y+z=0:
+
+Some hopefully elucidatory diagrams:
+
+   .   .
+   v.        u = (1,0,-1)
+ .   .___.   v = (-1,1,0)
+   w,  u     w = (0,-1,1)
+   .   .
+                                   X
+                             -2-1 0
+       Y                     , , , 1
+     . | .               2 -. . * , 2
+       |                1 -. . * * ,     * : "principal hextant"
+   .   .   .         Y 0 -. . 0 . .           x>=0&&y>0
+     /   \             -1 -. . . . `
+   / .   . \            -2 -. . . `-2
+  Z          X               ` ` `-1
+                              2 1 0
+                                 Z
+
 
 \begin{code}
 {-# LANGUAGE FunctionalDependencies, MultiParamTypeClasses, FlexibleInstances, FlexibleContexts #-}
@@ -13,9 +33,10 @@ import Data.Monoid
    
 data HexVec = HexVec {hx,hy,hz :: Int} deriving (Eq, Ord, Show)
 
-hu = HexVec    1 (-1)    0
-hv = HexVec    0    1 (-1)
-hw = HexVec (-1)    0    1
+
+hu = HexVec    1    0 (-1)
+hv = HexVec (-1)    1    0
+hw = HexVec    0 (-1)    1
 
 hv2tup :: HexVec -> (Int,Int,Int)
 hv2tup (HexVec x y z) = (x,y,z)
@@ -30,6 +51,22 @@ hv2tupxy (HexVec x y z) = (x,y)
 tupxy2hv :: (Int,Int) -> HexVec
 tupxy2hv (x,y) = HexVec x y (-(x+y))
 
+hexLen :: HexVec -> Int
+hexLen (HexVec x y z) = maximum $ map abs [x,y,z]
+
+hexDot :: HexVec -> HexVec -> Int
+hexDot (HexVec x y z) (HexVec x' y' z') = x*x'+y*y'+z*z'
+
+rotate :: Int -> HexVec -> HexVec
+rotate 0 v = v
+rotate 2 (HexVec x y z) = HexVec z x y
+rotate (-2) (HexVec x y z) = HexVec y z x
+rotate 1 v = neg $ rotate (-2) v
+rotate (-1) v = neg $ rotate 2 v
+rotate n v | n < 0 = rotate (n+6) v
+	| n > 6 = rotate (n-6) v
+	| otherwise = rotate (n-2) (rotate 2 v)
+
 instance Ix HexVec where
     range (h,h') = 
 	[ tupxy2hv (x,y) | (x,y) <- range (hv2tupxy h, hv2tupxy h') ]
@@ -40,6 +77,15 @@ instance Ix HexVec where
 
 -- HexDirs are intended to be HexVecs of length <= 1
 type HexDir = HexVec
+isHexDir v = hexLen v == 1
+
+--minusHu = HexVec    (-1) 1    0
+--minusHv = HexVec    0    (-1) 1
+--minusHw = HexVec    1    0    (-1)
+
+canonDir :: HexDir -> HexDir
+canonDir dir | dir `elem` [ hu, hv, hw ] = dir
+	     | isHexDir dir = canonDir $ neg dir
 \end{code}
      
 Some general stuff on groups and actions and principal homogeneous spaces. We
@@ -72,7 +118,7 @@ instance Grp g => Differable (PHS g) (PHS g) g where
 class MultAction a b where
     (<*>) :: a -> b -> b
     
-instance Grp a => MultAction Int a where
+instance (Grp a, Integral n) => MultAction n a where
     0 <*> _              = zero
     1 <*> x              = x
     n <*> x
