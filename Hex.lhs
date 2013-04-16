@@ -79,6 +79,8 @@ instance Ix HexVec where
 type HexDir = HexVec
 isHexDir v = hexLen v == 1
 
+hexDirs = [hu,hv,hw,neg hu,neg hv,neg hw]
+
 --minusHu = HexVec    (-1) 1    0
 --minusHv = HexVec    0    (-1) 1
 --minusHw = HexVec    1    0    (-1)
