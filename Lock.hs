@@ -28,24 +28,21 @@ prettyTrace = Trace.trace . ppShow
 prettyTraceVal :: Show a => a -> a
 prettyTraceVal x = prettyTrace x x
 
---data State = State (Tree Connection Entity)
-    --deriving (Eq, Ord, Show)
-
 type HexPos = PHS HexVec
 
-data GameState = GameState { statePlacedPieces :: Vector PlacedPiece,
-		     stateConnections :: [Connection] }
+data GameState = GameState { placedPieces :: Vector PlacedPiece,
+	connections :: [Connection] }
     deriving (Eq, Ord, Show)
 
 data PlacedPiece = PlacedPiece { placedPos :: HexPos, placedPiece :: Piece }
     deriving (Eq, Ord, Show)
 
 getpp :: GameState -> PieceIdx -> PlacedPiece
-getpp st idx = fromJust $ (statePlacedPieces st) !? idx
+getpp st idx = fromJust $ (placedPieces st) !? idx
 
 setPiece :: GameState -> PieceIdx -> Piece -> GameState
 setPiece st@(GameState pps _) idx p = 
-    st { statePlacedPieces = pps //
+    st { placedPieces = pps //
 	[(idx, PlacedPiece (placedPos $ getpp st idx) p)] }
 
 data Piece = Block { blockPattern :: [HexVec] }
@@ -66,14 +63,18 @@ data Connection = Connection { connectionRoot :: Locus,
     deriving (Eq, Ord, Show)
 
 connectionLength :: GameState -> Connection -> Int
-connectionLength state (Connection root end _) =
-    let rootPos = locusPos state root
-	endPos = locusPos state end
+connectionLength st (Connection root end _) =
+    let rootPos = locusPos st root
+	endPos = locusPos st end
     in hexLen (endPos <-> rootPos) - 1
 
 data Link = Free { freePos :: HexVec }
 	  | Spring { springDir :: HexDir, springNatLength :: Int }
     deriving (Eq, Ord, Show)
+
+springsAtIdx st idx =
+    [ c | c@(Connection _ (eidx, _) (Spring _ _)) <- connections st
+	  , eidx==idx ]
 
 data SpringExtension = Relaxed | Compressed | Stretched
     deriving (Eq, Ord, Show)
@@ -86,12 +87,13 @@ type OwnedTile = (PieceIdx, Tile)
 type GameBoard = Map HexPos OwnedTile
 
 stateBoard :: GameState -> GameBoard
-stateBoard state@(GameState plPieces connections) =
+stateBoard st@(GameState plPieces conns) =
     (Map.unions $ map plPieceBoard $ enumVec plPieces) `Map.union`
-	  (Map.unions $ map (connectionBoard state) connections)
+	  (Map.unions $ map (connectionBoard st) conns)
 
 plPieceBoard :: (PieceIdx,PlacedPiece) -> GameBoard
 plPieceBoard (idx,pp) = Map.map (\x -> (idx,x)) $ plPieceMap pp
+
 plPieceMap :: PlacedPiece -> Map HexPos Tile
 plPieceMap (PlacedPiece pos (Block pattern)) =
     Map.fromList [ (rel <+> pos, BlockTile) | rel <- pattern ]
@@ -115,9 +117,9 @@ entitiesIntersect :: PlacedPiece -> PlacedPiece -> Bool
 entitiesIntersect pp pp' = not $ null $ collideEntities pp pp'
 
 connectionBoard :: GameState -> Connection -> GameBoard
-connectionBoard state (Connection root end@(eidx,_) (Spring dir natLen)) =
-    let rootPos = locusPos state root
-	endPos = locusPos state end
+connectionBoard st (Connection root end@(eidx,_) (Spring dir natLen)) =
+    let rootPos = locusPos st root
+	endPos = locusPos st end
 	curLen = hexLen (endPos <-> rootPos) - 1
     in Map.fromList $
 	[ ((d <*> dir) <+> rootPos, (eidx, SpringTile extension))
@@ -130,16 +132,17 @@ connectionBoard _ _ = Map.empty
 connectionFootPrint :: GameState -> Connection -> [HexPos]
 connectionFootPrint s c = Map.keys $ connectionBoard s c
 
-entityIntersectsConnection :: GameState -> PlacedPiece -> Connection -> Bool
-entityIntersectsConnection s pp c =
+pieceIntersectsConnection :: GameState -> PlacedPiece -> Connection -> Bool
+pieceIntersectsConnection s pp c =
     not $ null $ intersect (plPieceFootprint pp) (connectionFootPrint s c)
 
-type EntityColouring = Map.Map PieceIdx Int
+
+type PieceColouring = Map PieceIdx Int
 type Graph a = (Set a, Set (Set a))
 
 -- TODO: try previous colouring first, and pref aim to make minimal changes
 -- to it if it's no longer valid
-boardColouring :: GameBoard -> [PieceIdx] -> EntityColouring
+boardColouring :: GameBoard -> [PieceIdx] -> PieceColouring
 boardColouring board coloured = fourColour adjGraph
     where adjGraph = foldl addPoint (Set.empty,Set.empty) $ Map.toList board
 	  addPoint :: (Graph Int) -> (HexPos, OwnedTile) -> (Graph Int)
@@ -152,7 +155,7 @@ boardColouring board coloured = fourColour adjGraph
 			, owner' /= owner ]
 		)
 
-fourColour :: Ord a => Graph a -> Map.Map a Int
+fourColour :: Ord a => Graph a -> Map a Int
 fourColour (nodes,edges) =
     -- Just bruteforce it. TODO: properly.
     head $ filter isColouring colourings
@@ -167,10 +170,6 @@ fourColour (nodes,edges) =
 	    m <- colourings' ns
 	    , c <- [0..3] ]
 	
-
-springsToIdx state idx =
-    [ c | c@(Connection _ (eidx, _) (Spring _ _)) <- stateConnections state
-	  , eidx==idx ]
 
 -- TorqueDir: Int of absolute value <= 1
 type TorqueDir = Int
@@ -191,45 +190,51 @@ data PlayerMove = PlayerMove { hookPush :: HexDir, hookTorque :: TorqueDir, wren
 nullMove = PlayerMove zero 0 zero
 
 toolForces :: GameState -> PlayerMove -> Forces
-toolForces st move = Vector.fromList [ Push idx dir |
-	(idx, PlacedPiece _ (Wrench mom)) <- enumVec $ statePlacedPieces st,
-	let dir = if mom == zero then wrenchPush move else mom ]
+toolForces st (PlayerMove hp ht wp) = Vector.fromList $
+    [ Push widx dir |
+	(widx, PlacedPiece _ (Wrench mom)) <- epps
+	, let dir = if mom == zero then wp else mom ] ++
+    ( if hp == zero then [] else
+	[ Push hidx hp | (hidx, PlacedPiece _ (Hook _)) <- epps ] ) ++
+    ( if ht == 0 then [] else
+	[ Torque hidx ht | (hidx, PlacedPiece _ (Hook _)) <- epps ] )
+    where epps = enumVec $ placedPieces st
 
 envForces :: GameState -> ([PieceIdx], Forces)
-envForces state@(GameState plPieces connections) =
+envForces st@(GameState plPieces conns) =
     (catMaybes stoppedBallMbs, Vector.fromList $ springForces ++ ballForces)
     where
-	springForces = [ Push endIdx dir | c@(Connection _ (endIdx, _) (Spring outDir natLen)) <- connections,
-			    let curLen = connectionLength state c,
-			    natLen /= curLen,
-			    let dir = if natLen > curLen then outDir else neg outDir ]
+	springForces = [ Push endIdx dir | c@(Connection _ (endIdx, _) (Spring outDir natLen)) <- conns
+			    , let curLen = connectionLength st c
+			    , natLen /= curLen
+			    , let dir = if natLen > curLen then outDir else neg outDir ]
 	(stoppedBallMbs, ballForces) = unzip [ (stoppedBall, force) |
-	    (ballIdx,(PlacedPiece _ (Ball momentum))) <- enumVec plPieces,
-	    momentum /= zero,
-	    let ballForce = (Push ballIdx momentum),
-	    let propagated = propagateForce state ballForce,
-	    let force = fromMaybe ballForce $ listToMaybe propagated,
-	    let stoppedBall = if not $ null propagated then Just ballIdx else Nothing
+	    (ballIdx, PlacedPiece _ (Ball momentum)) <- enumVec plPieces
+	    , momentum /= zero
+	    , let ballForce = Push ballIdx momentum
+	    , let propagated = propagateForce st ballForce
+	    , let force = fromMaybe ballForce $ listToMaybe propagated
+	    , let stoppedBall = if not $ null propagated then Just ballIdx else Nothing
 	    ]
 
 physicsTick :: GameState -> PlayerMove -> GameState
-physicsTick state move =
-    let state' = resolveForces state (toolForces state move) True
-	(stoppedBalls, forces) = envForces state'
-	stopBall st idx = setPiece st idx (Ball zero)
-	stopBalls st = foldl stopBall st stoppedBalls
-	in stopBalls $ resolveForces state' forces False
+physicsTick st move =
+    let st' = resolveForces st (toolForces st move) True
+	(stoppedBalls, forces) = envForces st'
+	stopBall st'' idx = setPiece st'' idx (Ball zero)
+	stopBalls st'' = foldl stopBall st'' stoppedBalls
+	in stopBalls $ resolveForces st' forces False
 
 type Source = Int
 type SourcedForce = (Source,Force)
 resolveForces :: GameState -> Forces -> Bool -> GameState
-resolveForces state forces isPlayer =
+resolveForces st forces isPlayer =
     let
 	resolveForce :: SourcedForce -> State ([SourcedForce], [Source]) ()
 	resolveForce sforce = do
 	    (sforces,blockedsources) <- get
-	    let blocks = checkBlocks state sforces sforce isPlayer
-	    let propagated = [ (fst sforce, f) | f <- propagateForce state (snd sforce) ] \\ sforces
+	    let blocks = checkBlocks st sforces sforce isPlayer
+	    let propagated = [ (fst sforce, f) | f <- propagateForce st (snd sforce) ] \\ sforces
 	    put (propagated ++ (sforce:sforces), blocks ++ blockedsources)
 	    sequence_ $ map resolveForce propagated
 	sforces = enumVec forces
@@ -237,12 +242,12 @@ resolveForces state forces isPlayer =
 	-- stop wrenches which are blocked
 	stopWrench st' idx = setPiece st' idx (Wrench zero)
 	stopWrenches st' = foldl stopWrench st' [
-	    forceIdx $ forces!s | s <- blocked,
-		(Wrench _) <- [placedPiece $ getForcedpp st' $ forces!s] ]
+	    forceIdx $ forces!s | s <- blocked
+	    , (Wrench _) <- [placedPiece $ getForcedpp st' $ forces!s] ]
 	unblocked = nub [ force | (s,force) <- sforces', not $ s `elem` blocked ]
 	applyForces st' = foldl applyForce st' unblocked
-    in --prettyTrace (state, sforces, sforces', blocked, unblocked) $
-	stopWrenches $ applyForces state
+    in --prettyTrace (st, sforces, sforces', blocked, unblocked) $
+	stopWrenches $ applyForces st
     
 applyForce :: GameState -> Force -> GameState
 applyForce s f =
@@ -254,7 +259,7 @@ applyForce s f =
 		   ( (Wrench _), (Push _ dir) ) -> pp' {placedPiece = (Wrench dir)}
 		   _ -> pp'
 	in 
-	s { statePlacedPieces = (statePlacedPieces s) // [(idx, pp'')] }
+	s { placedPieces = (placedPieces s) // [(idx, pp'')] }
 applyForceTo :: PlacedPiece -> Force -> PlacedPiece
 applyForceTo (PlacedPiece pos piece) (Push _ dir) =
     PlacedPiece (dir <+> pos) piece
@@ -264,24 +269,24 @@ applyForceTo (PlacedPiece pos (Hook arm)) (Torque _ dir) =
     PlacedPiece pos (Hook $ rotate dir arm)
 
 checkBlocks :: GameState -> [SourcedForce] -> SourcedForce -> Bool -> [Source]
-checkBlocks state@(GameState plPieces connections) sforces sforce@(source, force) isPlayer =
+checkBlocks st@(GameState plPieces conns) sforces sforce@(source, force) isPlayer =
     let idx = forceIdx force
-	pp@(PlacedPiece pos piece) = (getpp state idx)
+	pp@(PlacedPiece pos piece) = (getpp st idx)
 	pp' = applyForceTo pp force
-        springs = springsToIdx state idx
+        springs = springsAtIdx st idx
 	blockingSprings = [ c |
-		    c@(Connection _ (eidx, _) (Spring sdir natLen)) <- springs,
-		    idx == eidx,
-		    let curLen = connectionLength state c,
-		    (Push _ pdir) <- [force],
-		    not (pdir `elem` [sdir, neg sdir]) || (
+		    c@(Connection _ (eidx, _) (Spring sdir natLen)) <- springs
+		    , idx == eidx
+		    , let curLen = connectionLength st c
+		    , (Push _ pdir) <- [force]
+		    , not (pdir `elem` [sdir, neg sdir]) || (
 			not isPlayer &&
 			    ( (curLen < natLen && pdir /= sdir) ||
 				(curLen > natLen && pdir /= neg sdir) ) ) ]
-	linkCollisions = [ c | c <- connections,
-	    (fst . connectionEnd) c /= idx,
-	    (fst . connectionRoot) c /= idx,
-	    entityIntersectsConnection state pp' c ]
+	linkCollisions = [ c | c <- conns
+	    , (fst . connectionEnd) c /= idx
+	    , (fst . connectionRoot) c /= idx
+	    , pieceIntersectsConnection st pp' c ]
 	fixed = case piece of
 		     (Pivot _) -> case force of {(Push _ _) -> True; _ -> False}
 		     (Wrench _) -> not isPlayer
@@ -289,85 +294,90 @@ checkBlocks state@(GameState plPieces connections) sforces sforce@(source, force
 		     (Block _) -> null springs
 		     _ -> False
         mismatches = [ s | (s,force') <- sforces, idx == forceIdx force', force /= force' ]
-	entityCollisions = [ s |
-	    (s,force') <- sforces,
-	    let idx' = forceIdx force',
-	    idx /= idx',
-	    entitiesIntersect pp'
-		(applyForceTo (getpp state idx') force')]
-	blocks = mismatches ++ entityCollisions
-	blocked = or [not $ null blocks,
-	    not $ null blockingSprings,
-	    not $ null linkCollisions,
-	    fixed]
+	pieceCollisions = [ s |
+	    (s,force') <- sforces
+	    , let idx' = forceIdx force'
+	    , idx /= idx'
+	    , entitiesIntersect pp'
+		(applyForceTo (getpp st idx') force')]
+	blocks = mismatches ++ pieceCollisions
+	blocked = or [not $ null blocks
+	    , not $ null blockingSprings
+	    , not $ null linkCollisions
+	    , fixed]
     in if blocked then source:blocks else blocks
 
--- XXX: this feels rather hacky. Can we find a better solution, or a better
--- way to explain the same solution?
 immediatelyBlocked :: GameState -> Force -> Bool
 immediatelyBlocked = immediatelyBlocked' False
 immediatelyBlocked' recursed st@(GameState pps conns) f@(Push idx dir) =
-    let pp@(PlacedPiece pos piece) = (getpp st idx)
-	springs = springsToIdx st idx
-        blockingSprings = [ c | c@(Connection _ _ (Spring sdir _)) <- springs,
-	    not $ dir `elem` [sdir, neg sdir] ]
-	isBall = case piece of (Ball _) -> True; _ -> False
-	entityCollisions = [ idx' |
-	    (idx', pp') <- enumVec $ pps,
-	    idx /= idx',
-	    entitiesIntersect (applyForceTo pp' f) pp' ]
+    let pp@(PlacedPiece pos piece) = getpp st idx
+	springs = springsAtIdx st idx
+        blockingSprings = [ c |
+	    c@(Connection _ _ (Spring sdir _)) <- springs
+	    , not $ dir `elem` [sdir, neg sdir] ]
+	isPivot = case piece of (Pivot _) -> True; _ -> False
+	pieceCollisions = [ idx' |
+	    (idx', pp') <- enumVec $ pps
+	    , idx /= idx'
+	    , entitiesIntersect (applyForceTo pp' f) pp' ]
 	fixed = case piece of
-		     (Pivot _) -> case f of {(Push _ _) -> True; _ -> False}
 		     (Block _) -> or [null springs, not $ null blockingSprings]
+		     (Pivot _) -> True
 		     (Wrench _) -> True
 		     (Hook _) -> True
 		     _ -> False
-    in or [ fixed,
-	    and [isBall, not recursed, not $ null entityCollisions,
-		immediatelyBlocked' True st (Push (head entityCollisions) dir) ] ]
-immediatelyBlocked' _ _ _ = False
+    in or [ fixed
+	    , and [not isPivot, not recursed, not $ null pieceCollisions
+		  , immediatelyBlocked' True st (Push (head pieceCollisions) dir) ] ]
+immediatelyBlocked' _ _ (Torque _ _) = False
 
 
+-- FIXME: torques on hooks getting generated, blocking pushes with which
+-- they're really consistent... maybe should be treating centre and arm of
+-- the hook as separate pieces?
 propagateForce :: GameState -> Force -> [Force]
-propagateForce state@(GameState plPieces conns) force = 
+propagateForce st@(GameState plPieces conns) force = 
     bumps ++ springTransfers
     where
-	bumps = [ transferredForce idx' rpos dir |
-	    let pp = applyForceTo (getForcedpp state force) force,
-	    (idx',pp') <- enumVec plPieces,
-	    idx' /= forceIdx force,
-	    cpos <- collideEntities pp pp',
-	    let rpos = cpos <-> placedPos pp',
-	    let dir = case force of
-		    (Push _ dir) -> dir
-		    (Torque _ dir) -> if immediatelyBlocked state (transferredForce idx' rpos push) then claw else push
+	bumps = [ transferredForce idx' cpos dir |
+	    let pp = applyForceTo (getForcedpp st force) force
+	    , (idx',pp') <- enumVec plPieces
+	    , idx' /= forceIdx force
+	    , cpos <- collideEntities pp pp'
+	    , let dir = case force of
+		    Push _ dir -> dir
+		    Torque _ dir -> if immediatelyBlocked st (transferredForce idx' cpos push)
+					 then claw else push
 			where push = arm <-> rotate (-dir) arm
 			      claw = rotate dir arm <-> arm
 			      arm = cpos <-> placedPos pp ]
-	transferredForce :: Source -> HexVec -> HexDir -> Force
-	transferredForce idx rpos dir =
-	    let pp@(PlacedPiece pos piece) = getpp state idx
-		armPush
-		    | dir `hexDot` ((rotate 1 rpos) <-> rpos) > 0 = Torque idx 1
-		    | dir `hexDot` ((rotate (-1) rpos) <-> rpos) > 0 = Torque idx (-1)
-		    | otherwise = Push idx dir
+	transferredForce :: Source -> HexPos -> HexDir -> Force
+	transferredForce idx cpos dir =
+	    let pp@(PlacedPiece pos piece) = getpp st idx
+		rpos = cpos <-> placedPos pp
+		armPush = case
+			(dir `hexDot` ((rotate 1 rpos) <-> rpos)) `compare`
+			(dir `hexDot` ((rotate (-1) rpos) <-> rpos)) of
+		    GT -> Torque idx 1
+		    LT -> Torque idx $ -1
+		    EQ -> Push idx dir
 	    in
 		case piece of
-		    (Pivot _) -> armPush
-		    (Hook _) -> armPush
+		    Pivot _ -> armPush
+		    Hook _ -> armPush
 		    _ -> (Push idx dir)
 	springTransfers =
 	    case force of
 		 Push idx dir -> [ Push idx' dir |
-			c@(Connection (ridx,_) (eidx,_) (Spring sdir natLen)) <- conns,
-			let curLen = connectionLength state c,
-			let root = idx == ridx,
-			let end = idx == eidx,
-			root || end,
-			let idx' = if root then eidx else ridx,
-			let pull = (root && dir == neg sdir) || (end && dir == sdir),
-			let push = (root && dir == sdir) || (end && dir == neg sdir),
-			(push && curLen <= natLen`div`2) || 
+			c@(Connection (ridx,_) (eidx,_) (Spring sdir natLen)) <- conns
+			, let curLen = connectionLength st c
+			, let root = idx == ridx
+			, let end = idx == eidx
+			, root || end
+			, let idx' = if root then eidx else ridx
+			, let pull = (root && dir == neg sdir) || (end && dir == sdir)
+			, let push = (root && dir == sdir) || (end && dir == neg sdir)
+			, (push && curLen <= natLen`div`2) || 
 			    (pull && curLen >= natLen*2) ]
 		 _ -> []
 
@@ -378,7 +388,7 @@ tileChar :: Tile -> AttrChar
 a0 = Curses.attr0
 bold = Curses.setBold a0 True
 tileChar BlockTile = ('#',a0)
-tileChar PivotTile = ('o',a0)
+tileChar PivotTile = ('o',bold)
 tileChar (ArmTile dir principal) = let
     cdir = canonDir dir
     c | cdir == hu = '-'
@@ -393,13 +403,13 @@ tileChar (SpringTile Relaxed) = ('S',a0)
 tileChar (SpringTile Compressed) = ('$',bold)
 tileChar (SpringTile Stretched) = ('s',bold)
 
-ownedTileGlyph :: EntityColouring -> OwnedTile -> Glyph
+ownedTileGlyph :: PieceColouring -> OwnedTile -> Glyph
 ownedTileGlyph colouring (owner,t) =
-    let (c,attr) = tileChar t
+    let (ch,attr) = tileChar t
 	pair = case Map.lookup owner colouring of
 		    Nothing -> 0
 		    Just n -> n+1
-    in Glyph c pair attr
+    in Glyph ch pair attr
 
 data CVec = CVec { cy, cx :: Int }
     deriving (Eq, Ord, Show)
@@ -418,27 +428,27 @@ addCh c = Curses.wAddStr Curses.stdScr [c]
 mvAddCh :: CVec -> Char ->  IO ()
 mvAddCh (CVec y x) c = Curses.mvAddCh y x $ fromIntegral $ ord c
 mvAddGlyph :: [Curses.Pair] -> CVec -> Glyph -> IO ()
-mvAddGlyph pairs v (Glyph c col attr) =
-    Curses.attrSet attr (pairs!!col) >> mvAddCh v c
+mvAddGlyph cpairs v (Glyph ch col attr) =
+    Curses.attrSet attr (cpairs!!col) >> mvAddCh v ch
 
 drawState :: [Curses.Pair] -> GameState -> HexPos -> IO ()
-drawState pairs state centre =
-    let board = stateBoard state
+drawState pairs st centre =
+    let board = stateBoard st
 	colouring = boardColouring board coloured
 	coloured = [ idx |
-	    (idx,pp@(PlacedPiece pos p)) <- enumVec $ statePlacedPieces state
+	    (idx,pp@(PlacedPiece pos p)) <- enumVec $ placedPieces st
 	    , case p of (Ball _) -> False
 			(Wrench _) -> False
 			(Hook _) -> False
 			(Pivot _) -> True
-			(Block _) -> not $ null $ springsToIdx state idx ]
+			(Block _) -> not $ null $ springsAtIdx st idx ]
     in do
 	(h,w) <- Curses.scrSize
 	let scrCentre = CVec (h`div`2) (w`div`2)
 	Curses.erase
-	sequence_ [ mvAddGlyph pairs cc glyph | 
-	    (pos,glyph) <- Map.toList $ Map.map (ownedTileGlyph colouring) board,
-	    cc <- [ scrCentre <+> (hexVec2CVec (pos <-> centre)) ]
+	sequence_ [ mvAddGlyph cpairs cc glyph | 
+	    (pos,glyph) <- Map.toList $ Map.map (ownedTileGlyph colouring) board
+	    , cc <- [ scrCentre <+> (hexVec2CVec (pos <-> centre)) ]
 	    ]
 	Curses.refresh
 
@@ -479,10 +489,6 @@ cogState = GameState (Vector.fromList [
 -- From Curses.CursesHelper:
 -- | Converts a list of 'Curses.Color' pairs (foreground color and
 --   background color) into the curses representation 'Curses.Pair'.
---
---   You should call this function exactly once, at application startup.
---
--- (not visible outside this module)
 colorsToPairs :: [(Curses.Color, Curses.Color)] -> IO [Curses.Pair]
 colorsToPairs cs =
     do p <- Curses.colorPairs
@@ -507,10 +513,10 @@ test = do
 	[ CursesH.white, CursesH.red, CursesH.green, CursesH.yellow, CursesH.blue] ] 
     showDynamics pairs cogState (PHS zero)
     CursesH.end
-    where showDynamics pairs s c =
-	    do drawState pairs s c
+    where showDynamics pairs s v =
+	    do drawState pairs s v
 	       k <- CursesH.getKey Curses.refresh
-	       if k /= Curses.KeyChar 'q' then showDynamics pairs (physicsTick s nullMove) c
+	       if k /= Curses.KeyChar 'q' then showDynamics pairs (physicsTick s nullMove) v
 					  else return ()
 
 main = test
