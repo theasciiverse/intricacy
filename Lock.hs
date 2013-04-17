@@ -431,8 +431,8 @@ mvAddGlyph :: [Curses.Pair] -> CVec -> Glyph -> IO ()
 mvAddGlyph cpairs v (Glyph ch col attr) =
     Curses.attrSet attr (cpairs!!col) >> mvAddCh v ch
 
-drawState :: [Curses.Pair] -> GameState -> HexPos -> IO ()
-drawState pairs st centre =
+drawState :: DisplayState -> GameState -> IO ()
+drawState (DisplayState cpairs centre) st =
     let board = stateBoard st
 	colouring = boardColouring board coloured
 	coloured = [ idx |
@@ -451,12 +451,6 @@ drawState pairs st centre =
 	    , cc <- [ scrCentre <+> (hexVec2CVec (pos <-> centre)) ]
 	    ]
 	Curses.refresh
-
--- testBoard = Map.insert (PHS zero) (Entity (Spring True) zero) Map.empty
---testBoard = Map.fromList [ (PHS ((-n) <*> hw), if n<2 then Entity (Spring False) []
---					       else if n<6 then Entity Block []
---					       else Entity (Wrench hw) [])
---					       | n <- [0..6::Int] ]
 
 orig = PHS zero
 ballState = GameState (Vector.fromList [
@@ -479,9 +473,13 @@ cogState = GameState (Vector.fromList [
 		, PlacedPiece (10 <*> hw <+> orig) (Block $ concat $
 		    [ map (((2*n) <*> hw) <+>) [zero, hu, hw, hw<+>hw] | n <- [0..5] ])
 		, PlacedPiece (hu <+> hu <+> (14 <*> hw) <+> orig) (Pivot [ hu,hv,hw ] )
-		, PlacedPiece ((3<*>hu) <+> (20<*>hw) <+> orig) (Ball $ neg hw)
-		, PlacedPiece ((3<*>hu) <+> (17<*>hw) <+> orig) (Ball $ neg hw)
+		, PlacedPiece ((6<*>hu) <+> (20<*>hw) <+> orig) (Ball $ zero)
+		, PlacedPiece ((7<*>hu) <+> (17<*>hw) <+> orig) (Ball $ zero)
 		, PlacedPiece ((3<*>hu) <+> (10<*>hw) <+> orig) (Wrench $ hw)
+		, PlacedPiece ((3<*>hu) <+> orig) (Hook $ hv)
+		, PlacedPiece (7<*>hu <+> orig) (Pivot [ hu,hv,hw ] )
+		, PlacedPiece (10<*>hu <+> orig) (Pivot [ hu,hv,hw ] )
+		, PlacedPiece (12<*>hu <+> orig) (Pivot [ hu,hv,hw ] )
 	    ]) [
 		Connection (0, zero) (1,zero) (Spring hw 5)
 	    ] 
@@ -506,17 +504,51 @@ colorsToPairs cs =
                      return p
 
 
---test = CursesH.start >> drawBoard testBoard (PHS zero) >> CursesH.getKey (return ()) >> CursesH.end
-test = do
-    CursesH.start 
-    pairs <- colorsToPairs [ (f, CursesH.black) | f <-
-	[ CursesH.white, CursesH.red, CursesH.green, CursesH.yellow, CursesH.blue] ] 
-    showDynamics pairs cogState (PHS zero)
-    CursesH.end
-    where showDynamics pairs s v =
-	    do drawState pairs s v
-	       k <- CursesH.getKey Curses.refresh
-	       if k /= Curses.KeyChar 'q' then showDynamics pairs (physicsTick s nullMove) v
-					  else return ()
+data PlayState = PlayState {gameState::GameState, wrenchSelected::Bool }
+data DisplayState = DisplayState { dispCPairs::[Curses.Pair], dispCentre::HexPos }
+type DisplayM = StateT (DisplayState, PlayState) IO
 
-main = test
+--test = CursesH.start >> drawBoard testBoard (PHS zero) >> CursesH.getKey (return ()) >> CursesH.end
+test initState = do
+    CursesH.start 
+    cpairs <- colorsToPairs [ (f, CursesH.black) | f <-
+	[ CursesH.white, CursesH.red, CursesH.green, CursesH.yellow, CursesH.blue] ] 
+    runStateT playState ( DisplayState cpairs (PHS zero), PlayState initState False)
+    CursesH.end
+    where
+	playState = do 
+	    (ds@(DisplayState cpairs centre), ps@(PlayState st wsel)) <- get
+	    liftIO $ drawState ds st
+	    k <- liftIO $ CursesH.getKey Curses.refresh
+	    if k == Curses.KeyChar 'q'
+	       then return ()
+	       else let (wsel', pm) = moveOfKey wsel k
+			st' = case pm of
+			    Nothing -> st
+			    Just pm' -> physicsTick st pm'
+		    in put (ds, PlayState st' wsel') >> playState
+	moveOfKey wsel k =
+	    let push dir = if wsel then Just $ nullMove { wrenchPush = dir }
+				   else Just $ nullMove { hookPush = dir }
+		torque dir = if wsel then Nothing
+				  else Just $ nullMove { hookTorque = dir }
+		Curses.KeyChar ch = k
+	    in case ch of
+		    '*' -> (True, Nothing)
+		    'o' -> (False, Nothing)
+		    '@' -> (False, Nothing)
+		    '\t' -> (not wsel, Nothing)
+		    's' -> (wsel, push hu)
+		    'h' -> (wsel, push $ neg hu)
+		    'b' -> (wsel, push hw)
+		    'c' -> (wsel, push $ neg hw)
+		    'g' -> (wsel, push hv)
+		    'm' -> (wsel, push $ neg hv)
+		    'r' -> (wsel, torque 1)
+		    'l' -> (wsel, torque $ -1)
+		    ' ' -> (wsel, Just nullMove)
+		    '.' -> (wsel, Just nullMove)
+		    _ -> (wsel, Nothing)
+
+
+main = test cogState
