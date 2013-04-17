@@ -180,6 +180,8 @@ data Force = Push PieceIdx HexDir | Torque PieceIdx TorqueDir
     deriving (Eq, Ord, Show)
 forceIdx force = case force of (Push idx _) -> idx
 			       (Torque idx _) -> idx
+isPush force = case force of (Push _ _ ) -> True; _ -> False
+isTorque force = case force of (Torque _ _ ) -> True; _ -> False
 getForcedpp :: GameState -> Force -> PlacedPiece
 getForcedpp s f = getpp s (forceIdx f)
 
@@ -321,53 +323,54 @@ immediatelyBlocked' recursed st@(GameState pps conns) f@(Push idx dir) =
 	    c@(Connection _ _ (Spring sdir _)) <- springs
 	    , not $ dir `elem` [sdir, neg sdir] ]
 	isPivot = case piece of (Pivot _) -> True; _ -> False
-	pieceCollisions = [ idx' |
+	pieceCollisions = [ (idx',cpos) |
 	    (idx', pp') <- enumVec $ pps
 	    , idx /= idx'
-	    , entitiesIntersect (applyForceTo pp' f) pp' ]
+	    , cpos <- collideEntities (applyForceTo pp f) pp' ]
 	fixed = case piece of
 		     (Block _) -> or [null springs, not $ null blockingSprings]
-		     (Pivot _) -> True
+		     (Pivot _) -> isPush f
 		     (Wrench _) -> True
 		     (Hook _ _) -> True
 		     _ -> False
     in or [ fixed
-	    , and [not isPivot, not recursed, not $ null pieceCollisions
-		  , immediatelyBlocked' True st (Push (head pieceCollisions) dir) ] ]
+	    , and [not isPivot, not recursed
+		  , or [ immediatelyBlocked' True st $ transferredForce st idx' cpos dir | 
+			 (idx',cpos) <- pieceCollisions ] ] ]
 immediatelyBlocked' _ _ (Torque _ _) = False
 
 
+transferredForce :: GameState -> Source -> HexPos -> HexDir -> Force
+transferredForce st idx cpos dir =
+    let pp@(PlacedPiece pos piece) = getpp st idx
+	rpos = cpos <-> placedPos pp
+	armPush = case
+		(dir `hexDot` ((rotate 1 rpos) <-> rpos)) `compare`
+		(dir `hexDot` ((rotate (-1) rpos) <-> rpos)) of
+	    GT -> Torque idx 1
+	    LT -> Torque idx $ -1
+	    EQ -> Push idx dir
+    in
+	case piece of
+	    Pivot _ -> armPush
+	    Hook _ False -> armPush
+	    _ -> (Push idx dir)
 propagateForce :: GameState -> Force -> [Force]
 propagateForce st@(GameState plPieces conns) force = 
     bumps ++ springTransfers
     where
-	bumps = [ transferredForce idx' cpos dir |
+	bumps = [ transferredForce st idx' cpos dir |
 	    let pp = applyForceTo (getForcedpp st force) force
 	    , (idx',pp') <- enumVec plPieces
 	    , idx' /= forceIdx force
 	    , cpos <- collideEntities pp pp'
 	    , let dir = case force of
 		    Push _ dir -> dir
-		    Torque _ dir -> if immediatelyBlocked st (transferredForce idx' cpos push)
+		    Torque _ dir -> if immediatelyBlocked st (transferredForce st idx' cpos push)
 					 then claw else push
 			where push = arm <-> rotate (-dir) arm
 			      claw = rotate dir arm <-> arm
 			      arm = cpos <-> placedPos pp ]
-	transferredForce :: Source -> HexPos -> HexDir -> Force
-	transferredForce idx cpos dir =
-	    let pp@(PlacedPiece pos piece) = getpp st idx
-		rpos = cpos <-> placedPos pp
-		armPush = case
-			(dir `hexDot` ((rotate 1 rpos) <-> rpos)) `compare`
-			(dir `hexDot` ((rotate (-1) rpos) <-> rpos)) of
-		    GT -> Torque idx 1
-		    LT -> Torque idx $ -1
-		    EQ -> Push idx dir
-	    in
-		case piece of
-		    Pivot _ -> armPush
-		    Hook _ False -> armPush
-		    _ -> (Push idx dir)
 	springTransfers =
 	    case force of
 		 Push idx dir -> [ Push idx' dir |
