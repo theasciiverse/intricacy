@@ -40,14 +40,14 @@ data PlacedPiece = PlacedPiece { placedPos :: HexPos, placedPiece :: Piece }
 getpp :: GameState -> PieceIdx -> PlacedPiece
 getpp st idx = fromJust $ (placedPieces st) !? idx
 
-setPiece :: GameState -> PieceIdx -> Piece -> GameState
-setPiece st@(GameState pps _) idx p = 
+setPiece :: PieceIdx -> Piece -> GameState -> GameState
+setPiece idx p st@(GameState pps _) = 
     st { placedPieces = pps //
 	[(idx, PlacedPiece (placedPos $ getpp st idx) p)] }
 
 data Piece = Block { blockPattern :: [HexVec] }
 	    | Pivot { pivotArms :: [HexDir] }
-	    | Hook { hookArm :: HexDir }
+	    | Hook { hookArm :: HexDir, hookTorqueStiff :: Bool}
 	    | Wrench { wrenchMomentum :: HexDir }
 	    | Ball { ballMomentum :: HexDir }
     deriving (Eq, Ord, Show)
@@ -101,7 +101,7 @@ plPieceMap (PlacedPiece pos (Pivot arms)) =
     Map.fromList $ (pos, PivotTile) : 
 	[ (rel <+> pos, ArmTile rel main) |
 	    (rel,main) <- zip arms (True:repeat False)]
-plPieceMap (PlacedPiece pos (Hook arm)) =
+plPieceMap (PlacedPiece pos (Hook arm _)) =
     Map.fromList $ (pos, HookTile) : [ (arm <+> pos, ArmTile arm True) ]
 plPieceMap (PlacedPiece pos (Wrench mom)) = Map.singleton pos $ WrenchTile (mom /= zero)
 plPieceMap (PlacedPiece pos (Ball mom)) = Map.singleton pos $ BallTile (mom /= zero)
@@ -195,9 +195,9 @@ toolForces st (PlayerMove hp ht wp) = Vector.fromList $
 	(widx, PlacedPiece _ (Wrench mom)) <- epps
 	, let dir = if mom == zero then wp else mom ] ++
     ( if hp == zero then [] else
-	[ Push hidx hp | (hidx, PlacedPiece _ (Hook _)) <- epps ] ) ++
+	[ Push hidx hp | (hidx, PlacedPiece _ (Hook _ _)) <- epps ] ) ++
     ( if ht == 0 then [] else
-	[ Torque hidx ht | (hidx, PlacedPiece _ (Hook _)) <- epps ] )
+	[ Torque hidx ht | (hidx, PlacedPiece _ (Hook _ _)) <- epps ] )
     where epps = enumVec $ placedPieces st
 
 envForces :: GameState -> ([PieceIdx], Forces)
@@ -217,18 +217,23 @@ envForces st@(GameState plPieces conns) =
 	    , let stoppedBall = if not $ null propagated then Just ballIdx else Nothing
 	    ]
 
-physicsTick :: GameState -> PlayerMove -> GameState
-physicsTick st move =
-    let st' = resolveForces st (toolForces st move) True
+setTorqueStiffness :: PlayerMove -> GameState -> GameState
+setTorqueStiffness move st =
+    foldr (\(idx,hook) -> setPiece idx $ Hook (hookArm hook) (hookTorque move == 0))
+	st [ (idx,hook) | (idx,PlacedPiece _ hook@(Hook _ _)) <- enumVec $ placedPieces st ]
+
+physicsTick :: PlayerMove -> GameState -> GameState
+physicsTick move st =
+    let st' = resolveForces (toolForces st move) True $ setTorqueStiffness move st
 	(stoppedBalls, forces) = envForces st'
-	stopBall st'' idx = setPiece st'' idx (Ball zero)
+	stopBall st'' idx = setPiece idx (Ball zero) st'' 
 	stopBalls st'' = foldl stopBall st'' stoppedBalls
-	in stopBalls $ resolveForces st' forces False
+	in stopBalls $ resolveForces forces False st'
 
 type Source = Int
 type SourcedForce = (Source,Force)
-resolveForces :: GameState -> Forces -> Bool -> GameState
-resolveForces st forces isPlayer =
+resolveForces :: Forces -> Bool -> GameState -> GameState
+resolveForces forces isPlayer st =
     let
 	resolveForce :: SourcedForce -> State ([SourcedForce], [Source]) ()
 	resolveForce sforce = do
@@ -240,17 +245,17 @@ resolveForces st forces isPlayer =
 	sforces = enumVec forces
 	(sforces', blocked) = (sequence_ (map resolveForce sforces)) `execState` ([],[])
 	-- stop wrenches which are blocked
-	stopWrench st' idx = setPiece st' idx (Wrench zero)
-	stopWrenches st' = foldl stopWrench st' [
+	stopWrench idx = setPiece idx (Wrench zero)
+	stopWrenches st' = foldr stopWrench st' [
 	    forceIdx $ forces!s | s <- blocked
 	    , (Wrench _) <- [placedPiece $ getForcedpp st' $ forces!s] ]
 	unblocked = nub [ force | (s,force) <- sforces', not $ s `elem` blocked ]
-	applyForces st' = foldl applyForce st' unblocked
+	applyForces st' = foldr applyForce st' unblocked
     in --prettyTrace (st, sforces, sforces', blocked, unblocked) $
 	stopWrenches $ applyForces st
     
-applyForce :: GameState -> Force -> GameState
-applyForce s f =
+applyForce :: Force -> GameState -> GameState
+applyForce f s =
     let idx = forceIdx f
 	pp' = applyForceTo (getpp s idx) f
 	pp'' = case (placedPiece pp',f) of
@@ -265,8 +270,8 @@ applyForceTo (PlacedPiece pos piece) (Push _ dir) =
     PlacedPiece (dir <+> pos) piece
 applyForceTo (PlacedPiece pos (Pivot arms)) (Torque _ dir) =
     PlacedPiece pos (Pivot $ map (rotate dir) arms)
-applyForceTo (PlacedPiece pos (Hook arm)) (Torque _ dir) =
-    PlacedPiece pos (Hook $ rotate dir arm)
+applyForceTo (PlacedPiece pos (Hook arm tstiff)) (Torque _ dir) =
+    PlacedPiece pos (Hook (rotate dir arm) tstiff)
 
 checkBlocks :: GameState -> [SourcedForce] -> SourcedForce -> Bool -> [Source]
 checkBlocks st@(GameState plPieces conns) sforces sforce@(source, force) isPlayer =
@@ -290,7 +295,7 @@ checkBlocks st@(GameState plPieces conns) sforces sforce@(source, force) isPlaye
 	fixed = case piece of
 		     (Pivot _) -> case force of {(Push _ _) -> True; _ -> False}
 		     (Wrench _) -> not isPlayer
-		     (Hook _) -> not isPlayer
+		     (Hook _ _) -> not isPlayer
 		     (Block _) -> null springs
 		     _ -> False
         mismatches = [ s | (s,force') <- sforces, idx == forceIdx force', force /= force' ]
@@ -324,7 +329,7 @@ immediatelyBlocked' recursed st@(GameState pps conns) f@(Push idx dir) =
 		     (Block _) -> or [null springs, not $ null blockingSprings]
 		     (Pivot _) -> True
 		     (Wrench _) -> True
-		     (Hook _) -> True
+		     (Hook _ _) -> True
 		     _ -> False
     in or [ fixed
 	    , and [not isPivot, not recursed, not $ null pieceCollisions
@@ -332,9 +337,6 @@ immediatelyBlocked' recursed st@(GameState pps conns) f@(Push idx dir) =
 immediatelyBlocked' _ _ (Torque _ _) = False
 
 
--- FIXME: torques on hooks getting generated, blocking pushes with which
--- they're really consistent... maybe should be treating centre and arm of
--- the hook as separate pieces?
 propagateForce :: GameState -> Force -> [Force]
 propagateForce st@(GameState plPieces conns) force = 
     bumps ++ springTransfers
@@ -364,7 +366,7 @@ propagateForce st@(GameState plPieces conns) force =
 	    in
 		case piece of
 		    Pivot _ -> armPush
-		    Hook _ -> armPush
+		    Hook _ False -> armPush
 		    _ -> (Push idx dir)
 	springTransfers =
 	    case force of
@@ -439,7 +441,7 @@ drawState (DisplayState cpairs centre) st =
 	    (idx,pp@(PlacedPiece pos p)) <- enumVec $ placedPieces st
 	    , case p of (Ball _) -> False
 			(Wrench _) -> False
-			(Hook _) -> False
+			(Hook _ _) -> False
 			(Pivot _) -> True
 			(Block _) -> not $ null $ springsAtIdx st idx ]
     in do
@@ -476,7 +478,7 @@ cogState = GameState (Vector.fromList [
 		, PlacedPiece ((6<*>hu) <+> (20<*>hw) <+> orig) (Ball $ zero)
 		, PlacedPiece ((7<*>hu) <+> (17<*>hw) <+> orig) (Ball $ zero)
 		, PlacedPiece ((3<*>hu) <+> (10<*>hw) <+> orig) (Wrench $ hw)
-		, PlacedPiece ((3<*>hu) <+> orig) (Hook $ hv)
+		, PlacedPiece ((3<*>hu) <+> orig) (Hook hv False)
 		, PlacedPiece (7<*>hu <+> orig) (Pivot [ hu,hv,hw ] )
 		, PlacedPiece (10<*>hu <+> orig) (Pivot [ hu,hv,hw ] )
 		, PlacedPiece (12<*>hu <+> orig) (Pivot [ hu,hv,hw ] )
@@ -525,7 +527,7 @@ test initState = do
 	       else let (wsel', pm) = moveOfKey wsel k
 			st' = case pm of
 			    Nothing -> st
-			    Just pm' -> physicsTick st pm'
+			    Just pm' -> physicsTick pm' st
 		    in put (ds, PlayState st' wsel') >> playState
 	moveOfKey wsel k =
 	    let push dir = if wsel then Just $ nullMove { wrenchPush = dir }
