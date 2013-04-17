@@ -99,6 +99,8 @@ class Monoid g => Grp g where
     zero :: g
     zero = mempty
 
+infixl 6 <+>
+infixl 6 <->
 class Action a b where
     (<+>) :: a -> b -> b
 instance Monoid m => Action m m where
@@ -117,6 +119,7 @@ instance Grp g => Action g (PHS g) where
 instance Grp g => Differable (PHS g) (PHS g) g where
     (PHS x) <-> (PHS y) = x <-> y
     
+infixl 7 <*>
 class MultAction a b where
     (<*>) :: a -> b -> b
     

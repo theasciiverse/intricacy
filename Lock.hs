@@ -98,9 +98,11 @@ plPieceMap :: PlacedPiece -> Map HexPos Tile
 plPieceMap (PlacedPiece pos (Block pattern)) =
     Map.fromList [ (rel <+> pos, BlockTile) | rel <- pattern ]
 plPieceMap (PlacedPiece pos (Pivot arms)) =
-    Map.fromList $ (pos, PivotTile) : 
+    let overarmed = length arms > 2 in
+    Map.fromList $ (pos, if overarmed then ArmTile (head arms) True else PivotTile) : 
 	[ (rel <+> pos, ArmTile rel main) |
-	    (rel,main) <- zip arms (True:repeat False)]
+	    (rel,main) <- zip arms $ repeat False -- overarmed:$repeat False
+	    ]
 plPieceMap (PlacedPiece pos (Hook arm _)) =
     Map.fromList $ (pos, HookTile) : [ (arm <+> pos, ArmTile arm True) ]
 plPieceMap (PlacedPiece pos (Wrench mom)) = Map.singleton pos $ WrenchTile (mom /= zero)
@@ -232,6 +234,7 @@ physicsTick move st =
 	stopBalls st'' = foldl stopBall st'' stoppedBalls
 	in stopBalls $ resolveForces forces False st'
 
+-- TODO: display blocked sources (by flashing a '!' in an appropriate cell)
 type Source = Int
 type SourcedForce = (Source,Force)
 resolveForces :: Forces -> Bool -> GameState -> GameState
@@ -473,11 +476,15 @@ wrenchState = GameState (Vector.fromList [
 	    ]) [
 		Connection (0, hu) (1,zero) (Spring hv 2)
 	    ] 
+
+frame n = PlacedPiece orig $ Block $ concat [
+	    map (rotate r) [ (s<*>hu) <+> (n<*>hw) | s <- [0..n-1] ] | r <- [0..5] ]
 cogState = GameState (Vector.fromList [
-		PlacedPiece orig (Block [ zero ])
+		frame 24
+		, PlacedPiece orig (Block [ zero ])
 		, PlacedPiece (10 <*> hw <+> orig) (Block $ concat $
 		    [ map (((2*n) <*> hw) <+>) [zero, hu, hw, hw<+>hw] | n <- [0..5] ])
-		, PlacedPiece (hu <+> hu <+> (14 <*> hw) <+> orig) (Pivot [ hu,hv,hw ] )
+		--, PlacedPiece (hu <+> hu <+> (14 <*> hw) <+> orig) (Pivot [ hu,hv,hw ] )
 		, PlacedPiece ((6<*>hu) <+> (20<*>hw) <+> orig) (Ball $ zero)
 		, PlacedPiece ((7<*>hu) <+> (17<*>hw) <+> orig) (Ball $ zero)
 		, PlacedPiece ((3<*>hu) <+> (10<*>hw) <+> orig) (Wrench $ hw)
@@ -485,8 +492,10 @@ cogState = GameState (Vector.fromList [
 		, PlacedPiece (7<*>hu <+> orig) (Pivot [ hu,hv,hw ] )
 		, PlacedPiece (10<*>hu <+> orig) (Pivot [ hu,hv,hw ] )
 		, PlacedPiece (12<*>hu <+> orig) (Pivot [ hu,hv,hw ] )
+		, PlacedPiece (3<*>hw <+> 10<*>hu <+> orig) (Pivot [ hu,hv,hw ] )
+		, PlacedPiece (3<*>hw <+> neg hv <+> 11<*>hu <+> orig) (Pivot $ map neg [ hu,hv,hw ] )
 	    ]) [
-		Connection (0, zero) (1,zero) (Spring hw 5)
+		Connection (1, zero) (2,zero) (Spring hw 5)
 	    ] 
 
 -- From Curses.CursesHelper:
