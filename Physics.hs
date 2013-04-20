@@ -128,14 +128,14 @@ checkBlocks st@(GameState plPieces conns) sforces sforce@(source, force) isPlaye
 	pp' = applyForceTo pp force
         springs = springsAtIdx st idx
 	blockingSprings = [ c |
-		    c@(Connection _ (eidx, _) (Spring sdir natLen)) <- springs
-		    , idx == eidx
+		    c@(Connection (ridx,_) (eidx,_) (Spring sdir natLen)) <- conns
+		    , idx `elem` [ridx,eidx]
 		    , let curLen = connectionLength st c
 		    , (Push _ pdir) <- [force]
 		    , not (pdir `elem` [sdir, neg sdir]) || (
 			not isPlayer &&
-			    ( (curLen < natLen && pdir /= sdir) ||
-				(curLen > natLen && pdir /= neg sdir) ) ) ]
+			    ( (curLen <= natLen && pdir /= sdir) ||
+				(curLen >= natLen && pdir /= neg sdir) ) ) ]
 	linkCollisions = [ c | c <- conns
 	    , (fst . connectionEnd) c /= idx
 	    , (fst . connectionRoot) c /= idx

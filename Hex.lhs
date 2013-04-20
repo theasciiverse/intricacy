@@ -28,7 +28,7 @@ Some hopefully elucidatory diagrams:
 {-# LANGUAGE FunctionalDependencies, MultiParamTypeClasses, FlexibleInstances, FlexibleContexts #-}
 module Hex where
 
-import Ix
+import Data.Ix
 import Data.Monoid
    
 data HexVec = HexVec {hx,hy,hz :: Int} deriving (Eq, Ord, Show)
@@ -79,7 +79,7 @@ instance Ix HexVec where
 type HexDir = HexVec
 isHexDir v = hexLen v == 1
 
-hexDirs = [hu,hv,hw,neg hu,neg hv,neg hw]
+hexDirs = map (\n -> rotate n hu) [0..5]
 
 --minusHu = HexVec    (-1) 1    0
 --minusHv = HexVec    0    (-1) 1
@@ -88,6 +88,8 @@ hexDirs = [hu,hv,hw,neg hu,neg hv,neg hw]
 canonDir :: HexDir -> HexDir
 canonDir dir | dir `elem` [ hu, hv, hw ] = dir
 	     | isHexDir dir = canonDir $ neg dir
+	     | dir == zero = zero
+	     | otherwise = undefined
 \end{code}
      
 Some general stuff on groups and actions and principal homogeneous spaces. We
@@ -111,7 +113,7 @@ class Differable a b c where
 instance Grp g => Differable g g g where
     x <-> y = x <+> (neg y)
 
-newtype Grp g => PHS g = PHS { getPHS :: g }
+newtype PHS g = PHS { getPHS :: g }
     deriving (Eq, Ord, Show)
 
 instance Grp g => Action g (PHS g) where

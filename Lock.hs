@@ -3,9 +3,11 @@ module Main where
 import qualified Data.Vector as Vector
 import Control.Monad.State
 import Data.List ((\\))
+import qualified Data.Vector as Vector
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Control.Monad.Writer
+import Data.Maybe
 
 import Hex
 import CursesDisplay
@@ -82,15 +84,26 @@ baseState = let side = 11 in
 	]
 
 data Command = CmdDir HexDir | CmdRotate TorqueDir | CmdWait
-	| CmdFlipFocus | CmdWrench | CmdHook
+	| CmdFlipFocus
+	| CmdTile Tile
+	| CmdSelect
 	| CmdQuit
+    deriving (Eq, Ord, Show)
 	
 type KeyBindings = Map Char Command
 dvorakBindings :: KeyBindings
 dvorakBindings = Map.fromList [
-	('*', CmdWrench)
-	, ('o', CmdHook)
-	, ('@', CmdHook)
+	('o', CmdTile $ PivotTile zero)
+	, ('O', CmdTile $ BallTile False)
+	, ('-', CmdTile $ ArmTile hu False)
+	, ('\\', CmdTile $ ArmTile hv False)
+	, ('/', CmdTile $ ArmTile hw False)
+	, ('S', CmdTile $ SpringTile Relaxed)
+	, ('s', CmdTile $ SpringTile Stretched)
+	, ('$', CmdTile $ SpringTile Compressed)
+	, ('#', CmdTile BlockTile)
+	, ('*', CmdTile $ WrenchTile False)
+	, ('@', CmdTile HookTile)
 	, ('\t', CmdFlipFocus)
 	, ('s', CmdDir hu)
 	, ('h', CmdDir $ neg hu)
@@ -100,23 +113,27 @@ dvorakBindings = Map.fromList [
 	, ('m', CmdDir $ neg hv)
 	, ('r', CmdRotate 1)
 	, ('l', CmdRotate $ -1)
-	, (' ', CmdWait)
+	, (' ', CmdSelect)
 	, ('.', CmdWait)
 	, ('q', CmdQuit)
+	, ('\r', CmdSelect)
+	, ('\n', CmdSelect)
 	]
 
 
 --test = CursesH.start >> drawBoard testBoard (PHS zero) >> CursesH.getKey (return ()) >> CursesH.end
+test :: KeyBindings -> GameState -> DisplayM ()
 test bindings initState = do
-    ds <- initDisplay
-    runStateT playState (ds, PlayState initState False)
+    initDisplay
+    EditState st _ _ <- execStateT editState $ EditState initState Nothing (PHS zero)
+    runStateT playState $ PlayState st False
     endDisplay
     where
-	playState :: StateT (DisplayState, PlayState) IO ()
+	playState :: StateT PlayState DisplayM ()
 	playState = do 
-	    (ds@(DisplayState cpairs centre), ps@(PlayState st wsel)) <- get
-	    liftIO $ drawPlayState ds ps
-	    k <- liftIO $ getKey
+	    ps@(PlayState st wsel) <- get
+	    lift $ drawPlayState ps
+	    k <- lift getKey
 	    case Map.lookup k bindings of
 		Nothing -> playState
 		Just CmdQuit -> return ()
@@ -127,28 +144,61 @@ test bindings initState = do
 			    else Just $ nullMove { hookTorque = dir }
 			(wsel', pm) =
 			    case cmd of
-				CmdWrench -> (True, Nothing)
-				CmdHook -> (False, Nothing)
+				CmdTile (WrenchTile _) -> (True, Nothing)
+				CmdTile HookTile -> (False, Nothing)
 				CmdFlipFocus -> (not wsel, Nothing)
 				CmdDir dir -> (wsel, push dir)
 				CmdRotate dir -> (wsel, torque dir)
 				CmdWait -> (wsel, Just nullMove)
+				CmdSelect -> (wsel, Just nullMove)
 				_ -> (wsel, Nothing)
-			(st', alerts) = case pm of
-			     Nothing -> (st,[])
-			     Just pm' -> runWriter $ physicsTick pm' st
-		    in liftIO (drawAlerts ds alerts) >> put (ds, PlayState st' wsel') >> playState
+		    in do
+			st' <- case pm of
+			     Nothing -> return st
+			     Just pm' -> lift $ doPhysicsTick pm' st
+			put (PlayState st' wsel') >> playState
 
-	editState :: StateT (DisplayState, EditState) IO ()
+	editState :: StateT EditState DisplayM ()
 	editState = do 
-	    (ds@(DisplayState cpairs centre), es@(EditState st psel)) <- get
-	    liftIO $ drawEditState ds es
-	    k <- liftIO $ getKey
+	    es@(EditState st selPiece selPos) <- get
+	    lift $ drawEditState es
+	    k <- lift getKey
 	    case Map.lookup k bindings of
 		Nothing -> editState
 		Just CmdQuit -> return ()
-		Just cmd -> 
-		   put (ds, EditState st psel) >> editState
+		Just cmd ->
+		    let doForce force = 
+			    let (st',alerts) = runWriter $ resolveForces (Vector.singleton force) True st
+			    in lift (drawAlerts alerts) >> put es {esGameState = st'} >> editState
+		    in case cmd of
+		        CmdSelect ->
+			    let selPiece' =
+				    if isJust selPiece
+					then Nothing
+					else liftM fst $ Map.lookup selPos $ stateBoard st
+			    in put es {selectedPiece = selPiece'} >> editState
+			CmdDir dir -> 
+			    case selPiece of
+				Nothing -> put es {selectedPos = dir <+> selPos} >> editState
+				Just p -> doForce $ Push p dir
+			CmdRotate dir ->
+			    case selPiece of
+				Nothing -> editState
+				Just p -> doForce $ Torque p dir
+			CmdTile tile ->
+			    let st' = modTile (Just tile) selPos st
+			    in put es {esGameState = st'} >> editState
+			CmdWait ->
+			    case selPiece of
+				Nothing -> put es {esGameState = modTile Nothing selPos st} >> editState
+				Just p -> do st' <- lift $ doPhysicsTick nullMove st
+					     put es {esGameState = st'} >> editState
+			_ -> editState
+	doPhysicsTick :: PlayerMove -> GameState -> DisplayM GameState
+	doPhysicsTick pm st =
+	    let (st',alerts) = runWriter $ physicsTick pm st in
+	    drawAlerts alerts >> return st'
 
 
-main = test dvorakBindings baseState
+
+main = test dvorakBindings baseState `runStateT` nullDisplayState

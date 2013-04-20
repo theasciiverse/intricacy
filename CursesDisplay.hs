@@ -1,5 +1,5 @@
 module CursesDisplay ( drawState, drawPlayState, drawEditState, drawAlerts
-    , DisplayState(DisplayState), initDisplay, endDisplay, getKey ) where
+    , DisplayState(DisplayState), DisplayM, nullDisplayState, initDisplay, endDisplay, getKey ) where
 
 import qualified UI.HSCurses.Curses as Curses
 import qualified UI.HSCurses.CursesHelper as CursesH
@@ -7,7 +7,9 @@ import Data.Char (ord)
 import Data.Monoid
 import qualified Data.Map as Map
 import Data.Map (Map)
+import Data.Maybe
 import Control.Concurrent (threadDelay)
+import Control.Monad.State
 
 import Hex
 import GameState
@@ -19,7 +21,10 @@ tileChar :: Tile -> AttrChar
 a0 = Curses.attr0
 bold = Curses.setBold a0 True
 tileChar BlockTile = ('#',a0)
-tileChar PivotTile = ('o',bold)
+tileChar (PivotTile dir) | dir == zero = ('o',a0)
+    | canonDir dir == hu = ('-',a0)
+    | canonDir dir == hv = ('\\',a0)
+    | canonDir dir == hw = ('/',a0)
 tileChar (ArmTile dir principal) = let
     cdir = canonDir dir
     c | cdir == hu = '-'
@@ -35,12 +40,12 @@ tileChar (SpringTile Compressed) = ('$',bold)
 tileChar (SpringTile Stretched) = ('s',bold)
 
 ownedTileGlyph :: PieceColouring -> [PieceIdx] -> OwnedTile -> Glyph
-ownedTileGlyph colouring selected (owner,t) =
+ownedTileGlyph colouring reversed (owner,t) =
     let (ch,attr) = tileChar t
 	pair = case Map.lookup owner colouring of
 		    Nothing -> 0
 		    Just n -> n+1
-	reverse = owner `elem` selected
+	reverse = owner `elem` reversed
     in Glyph ch pair (Curses.setReverse attr reverse)
 
 data CVec = CVec { cy, cx :: Int }
@@ -62,46 +67,81 @@ mvAddCh (CVec y x) c = Curses.mvAddCh y x $ fromIntegral $ ord c
 mvAddGlyph :: [Curses.Pair] -> CVec -> Glyph -> IO ()
 mvAddGlyph cpairs v (Glyph ch col attr) =
     Curses.attrSet attr (cpairs!!col) >> mvAddCh v ch
+move :: CVec -> IO ()
+move (CVec y x) = Curses.move y x
 
-data DisplayState = DisplayState { dispCPairs::[Curses.Pair], dispCentre::HexPos }
+data DisplayState = DisplayState { dispCPairs::[Curses.Pair], dispCentre::HexPos, dispLastCol::PieceColouring }
+type DisplayM = StateT DisplayState IO
+nullDisplayState = DisplayState [] (PHS zero) Map.empty
+
+
+erase :: DisplayM ()
+erase = liftIO Curses.erase
+refresh :: DisplayM ()
+refresh = liftIO Curses.refresh
+
+drawAt :: Glyph -> HexPos -> DisplayM ()
+drawAt gl pos = do
+	scrCentre <- getScrCentre
+	cpairs <- gets dispCPairs
+	centre <- gets dispCentre
+	let cpos = scrCentre <+> (hexVec2CVec $ pos <-> centre)
+	liftIO $ mvAddGlyph cpairs cpos gl
+
+drawCursorAt :: Maybe HexPos -> DisplayM ()
+drawCursorAt Nothing =
+    liftIO $ Curses.cursSet Curses.CursorInvisible >> return ()
+drawCursorAt (Just pos) = do 
+    scrCentre <- getScrCentre
+    centre <- gets dispCentre
+    liftIO $ Curses.cursSet Curses.CursorVisible
+    liftIO $ move $ scrCentre <+> (hexVec2CVec $ pos <-> centre)
+    refresh
+
+getScrCentre :: DisplayM CVec
+getScrCentre = do 
+    (h,w) <- liftIO Curses.scrSize
+    return $ CVec (h`div`2) (w`div`2)
 
 -- TODO: monochrome mode (putting numbers in adjacent squares in place of
 -- colours?)
-drawState :: DisplayState -> [PieceIdx] -> GameState -> IO ()
-drawState (DisplayState cpairs centre) selected st =
+drawState :: [PieceIdx] -> Bool -> GameState -> DisplayM ()
+drawState reversed colourFixed st =
     let board = stateBoard st
-	colouring = boardColouring board $ colouredPieces st
     in do
-	(h,w) <- Curses.scrSize
-	let scrCentre = CVec (h`div`2) (w`div`2)
-	Curses.erase
-	sequence_ [ mvAddGlyph cpairs cpos glyph | 
-	    (pos,glyph) <- Map.toList $ Map.map (ownedTileGlyph colouring selected) board
-	    , let cpos = scrCentre <+> (hexVec2CVec $ pos <-> centre)
+	DisplayState cpairs centre lastCol <- get
+	let colouring = boardColouring board (colouredPieces colourFixed st) lastCol
+	modify $ \ds -> ds { dispLastCol = colouring }
+	erase
+	sequence_ [ drawAt glyph pos | 
+	    (pos,glyph) <- Map.toList $ Map.map (ownedTileGlyph colouring reversed) board
 	    ]
-	Curses.refresh
+	refresh
 
-drawPlayState :: DisplayState -> PlayState -> IO ()
-drawPlayState ds (PlayState st wsel) =
-    let selected = [ idx |
-	    (idx, PlacedPiece _ p) <- enumVec $ placedPieces st
+drawPlayState :: PlayState -> DisplayM ()
+drawPlayState (PlayState st wsel) =
+    do
+	ds@(DisplayState _ centre _) <- get
+	drawState [] False st
+	drawCursorAt $ listToMaybe [ pos |
+	    (_, PlacedPiece pos p) <- enumVec $ placedPieces st
 	    , or [wsel && isWrench p, not wsel && isHook p] ]
-    in drawState ds selected st
 
-drawEditState :: DisplayState -> EditState -> IO ()
-drawEditState ds (EditState st psel) = return ()
+drawEditState :: EditState -> DisplayM ()
+drawEditState (EditState st selPiece selPos) =
+    do
+	ds@(DisplayState _ centre _) <- get
+	drawState (maybeToList selPiece) True st
+	drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
 
-drawAlerts :: DisplayState -> [Alert] -> IO ()
-drawAlerts (DisplayState cpairs centre) = mapM_ drawAlert
+drawAlerts :: [Alert] -> DisplayM ()
+drawAlerts = mapM_ drawAlert
     where
 	drawAlert (AlertCollision pos) =
 	    do  
-		(h,w) <- Curses.scrSize
-		let scrCentre = CVec (h`div`2) (w`div`2)
-		let cpos = scrCentre <+> (hexVec2CVec $ pos <-> centre)
-		mvAddGlyph cpairs cpos cGlyph
-		Curses.refresh
-		threadDelay $ 1*10^5
+		drawAt cGlyph pos
+		refresh
+		liftIO $ threadDelay $ 1*10^5
 	cGlyph = Glyph '!' 0 a0
 
 -- From Curses.CursesHelper:
@@ -123,13 +163,16 @@ colorsToPairs cs =
                in do Curses.initPair p fg bg
                      return p
 
+initDisplay :: DisplayM ()
 initDisplay = 
-    do CursesH.start 
-       cpairs <- colorsToPairs [ (f, CursesH.black) | f <-
+    do liftIO $ CursesH.start 
+       cpairs <- liftIO $ colorsToPairs [ (f, CursesH.black) | f <-
 	    [ CursesH.white, CursesH.red, CursesH.green, CursesH.yellow, CursesH.blue] ] 
-       return $ DisplayState cpairs (PHS zero)
+       put $ DisplayState cpairs (PHS zero) Map.empty
 
-endDisplay = CursesH.end
+endDisplay :: DisplayM ()
+endDisplay = liftIO CursesH.end
 
-getKey = do Curses.KeyChar ch <- CursesH.getKey Curses.refresh
+getKey :: DisplayM Char
+getKey = do Curses.KeyChar ch <- liftIO $ CursesH.getKey Curses.refresh
 	    return ch
