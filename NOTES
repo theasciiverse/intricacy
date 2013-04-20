@@ -257,6 +257,8 @@ Problem:
 
 	Quite intuitive, and shouldn't be hard to implement.
 
+	DONE
+
 
 Architecture:
     Board state consists of:
@@ -343,3 +345,28 @@ Problem: if the complexity of a lock is bounded by cost, we should expect
 cheap locks, however ingenious, to be consistently beatable by experienced
 players. Solution: make sure this isn't true! Also: make the wager you stand
 to lose if you fail to pick a lock be based on your own wealth?
+
+After further thought, I am favouring equality in locks. You pay for the
+coffer; locks are free. But locks are severely limited in size (say,
+sufficiently that they can be displayed on an 80x24 terminal...), so it will
+take some cunning to make a difficult lock.
+
+You can design locks whenever you want, and maintain a library of designed
+locks linked to your account. You start with a coffer, and new ones cost some
+certain number of picks (10?). You can store as many picks as you like in a
+coffer, but you might be wise to spread the risk.
+
+It is intended that each human has just one account. To ensure this, new
+players are required to undergo initiation before they can start picking
+others' locks.  This is essentially a tutorial, getting you to pick some
+predesigned locks. Furthermore, fresh initiates may not try high-level player
+locks.
+
+If a player runs out of silver picks: if sey has spare coffers, one is sold
+back to the guild; else, sey is gifted valueless iron picks to try seir luck
+with, say 5 per day (doled out all at once). You must use silver picks if you
+have any. You start the game with 5 iron and 5 silver.
+
+There are also valueless practice locks you can test your skills on without
+wagering a pick - these should include a "hall of fame" of the locks which
+withstood the most pick attempts before being picked.

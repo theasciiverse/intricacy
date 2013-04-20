@@ -1,4 +1,5 @@
-module CursesDisplay ( drawState, DisplayState(DisplayState), initDisplay, endDisplay, getKey ) where
+module CursesDisplay ( drawState, drawPlayState, drawEditState, drawAlerts
+    , DisplayState(DisplayState), initDisplay, endDisplay, getKey ) where
 
 import qualified UI.HSCurses.Curses as Curses
 import qualified UI.HSCurses.CursesHelper as CursesH
@@ -6,6 +7,7 @@ import Data.Char (ord)
 import Data.Monoid
 import qualified Data.Map as Map
 import Data.Map (Map)
+import Control.Concurrent (threadDelay)
 
 import Hex
 import GameState
@@ -32,13 +34,14 @@ tileChar (SpringTile Relaxed) = ('S',a0)
 tileChar (SpringTile Compressed) = ('$',bold)
 tileChar (SpringTile Stretched) = ('s',bold)
 
-ownedTileGlyph :: PieceColouring -> OwnedTile -> Glyph
-ownedTileGlyph colouring (owner,t) =
+ownedTileGlyph :: PieceColouring -> [PieceIdx] -> OwnedTile -> Glyph
+ownedTileGlyph colouring selected (owner,t) =
     let (ch,attr) = tileChar t
 	pair = case Map.lookup owner colouring of
 		    Nothing -> 0
 		    Just n -> n+1
-    in Glyph ch pair attr
+	reverse = owner `elem` selected
+    in Glyph ch pair (Curses.setReverse attr reverse)
 
 data CVec = CVec { cy, cx :: Int }
     deriving (Eq, Ord, Show)
@@ -62,26 +65,44 @@ mvAddGlyph cpairs v (Glyph ch col attr) =
 
 data DisplayState = DisplayState { dispCPairs::[Curses.Pair], dispCentre::HexPos }
 
-drawState :: DisplayState -> GameState -> IO ()
-drawState (DisplayState cpairs centre) st =
+-- TODO: monochrome mode (putting numbers in adjacent squares in place of
+-- colours?)
+drawState :: DisplayState -> [PieceIdx] -> GameState -> IO ()
+drawState (DisplayState cpairs centre) selected st =
     let board = stateBoard st
-	colouring = boardColouring board coloured
-	coloured = [ idx |
-	    (idx,pp@(PlacedPiece pos p)) <- enumVec $ placedPieces st
-	    , case p of (Ball _) -> False
-			(Wrench _) -> False
-			(Hook _ _) -> False
-			(Pivot _) -> True
-			(Block _) -> not $ null $ springsAtIdx st idx ]
+	colouring = boardColouring board $ colouredPieces st
     in do
 	(h,w) <- Curses.scrSize
 	let scrCentre = CVec (h`div`2) (w`div`2)
 	Curses.erase
-	sequence_ [ mvAddGlyph cpairs cc glyph | 
-	    (pos,glyph) <- Map.toList $ Map.map (ownedTileGlyph colouring) board
-	    , cc <- [ scrCentre <+> (hexVec2CVec (pos <-> centre)) ]
+	sequence_ [ mvAddGlyph cpairs cpos glyph | 
+	    (pos,glyph) <- Map.toList $ Map.map (ownedTileGlyph colouring selected) board
+	    , let cpos = scrCentre <+> (hexVec2CVec $ pos <-> centre)
 	    ]
 	Curses.refresh
+
+drawPlayState :: DisplayState -> PlayState -> IO ()
+drawPlayState ds (PlayState st wsel) =
+    let selected = [ idx |
+	    (idx, PlacedPiece _ p) <- enumVec $ placedPieces st
+	    , or [wsel && isWrench p, not wsel && isHook p] ]
+    in drawState ds selected st
+
+drawEditState :: DisplayState -> EditState -> IO ()
+drawEditState ds (EditState st psel) = return ()
+
+drawAlerts :: DisplayState -> [Alert] -> IO ()
+drawAlerts (DisplayState cpairs centre) = mapM_ drawAlert
+    where
+	drawAlert (AlertCollision pos) =
+	    do  
+		(h,w) <- Curses.scrSize
+		let scrCentre = CVec (h`div`2) (w`div`2)
+		let cpos = scrCentre <+> (hexVec2CVec $ pos <-> centre)
+		mvAddGlyph cpairs cpos cGlyph
+		Curses.refresh
+		threadDelay $ 1*10^5
+	cGlyph = Glyph '!' 0 a0
 
 -- From Curses.CursesHelper:
 -- | Converts a list of 'Curses.Color' pairs (foreground color and

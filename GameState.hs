@@ -17,6 +17,11 @@ data GameState = GameState { placedPieces :: Vector PlacedPiece,
 	connections :: [Connection] }
     deriving (Eq, Ord, Show)
 
+data PlayState = PlayState {psGameState::GameState, wrenchSelected::Bool }
+    deriving (Eq, Ord, Show)
+data EditState = EditState {esGameState::GameState, pieceSelected::PieceIdx }
+    deriving (Eq, Ord, Show)
+
 data PlacedPiece = PlacedPiece { placedPos :: HexPos, placedPiece :: Piece }
     deriving (Eq, Ord, Show)
 
@@ -37,6 +42,12 @@ data Piece = Block { blockPattern :: [HexVec] }
 	    | Wrench { wrenchMomentum :: HexDir }
 	    | Ball { ballMomentum :: HexDir }
     deriving (Eq, Ord, Show)
+isBlock p = case p of Block _ -> True; _ -> False
+isPivot p = case p of Pivot _ -> True; _ -> False
+isHook p = case p of Hook _ _ -> True; _ -> False
+isPlayerPiece p = isPivot p || isHook p
+isWrench p = case p of Wrench _ -> True; _ -> False
+isBall p = case p of Ball _ -> True; _ -> False
 
 type PieceIdx = Int
 
@@ -72,6 +83,8 @@ data Tile = BlockTile | PivotTile | ArmTile HexDir Bool | HookTile | WrenchTile 
 type OwnedTile = (PieceIdx, Tile)
 type GameBoard = Map HexPos OwnedTile
 
+data Alert = AlertCollision HexPos
+
 stateBoard :: GameState -> GameBoard
 stateBoard st@(GameState plPieces conns) =
     (Map.unions $ map plPieceBoard $ enumVec plPieces) `Map.union`
@@ -98,11 +111,11 @@ plPieceFootprint :: PlacedPiece -> [HexPos]
 plPieceFootprint = Map.keys . plPieceMap
 
 -- TODO: use bounding boxes to optimise collision detection?
-collideEntities :: PlacedPiece -> PlacedPiece -> [HexPos]
-collideEntities pp pp' =
+collidePieces :: PlacedPiece -> PlacedPiece -> [HexPos]
+collidePieces pp pp' =
     intersect (plPieceFootprint pp) (plPieceFootprint pp')
-entitiesIntersect :: PlacedPiece -> PlacedPiece -> Bool
-entitiesIntersect pp pp' = not $ null $ collideEntities pp pp'
+piecesIntersect :: PlacedPiece -> PlacedPiece -> Bool
+piecesIntersect pp pp' = not $ null $ collidePieces pp pp'
 
 connectionBoard :: GameState -> Connection -> GameBoard
 connectionBoard st (Connection root end@(eidx,_) (Spring dir natLen)) =
@@ -127,6 +140,11 @@ pieceIntersectsConnection s pp c =
 
 type PieceColouring = Map PieceIdx Int
 type Graph a = (Set a, Set (Set a))
+
+colouredPieces :: GameState -> [PieceIdx]
+colouredPieces st = [ idx |
+    (idx, PlacedPiece _ p) <- enumVec $ placedPieces st
+    , isPivot p || and [ isBlock p, not $ null $ springsAtIdx st idx ] ]
 
 -- TODO: try previous colouring first, and pref aim to make minimal changes
 -- to it if it's no longer valid

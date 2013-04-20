@@ -6,6 +6,7 @@ import qualified Data.Vector as Vector
 import Data.List (intersect, union, (\\), elemIndices, nub)
 import Data.Maybe
 import Control.Monad.State
+import Control.Monad.Writer
 import Data.Vector (Vector, (!), (!?), (//))
 
 import Hex
@@ -22,6 +23,9 @@ forceIdx force = case force of (Push idx _) -> idx
 			       (Torque idx _) -> idx
 isPush force = case force of (Push _ _ ) -> True; _ -> False
 isTorque force = case force of (Torque _ _ ) -> True; _ -> False
+forceIsNull force = case force of
+    Push _ dir -> dir == zero
+    Torque _ dir -> dir == 0
 getForcedpp :: GameState -> Force -> PlacedPiece
 getForcedpp s f = getpp s (forceIdx f)
 
@@ -35,11 +39,12 @@ toolForces :: GameState -> PlayerMove -> Forces
 toolForces st (PlayerMove hp ht wp) = Vector.fromList $
     [ Push widx dir |
 	(widx, PlacedPiece _ (Wrench mom)) <- epps
-	, let dir = if mom == zero then wp else mom ] ++
-    ( if hp == zero then [] else
-	[ Push hidx hp | (hidx, PlacedPiece _ (Hook _ _)) <- epps ] ) ++
-    ( if ht == 0 then [] else
-	[ Torque hidx ht | (hidx, PlacedPiece _ (Hook _ _)) <- epps ] )
+	, let dir = if mom == zero then wp else mom ]
+    -- ++ ( if hp == zero then [] else
+	-- [ Push hidx hp | (hidx, PlacedPiece _ (Hook _ _)) <- epps ] )
+    ++ ( if ht == 0
+	     then [ Push hidx hp | (hidx, PlacedPiece _ (Hook _ _)) <- epps ]
+	     else [ Torque hidx ht | (hidx, PlacedPiece _ (Hook _ _)) <- epps ] )
     where epps = enumVec $ placedPieces st
 
 envForces :: GameState -> ([PieceIdx], Forces)
@@ -64,38 +69,38 @@ setTorqueStiffness move st =
     foldr (\(idx,hook) -> setPiece idx $ Hook (hookArm hook) (hookTorque move == 0))
 	st [ (idx,hook) | (idx,PlacedPiece _ hook@(Hook _ _)) <- enumVec $ placedPieces st ]
 
-physicsTick :: PlayerMove -> GameState -> GameState
+physicsTick :: PlayerMove -> GameState -> Writer [Alert] GameState
 physicsTick move st =
-    let st' = resolveForces (toolForces st move) True $ setTorqueStiffness move st
-	(stoppedBalls, forces) = envForces st'
-	stopBall st'' idx = setPiece idx (Ball zero) st'' 
-	stopBalls st'' = foldl stopBall st'' stoppedBalls
-	in stopBalls $ resolveForces forces False st'
+    do
+	st <- resolveForces (toolForces st move) True $ setTorqueStiffness move st
+	let (stoppedBalls, forces) = envForces st
+	st <- resolveForces forces False st
+	let stopBall st'' idx = setPiece idx (Ball zero) st'' 
+	let stopBalls st'' = foldl stopBall st'' stoppedBalls
+	return $ stopBalls st
 
--- TODO: display blocked sources (by flashing a '!' in an appropriate cell)
 type Source = Int
 type SourcedForce = (Source,Force)
-resolveForces :: Forces -> Bool -> GameState -> GameState
+resolveForces :: Forces -> Bool -> GameState -> Writer [Alert] GameState
 resolveForces forces isPlayer st =
     let
-	resolveForce :: SourcedForce -> State ([SourcedForce], [Source]) ()
+	resolveForce :: SourcedForce -> StateT ([SourcedForce], [Source]) (Writer [Alert]) ()
 	resolveForce sforce = do
 	    (sforces,blockedsources) <- get
-	    let blocks = checkBlocks st sforces sforce isPlayer
+	    blocks <- lift $ checkBlocks st sforces sforce isPlayer
 	    let propagated = [ (fst sforce, f) | f <- propagateForce st (snd sforce) ] \\ sforces
 	    put (propagated ++ (sforce:sforces), blocks ++ blockedsources)
 	    sequence_ $ map resolveForce propagated
 	sforces = enumVec forces
-	(sforces', blocked) = (sequence_ (map resolveForce sforces)) `execState` ([],[])
 	-- stop wrenches which are blocked
 	stopWrench idx = setPiece idx (Wrench zero)
-	stopWrenches st' = foldr stopWrench st' [
+	stopWrenches blocked st' = foldr stopWrench st' [
 	    forceIdx $ forces!s | s <- blocked
 	    , (Wrench _) <- [placedPiece $ getForcedpp st' $ forces!s] ]
-	unblocked = nub [ force | (s,force) <- sforces', not $ s `elem` blocked ]
-	applyForces st' = foldr applyForce st' unblocked
-    in --prettyTrace (st, sforces, sforces', blocked, unblocked) $
-	stopWrenches $ applyForces st
+    in do --prettyTrace (st, sforces, sforces', blocked, unblocked) $
+	(sforces', blocked) <- (sequence_ (map resolveForce sforces)) `execStateT` ([],[])
+	let unblocked = nub [ force | (s,force) <- sforces', not $ s `elem` blocked ]
+	return $ stopWrenches blocked $ foldr applyForce st unblocked
     
 applyForce :: Force -> GameState -> GameState
 applyForce f s =
@@ -116,7 +121,7 @@ applyForceTo (PlacedPiece pos (Pivot arms)) (Torque _ dir) =
 applyForceTo (PlacedPiece pos (Hook arm tstiff)) (Torque _ dir) =
     PlacedPiece pos (Hook (rotate dir arm) tstiff)
 
-checkBlocks :: GameState -> [SourcedForce] -> SourcedForce -> Bool -> [Source]
+checkBlocks :: GameState -> [SourcedForce] -> SourcedForce -> Bool -> Writer [Alert] [Source]
 checkBlocks st@(GameState plPieces conns) sforces sforce@(source, force) isPlayer =
     let idx = forceIdx force
 	pp@(PlacedPiece pos piece) = (getpp st idx)
@@ -142,18 +147,24 @@ checkBlocks st@(GameState plPieces conns) sforces sforce@(source, force) isPlaye
 		     (Block _) -> null springs
 		     _ -> False
         mismatches = [ s | (s,force') <- sforces, idx == forceIdx force', force /= force' ]
-	pieceCollisions = [ s |
+	(pieceCollisions, collisionPoints) = unzip [ (s,pos) |
 	    (s,force') <- sforces
 	    , let idx' = forceIdx force'
 	    , idx /= idx'
-	    , entitiesIntersect pp'
-		(applyForceTo (getpp st idx') force')]
-	blocks = mismatches ++ pieceCollisions
-	blocked = or [not $ null blocks
+	    , not $ forceIsNull force'
+	    , pos <- collidePieces pp'
+		(applyForceTo (getpp st idx') force') ]
+	blocks = mismatches ++ nub pieceCollisions
+	simplyBlocked = or [fixed
+	    , not $ null mismatches
 	    , not $ null blockingSprings
-	    , not $ null linkCollisions
-	    , fixed]
-    in if blocked then source:blocks else blocks
+	    , not $ null linkCollisions ]
+	blocked = simplyBlocked || (not $ null pieceCollisions)
+    in do
+	if (not $ null pieceCollisions) && (not simplyBlocked)
+	    then tell $ map AlertCollision collisionPoints
+	    else return ()
+	return $ if blocked then source:blocks else blocks
 
 immediatelyBlocked :: GameState -> Force -> Bool
 immediatelyBlocked = immediatelyBlocked' False
@@ -163,11 +174,10 @@ immediatelyBlocked' recursed st@(GameState pps conns) f@(Push idx dir) =
         blockingSprings = [ c |
 	    c@(Connection _ _ (Spring sdir _)) <- springs
 	    , not $ dir `elem` [sdir, neg sdir] ]
-	isPivot = case piece of (Pivot _) -> True; _ -> False
 	pieceCollisions = [ (idx',cpos) |
 	    (idx', pp') <- enumVec $ pps
 	    , idx /= idx'
-	    , cpos <- collideEntities (applyForceTo pp f) pp' ]
+	    , cpos <- collidePieces (applyForceTo pp f) pp' ]
 	fixed = case piece of
 		     (Block _) -> or [null springs, not $ null blockingSprings]
 		     (Pivot _) -> isPush f
@@ -175,7 +185,7 @@ immediatelyBlocked' recursed st@(GameState pps conns) f@(Push idx dir) =
 		     (Hook _ _) -> True
 		     _ -> False
     in or [ fixed
-	    , and [not isPivot, not recursed
+	    , and [not $ isPivot piece, not recursed
 		  , or [ immediatelyBlocked' True st $ transferredForce st idx' cpos dir | 
 			 (idx',cpos) <- pieceCollisions ] ] ]
 immediatelyBlocked' _ _ (Torque _ _) = False
@@ -191,8 +201,7 @@ transferredForce st idx cpos dir =
 	    GT -> Torque idx 1
 	    LT -> Torque idx $ -1
 	    EQ -> Push idx dir
-    in
-	case piece of
+    in case piece of
 	    Pivot _ -> armPush
 	    Hook _ False -> armPush
 	    _ -> (Push idx dir)
@@ -204,7 +213,7 @@ propagateForce st@(GameState plPieces conns) force =
 	    let pp = applyForceTo (getForcedpp st force) force
 	    , (idx',pp') <- enumVec plPieces
 	    , idx' /= forceIdx force
-	    , cpos <- collideEntities pp pp'
+	    , cpos <- collidePieces pp pp'
 	    , let dir = case force of
 		    Push _ dir -> dir
 		    Torque _ dir -> if immediatelyBlocked st (transferredForce st idx' cpos push)
