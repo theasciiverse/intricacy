@@ -85,11 +85,15 @@ resolveForces :: Forces -> Bool -> GameState -> Writer [Alert] GameState
 resolveForces forces isPlayer st =
     let
 	resolveForce :: SourcedForce -> StateT ([SourcedForce], [Source]) (Writer [Alert]) ()
-	resolveForce sforce = do
+	resolveForce sforce@(s,f) = do
 	    (sforces,blockedsources) <- get
-	    blocks <- lift $ checkBlocks st sforces sforce isPlayer
-	    let propagated = [ (fst sforce, f) | f <- propagateForce st (snd sforce) ] \\ sforces
-	    put (propagated ++ (sforce:sforces), blocks ++ blockedsources)
+	    blockInfo <- lift $ checkBlocks st sforces sforce isPlayer
+	    let (propagated, moving, blocks) = case blockInfo of
+		    Unmoving -> ([], False, [s])  -- nip
+		    Moving blocks ->
+			let propagated = [ (s, f') | f' <- propagateForce st f ] \\ sforces
+			in (propagated, True, blocks)
+	    put (if moving then sforce:sforces else sforces, blocks ++ blockedsources)
 	    sequence_ $ map resolveForce propagated
 	sforces = enumVec forces
 	-- stop wrenches which are blocked
@@ -121,7 +125,8 @@ applyForceTo (PlacedPiece pos (Pivot arms)) (Torque _ dir) =
 applyForceTo (PlacedPiece pos (Hook arm tstiff)) (Torque _ dir) =
     PlacedPiece pos (Hook (rotate dir arm) tstiff)
 
-checkBlocks :: GameState -> [SourcedForce] -> SourcedForce -> Bool -> Writer [Alert] [Source]
+data BlocksReturn = Unmoving | Moving [Source]
+checkBlocks :: GameState -> [SourcedForce] -> SourcedForce -> Bool -> Writer [Alert] BlocksReturn
 checkBlocks st@(GameState plPieces conns) sforces sforce@(source, force) isPlayer =
     let idx = forceIdx force
 	pp@(PlacedPiece pos piece) = (getpp st idx)
@@ -155,16 +160,16 @@ checkBlocks st@(GameState plPieces conns) sforces sforce@(source, force) isPlaye
 	    , pos <- collidePieces pp'
 		(applyForceTo (getpp st idx') force') ]
 	blocks = mismatches ++ nub pieceCollisions
-	simplyBlocked = or [fixed
-	    , not $ null mismatches
+	selfBlocked = or [fixed
 	    , not $ null blockingSprings
 	    , not $ null linkCollisions ]
-	blocked = simplyBlocked || (not $ null pieceCollisions)
     in do
-	if (not $ null pieceCollisions) && (not simplyBlocked)
-	    then tell $ map AlertCollision collisionPoints
-	    else return ()
-	return $ if blocked then source:blocks else blocks
+	if selfBlocked
+	    then return $ Unmoving
+	    else if null blocks
+		then return $ Moving []
+		else do -- tell $ map AlertCollision collisionPoints
+			return $ Moving $ source:blocks
 
 immediatelyBlocked :: GameState -> Force -> Bool
 immediatelyBlocked = immediatelyBlocked' False
