@@ -87,7 +87,7 @@ data Command = CmdDir HexDir | CmdRotate TorqueDir | CmdWait
 	| CmdFlipFocus
 	| CmdTile Tile
 	| CmdSelect
-	| CmdQuit
+	| CmdQuit | CmdWriteState
     deriving (Eq, Ord, Show)
 	
 type KeyBindings = Map Char Command
@@ -116,6 +116,7 @@ dvorakBindings = Map.fromList [
 	, (' ', CmdSelect)
 	, ('.', CmdWait)
 	, ('q', CmdQuit)
+	, ('W', CmdWriteState)
 	, ('\r', CmdSelect)
 	, ('\n', CmdSelect)
 	]
@@ -193,6 +194,7 @@ test bindings initState = do
 				Nothing -> put es {esGameState = modTile Nothing selPos st} >> editState
 				Just p -> do st' <- lift $ doPhysicsTick nullMove st
 					     put es {esGameState = st'} >> editState
+			CmdWriteState -> (liftIO $ writeFile "state" $ show st) >> editState
 			_ -> editState
 	doPhysicsTick :: PlayerMove -> GameState -> DisplayM GameState
 	doPhysicsTick pm st =
