@@ -173,28 +173,20 @@ checkBlocks st@(GameState plPieces conns) sforces sforce@(source, force) isPlaye
 			return $ Moving $ source:blocks
 
 immediatelyBlocked :: GameState -> Force -> Bool
-immediatelyBlocked = immediatelyBlocked' False
-immediatelyBlocked' recursed st@(GameState pps conns) f@(Push idx dir) =
+immediatelyBlocked st@(GameState pps conns) f@(Push idx dir) =
     let pp@(PlacedPiece pos piece) = getpp st idx
 	springs = springsEndAtIdx st idx
         blockingSprings = [ c |
-	    c@(Connection _ _ (Spring sdir _)) <- springs
+	    c@(Connection _ _ (Spring sdir _)) <- springsAtIdx st idx
 	    , not $ dir `elem` [sdir, neg sdir] ]
-	pieceCollisions = [ (idx',cpos) |
-	    (idx', pp') <- enumVec $ pps
-	    , idx /= idx'
-	    , cpos <- collidePieces (applyForceTo pp f) pp' ]
 	fixed = case piece of
 		     (Block _) -> or [null springs, not $ null blockingSprings]
 		     (Pivot _) -> isPush f
 		     (Wrench _) -> True
 		     (Hook _ _) -> True
 		     _ -> False
-    in or [ fixed
-	    , and [not $ isPivot piece, not recursed
-		  , or [ immediatelyBlocked' True st $ transferredForce st idx' cpos dir | 
-			 (idx',cpos) <- pieceCollisions ] ] ]
-immediatelyBlocked' _ _ (Torque _ _) = False
+    in fixed
+immediatelyBlocked _ (Torque _ _) = False
 
 
 transferredForce :: GameState -> Source -> HexPos -> HexDir -> Force
