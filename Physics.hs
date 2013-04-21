@@ -139,7 +139,7 @@ checkBlocks st@(GameState plPieces conns) sforces sforce@(source, force) isPlaye
 		    , let curLen = connectionLength st c
 		    , (Push _ pdir) <- [force]
 		    , not (pdir `elem` [sdir, neg sdir]) || (
-			not isPlayer &&
+			idx == eidx && not isPlayer &&
 			    ( (curLen <= natLen && pdir /= sdir) ||
 				(curLen >= natLen && pdir /= neg sdir) ) ) ]
 	linkCollisions = [ c | c <- conns
@@ -159,7 +159,7 @@ checkBlocks st@(GameState plPieces conns) sforces sforce@(source, force) isPlaye
 	    , idx /= idx'
 	    , not $ forceIsNull force'
 	    , let st' = applyForce force $ applyForce force' st
-	    , pos <- intersect (fullFootprint st' idx) (fullFootprint st' idx') ]
+	    , pos <- collisions st' idx idx' ]
 	blocks = mismatches ++ nub pieceCollisions
 	selfBlocked = or [fixed
 	    , not $ null blockingSprings
@@ -238,6 +238,6 @@ propagateForce st@(GameState plPieces conns) force =
 			, let idx' = if root then eidx else ridx
 			, let pull = (root && dir == neg sdir) || (end && dir == sdir)
 			, let push = (root && dir == sdir) || (end && dir == neg sdir)
-			, (push && curLen <= natLen`div`2) || 
+			, (push && curLen <= (natLen+1)`div`2) || 
 			    (pull && curLen >= natLen*2) ]
 		 _ -> []

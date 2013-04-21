@@ -87,6 +87,7 @@ data Command = CmdDir HexDir | CmdRotate TorqueDir | CmdWait
 	| CmdFlipFocus
 	| CmdTile Tile
 	| CmdSelect
+	| CmdEdit | CmdPlay
 	| CmdQuit | CmdWriteState
     deriving (Eq, Ord, Show)
 	
@@ -116,6 +117,8 @@ dvorakBindings = Map.fromList [
 	, (' ', CmdSelect)
 	, ('.', CmdWait)
 	, ('q', CmdQuit)
+	, ('e', CmdEdit)
+	, ('p', CmdPlay)
 	, ('W', CmdWriteState)
 	, ('\r', CmdSelect)
 	, ('\n', CmdSelect)
@@ -127,7 +130,6 @@ test :: KeyBindings -> GameState -> DisplayM ()
 test bindings initState = do
     initDisplay
     EditState st _ _ <- execStateT editState $ EditState initState Nothing (PHS zero)
-    runStateT playState $ PlayState st False
     endDisplay
     where
 	playState :: StateT PlayState DisplayM ()
@@ -138,6 +140,8 @@ test bindings initState = do
 	    case Map.lookup k bindings of
 		Nothing -> playState
 		Just CmdQuit -> return ()
+		Just CmdEdit -> do lift $ runStateT editState $ EditState st Nothing (PHS zero)
+				   return ()
 		Just cmd -> 
 		    let push dir = if wsel then Just $ nullMove { wrenchPush = dir }
 			    else Just $ nullMove { hookPush = dir }
@@ -167,6 +171,8 @@ test bindings initState = do
 	    case Map.lookup k bindings of
 		Nothing -> editState
 		Just CmdQuit -> return ()
+		Just CmdPlay -> do lift $ runStateT playState $ PlayState st False
+				   return ()
 		Just cmd ->
 		    let doForce force = 
 			    let (st',alerts) = runWriter $ resolveForces (Vector.singleton force) True st
@@ -200,7 +206,6 @@ test bindings initState = do
 	doPhysicsTick pm st =
 	    let (st',alerts) = runWriter $ physicsTick pm st in
 	    drawAlerts alerts >> return st'
-
 
 
 main = test dvorakBindings baseState `runStateT` nullDisplayState

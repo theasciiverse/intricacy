@@ -11,6 +11,7 @@ import Data.List
 import Data.Vector (Vector, (!), (!?), (//))
 
 import Hex
+import Debug
 
 type HexPos = PHS HexVec
 
@@ -28,7 +29,7 @@ data PlacedPiece = PlacedPiece { placedPos :: HexPos, placedPiece :: Piece }
     deriving (Eq, Ord, Show)
 
 getpp :: GameState -> PieceIdx -> PlacedPiece
-getpp st idx = fromJust $ (placedPieces st) !? idx
+getpp st idx = (placedPieces st) ! idx
 
 addpp :: PlacedPiece -> GameState -> GameState
 addpp pp st@(GameState pps _) = st {placedPieces = Vector.snoc pps pp}
@@ -46,19 +47,18 @@ addPivotArm p pos st =
     let PlacedPiece ppos (Pivot arms) = getpp st p
     in setPiece p (Pivot (pos <-> ppos:arms)) st
 
-delPiecePos :: PieceIdx -> HexPos -> GameState -> GameState
+delPiecePos :: PieceIdx -> HexPos -> GameState -> (GameState, Maybe PieceIdx)
 delPiecePos idx pos st =
     let PlacedPiece ppos p = getpp st idx
 	rpos = pos <-> ppos
-    in (case p of
+    in case p of
 	   Block patt -> if patt == [rpos]
-	       then delPiece idx
-	       else setPiece idx $ Block $ patt \\ [rpos]
+	       then (delPiece idx st, Nothing)
+	       else ((setPiece idx $ Block $ patt \\ [rpos]) st, Just idx)
 	   Pivot arms -> if rpos == zero
-	       then delPiece idx
-	       else setPiece idx $ Pivot $ arms \\ [rpos]
-	   _ -> delPiece idx
-       ) st
+	       then (delPiece idx st, Nothing)
+	       else ((setPiece idx $ Pivot $ arms \\ [rpos]) st, Just idx)
+	   _ -> (delPiece idx st, Nothing)
 
 delConnectionAt :: HexPos -> GameState -> GameState
 delConnectionAt pos st =
@@ -68,9 +68,13 @@ delConnectionAt pos st =
 
 delPiece :: PieceIdx -> GameState -> GameState
 delPiece idx st@(GameState pps conns) =
-    GameState (Vector.ifilter (\idx' -> \_ -> idx' /= idx) pps)
-	(filter (\(Connection (ridx,_) (eidx,_) _) ->
-	    ridx /= idx && eidx /= idx) conns)
+    GameState (Vector.concat [Vector.take idx pps, Vector.drop (idx+1) pps])
+	[ Connection (ridx',rv) (eidx',ev) link |
+	    Connection (ridx,rv) (eidx,ev) link <- conns
+	    , ridx /= idx
+	    , eidx /= idx
+	    , let ridx' = if ridx > idx then ridx-1 else ridx
+	    , let eidx' = if eidx > idx then eidx-1 else eidx ]
 
 enumVec :: Vector a -> [(Int,a)]
 enumVec = Vector.toList . Vector.indexed
@@ -162,6 +166,17 @@ fullFootprint :: GameState -> PieceIdx -> [HexPos]
 fullFootprint st idx = plPieceFootprint (getpp st idx) ++
     (concat $ map (connectionFootPrint st) $ springsAtIdx st idx)
 
+collisions :: GameState -> PieceIdx -> PieceIdx -> [HexPos]
+-- ^intersections of two pieces and their connections, disregarding
+-- the connections which connect the two pieces
+collisions st idx idx' =
+    intersect (fullFootprint st idx) (fullFootprint st idx') \\
+	(concat $ map (connectionFootPrint st)
+	    $ filter (\conn ->
+		Set.fromList [fst $ connectionRoot conn, fst $ connectionEnd conn] ==
+		    Set.fromList [idx,idx'])
+	    $ connections st)
+
 -- TODO: use bounding boxes to optimise collision detection?
 collidePieces :: PlacedPiece -> PlacedPiece -> [HexPos]
 collidePieces pp pp' =
@@ -228,7 +243,7 @@ fourColour :: Ord a => Graph a -> Map a Int -> Map a Int
 fourColour (nodes,edges) last =
     -- Just bruteforce it. TODO: implement Wernicke's five-colouring
     -- trick - see https://en.wikipedia.org/wiki/Five_color_theorem 
-    if Map.size last == Set.size nodes && isColouring last
+    if Map.keysSet last == nodes && isColouring last
 	then last
 	else head $ filter isColouring colourings
     where 
@@ -246,22 +261,24 @@ modTile :: Maybe Tile -> HexPos -> GameState -> GameState
 modTile tile pos st =
     let board = stateBoard st
 	curOwnedTile = Map.lookup pos board
-	st' = case curOwnedTile of
-	    Nothing -> st
-	    Just (owner,SpringTile _) -> delConnectionAt pos st
-	    Just (owner,_) -> delPiecePos owner pos st
+	(st',mowner) = case curOwnedTile of
+	    Nothing -> (st,Nothing)
+	    Just (owner,SpringTile _) -> (delConnectionAt pos st, Just owner)
+	    Just (owner,_) -> delPiecePos owner pos st -- XXX may invidate board's indices to st
+	board' = stateBoard st'
 	addPiece p = addpp $ PlacedPiece pos p
     in (case tile of
 	   Nothing -> id
 	   Just BlockTile ->
 	       let adjacentBlocks = [ idx |
 		       dir <- hexDirs
-		       , Just (idx, BlockTile) <- [Map.lookup (dir <+> pos) board] ]
-		   adjacentBlocks' = case curOwnedTile of
-			Just (owner,BlockTile) -> case elemIndex owner adjacentBlocks of
-				Nothing -> adjacentBlocks
-				Just i -> dropWhile (== owner) $ drop i adjacentBlocks
-			_ -> adjacentBlocks
+		       , Just (idx, BlockTile) <- [Map.lookup (dir <+> pos) board'] ]
+		   adjacentBlocks' = 
+			fromMaybe adjacentBlocks $ do
+			    (_,BlockTile) <- curOwnedTile
+			    owner <- mowner
+			    i <- elemIndex owner adjacentBlocks
+			    return $ dropWhile (== owner) $ drop i adjacentBlocks
 	       in case adjacentBlocks' of
 		      [] -> addPiece $ Block [zero]
 		      b:bs -> addBlockPos b pos
@@ -269,10 +286,12 @@ modTile tile pos st =
 	       let adjacentPivots = [ idx |
 		       dir <- [armdir, neg armdir]
 		       , Just (idx, PivotTile _) <- [Map.lookup (dir <+> pos) board] ]
-		   adjacentPivots' = case curOwnedTile of
-			Just (owner,ArmTile armdir' _) | armdir' `elem` [armdir, neg armdir] ->
-			    dropWhile (== owner) adjacentPivots
-			_ -> adjacentPivots
+		   adjacentPivots' = 
+			fromMaybe adjacentPivots $ do
+			    (_,ArmTile armdir' _) <- curOwnedTile
+			    guard $ armdir' `elem` [armdir, neg armdir] 
+			    owner <- mowner
+			    return $ dropWhile (== owner) adjacentPivots
 	       in case adjacentPivots' of
 		      [] -> id
 		      p:_ -> addPivotArm p pos
@@ -280,18 +299,18 @@ modTile tile pos st =
 	       let possibleSprings = [ Connection root end $ Spring sdir natLen |
 		       sdir <- hexDirs
 		       , let epos = sdir <+> pos
-		       , Just (eidx, BlockTile) <- [Map.lookup epos board]
-		       , (ridx, rpos) <- maybeToList $ castRay (neg sdir <+> pos) (neg sdir) board
-		       , Block _ <- [ placedPiece $ getpp st ridx]
+		       , Just (eidx, BlockTile) <- [Map.lookup epos board']
+		       , (ridx, rpos) <- maybeToList $ castRay (neg sdir <+> pos) (neg sdir) board'
+		       , Just (_, BlockTile) <- [Map.lookup rpos board']
 		       , let natLen = hexLen (rpos <-> epos) - 1
 		       , natLen > 1
 		       , let end = (eidx, epos <-> (placedPos $ getpp st eidx))
 		       , let root = (ridx, rpos <-> (placedPos $ getpp st ridx))
 		       ]
-		   possibleSprings' =
-			case findIndex (`elem` connections st) possibleSprings of
-			    Nothing -> possibleSprings
-			    Just i -> drop i possibleSprings
+		   possibleSprings' = fromMaybe possibleSprings $ do
+		       (_,SpringTile _) <- curOwnedTile -- XXX: therefore the indices of st are still valid
+		       i <- findIndex (`elem` connections st) possibleSprings
+		       return $ drop (i+1) possibleSprings
 	       in case possibleSprings' of
 		      [] -> id
 		      conn:_ -> addConn conn
@@ -299,7 +318,7 @@ modTile tile pos st =
 	   Just (WrenchTile _) -> addPiece $ Wrench zero
 	   Just HookTile -> let arm = listToMaybe [ dir | 
 				    dir <- hexDirs
-				    , Map.lookup (dir <+> pos) board == Nothing ]
+				    , Map.lookup (dir <+> pos) board' == Nothing ]
 			    in case arm of Just armdir -> addPiece $ Hook armdir False
 					   _ -> id
 	   Just (BallTile _) -> addPiece $ Ball zero
