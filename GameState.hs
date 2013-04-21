@@ -114,6 +114,10 @@ data Link = Free { freePos :: HexVec }
     deriving (Eq, Ord, Show)
 
 springsAtIdx st idx =
+    [ c | c@(Connection (ridx,_) (eidx, _) (Spring _ _)) <- connections st
+	  , idx `elem` [ridx,eidx] ]
+
+springsEndAtIdx st idx =
     [ c | c@(Connection _ (eidx, _) (Spring _ _)) <- connections st
 	  , eidx==idx ]
 
@@ -153,6 +157,10 @@ plPieceMap (PlacedPiece pos (Ball mom)) = Map.singleton pos $ BallTile (mom /= z
 
 plPieceFootprint :: PlacedPiece -> [HexPos]
 plPieceFootprint = Map.keys . plPieceMap
+
+fullFootprint :: GameState -> PieceIdx -> [HexPos]
+fullFootprint st idx = plPieceFootprint (getpp st idx) ++
+    (concat $ map (connectionFootPrint st) $ springsAtIdx st idx)
 
 -- TODO: use bounding boxes to optimise collision detection?
 collidePieces :: PlacedPiece -> PlacedPiece -> [HexPos]
@@ -199,7 +207,7 @@ colouredPieces colourFixed st = [ idx |
     (idx, PlacedPiece _ p) <- enumVec $ placedPieces st
     , isPivot p ||
 	and [ isBlock p, idx > 0
-	      , or [ colourFixed, not $ null $ springsAtIdx st idx ] ] ]
+	      , or [ colourFixed, not $ null $ springsEndAtIdx st idx ] ] ]
 
 -- TODO: try previous colouring first, and pref aim to make minimal changes
 -- to it if it's no longer valid

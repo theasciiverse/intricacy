@@ -124,6 +124,7 @@ applyForceTo (PlacedPiece pos (Pivot arms)) (Torque _ dir) =
     PlacedPiece pos (Pivot $ map (rotate dir) arms)
 applyForceTo (PlacedPiece pos (Hook arm tstiff)) (Torque _ dir) =
     PlacedPiece pos (Hook (rotate dir arm) tstiff)
+applyForceTo pp _ = pp
 
 data BlocksReturn = Unmoving | Moving [Source]
 checkBlocks :: GameState -> [SourcedForce] -> SourcedForce -> Bool -> Writer [Alert] BlocksReturn
@@ -131,7 +132,7 @@ checkBlocks st@(GameState plPieces conns) sforces sforce@(source, force) isPlaye
     let idx = forceIdx force
 	pp@(PlacedPiece pos piece) = (getpp st idx)
 	pp' = applyForceTo pp force
-        springs = springsAtIdx st idx
+        springs = springsEndAtIdx st idx
 	blockingSprings = [ c |
 		    c@(Connection (ridx,_) (eidx,_) (Spring sdir natLen)) <- conns
 		    , idx `elem` [ridx,eidx]
@@ -157,8 +158,8 @@ checkBlocks st@(GameState plPieces conns) sforces sforce@(source, force) isPlaye
 	    , let idx' = forceIdx force'
 	    , idx /= idx'
 	    , not $ forceIsNull force'
-	    , pos <- collidePieces pp'
-		(applyForceTo (getpp st idx') force') ]
+	    , let st' = applyForce force $ applyForce force' st
+	    , pos <- intersect (fullFootprint st' idx) (fullFootprint st' idx') ]
 	blocks = mismatches ++ nub pieceCollisions
 	selfBlocked = or [fixed
 	    , not $ null blockingSprings
@@ -175,7 +176,7 @@ immediatelyBlocked :: GameState -> Force -> Bool
 immediatelyBlocked = immediatelyBlocked' False
 immediatelyBlocked' recursed st@(GameState pps conns) f@(Push idx dir) =
     let pp@(PlacedPiece pos piece) = getpp st idx
-	springs = springsAtIdx st idx
+	springs = springsEndAtIdx st idx
         blockingSprings = [ c |
 	    c@(Connection _ _ (Spring sdir _)) <- springs
 	    , not $ dir `elem` [sdir, neg sdir] ]
