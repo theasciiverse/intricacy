@@ -285,7 +285,7 @@ modTile tile pos st =
 	   Just (ArmTile armdir _) -> 
 	       let adjacentPivots = [ idx |
 		       dir <- [armdir, neg armdir]
-		       , Just (idx, PivotTile _) <- [Map.lookup (dir <+> pos) board] ]
+		       , Just (idx, PivotTile _) <- [Map.lookup (dir <+> pos) board'] ]
 		   adjacentPivots' = 
 			fromMaybe adjacentPivots $ do
 			    (_,ArmTile armdir' _) <- curOwnedTile
