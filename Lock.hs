@@ -84,8 +84,8 @@ baseState = let side = 11 in
 	]
 
 data Command = CmdDir HexDir | CmdRotate TorqueDir | CmdWait
-	| CmdFlipFocus
-	| CmdTile Tile
+	| CmdToggle
+	| CmdTile Tile | CmdMerge
 	| CmdSelect
 	| CmdEdit | CmdPlay
 	| CmdQuit | CmdWriteState
@@ -103,9 +103,11 @@ dvorakBindings = Map.fromList [
 	, ('s', CmdTile $ SpringTile Stretched)
 	, ('$', CmdTile $ SpringTile Compressed)
 	, ('#', CmdTile BlockTile)
+	, ('w', CmdTile BlockTile)
 	, ('*', CmdTile $ WrenchTile False)
+	, ('W', CmdTile $ WrenchTile False)
 	, ('@', CmdTile HookTile)
-	, ('\t', CmdFlipFocus)
+	, ('\t', CmdToggle)
 	, ('s', CmdDir hu)
 	, ('h', CmdDir $ neg hu)
 	, ('b', CmdDir hw)
@@ -116,6 +118,7 @@ dvorakBindings = Map.fromList [
 	, ('l', CmdRotate $ -1)
 	, (' ', CmdSelect)
 	, ('.', CmdWait)
+	, ('M', CmdMerge)
 	, ('q', CmdQuit)
 	, ('e', CmdEdit)
 	, ('p', CmdPlay)
@@ -151,7 +154,7 @@ test bindings initState = do
 			    case cmd of
 				CmdTile (WrenchTile _) -> (True, Nothing)
 				CmdTile HookTile -> (False, Nothing)
-				CmdFlipFocus -> (not wsel, Nothing)
+				CmdToggle -> (not wsel, Nothing)
 				CmdDir dir -> (wsel, push dir)
 				CmdRotate dir -> (wsel, torque dir)
 				CmdWait -> (wsel, Just nullMove)
@@ -195,6 +198,12 @@ test bindings initState = do
 			CmdTile tile ->
 			    let st' = modTile (Just tile) selPos st
 			    in put es {esGameState = st'} >> editState
+			CmdMerge -> lift getKey >>= \k ->
+			    case Map.lookup k bindings of
+				Just (CmdDir mergeDir) ->
+				    let st' = mergeTiles selPos mergeDir True st
+				    in put es {esGameState = st'} >> editState
+				_ -> editState
 			CmdWait ->
 			    case selPiece of
 				Nothing -> put es {esGameState = modTile Nothing selPos st} >> editState

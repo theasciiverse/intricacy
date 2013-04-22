@@ -7,6 +7,7 @@ import Data.Set (Set)
 import qualified Data.Vector as Vector
 import Data.Maybe
 import Control.Monad
+import Control.Monad.State
 import Data.List
 import Data.Vector (Vector, (!), (!?), (//))
 
@@ -50,20 +51,29 @@ addPivotArm p pos st =
 delPiecePos :: PieceIdx -> HexPos -> GameState -> (GameState, Maybe PieceIdx)
 delPiecePos idx pos st =
     let PlacedPiece ppos p = getpp st idx
-	rpos = pos <-> ppos
+	v = pos <-> ppos
+	st' = delConnectionsAt (idx,v) st
     in case p of
-	   Block patt -> if patt == [rpos]
-	       then (delPiece idx st, Nothing)
-	       else ((setPiece idx $ Block $ patt \\ [rpos]) st, Just idx)
-	   Pivot arms -> if rpos == zero
-	       then (delPiece idx st, Nothing)
-	       else ((setPiece idx $ Pivot $ arms \\ [rpos]) st, Just idx)
-	   _ -> (delPiece idx st, Nothing)
+	   Block patt ->
+	       let patt' = patt \\ [v]
+	       in if not $ validBlockPattern patt'
+		   then (delPiece idx st', Nothing)
+		   else ((setPiece idx $ Block patt') st', Just idx)
+	   Pivot arms -> if v == zero
+	       then (delPiece idx st', Nothing)
+	       else ((setPiece idx $ Pivot $ arms \\ [v]) st', Just idx)
+	   _ -> (delPiece idx st', Nothing)
 
-delConnectionAt :: HexPos -> GameState -> GameState
-delConnectionAt pos st =
+delConnectionsIn :: HexPos -> GameState -> GameState
+delConnectionsIn pos st =
     st {connections = filter
 	(\conn -> not $ pos `elem` (connectionFootPrint st conn))
+        $ connections st}
+
+delConnectionsAt :: Locus -> GameState -> GameState
+delConnectionsAt locus st =
+    st {connections = filter
+	(\conn -> not $ locus `elem` [connectionRoot conn, connectionEnd conn])
         $ connections st}
 
 delPiece :: PieceIdx -> GameState -> GameState
@@ -96,6 +106,24 @@ isHook p = case p of Hook _ _ -> True; _ -> False
 isPlayerPiece p = isPivot p || isHook p
 isWrench p = case p of Wrench _ -> True; _ -> False
 isBall p = case p of Ball _ -> True; _ -> False
+
+validBlockPattern :: [HexVec] -> Bool
+validBlockPattern [] = False
+validBlockPattern patt =
+    Set.null $ floodfill zero $ Set.fromList patt
+
+floodfill :: HexVec -> Set HexVec -> Set HexVec
+floodfill start patt = floodfill' start `execState` patt
+    where 
+	floodfill' :: HexVec -> State (Set HexVec) ()
+	floodfill' start = do
+	      patt <- get
+	      let patt' = Set.delete start patt
+	      if Set.size patt' == Set.size patt
+		  then return ()
+		  else do
+		      put patt'
+		      sequence_ [ floodfill' (dir<+>start) | dir <- hexDirs ]
 
 type PieceIdx = Int
 
@@ -263,16 +291,19 @@ modTile tile pos st =
 	curOwnedTile = Map.lookup pos board
 	(st',mowner) = case curOwnedTile of
 	    Nothing -> (st,Nothing)
-	    Just (owner,SpringTile _) -> (delConnectionAt pos st, Just owner)
+	    Just (owner,SpringTile _) -> (delConnectionsIn pos st, Just owner)
 	    Just (owner,_) -> delPiecePos owner pos st -- XXX may invidate board's indices to st
 	board' = stateBoard st'
 	addPiece p = addpp $ PlacedPiece pos p
-    in (case tile of
+    in case mowner of
+	 Just o | protectedPiece o -> st
+	 _ -> (case tile of
 	   Nothing -> id
 	   Just BlockTile ->
 	       let adjacentBlocks = [ idx |
 		       dir <- hexDirs
-		       , Just (idx, BlockTile) <- [Map.lookup (dir <+> pos) board'] ]
+		       , Just (idx, BlockTile) <- [Map.lookup (dir <+> pos) board']
+		       , not $ protectedPiece idx ]
 		   adjacentBlocks' = 
 			fromMaybe adjacentBlocks $ do
 			    (_,BlockTile) <- curOwnedTile
@@ -300,6 +331,7 @@ modTile tile pos st =
 		       sdir <- hexDirs
 		       , let epos = sdir <+> pos
 		       , Just (eidx, BlockTile) <- [Map.lookup epos board']
+		       , not $ protectedPiece eidx
 		       , (ridx, rpos) <- maybeToList $ castRay (neg sdir <+> pos) (neg sdir) board'
 		       , Just (_, BlockTile) <- [Map.lookup rpos board']
 		       , let natLen = hexLen (rpos <-> epos) - 1
@@ -322,4 +354,33 @@ modTile tile pos st =
 			    in case arm of Just armdir -> addPiece $ Hook armdir False
 					   _ -> id
 	   Just (BallTile _) -> addPiece $ Ball zero
-	) st'
+	   ) st'
+
+mergeTiles :: HexPos -> HexDir -> Bool -> GameState -> GameState
+mergeTiles pos dir mergePiece st = fromMaybe st $ do
+    let board = stateBoard st
+    (idx,tile) <- Map.lookup pos board
+    (idx',tile') <- Map.lookup (dir<+>pos) board
+    guard $ idx /= idx'
+    guard $ and $ map (not . protectedPiece) [idx,idx']
+    case tile of
+	BlockTile -> do
+	    BlockTile <- Just tile'
+	    let st' = if mergePiece
+			  then delPiece idx st
+			  else fst $ delPiecePos idx pos st
+	    (idx'',_) <- Map.lookup (dir<+>pos) $ stateBoard st'
+	    return $ if mergePiece
+			 then foldr (addBlockPos idx'') st'
+				$ plPieceFootprint $ getpp st idx
+			 else addBlockPos idx'' pos st'
+	ArmTile _ _  -> do
+	    PivotTile _ <- Just tile'
+	    let st' = fst $ delPiecePos idx pos st
+	    (idx'',_) <- Map.lookup (dir<+>pos) $ stateBoard st'
+	    return $ addPivotArm idx'' pos st'
+
+protectedPiece :: PieceIdx -> Bool
+protectedPiece = isFrame
+isFrame :: PieceIdx -> Bool
+isFrame = (==0)

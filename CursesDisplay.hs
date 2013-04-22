@@ -21,10 +21,10 @@ tileChar :: Tile -> AttrChar
 a0 = Curses.attr0
 bold = Curses.setBold a0 True
 tileChar BlockTile = ('#',a0)
-tileChar (PivotTile dir) | dir == zero = ('o',a0)
-    | canonDir dir == hu = ('-',a0)
-    | canonDir dir == hv = ('\\',a0)
-    | canonDir dir == hw = ('/',a0)
+tileChar (PivotTile dir) | dir == zero = ('o',bold)
+    | canonDir dir == hu = ('-',bold)
+    | canonDir dir == hv = ('\\',bold)
+    | canonDir dir == hw = ('/',bold)
 tileChar (ArmTile dir principal) = let
     cdir = canonDir dir
     c | cdir == hu = '-'
@@ -135,7 +135,7 @@ drawEditState (EditState st selPiece selPos) =
 	drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
 
 drawAlerts :: [Alert] -> DisplayM ()
-drawAlerts = mapM_ drawAlert
+drawAlerts = mapM_ drawAlert . take 1
     where
 	drawAlert (AlertCollision pos) =
 	    do  
