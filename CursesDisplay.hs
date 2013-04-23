@@ -110,7 +110,7 @@ drawState reversed colourFixed st =
     let board = stateBoard st
     in do
 	DisplayState cpairs centre lastCol <- get
-	let colouring = boardColouring board (colouredPieces colourFixed st) lastCol
+	let colouring = boardColouring st (colouredPieces colourFixed st) lastCol
 	modify $ \ds -> ds { dispLastCol = colouring }
 	erase
 	sequence_ [ drawAt glyph pos | 
@@ -167,7 +167,7 @@ initDisplay :: DisplayM ()
 initDisplay = 
     do liftIO $ CursesH.start 
        cpairs <- liftIO $ colorsToPairs [ (f, CursesH.black) | f <-
-	    [ CursesH.white, CursesH.red, CursesH.green, CursesH.yellow, CursesH.blue] ] 
+	    [ CursesH.white, CursesH.red, CursesH.green, CursesH.yellow, CursesH.blue, CursesH.magenta] ] 
        put $ DisplayState cpairs (PHS zero) Map.empty
 
 endDisplay :: DisplayM ()

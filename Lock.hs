@@ -46,7 +46,7 @@ frame side =
 	    [bolthole side, entrance side])
 bolt :: Int -> PlacedPiece
 bolt side = PlacedPiece (bolthole side <+> orig) $ Block $
-    [ n<*>hu | n <- [-side`div`4..side`div`4] ] ++ [(-2)<*>hu<+>neg hv]
+    [ n<*>hu | n <- [-side`div`4..side`div`4] ] -- ++ [(-2)<*>hu<+>neg hv]
 boltbase :: Int -> PlacedPiece
 boltbase side = PlacedPiece ((3*(side`div`4)+1) <*> neg hu <+> bolthole side <+> orig) $ Block [ zero ]
 boltspring :: Int -> Connection
@@ -72,7 +72,7 @@ cogState = GameState (Vector.fromList [
 		Connection (1, zero) (2,zero) (Spring hw 5)
 	    ] 
 
-baseState = let side = 11 in
+baseState side =
     GameState (Vector.fromList [
 	frame side
 	, boltbase side
@@ -217,4 +217,4 @@ test bindings initState = do
 	    drawAlerts alerts >> return st'
 
 
-main = test dvorakBindings baseState `runStateT` nullDisplayState
+main = test dvorakBindings (baseState 8) `runStateT` nullDisplayState

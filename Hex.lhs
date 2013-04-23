@@ -30,6 +30,7 @@ module Hex where
 
 import Data.Ix
 import Data.Monoid
+import Data.Ratio
    
 data HexVec = HexVec {hx,hy,hz :: Int} deriving (Eq, Ord, Show)
 
@@ -57,6 +58,22 @@ hexLen (HexVec x y z) = maximum $ map abs [x,y,z]
 hexDot :: HexVec -> HexVec -> Int
 hexDot (HexVec x y z) (HexVec x' y' z') = x*x'+y*y'+z*z'
 
+hextant :: HexVec -> Int
+-- ^undefined at zero
+--	` 1 '
+--	2` '0
+--	--*--
+--	3' `5
+--	' 4 `
+hextant (HexVec x y z)
+    | x >= 0 && y > 0 = 0
+    | -z >= 0 && -x > 0 = 1
+    | y >= 0 && z > 0 = 2
+    | -x >= 0 && -y > 0 = 3
+    | z >= 0 && x > 0 = 4
+    | -y >= 0 && -z > 0 = 5
+    | otherwise = undefined
+
 rotate :: Int -> HexVec -> HexVec
 rotate 0 v = v
 rotate 2 (HexVec x y z) = HexVec z x y
@@ -66,6 +83,17 @@ rotate (-1) v = neg $ rotate 2 v
 rotate n v | n < 0 = rotate (n+6) v
 	| n > 6 = rotate (n-6) v
 	| otherwise = rotate (n-2) (rotate 2 v)
+
+cmpAngles :: HexVec -> HexVec -> Ordering
+-- ^ordered by angle, taking cut along u
+cmpAngles v@(HexVec x y z) v'@(HexVec x' y' z')
+    | v == zero && v' == zero = EQ
+    | v == zero = LT
+    | compare (hextant v) (hextant v') /= EQ = 
+	compare (hextant v) (hextant v')
+    | hextant v /= 0 =
+	cmpAngles (rotate (-(hextant v)) v) (rotate (-(hextant v)) v')
+    | otherwise = compare (x'%y') (x%y)
 
 instance Ix HexVec where
     range (h,h') = 

@@ -169,7 +169,7 @@ checkBlocks st@(GameState plPieces conns) sforces sforce@(source, force) isPlaye
 	    then return $ Unmoving
 	    else if null blocks
 		then return $ Moving []
-		else do when isPlayer $ tell $ map AlertCollision collisionPoints
+		else do -- when isPlayer $ tell $ map AlertCollision collisionPoints
 			return $ Moving $ source:blocks
 
 immediatelyBlocked :: GameState -> Force -> Bool

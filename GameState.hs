@@ -243,7 +243,6 @@ castRay start dir board =
 
 
 type PieceColouring = Map PieceIdx Int
-type Graph a = (Set a, Set (Set a))
 
 colouredPieces :: Bool -> GameState -> [PieceIdx]
 colouredPieces colourFixed st = [ idx |
@@ -252,25 +251,38 @@ colouredPieces colourFixed st = [ idx |
 	and [ isBlock p, idx > 0
 	      , or [ colourFixed, not $ null $ springsEndAtIdx st idx ] ] ]
 
--- TODO: try previous colouring first, and pref aim to make minimal changes
--- to it if it's no longer valid
-boardColouring :: GameBoard -> [PieceIdx] -> PieceColouring -> PieceColouring
-boardColouring board coloured last = fourColour adjGraph last
-    where adjGraph = foldl addPoint (Set.empty,Set.empty) $ Map.toList board
-	  addPoint :: (Graph Int) -> (HexPos, OwnedTile) -> (Graph Int)
-	  addPoint g@(nodes, edges) (pos, (owner,_)) 
-	    | not $ owner `elem` coloured = g
-	    | otherwise = (Set.insert owner nodes, edges `Set.union`
-		Set.fromList [ Set.fromList [owner,owner'] |
-			pos' <- map (\d -> d<+>pos) hexDirs
-			, Just (owner',_) <- [Map.lookup pos' board]
-			, owner' /= owner ]
-		)
+type Graph a = (Set a, Set (Set a))
+type PlanarGraph a = Map a [a]
 
-fourColour :: Ord a => Graph a -> Map a Int -> Map a Int
+boardColouring :: GameState -> [PieceIdx] -> PieceColouring -> PieceColouring
+boardColouring st coloured last =
+   fiveColour graph last
+    where
+	board = stateBoard st
+	touchings :: Map PieceIdx (Map PieceIdx HexVec)
+	touchings = foldr addPoint Map.empty $ Map.toList board
+	addPoint (pos, (owner,_)) ts
+	    | not $ owner `elem` coloured = ts
+	    | otherwise =
+		let ppos = placedPos $ getpp st owner
+		    adjs = Map.findWithDefault Map.empty owner ts
+		    adjs' = foldr (uncurry Map.insert) adjs
+			[ (owner', pos' <-> ppos) |
+			    pos' <- map (\d -> d<+>pos) hexDirs
+			    , Just (owner',_) <- [Map.lookup pos' board]
+			    , owner' /= owner
+			    , owner' `elem` coloured ]
+		in Map.insert owner adjs' ts
+	graph =
+	    Map.map (\adjs ->
+		sortBy (\a a' -> cmpAngles (adjs Map.! a) (adjs Map.! a'))
+		    $ Map.keys adjs) touchings
+
+type Colouring a = Map a Int
+
+fourColour :: Ord a => Graph a -> Colouring a -> Colouring a
 fourColour (nodes,edges) last =
-    -- Just bruteforce it. TODO: implement Wernicke's five-colouring
-    -- trick - see https://en.wikipedia.org/wiki/Five_color_theorem 
+    -- bruteforce 
     if Map.keysSet last == nodes && isColouring last
 	then last
 	else head $ filter isColouring colourings
@@ -284,6 +296,48 @@ fourColour (nodes,edges) last =
 	colourings' (n:ns) = [ Map.insert n c m |
 	    m <- colourings' ns
 	    , c <- [0..3] ]
+
+fiveColour :: Ord a => PlanarGraph a -> Colouring a -> Colouring a
+fiveColour g last =
+    if Map.keysSet last == Map.keysSet g && isColouring last
+	then last
+	else fiveColour' g
+    where
+    isColouring mapping = and [
+	Map.lookup s mapping /= Map.lookup e mapping |
+	    s <- Map.keys g
+	    , e <- g Map.! s ]
+    fiveColour' :: Ord a => PlanarGraph a -> Colouring a
+    fiveColour' g
+	| g == Map.empty = Map.empty
+	| otherwise =
+	let v = head $ filter (\v -> length (nub $ g Map.! v) <= 5) $ Map.keys g
+	    adjs = nub $ g Map.! v
+	    addTo c = let vc = head $ [0..4] \\ map (c Map.!) adjs
+		      in Map.insert v vc c
+	in if length adjs < 5
+	   then addTo $ fiveColour' $ deleteNode v g
+	   else let (v',v'') = if adjs!!2 `elem` (g Map.! (adjs!!0))
+			then (adjs!!1,adjs!!3)
+			else (adjs!!0,adjs!!2)
+		in addTo $ demerge v' v'' $ fiveColour' $ merge v v' v'' g
+    demerge :: Ord a => a -> a -> Colouring a -> Colouring a
+    demerge v v' c = Map.insert v' (c Map.! v) c
+    merge :: Ord a => a -> a -> a -> PlanarGraph a -> PlanarGraph a
+    merge v v' v'' g =
+	deleteNode v $ contractNodes v' v''
+	    $ Map.adjust (concatAdjsOver v $ g Map.! v'') v' g
+    concatAdjsOver :: Ord a => a -> [a] -> [a] -> [a]
+    concatAdjsOver v adjs adjs' =
+	let (s,_:e) = splitAt (fromJust $ elemIndex v adjs) adjs
+	in s ++ adjs' ++ e
+    deleteNode v =
+	Map.map (filter (/= v)) . Map.delete v
+    contractNodes v v' =
+	Map.map (map (\v'' -> if v'' == v' then v else v'')) . Map.delete v'
+    
+
+
 	
 modTile :: Maybe Tile -> HexPos -> GameState -> GameState
 modTile tile pos st =
