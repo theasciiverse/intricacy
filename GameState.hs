@@ -171,7 +171,7 @@ stateBoard st@(GameState plPieces conns) =
 	  (Map.unions $ map (connectionBoard st) conns)
 
 plPieceBoard :: (PieceIdx,PlacedPiece) -> GameBoard
-plPieceBoard (idx,pp) = Map.map (\x -> (idx,x)) $ plPieceMap pp
+plPieceBoard (idx,pp) = fmap (\x -> (idx,x)) $ plPieceMap pp
 
 plPieceMap :: PlacedPiece -> Map HexPos Tile
 plPieceMap (PlacedPiece pos (Block pattern)) =
@@ -274,7 +274,7 @@ boardColouring st coloured last =
 			    , owner' `elem` coloured ]
 		in Map.insert owner adjs' ts
 	graph =
-	    Map.map (\adjs ->
+	    fmap (\adjs ->
 		sortBy (\a a' -> cmpAngles (adjs Map.! a) (adjs Map.! a'))
 		    $ Map.keys adjs) touchings
 
@@ -332,9 +332,9 @@ fiveColour g last =
 	let (s,_:e) = splitAt (fromJust $ elemIndex v adjs) adjs
 	in s ++ adjs' ++ e
     deleteNode v =
-	Map.map (filter (/= v)) . Map.delete v
+	fmap (filter (/= v)) . Map.delete v
     contractNodes v v' =
-	Map.map (map (\v'' -> if v'' == v' then v else v'')) . Map.delete v'
+	fmap (map (\v'' -> if v'' == v' then v else v'')) . Map.delete v'
     
 
 

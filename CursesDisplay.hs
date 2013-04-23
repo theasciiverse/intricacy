@@ -114,7 +114,7 @@ drawState reversed colourFixed st =
 	modify $ \ds -> ds { dispLastCol = colouring }
 	erase
 	sequence_ [ drawAt glyph pos | 
-	    (pos,glyph) <- Map.toList $ Map.map (ownedTileGlyph colouring reversed) board
+	    (pos,glyph) <- Map.toList $ fmap (ownedTileGlyph colouring reversed) board
 	    ]
 	refresh
 
