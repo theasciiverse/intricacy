@@ -298,6 +298,12 @@ fourColour (nodes,edges) last =
 	    , c <- [0..3] ]
 
 fiveColour :: Ord a => PlanarGraph a -> Colouring a -> Colouring a
+-- ^algorithm based on that presented in
+-- http://people.math.gatech.edu/~thomas/PAP/fcstoc.pdf 
+-- Key point: a planar graph can't have all vertices of degree >= 6
+-- (Proof: suppose it does, so |E| >= 3|V|; WLOG the graph is triangulated,
+-- so then |F| <= 2/3 |E|. So \xi = |V|-|E|+|F| <= (1/3 - 1 + 2/3)|E| = 0.
+-- But a planar graph has Euler characteristic 1.)
 fiveColour g last =
     if Map.keysSet last == Map.keysSet g && isColouring last
 	then last
