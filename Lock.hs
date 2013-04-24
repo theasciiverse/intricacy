@@ -62,7 +62,7 @@ cogState = GameState (Vector.fromList [
 		, PlacedPiece ((6<*>hu) <+> (20<*>hw) <+> orig) (Ball $ zero)
 		, PlacedPiece ((7<*>hu) <+> (17<*>hw) <+> orig) (Ball $ zero)
 		, PlacedPiece ((3<*>hu) <+> (10<*>hw) <+> orig) (Wrench $ hw)
-		, PlacedPiece ((3<*>hu) <+> orig) (Hook hv False)
+		, PlacedPiece ((3<*>hu) <+> orig) (Hook hv Unstiff)
 		, PlacedPiece (7<*>hu <+> orig) (Pivot [ hu,hv,hw ] )
 		, PlacedPiece (10<*>hu <+> orig) (Pivot [ hu,hv,hw ] )
 		, PlacedPiece (12<*>hu <+> orig) (Pivot [ hu,hv,hw ] )
@@ -78,7 +78,7 @@ baseState side =
 	, boltbase side
 	, bolt side
 	, PlacedPiece (entrance side <+> neg hu <+> orig) $ Wrench zero
-	, PlacedPiece (entrance side <+> hw <+> orig) $ Hook (neg hw) False
+	, PlacedPiece (entrance side <+> hw <+> orig) $ Hook (neg hw) Unstiff
     ]) [
 	boltspring side
 	]

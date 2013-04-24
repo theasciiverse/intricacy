@@ -94,9 +94,18 @@ setPiece idx p st@(GameState pps _) =
     st { placedPieces = pps //
 	[(idx, PlacedPiece (placedPos $ getpp st idx) p)] }
 
+adjustPieces :: (Piece -> Piece) -> GameState -> GameState
+adjustPieces f st =
+    st { placedPieces = fmap
+	(\pp -> pp { placedPiece = f $ placedPiece pp })
+       $ placedPieces st }
+
+data Stiffness = Unstiff | PushStiff | TorqueStiff | ForceStiff
+    deriving (Eq, Ord, Show)
+
 data Piece = Block { blockPattern :: [HexVec] }
 	    | Pivot { pivotArms :: [HexDir] }
-	    | Hook { hookArm :: HexDir, hookTorqueStiff :: Bool}
+	    | Hook { hookArm :: HexDir, hookStiffness :: Stiffness}
 	    | Wrench { wrenchMomentum :: HexDir }
 	    | Ball { ballMomentum :: HexDir }
     deriving (Eq, Ord, Show)
@@ -411,7 +420,7 @@ modTile tile pos st =
 	   Just HookTile -> let arm = listToMaybe [ dir | 
 				    dir <- hexDirs
 				    , Map.lookup (dir <+> pos) board' == Nothing ]
-			    in case arm of Just armdir -> addPiece $ Hook armdir False
+			    in case arm of Just armdir -> addPiece $ Hook armdir Unstiff
 					   _ -> id
 	   Just (BallTile _) -> addPiece $ Ball zero
 	   ) st'

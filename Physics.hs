@@ -37,9 +37,7 @@ nullMove = PlayerMove zero 0 zero
 
 toolForces :: GameState -> PlayerMove -> Forces
 toolForces st (PlayerMove hp ht wp) = Vector.fromList $
-    [ Push widx dir |
-	(widx, PlacedPiece _ (Wrench mom)) <- epps
-	, let dir = if mom == zero then wp else mom ]
+    [ Push widx mom | (widx, PlacedPiece _ (Wrench mom)) <- epps ]
     -- ++ ( if hp == zero then [] else
 	-- [ Push hidx hp | (hidx, PlacedPiece _ (Hook _ _)) <- epps ] )
     ++ ( if ht == 0
@@ -64,19 +62,34 @@ envForces st@(GameState plPieces conns) =
 	    , let stoppedBall = if not $ null propagated then Just ballIdx else Nothing
 	    ]
 
-setTorqueStiffness :: PlayerMove -> GameState -> GameState
-setTorqueStiffness move st =
-    foldr (\(idx,hook) -> setPiece idx $ Hook (hookArm hook) (hookTorque move == 0))
-	st [ (idx,hook) | (idx,PlacedPiece _ hook@(Hook _ _)) <- enumVec $ placedPieces st ]
+setTools :: PlayerMove -> GameState -> GameState
+setTools move st =
+    let stiffness | hookTorque move /= 0 = PushStiff
+	    | hookPush move /= zero = TorqueStiff
+	    | otherwise = ForceStiff
+    in adjustPieces (\p -> case p of
+		Hook arm _ -> Hook arm stiffness
+		Wrench mom -> Wrench $ if mom == zero then wrenchPush move else mom
+		_ -> p) st
 
 physicsTick :: PlayerMove -> GameState -> Writer [Alert] GameState
 physicsTick move st =
-    do
-	st <- resolveForces (toolForces st move) True $ setTorqueStiffness move st
+    let wrenchMomentum st' =
+	    head [ mom |
+		(PlacedPiece _ (Wrench mom)) <- Vector.toList $ placedPieces st' ]
+	initWrenchMomentum = wrenchMomentum st
+    in do
+	st <- let st' = setTools move st
+		  in resolveForces (toolForces st' move) True st'
+	st <- if and [wrenchPush move /= zero, initWrenchMomentum /= zero
+			, wrenchMomentum st == zero]
+		    then let st' = setTools move st
+			     in resolveForces (toolForces st' move) True st'
+		    else return st
 	let (stoppedBalls, forces) = envForces st
 	st <- resolveForces forces False st
-	let stopBall st'' idx = setPiece idx (Ball zero) st'' 
-	let stopBalls st'' = foldl stopBall st'' stoppedBalls
+	let stopBall st' idx = setPiece idx (Ball zero) st' 
+	let stopBalls st' = foldl stopBall st' stoppedBalls
 	return $ stopBalls st
 
 type Source = Int
@@ -147,9 +160,12 @@ checkBlocks st@(GameState plPieces conns) sforces sforce@(source, force) isPlaye
 	    , (fst . connectionRoot) c /= idx
 	    , pieceIntersectsConnection st pp' c ]
 	fixed = case piece of
-		     (Pivot _) -> case force of {(Push _ _) -> True; _ -> False}
-		     (Wrench _) -> not isPlayer
-		     (Hook _ _) -> not isPlayer
+		     (Pivot _) -> isPush force
+		     (Wrench mom) -> not isPlayer || mom == zero
+		     (Hook _ stiffness) ->
+			 or [not isPlayer, stiffness == ForceStiff
+			    , stiffness == PushStiff && isPush force
+			    , stiffness == TorqueStiff && isTorque force]
 		     (Block _) -> null springs
 		     _ -> False
         mismatches = [ s | (s,force') <- sforces, idx == forceIdx force', force /= force' ]
@@ -201,7 +217,7 @@ transferredForce st idx cpos dir =
 	    EQ -> Push idx dir
     in case piece of
 	    Pivot _ -> armPush
-	    Hook _ False -> armPush
+	    Hook _ PushStiff -> armPush
 	    _ -> (Push idx dir)
 propagateForce :: GameState -> Force -> [Force]
 propagateForce st@(GameState plPieces conns) force = 
