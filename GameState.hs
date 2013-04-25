@@ -29,8 +29,14 @@ data EditState = EditState {esGameState::GameState
 data PlacedPiece = PlacedPiece { placedPos :: HexPos, placedPiece :: Piece }
     deriving (Eq, Ord, Show)
 
+ppidxs :: GameState -> [PieceIdx]
+ppidxs = Vector.toList . (Vector.findIndices $ \_ -> True) . placedPieces
+
 getpp :: GameState -> PieceIdx -> PlacedPiece
 getpp st idx = (placedPieces st) ! idx
+
+setpp :: PieceIdx -> PlacedPiece -> GameState -> GameState
+setpp idx pp st@(GameState pps _) = st {placedPieces = pps // [(idx, pp)] }
 
 addpp :: PlacedPiece -> GameState -> GameState
 addpp pp st@(GameState pps _) = st {placedPieces = Vector.snoc pps pp}
@@ -49,20 +55,54 @@ addPivotArm p pos st =
     in setPiece p (Pivot (pos <-> ppos:arms)) st
 
 delPiecePos :: PieceIdx -> HexPos -> GameState -> (GameState, Maybe PieceIdx)
+-- ^ returns new state and the new index of what remains of the piece, if
+-- anything
 delPiecePos idx pos st =
     let PlacedPiece ppos p = getpp st idx
 	v = pos <-> ppos
-	st' = delConnectionsAt (idx,v) st
     in case p of
-	   Block patt ->
-	       let patt' = patt \\ [v]
-	       in if not $ validBlockPattern patt'
-		   then (delPiece idx st', Nothing)
-		   else ((setPiece idx $ Block patt') st', Just idx)
-	   Pivot arms -> if v == zero
-	       then (delPiece idx st', Nothing)
-	       else ((setPiece idx $ Pivot $ arms \\ [v]) st', Just idx)
-	   _ -> (delPiece idx st', Nothing)
+        Block patt ->
+	    let comps = components $ Set.fromList $ patt \\ [v]
+		ppOfComp (v,patt) = PlacedPiece (v<+>ppos) $ Block $ Set.toList patt
+		(st',midx) = case comps of
+		    [] -> (delPiece idx st, Nothing)
+		    zeroComp:newComps ->
+			(setpp idx (ppOfComp zeroComp)
+			    $ foldr (addpp . ppOfComp) st newComps, Just idx)
+	    in (repossessConns st st', midx)
+        Pivot arms -> if v == zero
+	   then (delPiece idx st, Nothing)
+	   else ((setPiece idx $ Pivot $ arms \\ [v]) st, Just idx)
+        _ -> (delPiece idx st, Nothing)
+
+type Component = (HexVec, Set HexVec)
+components :: Set HexVec -> [Component]
+components patt
+    | Set.null patt = []
+    | otherwise =
+	let c = if zero `Set.member` patt then zero else head $ Set.toList patt
+	    (patt',comp) = floodfill c patt
+	in ( (c, Set.map (<+> neg c) comp) : components patt' )
+
+floodfill :: HexVec -> Set HexVec -> (Set HexVec, Set HexVec)
+floodfill start patt = floodfill' start `execState` (patt, Set.empty)
+    where 
+	floodfill' :: HexVec -> State (Set HexVec, Set HexVec) ()
+	floodfill' start = do
+	      (patt, dels) <- get
+	      let patt' = Set.delete start patt
+	      if Set.size patt' == Set.size patt
+		  then return ()
+		  else do
+		      put (patt', Set.insert start dels)
+		      sequence_ [ floodfill' (dir<+>start) | dir <- hexDirs ]
+
+repossessConns :: GameState -> GameState -> GameState
+repossessConns st st' =
+    st' {connections = [ Connection root' end' link |
+	Connection root end link <- connections st
+	, root' <- maybeToList $ posLocus st' $ locusPos st root
+	, end' <- maybeToList $ posLocus st' $ locusPos st end ] }
 
 delConnectionsIn :: HexPos -> GameState -> GameState
 delConnectionsIn pos st =
@@ -91,8 +131,7 @@ enumVec = Vector.toList . Vector.indexed
 
 setPiece :: PieceIdx -> Piece -> GameState -> GameState
 setPiece idx p st@(GameState pps _) = 
-    st { placedPieces = pps //
-	[(idx, PlacedPiece (placedPos $ getpp st idx) p)] }
+    setpp idx (PlacedPiece (placedPos $ getpp st idx) p) st
 
 adjustPieces :: (Piece -> Piece) -> GameState -> GameState
 adjustPieces f st =
@@ -116,29 +155,16 @@ isPlayerPiece p = isPivot p || isHook p
 isWrench p = case p of Wrench _ -> True; _ -> False
 isBall p = case p of Ball _ -> True; _ -> False
 
-validBlockPattern :: [HexVec] -> Bool
-validBlockPattern [] = False
-validBlockPattern patt =
-    Set.null $ floodfill zero $ Set.fromList patt
-
-floodfill :: HexVec -> Set HexVec -> Set HexVec
-floodfill start patt = floodfill' start `execState` patt
-    where 
-	floodfill' :: HexVec -> State (Set HexVec) ()
-	floodfill' start = do
-	      patt <- get
-	      let patt' = Set.delete start patt
-	      if Set.size patt' == Set.size patt
-		  then return ()
-		  else do
-		      put patt'
-		      sequence_ [ floodfill' (dir<+>start) | dir <- hexDirs ]
-
 type PieceIdx = Int
 
 type Locus = (PieceIdx, HexVec)
 locusPos :: GameState -> Locus -> HexPos
 locusPos s (idx,v) = v <+> (placedPos $ getpp s idx)
+
+posLocus :: GameState -> HexPos -> Maybe Locus
+posLocus st pos = listToMaybe [ (idx,pos<->ppos) |
+    (idx,pp@(PlacedPiece ppos _)) <- enumVec $ placedPieces st
+    , pos `elem` plPieceFootprint pp ]
 
 data Connection = Connection { connectionRoot :: Locus
 		    , connectionEnd :: Locus, link :: Link }
