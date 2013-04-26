@@ -45,7 +45,7 @@ frame side =
 	    [bolthole side, entrance side])
 bolt :: Int -> PlacedPiece
 bolt side = PlacedPiece (bolthole side <+> origin) $ Block $
-    [ n<*>hu | n <- [-side`div`4..side`div`4] ] -- ++ [(-2)<*>hu<+>neg hv]
+    [ n<*>hu | n <- [0..side`div`4] ] -- ++ [(-2)<*>hu<+>neg hv]
 boltbase :: Int -> PlacedPiece
 boltbase side = PlacedPiece ((3*(side`div`4)+1) <*> neg hu <+> bolthole side <+> origin) $ Block [ zero ]
 boltspring :: Int -> Connection
@@ -74,19 +74,19 @@ cogState = GameState (Vector.fromList [
 baseState side =
     GameState (Vector.fromList [
 	frame side
-	, boltbase side
+	--, boltbase side
 	, bolt side
 	, PlacedPiece (entrance side <+> neg hu <+> origin) $ Wrench zero
 	, PlacedPiece (entrance side <+> hw <+> origin) $ Hook (neg hw) Unstiff
     ]) [
-	boltspring side
+	-- boltspring side
 	]
 
 data Command = CmdDir HexDir | CmdRotate TorqueDir | CmdWait
 	| CmdToggle
 	| CmdTile Tile | CmdMerge
 	| CmdSelect
-	| CmdEdit | CmdPlay
+	| CmdEdit | CmdPlay | CmdTest
 	| CmdQuit | CmdWriteState
     deriving (Eq, Ord, Show)
 	
@@ -121,6 +121,7 @@ dvorakBindings = Map.fromList [
 	, ('q', CmdQuit)
 	, ('e', CmdEdit)
 	, ('p', CmdPlay)
+	, ('T', CmdTest)
 	, ('W', CmdWriteState)
 	, ('\r', CmdSelect)
 	, ('\n', CmdSelect)
@@ -173,8 +174,13 @@ test bindings lockSize initState = do
 	    case Map.lookup k bindings of
 		Nothing -> editState
 		Just CmdQuit -> return ()
-		Just CmdPlay -> do lift $ runStateT playState $ PlayState st False
-				   return ()
+		Just CmdPlay -> void $ lift $ runStateT playState $ PlayState st False
+		Just CmdTest -> do
+		    let st' = canonify st
+		    put es {esGameState = canonify st'} 
+		    void $ lift $ runStateT playState $ PlayState st' False
+		    editState
+			    
 		Just cmd ->
 		    let doForce force = 
 			    let (st',alerts) = runWriter $ resolveForces (Vector.singleton force) True st
@@ -212,6 +218,18 @@ test bindings lockSize initState = do
 			_ -> editState
 	checkBounds :: HexPos -> HexPos -> HexPos
 	checkBounds def pos = if hexLen (pos <-> origin) < lockSize then pos else def
+	canonify st = addTools $ stabilise $ delTools st
+	delTools st = case listToMaybe [ idx | (idx,pp) <- enumVec $ placedPieces st
+			      , isTool $ placedPiece pp ] of
+			Nothing -> st
+			Just idx -> delTools $ delPiece idx st
+	addTools st = foldr addpp st
+	    [ PlacedPiece (entrance lockSize <+> neg hu <+> origin) $ Wrench zero,
+	    PlacedPiece (entrance lockSize <+> hw <+> origin) $ Hook (neg hw) Unstiff ]
+	stabilise st =
+	    let (st',_) = runWriter $ physicsTick nullMove st
+	    in if st == st' then st else stabilise st'
+    
 	doPhysicsTick :: PlayerMove -> GameState -> DisplayM GameState
 	doPhysicsTick pm st =
 	    let (st',alerts) = runWriter $ physicsTick pm st in

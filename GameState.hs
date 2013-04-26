@@ -153,8 +153,8 @@ data Piece = Block { blockPattern :: [HexVec] }
 isBlock p = case p of Block _ -> True; _ -> False
 isPivot p = case p of Pivot _ -> True; _ -> False
 isHook p = case p of Hook _ _ -> True; _ -> False
-isPlayerPiece p = isPivot p || isHook p
 isWrench p = case p of Wrench _ -> True; _ -> False
+isTool p = isWrench p || isHook p
 isBall p = case p of Ball _ -> True; _ -> False
 
 type PieceIdx = Int
