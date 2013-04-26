@@ -14,19 +14,18 @@ import CursesDisplay
 import GameState
 import Physics
 
-orig = PHS zero
 ballState = GameState (Vector.fromList [
-		PlacedPiece orig (Block [ zero, hu ])
-		, PlacedPiece (((8::Int) <*> hv) <+> hu <+> orig) (Block [zero, neg hu])
-		, PlacedPiece (((6::Int) <*> hv) <+> orig) (Ball zero)
-		, PlacedPiece (((2::Int) <*> hv) <+> orig) (Ball zero)
+		PlacedPiece origin (Block [ zero, hu ])
+		, PlacedPiece (((8::Int) <*> hv) <+> hu <+> origin) (Block [zero, neg hu])
+		, PlacedPiece (((6::Int) <*> hv) <+> origin) (Ball zero)
+		, PlacedPiece (((2::Int) <*> hv) <+> origin) (Ball zero)
 	    ]) [
 		Connection (0, hu) (1,zero) (Spring hv 4)
 	    ] 
 wrenchState = GameState (Vector.fromList [
-		PlacedPiece orig (Block [ zero, hu ])
-		, PlacedPiece (((5::Int) <*> hv) <+> hu <+> orig) (Block [zero, neg hu])
-		, PlacedPiece (((1::Int) <*> hv) <+> orig) (Wrench hv)
+		PlacedPiece origin (Block [ zero, hu ])
+		, PlacedPiece (((5::Int) <*> hv) <+> hu <+> origin) (Block [zero, neg hu])
+		, PlacedPiece (((1::Int) <*> hv) <+> origin) (Wrench hv)
 	    ]) [
 		Connection (0, hu) (1,zero) (Spring hv 2)
 	    ] 
@@ -38,36 +37,36 @@ entrance :: Int -> HexVec
 entrance side = neg $ bolthole side
 frame :: Int -> PlacedPiece
 frame side =
-    PlacedPiece orig $ Block $ [bolthole side <+> (side`div`4+1)<*>hu]
+    PlacedPiece origin $ Block $ [bolthole side <+> (side`div`4+1)<*>hu]
 	++ (map (entrance side <+>) [neg hu <+> hv, 2 <*> neg hu, neg hu <+> hw,
 		2 <*> hw, neg hv <+> hw])
 	++ (concat [
 		map (rotate r) [ (n<*>hu) <+> (side<*>hw) | n <- [0..side-1] ] | r <- [0..5] ] \\ 
 	    [bolthole side, entrance side])
 bolt :: Int -> PlacedPiece
-bolt side = PlacedPiece (bolthole side <+> orig) $ Block $
+bolt side = PlacedPiece (bolthole side <+> origin) $ Block $
     [ n<*>hu | n <- [-side`div`4..side`div`4] ] -- ++ [(-2)<*>hu<+>neg hv]
 boltbase :: Int -> PlacedPiece
-boltbase side = PlacedPiece ((3*(side`div`4)+1) <*> neg hu <+> bolthole side <+> orig) $ Block [ zero ]
+boltbase side = PlacedPiece ((3*(side`div`4)+1) <*> neg hu <+> bolthole side <+> origin) $ Block [ zero ]
 boltspring :: Int -> Connection
 boltspring side = Connection (1,zero) (2,(-(side`div`4)) <*>hu) $ Spring hu $ 2*(side`div`4)
 
 
 cogState = GameState (Vector.fromList [
 		frame 24
-		, PlacedPiece orig (Block [ zero ])
-		, PlacedPiece (10 <*> hw <+> orig) (Block $ concat $
+		, PlacedPiece origin (Block [ zero ])
+		, PlacedPiece (10 <*> hw <+> origin) (Block $ concat $
 		    [ map (((2*n) <*> hw) <+>) [zero, hu, hw, hw<+>hw] | n <- [0..5] ])
-		--, PlacedPiece (hu <+> hu <+> (14 <*> hw) <+> orig) (Pivot [ hu,hv,hw ] )
-		, PlacedPiece ((6<*>hu) <+> (20<*>hw) <+> orig) (Ball $ zero)
-		, PlacedPiece ((7<*>hu) <+> (17<*>hw) <+> orig) (Ball $ zero)
-		, PlacedPiece ((3<*>hu) <+> (10<*>hw) <+> orig) (Wrench $ hw)
-		, PlacedPiece ((3<*>hu) <+> orig) (Hook hv Unstiff)
-		, PlacedPiece (7<*>hu <+> orig) (Pivot [ hu,hv,hw ] )
-		, PlacedPiece (10<*>hu <+> orig) (Pivot [ hu,hv,hw ] )
-		, PlacedPiece (12<*>hu <+> orig) (Pivot [ hu,hv,hw ] )
-		, PlacedPiece (3<*>hw <+> 10<*>hu <+> orig) (Pivot [ hu,hv,hw ] )
-		, PlacedPiece (3<*>hw <+> neg hv <+> 11<*>hu <+> orig) (Pivot $ map neg [ hu,hv,hw ] )
+		--, PlacedPiece (hu <+> hu <+> (14 <*> hw) <+> origin) (Pivot [ hu,hv,hw ] )
+		, PlacedPiece ((6<*>hu) <+> (20<*>hw) <+> origin) (Ball $ zero)
+		, PlacedPiece ((7<*>hu) <+> (17<*>hw) <+> origin) (Ball $ zero)
+		, PlacedPiece ((3<*>hu) <+> (10<*>hw) <+> origin) (Wrench $ hw)
+		, PlacedPiece ((3<*>hu) <+> origin) (Hook hv Unstiff)
+		, PlacedPiece (7<*>hu <+> origin) (Pivot [ hu,hv,hw ] )
+		, PlacedPiece (10<*>hu <+> origin) (Pivot [ hu,hv,hw ] )
+		, PlacedPiece (12<*>hu <+> origin) (Pivot [ hu,hv,hw ] )
+		, PlacedPiece (3<*>hw <+> 10<*>hu <+> origin) (Pivot [ hu,hv,hw ] )
+		, PlacedPiece (3<*>hw <+> neg hv <+> 11<*>hu <+> origin) (Pivot $ map neg [ hu,hv,hw ] )
 	    ]) [
 		Connection (1, zero) (2,zero) (Spring hw 5)
 	    ] 
@@ -77,8 +76,8 @@ baseState side =
 	frame side
 	, boltbase side
 	, bolt side
-	, PlacedPiece (entrance side <+> neg hu <+> orig) $ Wrench zero
-	, PlacedPiece (entrance side <+> hw <+> orig) $ Hook (neg hw) Unstiff
+	, PlacedPiece (entrance side <+> neg hu <+> origin) $ Wrench zero
+	, PlacedPiece (entrance side <+> hw <+> origin) $ Hook (neg hw) Unstiff
     ]) [
 	boltspring side
 	]
@@ -129,8 +128,8 @@ dvorakBindings = Map.fromList [
 
 
 --test = CursesH.start >> drawBoard testBoard (PHS zero) >> CursesH.getKey (return ()) >> CursesH.end
-test :: KeyBindings -> GameState -> DisplayM ()
-test bindings initState = do
+test :: KeyBindings -> Int -> GameState -> DisplayM ()
+test bindings lockSize initState = do
     initDisplay
     EditState st _ _ <- execStateT editState $ EditState initState Nothing (PHS zero)
     endDisplay
@@ -189,7 +188,7 @@ test bindings initState = do
 			    in put es {selectedPiece = selPiece'} >> editState
 			CmdDir dir -> 
 			    case selPiece of
-				Nothing -> put es {selectedPos = dir <+> selPos} >> editState
+				Nothing -> put es {selectedPos = checkBounds selPos $ dir <+> selPos} >> editState
 				Just p -> doForce $ Push p dir
 			CmdRotate dir ->
 			    case selPiece of
@@ -211,10 +210,14 @@ test bindings initState = do
 					     put es {esGameState = st'} >> editState
 			CmdWriteState -> (liftIO $ writeFile "state" $ show st) >> editState
 			_ -> editState
+	checkBounds :: HexPos -> HexPos -> HexPos
+	checkBounds def pos = if hexLen (pos <-> origin) < lockSize then pos else def
 	doPhysicsTick :: PlayerMove -> GameState -> DisplayM GameState
 	doPhysicsTick pm st =
 	    let (st',alerts) = runWriter $ physicsTick pm st in
 	    drawAlerts alerts >> return st'
 
 
-main = test dvorakBindings (baseState 8) `runStateT` nullDisplayState
+main =
+    let size = 8
+    in test dvorakBindings size (baseState size) `runStateT` nullDisplayState

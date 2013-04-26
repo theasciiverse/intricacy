@@ -15,6 +15,8 @@ import Hex
 import Debug
 
 type HexPos = PHS HexVec
+origin :: HexPos
+origin = PHS zero
 
 data GameState = GameState { placedPieces :: Vector PlacedPiece,
 	connections :: [Connection] }
