@@ -135,13 +135,13 @@ drawEditState (EditState st selPiece selPos) =
 	drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
 
 drawAlerts :: [Alert] -> DisplayM ()
-drawAlerts = mapM_ drawAlert . take 1
+drawAlerts alerts =
+    do mapM_ drawAlert alerts
+       when (not $ null alerts) 
+	$ do refresh
+	     liftIO $ threadDelay $ 5*10^4
     where
-	drawAlert (AlertCollision pos) =
-	    do  
-		drawAt cGlyph pos
-		refresh
-		liftIO $ threadDelay $ 1*10^5
+	drawAlert (AlertCollision pos) = drawAt cGlyph pos
 	cGlyph = Glyph '!' 0 a0
 
 -- From Curses.CursesHelper:

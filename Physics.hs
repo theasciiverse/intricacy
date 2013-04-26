@@ -12,13 +12,14 @@ import Data.Vector (Vector, (!), (!?), (//))
 import Hex
 import GameState
 
--- TorqueDir: Int of absolute value <= 1
+-- |TorqueDir: Int of absolute value <= 1
 type TorqueDir = Int
 
--- Crappy terminology: 'force' encompasses both usual directional forces and
+-- |Crappy terminology: 'force' encompasses both usual directional forces and
 -- torques; we use 'push' for the former.
 data Force = Push PieceIdx HexDir | Torque PieceIdx TorqueDir
     deriving (Eq, Ord, Show)
+
 forceIdx force = case force of (Push idx _) -> idx
 			       (Torque idx _) -> idx
 isPush force = case force of (Push _ _ ) -> True; _ -> False
@@ -159,7 +160,7 @@ checkBlocks st@(GameState pps conns) sforces sforce@(source, force) isPlayer =
 	    then return $ Unmoving
 	    else if null blocks
 		then return $ Moving []
-		else do -- when isPlayer $ tell $ map AlertCollision collisionPoints
+		else do when isPlayer $ tell $ map AlertCollision collisionPoints
 			return $ Moving $ source:blocks
 
 pieceResists :: GameState -> Force -> Bool -> Bool -> Bool
