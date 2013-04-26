@@ -387,7 +387,7 @@ modTile tile pos st =
 	(st',mowner) = case curOwnedTile of
 	    Nothing -> (st,Nothing)
 	    Just (owner,SpringTile _) -> (delConnectionsIn pos st, Just owner)
-	    Just (owner,_) -> delPiecePos owner pos st -- XXX may invidate board's indices to st
+	    Just (owner,_) -> delPiecePos owner pos st -- XXX may invalidate board's indices to st
 	board' = stateBoard st'
 	addPiece p = addpp $ PlacedPiece pos p
     in case mowner of
@@ -431,6 +431,10 @@ modTile tile pos st =
 		       , Just (_, BlockTile) <- [Map.lookup rpos board']
 		       , let natLen = hexLen (rpos <-> epos) - 1
 		       , natLen > 1
+		       , null [ conn |
+			   conn@(Connection _ _ (Spring sdir' _)) <-
+			       springsAtIdx st' eidx ++ springsEndAtIdx st' ridx
+			   , not $ sdir' `elem` [sdir,neg sdir] ]
 		       , let end = (eidx, epos <-> (placedPos $ getpp st eidx))
 		       , let root = (ridx, rpos <-> (placedPos $ getpp st ridx))
 		       ]
