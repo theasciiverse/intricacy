@@ -153,7 +153,7 @@ test bindings lockSize fname initState = do
 			    
 		Just cmd ->
 		    let doForce force = 
-			    let (st',alerts) = runWriter $ resolveForces (Vector.singleton force) True st
+			    let (st',alerts) = runWriter $ resolveForces (Vector.singleton force) Vector.empty st
 			    in lift (drawAlerts alerts) >> put es {esGameState = st'} >> editState
 		    in case cmd of
 		        CmdSelect ->

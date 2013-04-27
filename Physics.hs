@@ -81,27 +81,27 @@ physicsTick move st =
 	initWrenchMomentum = wrenchMomentum st
     in do
 	st <- let st' = setTools move st
-		  in resolveForces (toolForces st' move) True st'
+		  in resolveForces (toolForces st' move) Vector.empty st'
 	st <- if and [wrenchPush move /= zero, initWrenchMomentum /= zero
 			, wrenchMomentum st == zero]
 		    then let st' = setTools move st
-			     in resolveForces (toolForces st' move) True st'
+			     in resolveForces (toolForces st' move) Vector.empty st'
 		    else return st
-	let (stoppedBalls, forces) = envForces st
-	st <- resolveForces forces False st
+	let (stoppedBalls, efs) = envForces st
+	st <- resolveForces Vector.empty efs st
 	let stopBall st' idx = setPiece idx (Ball zero) st' 
 	let stopBalls st' = foldl stopBall st' stoppedBalls
 	return $ stopBalls st
 
 type Source = Int
 type SourcedForce = (Source,Force)
-resolveForces :: Forces -> Bool -> GameState -> Writer [Alert] GameState
-resolveForces forces isPlayer st =
+resolveForces :: Forces -> Forces -> GameState -> Writer [Alert] GameState
+resolveForces plForces envForces st =
     let
 	resolveForce :: SourcedForce -> StateT ([SourcedForce], [Source]) (Writer [Alert]) ()
 	resolveForce sforce@(s,f) = do
 	    (sforces,blockedsources) <- get
-	    blockInfo <- lift $ checkBlocks st sforces sforce isPlayer
+	    blockInfo <- lift $ checkBlocks st sforces plSources sforce
 	    let (propagated, moving, blocks) = case blockInfo of
 		    Unmoving -> ([], False, [s])  -- nip
 		    Moving blocks ->
@@ -109,7 +109,9 @@ resolveForces forces isPlayer st =
 			in (propagated, True, blocks)
 	    put (if moving then sforce:sforces else sforces, blocks ++ blockedsources)
 	    sequence_ $ map resolveForce propagated
+	forces = plForces Vector.++ envForces
 	sforces = enumVec forces
+	plSources = [0..Vector.length plForces - 1]
 	-- stop wrenches which are blocked
 	stopWrench idx = setPiece idx (Wrench zero)
 	stopWrenches blocked st' = foldr stopWrench st' [
@@ -118,8 +120,7 @@ resolveForces forces isPlayer st =
     in do --prettyTrace (st, sforces, sforces', blocked, unblocked) $
 	(sforces', blocked) <- (sequence_ (map resolveForce sforces)) `execStateT` ([],[])
 	let unblocked = nub [ force | (s,force) <- sforces', not $ s `elem` blocked ]
-	return -- $ stopWrenches blocked
-	    $ foldr applyForce st unblocked
+	return $ stopWrenches blocked $ foldr applyForce st unblocked
     
 applyForce :: Force -> GameState -> GameState
 applyForce f s =
@@ -142,8 +143,8 @@ applyForceTo (PlacedPiece pos (Hook arm tstiff)) (Torque _ dir) =
 applyForceTo pp _ = pp
 
 data BlocksReturn = Unmoving | Moving [Source]
-checkBlocks :: GameState -> [SourcedForce] -> SourcedForce -> Bool -> Writer [Alert] BlocksReturn
-checkBlocks st@(GameState pps conns) sforces sforce@(source, force) isPlayer =
+checkBlocks :: GameState -> [SourcedForce] -> [Source] -> SourcedForce -> Writer [Alert] BlocksReturn
+checkBlocks st@(GameState pps conns) sforces plSources sforce@(source, force) =
     let idx = forceIdx force
 	pp@(PlacedPiece pos piece) = (getpp st idx)
 	pp' = applyForceTo pp force
@@ -156,6 +157,7 @@ checkBlocks st@(GameState pps conns) sforces sforce@(source, force) isPlayer =
 	    , let st' = applyForce force $ applyForce force' st
 	    , pos <- collisions st' idx idx' ]
 	blocks = mismatches ++ nub pieceCollisions
+	isPlayer = source `elem` plSources
     in do
 	if pieceResists st force (not isPlayer) (not isPlayer)
 	    then return $ Unmoving
