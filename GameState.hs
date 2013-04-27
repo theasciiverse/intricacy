@@ -20,16 +20,16 @@ origin = PHS zero
 
 data GameState = GameState { placedPieces :: Vector PlacedPiece,
 	connections :: [Connection] }
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Read)
 
 data PlayState = PlayState {psGameState::GameState, wrenchSelected::Bool }
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Read)
 data EditState = EditState {esGameState::GameState
 	, selectedPiece::Maybe PieceIdx, selectedPos::HexPos}
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Read)
 
 data PlacedPiece = PlacedPiece { placedPos :: HexPos, placedPiece :: Piece }
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Read)
 
 ppidxs :: GameState -> [PieceIdx]
 ppidxs = Vector.toList . (Vector.findIndices $ \_ -> True) . placedPieces
@@ -142,14 +142,14 @@ adjustPieces f st =
        $ placedPieces st }
 
 data Stiffness = Unstiff | PushStiff | TorqueStiff | ForceStiff
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Read)
 
 data Piece = Block { blockPattern :: [HexVec] }
 	    | Pivot { pivotArms :: [HexDir] }
 	    | Hook { hookArm :: HexDir, hookStiffness :: Stiffness}
 	    | Wrench { wrenchMomentum :: HexDir }
 	    | Ball { ballMomentum :: HexDir }
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Read)
 isBlock p = case p of Block _ -> True; _ -> False
 isPivot p = case p of Pivot _ -> True; _ -> False
 isHook p = case p of Hook _ _ -> True; _ -> False
@@ -170,7 +170,7 @@ posLocus st pos = listToMaybe [ (idx,pos<->ppos) |
 
 data Connection = Connection { connectionRoot :: Locus
 		    , connectionEnd :: Locus, link :: Link }
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Read)
 
 connectionLength :: GameState -> Connection -> Int
 connectionLength st (Connection root end _) =
@@ -180,7 +180,7 @@ connectionLength st (Connection root end _) =
 
 data Link = Free { freePos :: HexVec }
 	  | Spring { springDir :: HexDir, springNatLength :: Int }
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Read)
 
 springsAtIdx st idx =
     [ c | c@(Connection (ridx,_) (eidx, _) (Spring _ _)) <- connections st
@@ -201,11 +201,11 @@ connGraphPathExists st ridx eidx =
 	    $ map (fst . connectionEnd) (springsRootAtIdx st ridx) ]
 
 data SpringExtension = Relaxed | Compressed | Stretched
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Read)
 
 data Tile = BlockTile | PivotTile HexDir | ArmTile HexDir Bool | HookTile | WrenchTile Bool
 	  | BallTile Bool | SpringTile SpringExtension
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Read)
 
 type OwnedTile = (PieceIdx, Tile)
 type GameBoard = Map HexPos OwnedTile

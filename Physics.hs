@@ -118,7 +118,8 @@ resolveForces forces isPlayer st =
     in do --prettyTrace (st, sforces, sforces', blocked, unblocked) $
 	(sforces', blocked) <- (sequence_ (map resolveForce sforces)) `execStateT` ([],[])
 	let unblocked = nub [ force | (s,force) <- sforces', not $ s `elem` blocked ]
-	return $ stopWrenches blocked $ foldr applyForce st unblocked
+	return -- $ stopWrenches blocked
+	    $ foldr applyForce st unblocked
     
 applyForce :: Force -> GameState -> GameState
 applyForce f s =

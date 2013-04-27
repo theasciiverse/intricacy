@@ -32,7 +32,7 @@ import Data.Ix
 import Data.Monoid
 import Data.Ratio
    
-data HexVec = HexVec {hx,hy,hz :: Int} deriving (Eq, Ord, Show)
+data HexVec = HexVec {hx,hy,hz :: Int} deriving (Eq, Ord, Show, Read)
 
 
 hu = HexVec    1    0 (-1)
@@ -142,7 +142,7 @@ instance Grp g => Differable g g g where
     x <-> y = x <+> (neg y)
 
 newtype PHS g = PHS { getPHS :: g }
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Read)
 
 instance Grp g => Action g (PHS g) where
     x <+> (PHS y) = PHS (x <+> y)
