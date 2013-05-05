@@ -52,55 +52,88 @@ baseState side =
 	-- boltspring side
 	]
 
-data Command = CmdDir HexDir | CmdRotate TorqueDir | CmdWait
+data Command = CmdDir WrHoSel HexDir | CmdRotate TorqueDir | CmdWait
 	| CmdToggle
 	| CmdTile Tile | CmdMerge
 	| CmdSelect
 	| CmdEdit | CmdPlay | CmdTest
 	| CmdQuit | CmdWriteState
     deriving (Eq, Ord, Show)
+data WrHoSel = WHSWrench | WHSHook | WHSSelected
+    deriving (Eq, Ord, Show)
 	
 type KeyBindings = Map Char Command
-dvorakBindings :: KeyBindings
-dvorakBindings = Map.fromList [
-	('o', CmdTile $ PivotTile zero)
-	, ('O', CmdTile $ BallTile False)
+dvorakBindingsGlobal = Map.fromList [
+	('s', CmdDir WHSHook hu)
+	, ('h', CmdDir WHSHook $ neg hu)
+	, ('b', CmdDir WHSHook hw)
+	, ('c', CmdDir WHSHook $ neg hw)
+	, ('g', CmdDir WHSHook hv)
+	, ('m', CmdDir WHSHook $ neg hv)
+	, ('i', CmdDir WHSWrench hu)
+	, ('e', CmdDir WHSWrench $ neg hu)
+	, ('j', CmdDir WHSWrench hw)
+	, ('y', CmdDir WHSWrench $ neg hw)
+	, ('p', CmdDir WHSWrench hv)
+	, ('k', CmdDir WHSWrench $ neg hv)
+	, ('6', CmdDir WHSSelected hu)
+	, ('4', CmdDir WHSSelected $ neg hu)
+	, ('1', CmdDir WHSSelected hw)
+	, ('9', CmdDir WHSSelected $ neg hw)
+	, ('7', CmdDir WHSSelected hv)
+	, ('3', CmdDir WHSSelected $ neg hv)
+	, ('r', CmdRotate 1)
+	, ('l', CmdRotate $ -1)
+	, ('n', CmdRotate 1)
+	, ('t', CmdRotate $ -1)
+	, ('8', CmdRotate 1)
+	, ('2', CmdRotate $ -1)
+	, ('5', CmdWait)
+	, ('.', CmdWait)
+	, ('u', CmdWait)
+	, ('q', CmdQuit)
+	, ('E', CmdEdit)
+	, ('P', CmdPlay)
+	, ('\r', CmdSelect)
+	, ('\n', CmdSelect)
+	, (' ', CmdSelect)
+	, ('*', CmdTile $ WrenchTile False)
+	, ('@', CmdTile HookTile)
 	, ('-', CmdTile $ ArmTile hu False)
 	, ('\\', CmdTile $ ArmTile hv False)
 	, ('/', CmdTile $ ArmTile hw False)
+	]
+
+dvorakBindingsPlayOnly = Map.fromList [
+	('\t', CmdToggle)
+	, ('S', CmdDir WHSWrench hu)
+	, ('H', CmdDir WHSWrench $ neg hu)
+	, ('B', CmdDir WHSWrench hw)
+	, ('C', CmdDir WHSWrench $ neg hw)
+	, ('G', CmdDir WHSWrench hv)
+	, ('M', CmdDir WHSWrench $ neg hv)
+	]
+dvorakBindingsEditOnly = Map.fromList [
+	('M', CmdMerge)
+	, ('T', CmdTest)
+	, ('W', CmdWriteState)
+	, ('o', CmdTile $ PivotTile zero)
+	, ('O', CmdTile $ BallTile False)
 	, ('S', CmdTile $ SpringTile Relaxed)
 	, ('s', CmdTile $ SpringTile Stretched)
 	, ('$', CmdTile $ SpringTile Compressed)
 	, ('#', CmdTile BlockTile)
 	, ('w', CmdTile BlockTile)
-	, ('*', CmdTile $ WrenchTile False)
-	, ('W', CmdTile $ WrenchTile False)
-	, ('@', CmdTile HookTile)
-	, ('\t', CmdToggle)
-	, ('s', CmdDir hu)
-	, ('h', CmdDir $ neg hu)
-	, ('b', CmdDir hw)
-	, ('c', CmdDir $ neg hw)
-	, ('g', CmdDir hv)
-	, ('m', CmdDir $ neg hv)
-	, ('r', CmdRotate 1)
-	, ('l', CmdRotate $ -1)
-	, (' ', CmdSelect)
-	, ('.', CmdWait)
-	, ('M', CmdMerge)
-	, ('q', CmdQuit)
-	, ('e', CmdEdit)
-	, ('p', CmdPlay)
-	, ('T', CmdTest)
-	, ('W', CmdWriteState)
-	, ('\r', CmdSelect)
-	, ('\n', CmdSelect)
 	]
 
+playBindings :: KeyBindings
+playBindings = dvorakBindingsGlobal `Map.union` dvorakBindingsPlayOnly
+editBindings :: KeyBindings
+editBindings = dvorakBindingsGlobal `Map.union` dvorakBindingsEditOnly
 
 --test = CursesH.start >> drawBoard testBoard (PHS zero) >> CursesH.getKey (return ()) >> CursesH.end
-test :: KeyBindings -> Int -> Maybe String -> GameState -> DisplayM ()
-test bindings lockSize fname initState = do
+test :: KeyBindings -> KeyBindings -> Int -> Maybe String -> GameState -> DisplayM ()
+test pBdgs eBdgs lockSize fname initState = do
     initDisplay
     EditState st _ _ <- execStateT editState $ EditState initState Nothing (PHS zero)
     endDisplay
@@ -110,22 +143,26 @@ test bindings lockSize fname initState = do
 	    ps@(PlayState st wsel) <- get
 	    lift $ drawPlayState ps
 	    k <- lift getKey
-	    case Map.lookup k bindings of
+	    case Map.lookup k pBdgs of
 		Nothing -> playState
 		Just CmdQuit -> return ()
 		Just CmdEdit -> do lift $ runStateT editState $ EditState st Nothing (PHS zero)
 				   return ()
 		Just cmd -> 
-		    let push dir = if wsel then Just $ nullMove { wrenchPush = dir }
-			    else Just $ nullMove { hookPush = dir }
-			torque dir = if wsel then Nothing
-			    else Just $ nullMove { hookTorque = dir }
+		    let push whs dir 
+			    | whs == WHSWrench || (whs == WHSSelected && wsel) =
+				Just $ nullMove { wrenchPush = dir }
+			    | otherwise =
+				Just $ nullMove { hookPush = dir }
+			torque dir = -- if wsel then Nothing else
+			    Just $ nullMove { hookTorque = dir }
 			(wsel', pm) =
 			    case cmd of
 				CmdTile (WrenchTile _) -> (True, Nothing)
 				CmdTile HookTile -> (False, Nothing)
+				CmdTile (ArmTile _ _) -> (False, Nothing)
 				CmdToggle -> (not wsel, Nothing)
-				CmdDir dir -> (wsel, push dir)
+				CmdDir whs dir -> (wsel, push whs dir)
 				CmdRotate dir -> (wsel, torque dir)
 				CmdWait -> (wsel, Just nullMove)
 				CmdSelect -> (wsel, Just nullMove)
@@ -141,7 +178,7 @@ test bindings lockSize fname initState = do
 	    es@(EditState st selPiece selPos) <- get
 	    lift $ drawEditState es
 	    k <- lift getKey
-	    case Map.lookup k bindings of
+	    case Map.lookup k eBdgs of
 		Nothing -> editState
 		Just CmdQuit -> return ()
 		Just CmdPlay -> void $ lift $ runStateT playState $ PlayState st False
@@ -162,7 +199,7 @@ test bindings lockSize fname initState = do
 					then Nothing
 					else liftM fst $ Map.lookup selPos $ stateBoard st
 			    in put es {selectedPiece = selPiece'} >> editState
-			CmdDir dir -> 
+			CmdDir _ dir -> 
 			    case selPiece of
 				Nothing -> put es {selectedPos = checkBounds selPos $ dir <+> selPos} >> editState
 				Just p -> doForce $ Push p dir
@@ -174,8 +211,8 @@ test bindings lockSize fname initState = do
 			    let st' = modTile (Just tile) selPos st
 			    in put es {esGameState = st'} >> editState
 			CmdMerge -> lift getKey >>= \k ->
-			    case Map.lookup k bindings of
-				Just (CmdDir mergeDir) ->
+			    case Map.lookup k eBdgs of
+				Just (CmdDir _ mergeDir) ->
 				    let st' = mergeTiles selPos mergeDir True st
 				    in put es {esGameState = st'} >> editState
 				_ -> editState
@@ -236,4 +273,4 @@ main = do
 		Nothing -> return Nothing
 		Just fname -> readLockFile fname
     let (size, initState) = fromMaybe (initSize, baseState initSize) $ lock
-    test dvorakBindings size fname initState `runStateT` nullDisplayState
+    test playBindings editBindings size fname initState `runStateT` nullDisplayState
