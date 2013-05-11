@@ -22,9 +22,9 @@ data GameState = GameState { placedPieces :: Vector PlacedPiece,
 	connections :: [Connection] }
     deriving (Eq, Ord, Show, Read)
 
-data PlayState = PlayState {psGameState::GameState, wrenchSelected::Bool }
+data PlayState = PlayState {psGameStateStack::[GameState], wrenchSelected::Bool }
     deriving (Eq, Ord, Show, Read)
-data EditState = EditState {esGameState::GameState
+data EditState = EditState {esGameStateStack::[GameState]
 	, selectedPiece::Maybe PieceIdx, selectedPos::HexPos}
     deriving (Eq, Ord, Show, Read)
 

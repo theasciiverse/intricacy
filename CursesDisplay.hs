@@ -119,7 +119,7 @@ drawState reversed colourFixed st =
 	refresh
 
 drawPlayState :: PlayState -> DisplayM ()
-drawPlayState (PlayState st wsel) =
+drawPlayState (PlayState (st:_) wsel) =
     do
 	ds@(DisplayState _ centre _) <- get
 	drawState [] False st
@@ -128,7 +128,7 @@ drawPlayState (PlayState st wsel) =
 	    , or [wsel && isWrench p, not wsel && isHook p] ]
 
 drawEditState :: EditState -> DisplayM ()
-drawEditState (EditState st selPiece selPos) =
+drawEditState (EditState (st:_) selPiece selPos) =
     do
 	ds@(DisplayState _ centre _) <- get
 	drawState (maybeToList selPiece) True st

@@ -72,6 +72,10 @@ setTools move st =
 		Hook arm _ -> Hook arm stiffness
 		Wrench mom -> Wrench $ if mom == zero then wrenchPush move else mom
 		_ -> p) st
+setHookStiff :: GameState -> GameState
+setHookStiff = adjustPieces (\p -> case p of
+		Hook arm _ -> Hook arm ForceStiff
+		_ -> p)
 
 physicsTick :: PlayerMove -> GameState -> Writer [Alert] GameState
 physicsTick move st =
@@ -87,6 +91,7 @@ physicsTick move st =
 		    then let st' = setTools move st
 			     in resolveForces (toolForces st' move) Vector.empty st'
 		    else return st
+	st <- return $ setHookStiff st
 	let (stoppedBalls, efs) = envForces st
 	st <- resolveForces Vector.empty efs st
 	let stopBall st' idx = setPiece idx (Ball zero) st' 
@@ -163,7 +168,8 @@ checkBlocks st@(GameState pps conns) sforces plSources sforce@(source, force) =
 	    then return $ Unmoving
 	    else if null blocks
 		then return $ Moving []
-		else do when isPlayer $ tell $ map AlertCollision collisionPoints
+		else do -- when isPlayer $
+			tell $ map AlertCollision collisionPoints
 			return $ Moving $ source:blocks
 
 pieceResists :: GameState -> Force -> Bool -> Bool -> Bool

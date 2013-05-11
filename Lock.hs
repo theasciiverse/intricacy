@@ -57,6 +57,7 @@ data Command = CmdDir WrHoSel HexDir | CmdRotate TorqueDir | CmdWait
 	| CmdTile Tile | CmdMerge
 	| CmdSelect
 	| CmdEdit | CmdPlay | CmdTest
+	| CmdUndo
 	| CmdQuit | CmdWriteState
     deriving (Eq, Ord, Show)
 data WrHoSel = WHSWrench | WHSHook | WHSSelected
@@ -90,7 +91,7 @@ dvorakBindingsGlobal = Map.fromList [
 	, ('2', CmdRotate $ -1)
 	, ('5', CmdWait)
 	, ('.', CmdWait)
-	, ('u', CmdWait)
+	, ('u', CmdUndo)
 	, ('q', CmdQuit)
 	, ('E', CmdEdit)
 	, ('P', CmdPlay)
@@ -135,19 +136,21 @@ editBindings = dvorakBindingsGlobal `Map.union` dvorakBindingsEditOnly
 test :: KeyBindings -> KeyBindings -> Int -> Maybe String -> GameState -> DisplayM ()
 test pBdgs eBdgs lockSize fname initState = do
     initDisplay
-    EditState st _ _ <- execStateT editState $ EditState initState Nothing (PHS zero)
+    runStateT editState $ EditState [initState] Nothing (PHS zero)
     endDisplay
     where
 	playState :: StateT PlayState DisplayM ()
 	playState = do 
-	    ps@(PlayState st wsel) <- get
+	    ps@(PlayState (st:sts) wsel) <- get
 	    lift $ drawPlayState ps
 	    k <- lift getKey
 	    case Map.lookup k pBdgs of
 		Nothing -> playState
 		Just CmdQuit -> return ()
-		Just CmdEdit -> do lift $ runStateT editState $ EditState st Nothing (PHS zero)
+		Just CmdEdit -> do lift $ runStateT editState $ EditState [st] Nothing (PHS zero)
 				   return ()
+	        Just CmdUndo -> do when (not $ null sts) $ put ps {psGameStateStack = sts}
+				   playState
 		Just cmd -> 
 		    let push whs dir 
 			    | whs == WHSWrench || (whs == WHSSelected && wsel) =
@@ -168,30 +171,33 @@ test pBdgs eBdgs lockSize fname initState = do
 				CmdSelect -> (wsel, Just nullMove)
 				_ -> (wsel, Nothing)
 		    in do
-			st' <- case pm of
-			     Nothing -> return st
-			     Just pm' -> lift $ doPhysicsTick pm' st
-			put (PlayState st' wsel') >> playState
+			put $ ps {wrenchSelected = wsel'}
+			case pm of
+			     Nothing -> return ()
+			     Just pm' -> (lift $ doPhysicsTick pm' st) >>= pushPState
+			playState
 
 	editState :: StateT EditState DisplayM ()
 	editState = do 
-	    es@(EditState st selPiece selPos) <- get
+	    es@(EditState (st:sts) selPiece selPos) <- get
 	    lift $ drawEditState es
 	    k <- lift getKey
 	    case Map.lookup k eBdgs of
 		Nothing -> editState
 		Just CmdQuit -> return ()
-		Just CmdPlay -> void $ lift $ runStateT playState $ PlayState st False
+		Just CmdPlay -> void $ lift $ runStateT playState $ PlayState [st] False
 		Just CmdTest -> do
 		    let st' = canonify st
-		    put es {esGameState = canonify st'} 
-		    void $ lift $ runStateT playState $ PlayState st' False
+		    pushEState $ canonify st'
+		    void $ lift $ runStateT playState $ PlayState [st'] False
 		    editState
+	        Just CmdUndo -> do when (not $ null sts) $ put es {esGameStateStack = sts}
+				   editState
 			    
 		Just cmd ->
 		    let doForce force = 
 			    let (st',alerts) = runWriter $ resolveForces (Vector.singleton force) Vector.empty st
-			    in lift (drawAlerts alerts) >> put es {esGameState = st'} >> editState
+			    in lift (drawAlerts alerts) >> pushEState st' >> editState
 		    in case cmd of
 		        CmdSelect ->
 			    let selPiece' =
@@ -209,22 +215,30 @@ test pBdgs eBdgs lockSize fname initState = do
 				Just p -> doForce $ Torque p dir
 			CmdTile tile ->
 			    let st' = modTile (Just tile) selPos st
-			    in put es {esGameState = st'} >> editState
+			    in pushEState st' >> editState
 			CmdMerge -> lift getKey >>= \k ->
 			    case Map.lookup k eBdgs of
 				Just (CmdDir _ mergeDir) ->
 				    let st' = mergeTiles selPos mergeDir True st
-				    in put es {esGameState = st'} >> editState
+				    in pushEState st' >> editState
 				_ -> editState
 			CmdWait ->
 			    case selPiece of
-				Nothing -> put es {esGameState = modTile Nothing selPos st} >> editState
+				Nothing -> pushEState (modTile Nothing selPos st) >> editState
 				Just p -> do st' <- lift $ doPhysicsTick nullMove st
-					     put es {esGameState = st'} >> editState
+					     pushEState st' >> editState
 			CmdWriteState ->
 			    let wfname = fromMaybe "unnamed.lock" fname 
 			    in (liftIO $ writeFile wfname $ show (lockSize, canonify st)) >> editState
 			_ -> editState
+	pushEState :: GameState -> StateT EditState DisplayM ()
+	pushEState st = do
+	    es@(EditState (st':sts) _ _) <- get
+	    when (st' /= st) $ put $ es {esGameStateStack = st:st':sts}
+	pushPState :: GameState -> StateT PlayState DisplayM ()
+	pushPState st = do
+	    ps@(PlayState (st':sts) _) <- get
+	    when (st' /= st) $ put $ ps {psGameStateStack = st:st':sts}
 	checkBounds :: HexPos -> HexPos -> HexPos
 	checkBounds def pos = if hexLen (pos <-> origin) < lockSize then pos else def
 	canonify st = addTools $ stabilise $ delTools st
