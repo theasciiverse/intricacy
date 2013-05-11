@@ -106,7 +106,7 @@ resolveForces plForces envForces st =
 	resolveForce :: SourcedForce -> StateT ([SourcedForce], [Source]) (Writer [Alert]) ()
 	resolveForce sforce@(s,f) = do
 	    (sforces,blockedsources) <- get
-	    blockInfo <- lift $ checkBlocks st sforces plSources sforce
+	    blockInfo <- lift $ checkBlocks st sforces plsforces sforce
 	    let (propagated, moving, blocks) = case blockInfo of
 		    Unmoving -> ([], False, [s])  -- nip
 		    Moving blocks ->
@@ -116,7 +116,7 @@ resolveForces plForces envForces st =
 	    sequence_ $ map resolveForce propagated
 	forces = plForces Vector.++ envForces
 	sforces = enumVec forces
-	plSources = [0..Vector.length plForces - 1]
+	plsforces = enumVec plForces
 	-- stop wrenches which are blocked
 	stopWrench idx = setPiece idx (Wrench zero)
 	stopWrenches blocked st' = foldr stopWrench st' [
@@ -148,8 +148,8 @@ applyForceTo (PlacedPiece pos (Hook arm tstiff)) (Torque _ dir) =
 applyForceTo pp _ = pp
 
 data BlocksReturn = Unmoving | Moving [Source]
-checkBlocks :: GameState -> [SourcedForce] -> [Source] -> SourcedForce -> Writer [Alert] BlocksReturn
-checkBlocks st@(GameState pps conns) sforces plSources sforce@(source, force) =
+checkBlocks :: GameState -> [SourcedForce] -> [SourcedForce] -> SourcedForce -> Writer [Alert] BlocksReturn
+checkBlocks st@(GameState pps conns) sforces plsforces sforce@(source, force) =
     let idx = forceIdx force
 	pp@(PlacedPiece pos piece) = (getpp st idx)
 	pp' = applyForceTo pp force
@@ -162,9 +162,10 @@ checkBlocks st@(GameState pps conns) sforces plSources sforce@(source, force) =
 	    , let st' = applyForce force $ applyForce force' st
 	    , pos <- collisions st' idx idx' ]
 	blocks = mismatches ++ nub pieceCollisions
-	isPlayer = source `elem` plSources
+	isPlayerSource = source `elem` map fst plsforces
+	isPlayerForce = sforce `elem` plsforces
     in do
-	if pieceResists st force (not isPlayer) (not isPlayer)
+	if pieceResists st force (not isPlayerSource) (not isPlayerSource) (not isPlayerForce)
 	    then return $ Unmoving
 	    else if null blocks
 		then return $ Moving []
@@ -172,8 +173,8 @@ checkBlocks st@(GameState pps conns) sforces plSources sforce@(source, force) =
 			tell $ map AlertCollision collisionPoints
 			return $ Moving $ source:blocks
 
-pieceResists :: GameState -> Force -> Bool -> Bool -> Bool
-pieceResists st@(GameState pps conns) force toolsFixed springsResist =
+pieceResists :: GameState -> Force -> Bool -> Bool -> Bool -> Bool
+pieceResists st@(GameState pps conns) force toolsFixed springsResist fixedFixed =
     let idx = forceIdx force
 	pp@(PlacedPiece _ piece) = (getpp st idx)
         springs = springsEndAtIdx st idx
@@ -187,13 +188,13 @@ pieceResists st@(GameState pps conns) force toolsFixed springsResist =
 			    ( (curLen <= natLen && pdir /= sdir) ||
 				(curLen >= natLen && pdir /= neg sdir) ) ) ]
 	fixed = case piece of
-		     (Pivot _) -> isPush force
+		     (Pivot _) -> fixedFixed && isPush force
 		     (Wrench mom) -> toolsFixed || mom == zero
 		     (Hook _ stiffness) ->
 			 or [toolsFixed, stiffness == ForceStiff
 			    , stiffness == PushStiff && isPush force
 			    , stiffness == TorqueStiff && isTorque force]
-		     (Block _) -> null springs
+		     (Block _) -> fixedFixed && null springs
 		     _ -> False
     in fixed || not (null blockingSprings)
 
@@ -222,7 +223,7 @@ propagateForce st@(GameState plPieces conns) force =
 	    , cpos <- collisions (applyForce force st) idx idx'
 	    , let dir = case force of
 		    Push _ dir -> dir
-		    Torque _ dir -> if pieceResists st (transferredForce st idx' cpos push) True False
+		    Torque _ dir -> if pieceResists st (transferredForce st idx' cpos push) True False True
 					 then claw else push
 			where push = arm <-> rotate (-dir) arm
 			      claw = rotate dir arm <-> arm
