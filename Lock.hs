@@ -55,7 +55,7 @@ baseState side =
 data Command = CmdDir WrHoSel HexDir | CmdRotate TorqueDir | CmdWait
 	| CmdToggle
 	| CmdTile Tile | CmdMerge
-	| CmdSelect
+	| CmdSelect | CmdDelete
 	| CmdEdit | CmdPlay | CmdTest
 	| CmdUndo
 	| CmdQuit | CmdWriteState
@@ -118,6 +118,7 @@ dvorakBindingsEditOnly = Map.fromList [
 	('M', CmdMerge)
 	, ('T', CmdTest)
 	, ('W', CmdWriteState)
+	, ('D', CmdDelete)
 	, ('o', CmdTile $ PivotTile zero)
 	, ('O', CmdTile $ BallTile False)
 	, ('S', CmdTile $ SpringTile Relaxed)
@@ -227,6 +228,12 @@ test pBdgs eBdgs lockSize fname initState = do
 				Nothing -> pushEState (modTile Nothing selPos st) >> editState
 				Just p -> do st' <- lift $ doPhysicsTick nullMove st
 					     pushEState st' >> editState
+			CmdDelete ->
+			    case selPiece of
+				Nothing -> editState
+				Just p -> do put es {selectedPiece = Nothing}
+					     pushEState $ delPiece p st
+					     editState
 			CmdWriteState ->
 			    let wfname = fromMaybe "unnamed.lock" fname 
 			    in (liftIO $ writeFile wfname $ show (lockSize, canonify st)) >> editState
