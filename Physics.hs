@@ -187,14 +187,14 @@ pieceResists st@(GameState pps conns) force toolsFixed springsResist fixedFixed 
 			idx == eidx && springsResist &&
 			    ( (curLen <= natLen && pdir /= sdir) ||
 				(curLen >= natLen && pdir /= neg sdir) ) ) ]
-	fixed = case piece of
-		     (Pivot _) -> fixedFixed && isPush force
+	fixed = fixedFixed && case piece of
+		     (Pivot _) -> isPush force
 		     (Wrench mom) -> toolsFixed || mom == zero
 		     (Hook _ stiffness) ->
 			 or [toolsFixed, stiffness == ForceStiff
 			    , stiffness == PushStiff && isPush force
 			    , stiffness == TorqueStiff && isTorque force]
-		     (Block _) -> fixedFixed && null springs
+		     (Block _) -> null springs
 		     _ -> False
     in fixed || not (null blockingSprings)
 
