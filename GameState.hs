@@ -360,13 +360,13 @@ fiveColour g last =
 	Map.lookup s mapping /= Map.lookup e mapping |
 	    s <- Map.keys g
 	    , e <- g Map.! s ]
-    fiveColour' :: Ord a => PlanarGraph a -> Colouring a
+    --fiveColour' :: PlanarGraph a -> Colouring a
     fiveColour' g
 	| g == Map.empty = Map.empty
 	| otherwise =
 	let v = head $ filter (\v -> length (nub $ g Map.! v) <= 5) $ Map.keys g
 	    adjs = nub $ g Map.! v
-	    addTo c = let vc = head $ [0..4] \\ map (c Map.!) adjs
+	    addTo c = let vc = head $ possCols v \\ map (c Map.!) adjs
 		      in Map.insert v vc c
 	in if length adjs < 5
 	   then addTo $ fiveColour' $ deleteNode v g
@@ -374,13 +374,15 @@ fiveColour g last =
 			then (adjs!!1,adjs!!3)
 			else (adjs!!0,adjs!!2)
 		in addTo $ demerge v' v'' $ fiveColour' $ merge v v' v'' g
-    demerge :: Ord a => a -> a -> Colouring a -> Colouring a
+    --possCols :: a -> [Int]
+    possCols v = maybe [0..4] (\lvc -> lvc:([0..4] \\ [lvc])) $ Map.lookup v last
+    --demerge :: a -> a -> Colouring a -> Colouring a
     demerge v v' c = Map.insert v' (c Map.! v) c
-    merge :: Ord a => a -> a -> a -> PlanarGraph a -> PlanarGraph a
+    --merge :: a -> a -> a -> PlanarGraph a -> PlanarGraph a
     merge v v' v'' g =
 	deleteNode v $ contractNodes v' v''
 	    $ Map.adjust (concatAdjsOver v $ g Map.! v'') v' g
-    concatAdjsOver :: Ord a => a -> [a] -> [a] -> [a]
+    --concatAdjsOver :: a -> [a] -> [a] -> [a]
     concatAdjsOver v adjs adjs' =
 	let (s,_:e) = splitAt (fromJust $ elemIndex v adjs) adjs
 	in s ++ adjs' ++ e
