@@ -16,7 +16,8 @@ import System.Environment
 import System.Console.GetOpt
 
 import Hex
-import CursesDisplay
+-- import CursesDisplay
+import SDLDisplay
 import GameState
 import Physics
 
@@ -121,11 +122,11 @@ dvorakBindingsEditOnly = Map.fromList [
 	, ('D', CmdDelete)
 	, ('o', CmdTile $ PivotTile zero)
 	, ('O', CmdTile $ BallTile False)
-	, ('S', CmdTile $ SpringTile Relaxed)
-	, ('s', CmdTile $ SpringTile Stretched)
-	, ('$', CmdTile $ SpringTile Compressed)
-	, ('#', CmdTile BlockTile)
-	, ('w', CmdTile BlockTile)
+	, ('S', CmdTile $ SpringTile Relaxed zero)
+	, ('s', CmdTile $ SpringTile Stretched zero)
+	, ('$', CmdTile $ SpringTile Compressed zero)
+	, ('#', CmdTile $ BlockTile [])
+	, ('w', CmdTile $ BlockTile [])
 	]
 
 playBindings :: KeyBindings
@@ -215,8 +216,7 @@ test pBdgs eBdgs lockSize fname initState = do
 				Nothing -> editState
 				Just p -> doForce $ Torque p dir
 			CmdTile tile ->
-			    let st' = modTile (Just tile) selPos st
-			    in pushEState st' >> editState
+			    pushEState (modTile (Just tile) selPos st) >> editState
 			CmdMerge -> lift getKey >>= \k ->
 			    case Map.lookup k eBdgs of
 				Just (CmdDir _ mergeDir) ->

@@ -203,8 +203,8 @@ connGraphPathExists st ridx eidx =
 data SpringExtension = Relaxed | Compressed | Stretched
     deriving (Eq, Ord, Show, Read)
 
-data Tile = BlockTile | PivotTile HexDir | ArmTile HexDir Bool | HookTile | WrenchTile Bool
-	  | BallTile Bool | SpringTile SpringExtension
+data Tile = BlockTile [HexDir] | PivotTile HexDir | ArmTile HexDir Bool | HookTile | WrenchTile Bool
+	  | BallTile Bool | SpringTile SpringExtension HexDir
     deriving (Eq, Ord, Show, Read)
 
 type OwnedTile = (PieceIdx, Tile)
@@ -214,15 +214,33 @@ data Alert = AlertCollision HexPos
 
 stateBoard :: GameState -> GameBoard
 stateBoard st@(GameState plPieces conns) =
-    (Map.unions $ map plPieceBoard $ enumVec plPieces) `Map.union`
-	  (Map.unions $ map (connectionBoard st) conns)
+    addConnAdjs st conns $
+	(Map.unions $ map plPieceBoard $ enumVec plPieces) `Map.union`
+	(Map.unions $ map (connectionBoard st) conns)
+
+addConnAdjs :: GameState -> [Connection] -> GameBoard -> GameBoard
+addConnAdjs st [] board = board
+addConnAdjs st (Connection root end (Spring dir _):conns) board =
+    addConnAdjs st conns $
+    addAdj (locusPos st root) dir $
+    addAdj (locusPos st end) (neg dir) board
+	where
+	    addAdj pos d =
+		Map.adjust (\(o,tile) -> (o,case tile of
+			BlockTile adjs -> BlockTile (d:adjs)
+			_ -> tile))
+		    pos
+    
+    
 
 plPieceBoard :: (PieceIdx,PlacedPiece) -> GameBoard
 plPieceBoard (idx,pp) = fmap (\x -> (idx,x)) $ plPieceMap pp
 
 plPieceMap :: PlacedPiece -> Map HexPos Tile
 plPieceMap (PlacedPiece pos (Block pattern)) =
-    Map.fromList [ (rel <+> pos, BlockTile) | rel <- pattern ]
+    Map.fromList [ (rel <+> pos, BlockTile adjs) |
+	rel <- pattern
+	, let adjs = filter (\dir -> rel <+> dir `elem` pattern) hexDirs ]
 plPieceMap (PlacedPiece pos (Pivot arms)) =
     let overarmed = length arms > 2 in
     Map.fromList $ (pos, PivotTile $ if overarmed then (head arms) else zero ) : 
@@ -265,7 +283,7 @@ connectionBoard st (Connection root end@(eidx,_) (Spring dir natLen)) =
 	endPos = locusPos st end
 	curLen = hexLen (endPos <-> rootPos) - 1
     in Map.fromList $
-	[ ((d <*> dir) <+> rootPos, (eidx, SpringTile extension))
+	[ ((d <*> dir) <+> rootPos, (eidx, SpringTile extension dir))
 	    | d <- [1..curLen],
 	    let extension | d <= natLen - curLen = Compressed
 			  | curLen-d < 2*(curLen - natLen) = Stretched
@@ -400,7 +418,7 @@ modTile tile pos st =
 	curOwnedTile = Map.lookup pos board
 	(st',mowner) = case curOwnedTile of
 	    Nothing -> (st,Nothing)
-	    Just (owner,SpringTile _) -> (delConnectionsIn pos st, Just owner)
+	    Just (owner,SpringTile _ _) -> (delConnectionsIn pos st, Just owner)
 	    Just (owner,_) -> delPiecePos owner pos st -- XXX may invalidate board's indices to st
 	board' = stateBoard st'
 	addPiece p = addpp $ PlacedPiece pos p
@@ -408,14 +426,14 @@ modTile tile pos st =
 	 Just o | protectedPiece o -> st
 	 _ -> (case tile of
 	   Nothing -> id
-	   Just BlockTile ->
+	   Just (BlockTile _) ->
 	       let adjacentBlocks = [ idx |
 		       dir <- hexDirs
-		       , Just (idx, BlockTile) <- [Map.lookup (dir <+> pos) board']
+		       , Just (idx, BlockTile _) <- [Map.lookup (dir <+> pos) board']
 		       , not $ protectedPiece idx ]
 		   adjacentBlocks' = 
 			fromMaybe adjacentBlocks $ do
-			    (_,BlockTile) <- curOwnedTile
+			    (_,BlockTile _) <- curOwnedTile
 			    owner <- mowner
 			    i <- elemIndex owner adjacentBlocks
 			    return $ dropWhile (== owner) $ drop i adjacentBlocks
@@ -435,14 +453,14 @@ modTile tile pos st =
 	       in case adjacentPivots' of
 		      [] -> id
 		      p:_ -> addPivotArm p pos
-	   Just (SpringTile extn) ->
+	   Just (SpringTile _ _) ->
 	       let possibleSprings = [ Connection root end $ Spring sdir natLen |
 		       sdir <- hexDirs
 		       , let epos = sdir <+> pos
-		       , Just (eidx, BlockTile) <- [Map.lookup epos board']
+		       , Just (eidx, BlockTile _) <- [Map.lookup epos board']
 		       , not $ protectedPiece eidx
 		       , (ridx, rpos) <- maybeToList $ castRay (neg sdir <+> pos) (neg sdir) board'
-		       , Just (_, BlockTile) <- [Map.lookup rpos board']
+		       , Just (_, BlockTile _) <- [Map.lookup rpos board']
 		       , let natLen = hexLen (rpos <-> epos) - 1
 		       , natLen > 1
 		       , null [ conn |
@@ -454,7 +472,7 @@ modTile tile pos st =
 		       , let root = (ridx, rpos <-> (placedPos $ getpp st ridx))
 		       ]
 		   possibleSprings' = fromMaybe possibleSprings $ do
-		       (_,SpringTile _) <- curOwnedTile -- XXX: therefore the indices of st are still valid
+		       (_,SpringTile _ _) <- curOwnedTile -- XXX: therefore the indices of st are still valid
 		       i <- findIndex (`elem` connections st) possibleSprings
 		       return $ drop (i+1) possibleSprings
 	       in case possibleSprings' of
@@ -478,8 +496,8 @@ mergeTiles pos dir mergePiece st = fromMaybe st $ do
     guard $ idx /= idx'
     guard $ and $ map (not . protectedPiece) [idx,idx']
     case tile of
-	BlockTile -> do
-	    BlockTile <- Just tile'
+	BlockTile _ -> do
+	    BlockTile _ <- Just tile'
 	    let st' = if mergePiece
 			  then delPiece idx st
 			  else fst $ delPiecePos idx pos st

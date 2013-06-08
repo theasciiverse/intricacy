@@ -20,7 +20,7 @@ data Glyph = Glyph Char ColPair Curses.Attr
 tileChar :: Tile -> AttrChar
 a0 = Curses.attr0
 bold = Curses.setBold a0 True
-tileChar BlockTile = ('#',a0)
+tileChar (BlockTile _) = ('#',a0)
 tileChar (PivotTile dir) | dir == zero = ('o',bold)
     | canonDir dir == hu = ('-',bold)
     | canonDir dir == hv = ('\\',bold)
@@ -35,9 +35,9 @@ tileChar (ArmTile dir principal) = let
 tileChar HookTile = ('@',bold)
 tileChar (WrenchTile moving) = ('*',if moving then bold else a0)
 tileChar (BallTile moving) = ('O',if moving then bold else a0)
-tileChar (SpringTile Relaxed) = ('S',a0)
-tileChar (SpringTile Compressed) = ('$',bold)
-tileChar (SpringTile Stretched) = ('s',bold)
+tileChar (SpringTile Relaxed _) = ('S',a0)
+tileChar (SpringTile Compressed _) = ('$',bold)
+tileChar (SpringTile Stretched _) = ('s',bold)
 
 ownedTileGlyph :: PieceColouring -> [PieceIdx] -> OwnedTile -> Glyph
 ownedTileGlyph colouring reversed (owner,t) =

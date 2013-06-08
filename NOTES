@@ -370,3 +370,21 @@ have any. You start the game with 5 iron and 5 silver.
 There are also valueless practice locks you can test your skills on without
 wagering a pick - these should include a "hall of fame" of the locks which
 withstood the most pick attempts before being picked.
+
+
+Misc:
+
+http://www.haskellforall.com/2012/07/first-class-modules-without-defaults.html 
+
+
+
+Maybe drop the chess clock in favour of a simple time limit depending on lock
+complexity, with full undo? Easier to implement (could use http, or even email
+(although delays would be a problem, as would forged timestamps)), and less
+stressful. Would mean that simple traps lose importance - not sure if that's
+good or bad.
+
+Going this route, we could even copy CD's technique of checking that the
+submitted solution really is one to be run as a batch job - meaning that the
+server can run as a cgi script on sdf, with the checking being done as a
+cronjob on legonz.
