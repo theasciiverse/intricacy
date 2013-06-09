@@ -445,7 +445,7 @@ modTile tile pos st =
 		      b:bs -> addBlockPos b pos
 	   Just (ArmTile armdir _) -> 
 	       let adjacentPivots = [ idx |
-		       dir <- [armdir, neg armdir]
+		       dir <- if armdir == zero then hexDirs else [armdir, neg armdir]
 		       , Just (idx, PivotTile _) <- [Map.lookup (dir <+> pos) board'] ]
 		   adjacentPivots' = 
 			fromMaybe adjacentPivots $ do

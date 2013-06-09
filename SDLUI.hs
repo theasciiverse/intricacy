@@ -107,8 +107,9 @@ tileGlyph (PivotTile dir) col centre@(SVec x y) size surf = do
 tileGlyph (ArmTile dir _) col centre@(SVec x y) size surf =
     void $ aaLine surf fromx fromy tox toy (bright col)
 	where
-	    (fromx, fromy) = edge centre size $ neg dir
-	    (tox, toy) = innerCorner centre size dir
+	    dir' = if dir == zero then hu else dir
+	    (fromx, fromy) = edge centre size $ neg dir'
+	    (tox, toy) = innerCorner centre size dir'
 
 tileGlyph HookTile col centre@(SVec x y) size surf = do
     filledCircle surf (fromIntegral x) (fromIntegral y) (fromIntegral $ size) col
@@ -169,15 +170,23 @@ sVec2HexVec size (SVec x y) =
 	y' = fromIntegral y
 	hy' = -y' / size' / (sqrt 3)
 	hx' = ((x' / size') - hy') / 2
-	hx = round hx'
-	hy = round hy'
-	hz = -hx-hy
+	hz' = -((x' / size') + hy') / 2
+	unrounded = Map.fromList [(1,hx'),(2,hy'),(3,hz')]
+	rounded = Map.map round unrounded
+	maxdiff = fst $ Map.findMax $ Map.fromList [ (i, abs $ x'-x) | i <- [1..3],
+	    let x' = unrounded Map.! i, let x = fromIntegral $ rounded Map.! i]
+	[hx,hy,hz] = map snd $ Map.toList $
+	    Map.adjust (\x -> x - (sum $ Map.elems rounded)) maxdiff rounded
     in HexVec hx hy hz
 
 
-data UIState = UIState { scrHeight::Int, scrWidth::Int, lastFrameTicks::Word32, dispCentre::HexPos, dispLastCol::PieceColouring }
+data UIState = UIState { scrHeight::Int, scrWidth::Int
+    , lastFrameTicks::Word32, paintTile::Maybe Tile
+    , leftButtonDown::Bool, rightButtonDown::Bool
+    , mousePos::HexVec
+    , dispCentre::HexPos, dispLastCol::PieceColouring }
 type UIM = StateT UIState IO
-nullUIState = UIState 0 0 0 (PHS zero) Map.empty
+nullUIState = UIState 0 0 0 (Just $ BlockTile []) False False zero (PHS zero) Map.empty
 
 erase :: UIM ()
 erase = do
@@ -212,6 +221,19 @@ drawAt gl pos = do
 drawCursorAt :: Maybe HexPos -> UIM ()
 drawCursorAt (Just pos) = drawAt cursor pos
 drawCursorAt _ = return ()
+
+drawPaintSel :: UIM ()
+drawPaintSel = do
+    pTile <- gets paintTile
+    case pTile of
+	Nothing -> return ()
+	Just t -> do
+	    (scrCentre, size) <- getGeom
+	    w <- gets scrWidth
+	    h <- gets scrHeight
+	    surface <- liftIO getVideoSurface
+	    liftIO $ tileGlyph t (dim white)
+		(SVec (3*w `div` 4) (h `div` 5)) size surface
 
 getGeom :: UIM (SVec, Int)
 getGeom = do 
@@ -248,6 +270,7 @@ instance UIMonad (StateT UIState IO) where
 	waitFrame
 	drawState (maybeToList selPiece) True st
 	drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
+	drawPaintSel
 	refresh
 
     drawAlerts alerts =
@@ -280,19 +303,60 @@ instance UIMonad (StateT UIState IO) where
 	    processEvent (KeyDown (Keysym _ _ ch)) =
 		return $ maybeToList $ Map.lookup ch $ bindings mode
 	    processEvent (MouseMotion x y _ _) = do
-		let mpos = SVec (fromIntegral x) (fromIntegral y)
-		centre <- gets dispCentre
 		(scrCentre, size) <- getGeom
-		return [ CmdMoveTo $ (sVec2HexVec size $ mpos <+> neg scrCentre) <+> centre ]
-	    processEvent (MouseButtonDown _ _ ButtonRight) =
+		let mPos = sVec2HexVec size $ (SVec (fromIntegral x) (fromIntegral y)) <+> neg scrCentre
+		oldMPos <- gets mousePos
+		if mPos /= oldMPos
+		    then do
+			modify $ \s -> s {mousePos = mPos}
+			centre <- gets dispCentre
+			pTile <- gets paintTile
+			lb <- gets leftButtonDown
+			return $ [ CmdMoveTo $ mPos <+> centre ] ++
+			    if lb then [ paintCmd pTile ] else []
+		    else return []
+	    processEvent (MouseButtonDown _ _ ButtonLeft) = do
+		modify $ \s -> s { leftButtonDown = True }
+		pTile <- gets paintTile
+		return $ [ paintCmd pTile ]
+	    processEvent (MouseButtonUp _ _ ButtonLeft) = do
+		modify $ \s -> s { leftButtonDown = False }
+		return []
+	    processEvent (MouseButtonDown _ _ ButtonRight) = do
+		modify $ \s -> s { rightButtonDown = True }
 		return [ CmdSelect ]
-	    processEvent (MouseButtonUp _ _ ButtonRight) =
+	    processEvent (MouseButtonUp _ _ ButtonRight) = do
+		modify $ \s -> s { rightButtonDown = False }
 		return [ CmdUnselect ]
-	    processEvent (MouseButtonDown _ _ ButtonWheelUp) =
-		return [ CmdRotate 1 ]
-	    processEvent (MouseButtonDown _ _ ButtonWheelDown) =
-		return [ CmdRotate (-1) ]
+	    processEvent (MouseButtonDown _ _ ButtonWheelUp) = do
+		rb <- gets rightButtonDown
+		if rb
+		    then return [ CmdRotate 1 ]
+		    else do 
+			modify $ \s -> s { paintTile = case paintTile s of
+			    Just (BlockTile _) -> Just $ SpringTile Relaxed hu
+			    Just (SpringTile _ _) -> Just $ PivotTile zero
+			    Just (PivotTile _) -> Just $ ArmTile zero False
+			    Just (ArmTile _ _) -> Nothing
+			    Nothing -> Just $ BlockTile []
+			    }
+			return []
+	    processEvent (MouseButtonDown _ _ ButtonWheelDown) = do
+		rb <- gets rightButtonDown
+		if rb
+		    then return [ CmdRotate $ -1 ]
+		    else do 
+			modify $ \s -> s { paintTile = case paintTile s of
+			    Just (BlockTile _) -> Nothing
+			    Nothing -> Just $ ArmTile zero False
+			    Just (SpringTile _ _) -> Just $ BlockTile []
+			    Just (PivotTile _) -> Just $ SpringTile Relaxed hu
+			    Just (ArmTile _ _) -> Just $ PivotTile zero
+			    }
+			return []
 	    processEvent _ = return []
+	    paintCmd (Just t) = CmdTile t
+	    paintCmd Nothing = CmdWait
 	    getEvents = do
 		e <- waitEvent
 		es <- pollEvents
