@@ -1,6 +1,5 @@
-module SDLUI ( drawState, drawPlayState, drawEditState, drawAlerts
-    , UIState(UIState), UIM, nullUIState, initUI , endUI
-    , getInput ) where
+{-# LANGUAGE FlexibleInstances #-}
+module SDLUI (UIM) where
 
 import Graphics.UI.SDL
 import qualified Graphics.UI.SDL as SDL
@@ -12,7 +11,9 @@ import Data.Map (Map)
 import Data.Maybe
 import Control.Concurrent (threadDelay)
 import Control.Monad.State
+import System.IO.Error
 
+import UI
 import Hex
 import GameState
 import Command
@@ -163,7 +164,6 @@ data UIState = UIState { scrHeight::Int, scrWidth::Int, dispCentre::HexPos, disp
 type UIM = StateT UIState IO
 nullUIState = UIState 0 0 (PHS zero) Map.empty
 
-
 erase :: UIM ()
 erase = do
     surface <- liftIO getVideoSurface
@@ -208,46 +208,46 @@ drawState highlight colourFixed st =
 	    (pos,glyph) <- Map.toList $ fmap (ownedTileGlyph colouring highlight) board
 	    ]
 
-drawPlayState :: PlayState -> UIM ()
-drawPlayState (PlayState (st:_) wsel _) = do
-    let selTools = [ idx |
-	    (idx, PlacedPiece pos p) <- enumVec $ placedPieces st
-	    , or [wsel && isWrench p, not wsel && isHook p] ]
-    drawState selTools False st
-    refresh
+instance UIMonad (StateT UIState IO) where
+    runUI m = evalStateT m nullUIState
+    drawPlayState (PlayState (st:_) wsel _) = do
+	let selTools = [ idx |
+		(idx, PlacedPiece pos p) <- enumVec $ placedPieces st
+		, or [wsel && isWrench p, not wsel && isHook p] ]
+	drawState selTools False st
+	refresh
 
-drawEditState :: EditState -> UIM ()
-drawEditState (EditState (st:_) selPiece selPos _) = do
-    drawState (maybeToList selPiece) True st
-    drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
-    refresh
+    drawEditState (EditState (st:_) selPiece selPos _) = do
+	drawState (maybeToList selPiece) True st
+	drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
+	refresh
 
-drawAlerts :: [Alert] -> UIM ()
-drawAlerts alerts =
-    do mapM_ drawAlert alerts
-       when (not $ null alerts) 
-	$ do refresh
-	     liftIO $ threadDelay $ 5*10^4
-    where
-	drawAlert (AlertCollision pos) = return ()
+    drawAlerts alerts =
+	do mapM_ drawAlert alerts
+	   when (not $ null alerts) 
+	    $ do refresh
+		 liftIO $ threadDelay $ 5*10^4
+	where
+	    drawAlert (AlertCollision pos) = return ()
 
-initUI :: UIM ()
-initUI = let {w=800; h=640} in do
-    liftIO $ SDL.init [InitVideo]
-    liftIO $ setVideoMode w h 32 []
-    modify $ \ds -> ds { scrWidth = w }
-    modify $ \ds -> ds { scrHeight = h }
-    erase
-    liftIO $ enableUnicode True
+    initUI = let {w=800; h=640} in do
+	ok <- liftIO $ catchIOError (SDL.init [InitVideo] >> return True) (\_ -> return False)
+	if not ok
+	    then return False
+	    else do
+		liftIO $ setVideoMode w h 32 []
+		modify $ \ds -> ds { scrWidth = w }
+		modify $ \ds -> ds { scrHeight = h }
+		erase
+		liftIO $ enableUnicode True
+		return True
 
-endUI :: UIM ()
-endUI = liftIO $ quit
+    endUI = liftIO $ quit
 
-getInput :: GameMode -> UIM [ Command ]
-getInput mode = do
-    event <- liftIO $ waitEvent
-    case event of
-	KeyDown (Keysym _ _ ch) -> do
-	    liftIO $ print ch
-	    return $ maybeToList $ Map.lookup ch $ bindings mode
-	_ -> return []
+    getInput mode = do
+	event <- liftIO $ waitEvent
+	case event of
+	    KeyDown (Keysym _ _ ch) -> do
+		liftIO $ print ch
+		return $ maybeToList $ Map.lookup ch $ bindings mode
+	    _ -> return []

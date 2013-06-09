@@ -1,6 +1,5 @@
-module CursesUI ( drawState, drawPlayState, drawEditState, drawAlerts
-    , UIState(UIState), UIM, nullUIState, initUI, endUI
-    , getInput ) where
+{-# LANGUAGE FlexibleInstances #-}
+module CursesUI ( UIM ) where
 
 import qualified UI.HSCurses.Curses as Curses
 import qualified UI.HSCurses.CursesHelper as CursesH
@@ -16,6 +15,7 @@ import Hex
 import GameState
 import Command
 import KeyBindings
+import UI
 
 type AttrChar = (Char, Curses.Attr)
 type ColPair = Int
@@ -121,32 +121,6 @@ drawState reversed colourFixed st =
 	    ]
 	refresh
 
-drawPlayState :: PlayState -> UIM ()
-drawPlayState (PlayState (st:_) wsel _) =
-    do
-	ds@(UIState _ centre _) <- get
-	drawState [] False st
-	drawCursorAt $ listToMaybe [ pos |
-	    (_, PlacedPiece pos p) <- enumVec $ placedPieces st
-	    , or [wsel && isWrench p, not wsel && isHook p] ]
-
-drawEditState :: EditState -> UIM ()
-drawEditState (EditState (st:_) selPiece selPos _) =
-    do
-	ds@(UIState _ centre _) <- get
-	drawState (maybeToList selPiece) True st
-	drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
-
-drawAlerts :: [Alert] -> UIM ()
-drawAlerts alerts =
-    do mapM_ drawAlert alerts
-       when (not $ null alerts) 
-	$ do refresh
-	     liftIO $ threadDelay $ 5*10^4
-    where
-	drawAlert (AlertCollision pos) = drawAt cGlyph pos
-	cGlyph = Glyph '!' 0 a0
-
 -- From Curses.CursesHelper:
 -- | Converts a list of 'Curses.Color' pairs (foreground color and
 --   background color) into the curses representation 'Curses.Pair'.
@@ -166,17 +140,41 @@ colorsToPairs cs =
                in do Curses.initPair p fg bg
                      return p
 
-initUI :: UIM ()
-initUI = 
-    do liftIO $ CursesH.start 
-       cpairs <- liftIO $ colorsToPairs [ (f, CursesH.black) | f <-
-	    [ CursesH.white, CursesH.red, CursesH.green, CursesH.yellow, CursesH.blue, CursesH.magenta] ] 
-       put $ UIState cpairs (PHS zero) Map.empty
 
-endUI :: UIM ()
-endUI = liftIO CursesH.end
+instance UIMonad (StateT UIState IO) where
+    runUI m = evalStateT m nullUIState
+    drawPlayState (PlayState (st:_) wsel _) =
+	do
+	    ds@(UIState _ centre _) <- get
+	    drawState [] False st
+	    drawCursorAt $ listToMaybe [ pos |
+		(_, PlacedPiece pos p) <- enumVec $ placedPieces st
+		, or [wsel && isWrench p, not wsel && isHook p] ]
 
-getInput :: GameMode -> UIM [ Command ]
-getInput mode = do
-    Curses.KeyChar ch <- liftIO $ CursesH.getKey Curses.refresh
-    return $ maybeToList $ Map.lookup ch $ bindings mode
+    drawEditState (EditState (st:_) selPiece selPos _) =
+	do
+	    ds@(UIState _ centre _) <- get
+	    drawState (maybeToList selPiece) True st
+	    drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
+
+    drawAlerts alerts =
+	do mapM_ drawAlert alerts
+	   when (not $ null alerts) 
+	    $ do refresh
+		 liftIO $ threadDelay $ 5*10^4
+	where
+	    drawAlert (AlertCollision pos) = drawAt cGlyph pos
+	    cGlyph = Glyph '!' 0 a0
+
+    initUI = 
+	do liftIO $ CursesH.start 
+	   cpairs <- liftIO $ colorsToPairs [ (f, CursesH.black) | f <-
+		[ CursesH.white, CursesH.red, CursesH.green, CursesH.yellow, CursesH.blue, CursesH.magenta] ] 
+	   put $ UIState cpairs (PHS zero) Map.empty
+	   return True
+
+    endUI = liftIO CursesH.end
+
+    getInput mode = do
+	Curses.KeyChar ch <- liftIO $ CursesH.getKey Curses.refresh
+	return $ maybeToList $ Map.lookup ch $ bindings mode

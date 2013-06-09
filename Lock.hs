@@ -16,8 +16,9 @@ import System.Environment
 import System.Console.GetOpt
 
 import Hex
--- import CursesUI
-import SDLUI
+import UI
+import qualified SDLUI
+import qualified CursesUI
 import GameState
 import Physics
 import Command
@@ -56,13 +57,17 @@ baseState side =
 
 
 --test = CursesH.start >> drawBoard testBoard (PHS zero) >> CursesH.getKey (return ()) >> CursesH.end
-test :: Int -> Maybe String -> GameState -> UIM ()
+test :: UIMonad uiM => Int -> Maybe String -> GameState -> uiM Bool
 test lockSize fname initState = do
-    initUI
-    runStateT edit $ EditState [initState] Nothing (PHS zero) Nothing
-    endUI
+    ok <- initUI
+    if not ok
+	then return False
+	else do
+	    runStateT edit $ EditState [initState] Nothing (PHS zero) Nothing
+	    endUI
+	    return True
     where
-	play :: StateT PlayState UIM ()
+	play :: UIMonad uiM => StateT PlayState uiM ()
 	play = do 
 	    ps@(PlayState (st:sts) wsel newMode) <- get
 	    let
@@ -102,7 +107,7 @@ test lockSize fname initState = do
 			sequence_ $ map processPlayCommand cmds
 			play
 
-	edit :: StateT EditState UIM ()
+	edit :: UIMonad uiM => StateT EditState uiM ()
 	edit = do 
 	    es@(EditState (st:sts) selPiece selPos newMode) <- get
 	    let
@@ -168,16 +173,17 @@ test lockSize fname initState = do
 			sequence_ $ map processEditCommand cmds
 			edit
 	    where
+		subPlay :: UIMonad uiM => GameState -> StateT EditState uiM ()
 		subPlay st = do
 		    modify $ \es -> es {esSwitchMode = Nothing}
 		    void $ lift $ runStateT play $ PlayState [st] False Nothing
 		    edit
 
-	pushEState :: GameState -> StateT EditState UIM ()
+	pushEState :: UIMonad uiM => GameState -> StateT EditState uiM ()
 	pushEState st = do
 	    es@(EditState (st':sts) _ _ _) <- get
 	    when (st' /= st) $ put $ es {esGameStateStack = st:st':sts}
-	pushPState :: GameState -> StateT PlayState UIM ()
+	pushPState :: UIMonad uiM => GameState -> StateT PlayState uiM ()
 	pushPState st = do
 	    ps@(PlayState (st':sts) _ _) <- get
 	    when (st' /= st) $ put $ ps {psGameStateStack = st:st':sts}
@@ -195,15 +201,17 @@ test lockSize fname initState = do
 	    let (st',_) = runWriter $ physicsTick nullMove st
 	    in if st == st' then st else stabilise st'
     
-	doPhysicsTick :: PlayerMove -> GameState -> UIM GameState
+	doPhysicsTick :: UIMonad uiM => PlayerMove -> GameState -> uiM GameState
 	doPhysicsTick pm st =
 	    let (st',alerts) = runWriter $ physicsTick pm st in
 	    drawAlerts alerts >> return st'
 
 
-data Opt = LockSize Int
+data Opt = LockSize Int | ForceCurses
+    deriving (Eq, Ord, Show)
 options = [
     Option ['s'] ["locksize"] (ReqArg (LockSize . read) "SIZE") "locksize"
+    , Option ['c'] ["curses"] (NoArg ForceCurses) "force curses UI"
     ]
 parseArgs :: [String] -> IO ([Opt],[String])
 parseArgs argv =
@@ -229,4 +237,8 @@ main = do
 		Nothing -> return Nothing
 		Just fname -> readLockFile fname
     let (size, initState) = fromMaybe (initSize, baseState initSize) $ lock
-    test size fname initState `runStateT` nullUIState
+    
+    sdlOk <- if ForceCurses `elem` opts
+	then return False
+	else runUI $ ((test size fname initState)::SDLUI.UIM Bool)
+    when (not sdlOk) $ void $ runUI $ ((test size fname initState)::CursesUI.UIM Bool)
