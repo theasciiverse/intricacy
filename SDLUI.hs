@@ -157,8 +157,21 @@ instance Grp SVec where
     neg (SVec x y) = SVec (-x) (-y)
 type CCoord = PHS SVec
 
-hexVec2SVec :: HexVec -> Int -> SVec
-hexVec2SVec (HexVec x y z) size = SVec ((x-z) * size) (floor $ -(fromIntegral $ y * size) * (sqrt 3))
+hexVec2SVec :: Int -> HexVec -> SVec
+hexVec2SVec size (HexVec x y z) =
+    SVec ((x-z) * size) (floor $ -(fromIntegral $ y * size) * (sqrt 3))
+
+sVec2HexVec :: Int -> SVec -> HexVec
+sVec2HexVec size (SVec x y) =
+    let size' = fromIntegral size
+	x' = fromIntegral x
+	y' = fromIntegral y
+	hy' = -y' / size' / (sqrt 3)
+	hx' = ((x' / size') - hy') / 2
+	hx = round hx'
+	hy = round hy'
+	hz = -hx-hy
+    in HexVec hx hy hz
 
 data UIState = UIState { scrHeight::Int, scrWidth::Int, dispCentre::HexPos, dispLastCol::PieceColouring }
 type UIM = StateT UIState IO
@@ -180,7 +193,7 @@ drawAt gl pos = do
 	(scrCentre, size) <- getGeom
 	centre <- gets dispCentre
 	surface <- liftIO getVideoSurface
-	let cpos = scrCentre <+> (hexVec2SVec (pos <-> centre) size)
+	let cpos = scrCentre <+> (hexVec2SVec size (pos <-> centre))
 	liftIO $ gl cpos size surface
 
 drawCursorAt :: Maybe HexPos -> UIM ()
@@ -238,6 +251,7 @@ instance UIMonad (StateT UIState IO) where
 		liftIO $ setVideoMode w h 32 []
 		modify $ \ds -> ds { scrWidth = w }
 		modify $ \ds -> ds { scrHeight = h }
+		liftIO $ warpMouse (fromIntegral $ w`div`2) (fromIntegral $ h`div`2)
 		erase
 		liftIO $ enableUnicode True
 		return True
@@ -247,7 +261,11 @@ instance UIMonad (StateT UIState IO) where
     getInput mode = do
 	event <- liftIO $ waitEvent
 	case event of
-	    KeyDown (Keysym _ _ ch) -> do
-		liftIO $ print ch
+	    KeyDown (Keysym _ _ ch) ->
 		return $ maybeToList $ Map.lookup ch $ bindings mode
+	    MouseMotion x y _ _ -> do
+		let mpos = SVec (fromIntegral x) (fromIntegral y)
+		centre <- gets dispCentre
+		(scrCentre, size) <- getGeom
+		return [ CmdMoveTo $ (sVec2HexVec size $ mpos <+> neg scrCentre) <+> centre ]
 	    _ -> return []

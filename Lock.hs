@@ -133,6 +133,11 @@ test lockSize fname initState = do
 		    case selPiece of
 			Nothing -> put es {selectedPos = checkBounds selPos $ dir <+> selPos}
 			Just p -> doForce $ Push p dir
+		processEditCommand (CmdMoveTo newPos) =
+		    case selPiece of
+			Nothing -> put es {selectedPos = checkBounds selPos $ newPos}
+			Just p -> let dir = hexVec2HexDirOrZero $ newPos <-> selPos in
+			    when (dir /= zero) $ doForce $ Push p dir
 		processEditCommand (CmdRotate dir) =
 		    case selPiece of
 			Nothing -> return ()

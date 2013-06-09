@@ -106,8 +106,15 @@ instance Ix HexVec where
 -- HexDirs are intended to be HexVecs of length <= 1
 type HexDir = HexVec
 isHexDir v = hexLen v == 1
+type HexDirOrZero = HexVec
+isHexDirOrZero v = hexLen v <= 1
 
 hexDirs = map (\n -> rotate n hu) [0..5]
+
+hexVec2HexDirOrZero :: HexVec -> HexDirOrZero
+hexVec2HexDirOrZero v
+    | v == zero = zero
+    | otherwise = rotate (hextant v + 1) hu
 
 --minusHu = HexVec    (-1) 1    0
 --minusHv = HexVec    0    (-1) 1

@@ -1,9 +1,10 @@
 module Command where
 import Hex
-import GameState (Tile)
+import GameState
 import Physics (TorqueDir)
 
 data Command = CmdDir WrHoSel HexDir | CmdRotate TorqueDir | CmdWait
+	| CmdMoveTo HexPos
 	| CmdToggle
 	| CmdTile Tile | CmdMerge
 	| CmdSelect | CmdDelete
