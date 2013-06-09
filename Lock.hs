@@ -137,7 +137,8 @@ test lockSize fname initState = do
 		processEditCommand CmdUndo = do
 		    es@(EditState (st:sts) selPiece selPos newMode) <- get
 		    when (not $ null sts) $ put $ es {esGameStateStack = sts}
-			    
+		processEditCommand CmdUnselect =
+		    modify $ \es -> es {selectedPiece = Nothing}
 		processEditCommand CmdSelect = do
 		    es@(EditState (st:sts) selPiece selPos newMode) <- get
 		    let selPiece' =

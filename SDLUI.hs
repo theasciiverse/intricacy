@@ -284,6 +284,14 @@ instance UIMonad (StateT UIState IO) where
 		centre <- gets dispCentre
 		(scrCentre, size) <- getGeom
 		return [ CmdMoveTo $ (sVec2HexVec size $ mpos <+> neg scrCentre) <+> centre ]
+	    processEvent (MouseButtonDown _ _ ButtonRight) =
+		return [ CmdSelect ]
+	    processEvent (MouseButtonUp _ _ ButtonRight) =
+		return [ CmdUnselect ]
+	    processEvent (MouseButtonDown _ _ ButtonWheelUp) =
+		return [ CmdRotate 1 ]
+	    processEvent (MouseButtonDown _ _ ButtonWheelDown) =
+		return [ CmdRotate (-1) ]
 	    processEvent _ = return []
 	    getEvents = do
 		e <- waitEvent
