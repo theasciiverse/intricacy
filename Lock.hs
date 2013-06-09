@@ -16,10 +16,11 @@ import System.Environment
 import System.Console.GetOpt
 
 import Hex
--- import CursesDisplay
-import SDLDisplay
+-- import CursesUI
+import SDLUI
 import GameState
 import Physics
+import Command
 
 bolthole :: Int -> HexVec
 bolthole side = side<*>hu <+> (side`div`2)<*>hv
@@ -53,107 +54,23 @@ baseState side =
 	-- boltspring side
 	]
 
-data Command = CmdDir WrHoSel HexDir | CmdRotate TorqueDir | CmdWait
-	| CmdToggle
-	| CmdTile Tile | CmdMerge
-	| CmdSelect | CmdDelete
-	| CmdEdit | CmdPlay | CmdTest
-	| CmdUndo
-	| CmdQuit | CmdWriteState
-    deriving (Eq, Ord, Show)
-data WrHoSel = WHSWrench | WHSHook | WHSSelected
-    deriving (Eq, Ord, Show)
-	
-type KeyBindings = Map Char Command
-dvorakBindingsGlobal = Map.fromList [
-	('s', CmdDir WHSHook hu)
-	, ('h', CmdDir WHSHook $ neg hu)
-	, ('b', CmdDir WHSHook hw)
-	, ('c', CmdDir WHSHook $ neg hw)
-	, ('g', CmdDir WHSHook hv)
-	, ('m', CmdDir WHSHook $ neg hv)
-	, ('i', CmdDir WHSWrench hu)
-	, ('e', CmdDir WHSWrench $ neg hu)
-	, ('j', CmdDir WHSWrench hw)
-	, ('y', CmdDir WHSWrench $ neg hw)
-	, ('p', CmdDir WHSWrench hv)
-	, ('k', CmdDir WHSWrench $ neg hv)
-	, ('6', CmdDir WHSSelected hu)
-	, ('4', CmdDir WHSSelected $ neg hu)
-	, ('1', CmdDir WHSSelected hw)
-	, ('9', CmdDir WHSSelected $ neg hw)
-	, ('7', CmdDir WHSSelected hv)
-	, ('3', CmdDir WHSSelected $ neg hv)
-	, ('r', CmdRotate 1)
-	, ('l', CmdRotate $ -1)
-	, ('n', CmdRotate 1)
-	, ('t', CmdRotate $ -1)
-	, ('8', CmdRotate 1)
-	, ('2', CmdRotate $ -1)
-	, ('5', CmdWait)
-	, ('.', CmdWait)
-	, ('u', CmdUndo)
-	, ('q', CmdQuit)
-	, ('E', CmdEdit)
-	, ('P', CmdPlay)
-	, ('\r', CmdSelect)
-	, ('\n', CmdSelect)
-	, (' ', CmdSelect)
-	, ('*', CmdTile $ WrenchTile False)
-	, ('@', CmdTile HookTile)
-	, ('-', CmdTile $ ArmTile hu False)
-	, ('\\', CmdTile $ ArmTile hv False)
-	, ('/', CmdTile $ ArmTile hw False)
-	]
-
-dvorakBindingsPlayOnly = Map.fromList [
-	('\t', CmdToggle)
-	, ('S', CmdDir WHSWrench hu)
-	, ('H', CmdDir WHSWrench $ neg hu)
-	, ('B', CmdDir WHSWrench hw)
-	, ('C', CmdDir WHSWrench $ neg hw)
-	, ('G', CmdDir WHSWrench hv)
-	, ('M', CmdDir WHSWrench $ neg hv)
-	]
-dvorakBindingsEditOnly = Map.fromList [
-	('M', CmdMerge)
-	, ('T', CmdTest)
-	, ('W', CmdWriteState)
-	, ('D', CmdDelete)
-	, ('o', CmdTile $ PivotTile zero)
-	, ('O', CmdTile $ BallTile False)
-	, ('S', CmdTile $ SpringTile Relaxed zero)
-	, ('s', CmdTile $ SpringTile Stretched zero)
-	, ('$', CmdTile $ SpringTile Compressed zero)
-	, ('#', CmdTile $ BlockTile [])
-	, ('w', CmdTile $ BlockTile [])
-	]
-
-playBindings :: KeyBindings
-playBindings = dvorakBindingsGlobal `Map.union` dvorakBindingsPlayOnly
-editBindings :: KeyBindings
-editBindings = dvorakBindingsGlobal `Map.union` dvorakBindingsEditOnly
 
 --test = CursesH.start >> drawBoard testBoard (PHS zero) >> CursesH.getKey (return ()) >> CursesH.end
-test :: KeyBindings -> KeyBindings -> Int -> Maybe String -> GameState -> DisplayM ()
-test pBdgs eBdgs lockSize fname initState = do
-    initDisplay
-    runStateT editState $ EditState [initState] Nothing (PHS zero)
-    endDisplay
+test :: Int -> Maybe String -> GameState -> UIM ()
+test lockSize fname initState = do
+    initUI
+    runStateT edit $ EditState [initState] Nothing (PHS zero) Nothing
+    endUI
     where
-	playState :: StateT PlayState DisplayM ()
-	playState = do 
-	    ps@(PlayState (st:sts) wsel) <- get
-	    lift $ drawPlayState ps
-	    k <- lift getKey
-	    case Map.lookup k pBdgs of
-		Nothing -> playState
-		Just CmdQuit -> return ()
-		Just CmdEdit -> do lift $ runStateT editState $ EditState [st] Nothing (PHS zero)
-				   return ()
-	        Just CmdUndo -> do when (not $ null sts) $ put ps {psGameStateStack = sts}
-				   playState
-		Just cmd -> 
+	play :: StateT PlayState UIM ()
+	play = do 
+	    ps@(PlayState (st:sts) wsel newMode) <- get
+	    let
+		processPlayCommand CmdQuit =
+		    put ps {psSwitchMode = Just GMQuit}
+	        processPlayCommand CmdUndo =
+		    when (not $ null sts) $ put ps {psGameStateStack = sts}
+		processPlayCommand cmd = 
 		    let push whs dir 
 			    | whs == WHSWrench || (whs == WHSSelected && wsel) =
 				Just $ nullMove { wrenchPush = dir }
@@ -177,74 +94,92 @@ test pBdgs eBdgs lockSize fname initState = do
 			case pm of
 			     Nothing -> return ()
 			     Just pm' -> (lift $ doPhysicsTick pm' st) >>= pushPState
-			playState
+		in case newMode of
+		    Just GMQuit -> return ()
+		    _ -> do
+			lift $ drawPlayState ps
+			cmds <- lift $ getInput $ GMPlay False
+			sequence_ $ map processPlayCommand cmds
+			play
 
-	editState :: StateT EditState DisplayM ()
-	editState = do 
-	    es@(EditState (st:sts) selPiece selPos) <- get
-	    lift $ drawEditState es
-	    k <- lift getKey
-	    case Map.lookup k eBdgs of
-		Nothing -> editState
-		Just CmdQuit -> return ()
-		Just CmdPlay -> void $ lift $ runStateT playState $ PlayState [st] False
-		Just CmdTest -> do
-		    let st' = canonify st
-		    pushEState $ canonify st'
-		    void $ lift $ runStateT playState $ PlayState [st'] False
-		    editState
-	        Just CmdUndo -> do when (not $ null sts) $ put es {esGameStateStack = sts}
-				   editState
+	edit :: StateT EditState UIM ()
+	edit = do 
+	    es@(EditState (st:sts) selPiece selPos newMode) <- get
+	    let
+		doForce force = 
+		    let (st',alerts) = runWriter $ resolveForces (Vector.singleton force) Vector.empty st
+		    in lift (drawAlerts alerts) >> pushEState st'
+		processEditCommand CmdQuit =
+		    put es {esSwitchMode = Just GMQuit}
+		processEditCommand CmdPlay =
+		    put es {esSwitchMode = Just $ GMPlay False}
+		processEditCommand CmdTest =
+		    put es {esSwitchMode = Just $ GMPlay True}
+		processEditCommand CmdUndo =
+		    when (not $ null sts) $ put es {esGameStateStack = sts}
 			    
-		Just cmd ->
-		    let doForce force = 
-			    let (st',alerts) = runWriter $ resolveForces (Vector.singleton force) Vector.empty st
-			    in lift (drawAlerts alerts) >> pushEState st' >> editState
-		    in case cmd of
-		        CmdSelect ->
-			    let selPiece' =
-				    if isJust selPiece
-					then Nothing
-					else liftM fst $ Map.lookup selPos $ stateBoard st
-			    in put es {selectedPiece = selPiece'} >> editState
-			CmdDir _ dir -> 
-			    case selPiece of
-				Nothing -> put es {selectedPos = checkBounds selPos $ dir <+> selPos} >> editState
-				Just p -> doForce $ Push p dir
-			CmdRotate dir ->
-			    case selPiece of
-				Nothing -> editState
-				Just p -> doForce $ Torque p dir
-			CmdTile tile ->
-			    pushEState (modTile (Just tile) selPos st) >> editState
-			CmdMerge -> lift getKey >>= \k ->
-			    case Map.lookup k eBdgs of
-				Just (CmdDir _ mergeDir) ->
-				    let st' = mergeTiles selPos mergeDir True st
-				    in pushEState st' >> editState
-				_ -> editState
-			CmdWait ->
-			    case selPiece of
-				Nothing -> pushEState (modTile Nothing selPos st) >> editState
-				Just p -> do st' <- lift $ doPhysicsTick nullMove st
-					     pushEState st' >> editState
-			CmdDelete ->
-			    case selPiece of
-				Nothing -> editState
-				Just p -> do put es {selectedPiece = Nothing}
-					     pushEState $ delPiece p st
-					     editState
-			CmdWriteState ->
-			    let wfname = fromMaybe "unnamed.lock" fname 
-			    in (liftIO $ writeFile wfname $ show (lockSize, canonify st)) >> editState
-			_ -> editState
-	pushEState :: GameState -> StateT EditState DisplayM ()
+		processEditCommand CmdSelect =
+		    let selPiece' =
+			    if isJust selPiece
+				then Nothing
+				else liftM fst $ Map.lookup selPos $ stateBoard st
+		    in put es {selectedPiece = selPiece'}
+		processEditCommand (CmdDir _ dir) =
+		    case selPiece of
+			Nothing -> put es {selectedPos = checkBounds selPos $ dir <+> selPos}
+			Just p -> doForce $ Push p dir
+		processEditCommand (CmdRotate dir) =
+		    case selPiece of
+			Nothing -> return ()
+			Just p -> doForce $ Torque p dir
+		processEditCommand (CmdTile tile) =
+		    pushEState (modTile (Just tile) selPos st)
+		processEditCommand CmdMerge = do
+		    cmds <- lift $ getInput GMEdit
+		    case cmds of
+			[CmdDir _ mergeDir] ->
+			    let st' = mergeTiles selPos mergeDir True st
+			    in pushEState st'
+			_ -> return ()
+		processEditCommand CmdWait =
+		    case selPiece of
+			Nothing -> pushEState (modTile Nothing selPos st)
+			Just p -> do st' <- lift $ doPhysicsTick nullMove st
+				     pushEState st'
+		processEditCommand CmdDelete =
+		    case selPiece of
+			Nothing -> return ()
+			Just p -> do put es {selectedPiece = Nothing}
+				     pushEState $ delPiece p st
+		processEditCommand CmdWriteState =
+		    let wfname = fromMaybe "unnamed.lock" fname 
+		    in (liftIO $ writeFile wfname $ show (lockSize, canonify st))
+		processEditCommand _ = return ()
+		in case newMode of
+		    Just GMQuit -> return ()
+		    Just (GMPlay False) -> subPlay st
+		    Just (GMPlay True) -> do
+			let st' = canonify st
+			pushEState st'
+			subPlay st'
+		    _ -> do
+			lift $ drawEditState es
+			cmds <- lift $ getInput GMEdit
+			sequence_ $ map processEditCommand cmds
+			edit
+	    where
+		subPlay st = do
+		    modify $ \es -> es {esSwitchMode = Nothing}
+		    void $ lift $ runStateT play $ PlayState [st] False Nothing
+		    edit
+
+	pushEState :: GameState -> StateT EditState UIM ()
 	pushEState st = do
-	    es@(EditState (st':sts) _ _) <- get
+	    es@(EditState (st':sts) _ _ _) <- get
 	    when (st' /= st) $ put $ es {esGameStateStack = st:st':sts}
-	pushPState :: GameState -> StateT PlayState DisplayM ()
+	pushPState :: GameState -> StateT PlayState UIM ()
 	pushPState st = do
-	    ps@(PlayState (st':sts) _) <- get
+	    ps@(PlayState (st':sts) _ _) <- get
 	    when (st' /= st) $ put $ ps {psGameStateStack = st:st':sts}
 	checkBounds :: HexPos -> HexPos -> HexPos
 	checkBounds def pos = if hexLen (pos <-> origin) < lockSize then pos else def
@@ -260,7 +195,7 @@ test pBdgs eBdgs lockSize fname initState = do
 	    let (st',_) = runWriter $ physicsTick nullMove st
 	    in if st == st' then st else stabilise st'
     
-	doPhysicsTick :: PlayerMove -> GameState -> DisplayM GameState
+	doPhysicsTick :: PlayerMove -> GameState -> UIM GameState
 	doPhysicsTick pm st =
 	    let (st',alerts) = runWriter $ physicsTick pm st in
 	    drawAlerts alerts >> return st'
@@ -294,4 +229,4 @@ main = do
 		Nothing -> return Nothing
 		Just fname -> readLockFile fname
     let (size, initState) = fromMaybe (initSize, baseState initSize) $ lock
-    test playBindings editBindings size fname initState `runStateT` nullDisplayState
+    test size fname initState `runStateT` nullUIState

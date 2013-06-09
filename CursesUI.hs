@@ -1,5 +1,6 @@
-module CursesDisplay ( drawState, drawPlayState, drawEditState, drawAlerts
-    , DisplayState(DisplayState), DisplayM, nullDisplayState, initDisplay, endDisplay, getKey ) where
+module CursesUI ( drawState, drawPlayState, drawEditState, drawAlerts
+    , UIState(UIState), UIM, nullUIState, initUI, endUI
+    , getInput ) where
 
 import qualified UI.HSCurses.Curses as Curses
 import qualified UI.HSCurses.CursesHelper as CursesH
@@ -13,6 +14,8 @@ import Control.Monad.State
 
 import Hex
 import GameState
+import Command
+import KeyBindings
 
 type AttrChar = (Char, Curses.Attr)
 type ColPair = Int
@@ -70,17 +73,17 @@ mvAddGlyph cpairs v (Glyph ch col attr) =
 move :: CVec -> IO ()
 move (CVec y x) = Curses.move y x
 
-data DisplayState = DisplayState { dispCPairs::[Curses.Pair], dispCentre::HexPos, dispLastCol::PieceColouring }
-type DisplayM = StateT DisplayState IO
-nullDisplayState = DisplayState [] (PHS zero) Map.empty
+data UIState = UIState { dispCPairs::[Curses.Pair], dispCentre::HexPos, dispLastCol::PieceColouring }
+type UIM = StateT UIState IO
+nullUIState = UIState [] (PHS zero) Map.empty
 
 
-erase :: DisplayM ()
+erase :: UIM ()
 erase = liftIO Curses.erase
-refresh :: DisplayM ()
+refresh :: UIM ()
 refresh = liftIO Curses.refresh
 
-drawAt :: Glyph -> HexPos -> DisplayM ()
+drawAt :: Glyph -> HexPos -> UIM ()
 drawAt gl pos = do
 	scrCentre <- getScrCentre
 	cpairs <- gets dispCPairs
@@ -88,7 +91,7 @@ drawAt gl pos = do
 	let cpos = scrCentre <+> (hexVec2CVec $ pos <-> centre)
 	liftIO $ mvAddGlyph cpairs cpos gl
 
-drawCursorAt :: Maybe HexPos -> DisplayM ()
+drawCursorAt :: Maybe HexPos -> UIM ()
 drawCursorAt Nothing =
     liftIO $ Curses.cursSet Curses.CursorInvisible >> return ()
 drawCursorAt (Just pos) = do 
@@ -98,18 +101,18 @@ drawCursorAt (Just pos) = do
     liftIO $ move $ scrCentre <+> (hexVec2CVec $ pos <-> centre)
     refresh
 
-getScrCentre :: DisplayM CVec
+getScrCentre :: UIM CVec
 getScrCentre = do 
     (h,w) <- liftIO Curses.scrSize
     return $ CVec (h`div`2) (w`div`2)
 
 -- TODO: monochrome mode (putting numbers in adjacent squares in place of
 -- colours?)
-drawState :: [PieceIdx] -> Bool -> GameState -> DisplayM ()
+drawState :: [PieceIdx] -> Bool -> GameState -> UIM ()
 drawState reversed colourFixed st =
     let board = stateBoard st
     in do
-	DisplayState cpairs centre lastCol <- get
+	UIState cpairs centre lastCol <- get
 	let colouring = boardColouring st (colouredPieces colourFixed st) lastCol
 	modify $ \ds -> ds { dispLastCol = colouring }
 	erase
@@ -118,23 +121,23 @@ drawState reversed colourFixed st =
 	    ]
 	refresh
 
-drawPlayState :: PlayState -> DisplayM ()
-drawPlayState (PlayState (st:_) wsel) =
+drawPlayState :: PlayState -> UIM ()
+drawPlayState (PlayState (st:_) wsel _) =
     do
-	ds@(DisplayState _ centre _) <- get
+	ds@(UIState _ centre _) <- get
 	drawState [] False st
 	drawCursorAt $ listToMaybe [ pos |
 	    (_, PlacedPiece pos p) <- enumVec $ placedPieces st
 	    , or [wsel && isWrench p, not wsel && isHook p] ]
 
-drawEditState :: EditState -> DisplayM ()
-drawEditState (EditState (st:_) selPiece selPos) =
+drawEditState :: EditState -> UIM ()
+drawEditState (EditState (st:_) selPiece selPos _) =
     do
-	ds@(DisplayState _ centre _) <- get
+	ds@(UIState _ centre _) <- get
 	drawState (maybeToList selPiece) True st
 	drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
 
-drawAlerts :: [Alert] -> DisplayM ()
+drawAlerts :: [Alert] -> UIM ()
 drawAlerts alerts =
     do mapM_ drawAlert alerts
        when (not $ null alerts) 
@@ -163,16 +166,17 @@ colorsToPairs cs =
                in do Curses.initPair p fg bg
                      return p
 
-initDisplay :: DisplayM ()
-initDisplay = 
+initUI :: UIM ()
+initUI = 
     do liftIO $ CursesH.start 
        cpairs <- liftIO $ colorsToPairs [ (f, CursesH.black) | f <-
 	    [ CursesH.white, CursesH.red, CursesH.green, CursesH.yellow, CursesH.blue, CursesH.magenta] ] 
-       put $ DisplayState cpairs (PHS zero) Map.empty
+       put $ UIState cpairs (PHS zero) Map.empty
 
-endDisplay :: DisplayM ()
-endDisplay = liftIO CursesH.end
+endUI :: UIM ()
+endUI = liftIO CursesH.end
 
-getKey :: DisplayM Char
-getKey = do Curses.KeyChar ch <- liftIO $ CursesH.getKey Curses.refresh
-	    return ch
+getInput :: GameMode -> UIM [ Command ]
+getInput mode = do
+    Curses.KeyChar ch <- liftIO $ CursesH.getKey Curses.refresh
+    return $ maybeToList $ Map.lookup ch $ bindings mode

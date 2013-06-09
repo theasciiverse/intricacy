@@ -1,5 +1,6 @@
-module SDLDisplay ( drawState, drawPlayState, drawEditState, drawAlerts
-    , DisplayState(DisplayState), DisplayM, nullDisplayState, initDisplay, endDisplay, getKey ) where
+module SDLUI ( drawState, drawPlayState, drawEditState, drawAlerts
+    , UIState(UIState), UIM, nullUIState, initUI
+    , endUI, getPlayInput, getEditInput ) where
 
 import Graphics.UI.SDL
 import qualified Graphics.UI.SDL as SDL
@@ -14,6 +15,8 @@ import Control.Monad.State
 
 import Hex
 import GameState
+import Command
+import KeyBindings
 
 -- aaPolygon seems to be a bit buggy in sdl-gfx-0.6.0
 aaPolygon' surf verts col =
@@ -147,23 +150,23 @@ type CCoord = PHS SVec
 hexVec2SVec :: HexVec -> Int -> SVec
 hexVec2SVec (HexVec x y z) size = SVec ((x-z) * size) (floor $ -(fromIntegral $ y * size) * (sqrt 3))
 
-data DisplayState = DisplayState { scrHeight::Int, scrWidth::Int, dispCentre::HexPos, dispLastCol::PieceColouring }
-type DisplayM = StateT DisplayState IO
-nullDisplayState = DisplayState 0 0 (PHS zero) Map.empty
+data UIState = UIState { scrHeight::Int, scrWidth::Int, dispCentre::HexPos, dispLastCol::PieceColouring }
+type UIM = StateT UIState IO
+nullUIState = UIState 0 0 (PHS zero) Map.empty
 
 
-erase :: DisplayM ()
+erase :: UIM ()
 erase = do
     surface <- liftIO getVideoSurface
     liftIO $ fillRect surface Nothing black
     return ()
 
-refresh :: DisplayM ()
+refresh :: UIM ()
 refresh = do 
     surface <- liftIO getVideoSurface
     liftIO $ SDL.flip surface
 
-drawAt :: Glyph -> HexPos -> DisplayM ()
+drawAt :: Glyph -> HexPos -> UIM ()
 drawAt gl pos = do
 	(scrCentre, size) <- getGeom
 	centre <- gets dispCentre
@@ -171,10 +174,10 @@ drawAt gl pos = do
 	let cpos = scrCentre <+> (hexVec2SVec (pos <-> centre) size)
 	liftIO $ gl cpos size surface
 
-drawCursorAt :: Maybe HexPos -> DisplayM ()
+drawCursorAt :: Maybe HexPos -> UIM ()
 drawCursorAt _ = return ()
 
-getGeom :: DisplayM (SVec, Int)
+getGeom :: UIM (SVec, Int)
 getGeom = do 
     h <- gets scrHeight 
     w <- gets scrWidth
@@ -183,7 +186,7 @@ getGeom = do
     return (scrCentre, size)
 
 
-drawState :: [PieceIdx] -> Bool -> GameState -> DisplayM ()
+drawState :: [PieceIdx] -> Bool -> GameState -> UIM ()
 drawState reversed colourFixed st =
     let board = stateBoard st
     in do
@@ -196,21 +199,21 @@ drawState reversed colourFixed st =
 	    ]
 	refresh
 
-drawPlayState :: PlayState -> DisplayM ()
-drawPlayState (PlayState (st:_) wsel) =
+drawPlayState :: PlayState -> UIM ()
+drawPlayState (PlayState (st:_) wsel _) =
     do
 	drawState [] False st
 	drawCursorAt $ listToMaybe [ pos |
 	    (_, PlacedPiece pos p) <- enumVec $ placedPieces st
 	    , or [wsel && isWrench p, not wsel && isHook p] ]
 
-drawEditState :: EditState -> DisplayM ()
-drawEditState (EditState (st:_) selPiece selPos) =
+drawEditState :: EditState -> UIM ()
+drawEditState (EditState (st:_) selPiece selPos _) =
     do
 	drawState (maybeToList selPiece) True st
 	drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
 
-drawAlerts :: [Alert] -> DisplayM ()
+drawAlerts :: [Alert] -> UIM ()
 drawAlerts alerts =
     do mapM_ drawAlert alerts
        when (not $ null alerts) 
@@ -219,16 +222,29 @@ drawAlerts alerts =
     where
 	drawAlert (AlertCollision pos) = return ()
 
-initDisplay :: DisplayM ()
-initDisplay = let {w=800; h=640} in do
+initUI :: UIM ()
+initUI = let {w=800; h=640} in do
     liftIO $ SDL.init [InitVideo]
     liftIO $ setVideoMode w h 32 []
     modify $ \ds -> ds { scrWidth = w }
     modify $ \ds -> ds { scrHeight = h }
     erase
 
-endDisplay :: DisplayM ()
-endDisplay = liftIO $ quit
+endUI :: UIM ()
+endUI = liftIO $ quit
 
-getKey :: DisplayM Char
-getKey = return ' '
+getEditInput :: UIM [ Command ]
+getEditInput = do
+    event <- liftIO $ waitEvent
+    case event of
+	KeyDown (Keysym _ _ ch) ->
+	    return $ maybeToList $ Map.lookup ch editBindings
+	_ -> return []
+
+getPlayInput :: UIM [ Command ]
+getPlayInput = do
+    event <- liftIO $ waitEvent
+    case event of
+	KeyDown (Keysym _ _ ch) ->
+	    return $ maybeToList $ Map.lookup ch playBindings
+	_ -> return []

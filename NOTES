@@ -388,3 +388,42 @@ Going this route, we could even copy CD's technique of checking that the
 submitted solution really is one to be run as a batch job - meaning that the
 server can run as a cgi script on sdf, with the checking being done as a
 cronjob on legonz.
+
+
+Mouse control in edit mode:
+    Left down: paint currently selected type. Dragging around
+	should then paint more of it, with the same owner.
+    Right down: select entity. Dragging should then force it around, and
+	scroll wheel rotate it, and left click delete it. Unselected on right
+	button up. If blocked forces mean the cursor ends up no longer on the
+	piece, so be it - don't warp the cursor or release the piece.
+    Scroll wheel: adjust currently selected tile type.
+
+So abstractly, we have the following new commands (which should have keyboard
+triggers too):
+    place currently selected tile type - the owner is recorded;
+    terp rotation commands when nothing selected as adjusting paint selection.
+
+(so selected tile is of type (Maybe PieceIdx, Tile))
+
+Mouse processing generates commands in edit mode as follows:
+    If cursor is out of bounds: unselect.
+
+    Else:
+	If right button was but isn't down, unselect.
+
+	Generate a shortest path of movement commands from previously selected hex
+	to currently moused-over hex; if left button was and is down, intersperse
+	paint commands.
+
+	If left button is but wasn't down, paint.
+
+	If right button is but wasn't down, select.
+
+    Handle scroll wheel, generating rotation or next/prev selection commands.
+
+Mouse control in play mode:
+    Don't use click-and-drag - too easy to make mistakes.
+
+    Instead: click on tool to select; click adjacent to selected tool to move; 
+    mouse wheel for rotation.
