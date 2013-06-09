@@ -12,6 +12,7 @@ import Data.Maybe
 import Control.Concurrent (threadDelay)
 import Control.Monad.State
 import System.IO.Error
+import Data.Word
 
 import UI
 import Hex
@@ -173,9 +174,10 @@ sVec2HexVec size (SVec x y) =
 	hz = -hx-hy
     in HexVec hx hy hz
 
-data UIState = UIState { scrHeight::Int, scrWidth::Int, dispCentre::HexPos, dispLastCol::PieceColouring }
+
+data UIState = UIState { scrHeight::Int, scrWidth::Int, lastFrameTicks::Word32, dispCentre::HexPos, dispLastCol::PieceColouring }
 type UIM = StateT UIState IO
-nullUIState = UIState 0 0 (PHS zero) Map.empty
+nullUIState = UIState 0 0 0 (PHS zero) Map.empty
 
 erase :: UIM ()
 erase = do
@@ -187,6 +189,17 @@ refresh :: UIM ()
 refresh = do 
     surface <- liftIO getVideoSurface
     liftIO $ SDL.flip surface
+
+waitFrame :: UIM ()
+waitFrame = do
+    last <- gets lastFrameTicks
+    let next = last + 1000 `div` 30
+    now <- liftIO getTicks
+    -- liftIO $ print now
+    if now < next
+	then liftIO $ delay (next - now)
+	else return ()
+    modify $ \ds -> ds { lastFrameTicks = now }
 
 drawAt :: Glyph -> HexPos -> UIM ()
 drawAt gl pos = do
@@ -224,6 +237,7 @@ drawState highlight colourFixed st =
 instance UIMonad (StateT UIState IO) where
     runUI m = evalStateT m nullUIState
     drawPlayState (PlayState (st:_) wsel _) = do
+	waitFrame
 	let selTools = [ idx |
 		(idx, PlacedPiece pos p) <- enumVec $ placedPieces st
 		, or [wsel && isWrench p, not wsel && isHook p] ]
@@ -231,6 +245,7 @@ instance UIMonad (StateT UIState IO) where
 	refresh
 
     drawEditState (EditState (st:_) selPiece selPos _) = do
+	waitFrame
 	drawState (maybeToList selPiece) True st
 	drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
 	refresh
