@@ -68,14 +68,23 @@ test lockSize fname initState = do
 	    return True
     where
 	play :: UIMonad uiM => StateT PlayState uiM ()
-	play = do 
+	play = do
 	    ps@(PlayState (st:sts) wsel newMode) <- get
-	    let
+	    case newMode of
+		Just GMQuit -> return ()
+		_ -> do
+		    lift $ drawPlayState ps
+		    cmds <- lift $ getInput $ GMPlay False
+		    sequence_ $ map processPlayCommand cmds
+		    play
+	    where
 		processPlayCommand CmdQuit =
-		    put ps {psSwitchMode = Just GMQuit}
-	        processPlayCommand CmdUndo =
-		    when (not $ null sts) $ put ps {psGameStateStack = sts}
-		processPlayCommand cmd = 
+		    modify $ \ps -> ps {psSwitchMode = Just GMQuit}
+	        processPlayCommand CmdUndo = do
+		    ps@(PlayState (st:sts) wsel newMode) <- get
+		    when (not $ null sts) $ modify $ \ps -> ps {psGameStateStack = sts}
+		processPlayCommand cmd = do
+		    ps@(PlayState (st:sts) wsel newMode) <- get
 		    let push whs dir 
 			    | whs == WHSWrench || (whs == WHSSelected && wsel) =
 				Just $ nullMove { wrenchPush = dir }
@@ -94,90 +103,97 @@ test lockSize fname initState = do
 				CmdWait -> (wsel, Just nullMove)
 				CmdSelect -> (wsel, Just nullMove)
 				_ -> (wsel, Nothing)
-		    in do
-			put $ ps {wrenchSelected = wsel'}
-			case pm of
-			     Nothing -> return ()
-			     Just pm' -> (lift $ doPhysicsTick pm' st) >>= pushPState
-		in case newMode of
-		    Just GMQuit -> return ()
-		    _ -> do
-			lift $ drawPlayState ps
-			cmds <- lift $ getInput $ GMPlay False
-			sequence_ $ map processPlayCommand cmds
-			play
+		    put $ ps {wrenchSelected = wsel'}
+		    case pm of
+			 Nothing -> return ()
+			 Just pm' -> (lift $ doPhysicsTick pm' st) >>= pushPState
 
 	edit :: UIMonad uiM => StateT EditState uiM ()
-	edit = do 
+	edit = do
 	    es@(EditState (st:sts) selPiece selPos newMode) <- get
-	    let
-		doForce force = 
+	    case newMode of
+		Just GMQuit -> return ()
+		Just (GMPlay False) -> subPlay st
+		Just (GMPlay True) -> do
+		    let st' = canonify st
+		    pushEState st'
+		    subPlay st'
+		_ -> do
+		    lift $ drawEditState es
+		    cmds <- lift $ getInput GMEdit
+		    sequence_ $ map processEditCommand cmds
+		    edit
+	    where
+		doForce force = do
+		    es@(EditState (st:sts) selPiece selPos newMode) <- get
 		    let (st',alerts) = runWriter $ resolveForces (Vector.singleton force) Vector.empty st
-		    in lift (drawAlerts alerts) >> pushEState st'
+		    lift (drawAlerts alerts) >> pushEState st'
 		processEditCommand CmdQuit =
-		    put es {esSwitchMode = Just GMQuit}
+		    modify $ \es -> es {esSwitchMode = Just GMQuit}
 		processEditCommand CmdPlay =
-		    put es {esSwitchMode = Just $ GMPlay False}
+		    modify $ \es -> es {esSwitchMode = Just $ GMPlay False}
 		processEditCommand CmdTest =
-		    put es {esSwitchMode = Just $ GMPlay True}
-		processEditCommand CmdUndo =
-		    when (not $ null sts) $ put es {esGameStateStack = sts}
+		    modify $ \es -> es {esSwitchMode = Just $ GMPlay True}
+		processEditCommand CmdUndo = do
+		    es@(EditState (st:sts) selPiece selPos newMode) <- get
+		    when (not $ null sts) $ put $ es {esGameStateStack = sts}
 			    
-		processEditCommand CmdSelect =
+		processEditCommand CmdSelect = do
+		    es@(EditState (st:sts) selPiece selPos newMode) <- get
 		    let selPiece' =
 			    if isJust selPiece
 				then Nothing
 				else liftM fst $ Map.lookup selPos $ stateBoard st
-		    in put es {selectedPiece = selPiece'}
-		processEditCommand (CmdDir _ dir) =
+		    put $ es {selectedPiece = selPiece'}
+		processEditCommand (CmdDir _ dir) = do
+		    es@(EditState (st:sts) selPiece selPos newMode) <- get
 		    case selPiece of
-			Nothing -> put es {selectedPos = checkBounds selPos $ dir <+> selPos}
+			Nothing -> put $ es {selectedPos = checkBounds selPos $ dir <+> selPos}
 			Just p -> doForce $ Push p dir
-		processEditCommand (CmdMoveTo newPos) =
+		processEditCommand (CmdMoveTo newPos) = do
+		    es@(EditState (st:sts) selPiece selPos newMode) <- get
+		    put $ es {selectedPos = checkBounds selPos newPos}
 		    case selPiece of
-			Nothing -> put es {selectedPos = checkBounds selPos $ newPos}
+			Nothing -> return ()
 			Just p -> let dir = hexVec2HexDirOrZero $ newPos <-> selPos in
-			    when (dir /= zero) $ doForce $ Push p dir
-		processEditCommand (CmdRotate dir) =
+			    when (dir /= zero) $ do 
+				doForce $ Push p dir
+				es@(EditState (st:sts) selPiece selPos newMode) <- get
+				when (Just p /= (liftM fst $ Map.lookup selPos $ stateBoard st)) $
+				    put $ es {selectedPiece = Nothing}
+		processEditCommand (CmdRotate dir) = do
+		    es@(EditState (st:sts) selPiece selPos newMode) <- get
 		    case selPiece of
 			Nothing -> return ()
 			Just p -> doForce $ Torque p dir
-		processEditCommand (CmdTile tile) =
+		processEditCommand (CmdTile tile) = do
+		    es@(EditState (st:sts) selPiece selPos newMode) <- get
 		    pushEState (modTile (Just tile) selPos st)
 		processEditCommand CmdMerge = do
+		    es@(EditState (st:sts) selPiece selPos newMode) <- get
 		    cmds <- lift $ getInput GMEdit
 		    case cmds of
 			[CmdDir _ mergeDir] ->
 			    let st' = mergeTiles selPos mergeDir True st
 			    in pushEState st'
 			_ -> return ()
-		processEditCommand CmdWait =
+		processEditCommand CmdWait = do
+		    es@(EditState (st:sts) selPiece selPos newMode) <- get
 		    case selPiece of
 			Nothing -> pushEState (modTile Nothing selPos st)
 			Just p -> do st' <- lift $ doPhysicsTick nullMove st
 				     pushEState st'
-		processEditCommand CmdDelete =
+		processEditCommand CmdDelete = do
+		    es@(EditState (st:sts) selPiece selPos newMode) <- get
 		    case selPiece of
 			Nothing -> return ()
-			Just p -> do put es {selectedPiece = Nothing}
+			Just p -> do put $ es {selectedPiece = Nothing}
 				     pushEState $ delPiece p st
-		processEditCommand CmdWriteState =
+		processEditCommand CmdWriteState = do
+		    es@(EditState (st:sts) selPiece selPos newMode) <- get
 		    let wfname = fromMaybe "unnamed.lock" fname 
-		    in (liftIO $ writeFile wfname $ show (lockSize, canonify st))
+		    liftIO $ writeFile wfname $ show (lockSize, canonify st)
 		processEditCommand _ = return ()
-		in case newMode of
-		    Just GMQuit -> return ()
-		    Just (GMPlay False) -> subPlay st
-		    Just (GMPlay True) -> do
-			let st' = canonify st
-			pushEState st'
-			subPlay st'
-		    _ -> do
-			lift $ drawEditState es
-			cmds <- lift $ getInput GMEdit
-			sequence_ $ map processEditCommand cmds
-			edit
-	    where
 		subPlay :: UIMonad uiM => GameState -> StateT EditState uiM ()
 		subPlay st = do
 		    modify $ \es -> es {esSwitchMode = Nothing}

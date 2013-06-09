@@ -274,13 +274,25 @@ instance UIMonad (StateT UIState IO) where
     endUI = liftIO $ quit
 
     getInput mode = do
-	event <- liftIO $ waitEvent
-	case event of
-	    KeyDown (Keysym _ _ ch) ->
+	events <- liftIO $ getEvents
+	concat `liftM` (sequence $ map processEvent events)
+	where
+	    processEvent (KeyDown (Keysym _ _ ch)) =
 		return $ maybeToList $ Map.lookup ch $ bindings mode
-	    MouseMotion x y _ _ -> do
+	    processEvent (MouseMotion x y _ _) = do
 		let mpos = SVec (fromIntegral x) (fromIntegral y)
 		centre <- gets dispCentre
 		(scrCentre, size) <- getGeom
 		return [ CmdMoveTo $ (sVec2HexVec size $ mpos <+> neg scrCentre) <+> centre ]
-	    _ -> return []
+	    processEvent _ = return []
+	    getEvents = do
+		e <- waitEvent
+		es <- pollEvents
+		return $ e:es
+	    pollEvents = do
+		e <- pollEvent
+		case e of
+		    NoEvent -> return []
+		    _ -> do
+			es <- pollEvents
+			return $ e:es
