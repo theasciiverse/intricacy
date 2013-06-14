@@ -69,7 +69,7 @@ test lockSize fname initState = do
     where
 	play :: UIMonad uiM => StateT PlayState uiM ()
 	play = do
-	    ps@(PlayState (st:sts) wsel newMode) <- get
+	    ps@(PlayState (st:sts) lastAlerts wsel newMode) <- get
 	    case newMode of
 		Just GMQuit -> return ()
 		_ -> do
@@ -81,10 +81,10 @@ test lockSize fname initState = do
 		processPlayCommand CmdQuit =
 		    modify $ \ps -> ps {psSwitchMode = Just GMQuit}
 	        processPlayCommand CmdUndo = do
-		    ps@(PlayState (st:sts) wsel newMode) <- get
-		    when (not $ null sts) $ modify $ \ps -> ps {psGameStateStack = sts}
+		    ps@(PlayState (st:sts) lastAlerts wsel newMode) <- get
+		    when (not $ null sts) $ modify $ \ps -> ps {psGameStateStack = sts, psLastAlerts = []}
 		processPlayCommand cmd = do
-		    ps@(PlayState (st:sts) wsel newMode) <- get
+		    ps@(PlayState (st:sts) lastAlerts wsel newMode) <- get
 		    let push whs dir 
 			    | whs == WHSWrench || (whs == WHSSelected && wsel) =
 				Just $ nullMove { wrenchPush = dir }
@@ -106,7 +106,10 @@ test lockSize fname initState = do
 		    put $ ps {wrenchSelected = wsel'}
 		    case pm of
 			 Nothing -> return ()
-			 Just pm' -> (lift $ doPhysicsTick pm' st) >>= pushPState
+			 Just pm' -> do
+			    (st',alerts) <- lift $ doPhysicsTick pm' st
+			    modify $ \ps -> ps {psLastAlerts = alerts}
+			    pushPState st'
 
 	edit :: UIMonad uiM => StateT EditState uiM ()
 	edit = do
@@ -182,7 +185,7 @@ test lockSize fname initState = do
 		    es@(EditState (st:sts) selPiece selPos newMode) <- get
 		    case selPiece of
 			Nothing -> pushEState (modTile Nothing selPos st)
-			Just p -> do st' <- lift $ doPhysicsTick nullMove st
+			Just p -> do (st',_) <- lift $ doPhysicsTick nullMove st
 				     pushEState st'
 		processEditCommand CmdDelete = do
 		    es@(EditState (st:sts) selPiece selPos newMode) <- get
@@ -198,7 +201,7 @@ test lockSize fname initState = do
 		subPlay :: UIMonad uiM => GameState -> StateT EditState uiM ()
 		subPlay st = do
 		    modify $ \es -> es {esSwitchMode = Nothing}
-		    void $ lift $ runStateT play $ PlayState [st] False Nothing
+		    void $ lift $ runStateT play $ PlayState [st] [] False Nothing
 		    edit
 
 	pushEState :: UIMonad uiM => GameState -> StateT EditState uiM ()
@@ -207,7 +210,7 @@ test lockSize fname initState = do
 	    when (st' /= st) $ put $ es {esGameStateStack = st:st':sts}
 	pushPState :: UIMonad uiM => GameState -> StateT PlayState uiM ()
 	pushPState st = do
-	    ps@(PlayState (st':sts) _ _) <- get
+	    ps@(PlayState (st':sts) _ _ _) <- get
 	    when (st' /= st) $ put $ ps {psGameStateStack = st:st':sts}
 	checkBounds :: HexPos -> HexPos -> HexPos
 	checkBounds def pos = if hexLen (pos <-> origin) < lockSize then pos else def
@@ -223,10 +226,10 @@ test lockSize fname initState = do
 	    let (st',_) = runWriter $ physicsTick nullMove st
 	    in if st == st' then st else stabilise st'
     
-	doPhysicsTick :: UIMonad uiM => PlayerMove -> GameState -> uiM GameState
+	doPhysicsTick :: UIMonad uiM => PlayerMove -> GameState -> uiM (GameState, [Alert])
 	doPhysicsTick pm st =
-	    let (st',alerts) = runWriter $ physicsTick pm st in
-	    drawAlerts alerts >> return st'
+	    let r@(st',alerts) = runWriter $ physicsTick pm st in
+	    drawAlerts alerts >> return r
 
 
 data Opt = LockSize Int | ForceCurses

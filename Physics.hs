@@ -36,6 +36,9 @@ data PlayerMove = PlayerMove { hookPush :: HexDir, hookTorque :: TorqueDir, wren
     deriving (Eq, Ord, Show)
 nullMove = PlayerMove zero 0 zero
 
+data Alert = AlertCollision HexPos | AlertBlockedForce Force
+    deriving (Eq, Ord, Show)
+
 toolForces :: GameState -> PlayerMove -> Forces
 toolForces st (PlayerMove hp ht wp) = Vector.fromList $
     [ Push widx mom | (widx, PlacedPiece _ (Wrench mom)) <- epps ]
@@ -123,9 +126,11 @@ resolveForces plForces envForces st =
 	    forceIdx $ forces!s | s <- blocked
 	    , (Wrench _) <- [placedPiece $ getForcedpp st' $ forces!s] ]
     in do --prettyTrace (st, sforces, sforces', blocked, unblocked) $
-	(sforces', blocked) <- (sequence_ (map resolveForce sforces)) `execStateT` ([],[])
-	let unblocked = nub [ force | (s,force) <- sforces', not $ s `elem` blocked ]
-	return $ stopWrenches blocked $ foldr applyForce st unblocked
+	(sforces', blockedsfs) <- (sequence_ (map resolveForce sforces)) `execStateT` ([],[])
+	let blocked = nub [ force | (s,force) <- sforces', s `elem` blockedsfs ]
+	let unblocked = nub [ force | (s,force) <- sforces', not $ s `elem` blockedsfs ]
+	tell $ map AlertBlockedForce blocked
+	return $ stopWrenches blockedsfs $ foldr applyForce st unblocked
     
 applyForce :: Force -> GameState -> GameState
 applyForce f s =

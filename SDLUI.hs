@@ -17,6 +17,7 @@ import Data.Word
 import UI
 import Hex
 import GameState
+import Physics
 import Command
 import KeyBindings
 
@@ -121,6 +122,26 @@ tileGlyph (WrenchTile moving) col centre@(SVec x y) size surf = do
     aaCircle surf (fromIntegral x) (fromIntegral y) (fromIntegral $ size`div`2) $ bright col
     return ()
 
+blockedArm :: HexDir -> TorqueDir -> Pixel -> Glyph
+blockedArm armdir tdir col centre@(SVec x y) size surf =
+    void $ aaLine surf fromx fromy tox toy col
+	where
+	    (fromx, fromy) = innerCorner centre size $ rotate (2*tdir) armdir
+	    (tox, toy) = edge centre size $ rotate tdir armdir
+
+blockedBlock :: Tile -> HexDir -> Pixel -> Glyph
+blockedBlock tile dir col centre size = tileGlyph tile col (shift <+> centre) size
+    where
+	shift = SVec (x'-x) (y'-y)
+	(x,y) = innerCorner centre size dir
+	(x',y') = edge centre size dir
+	
+collisionMarker :: Glyph
+collisionMarker centre@(SVec x y) size surf = do
+    filledCircle surf (fromIntegral x) (fromIntegral y) (fromIntegral $ size`div`3) $ bright orange
+    aaCircle surf (fromIntegral x) (fromIntegral y) (fromIntegral $ size`div`3) $ bright orange
+    return ()
+
 cursor :: Glyph
 cursor centre size surf =
     aaPolygon' surf (map (corner centre size) [0..5]) $ bright white
@@ -131,8 +152,12 @@ bright (Pixel v) = Pixel $ v `div` 0x100 * 0x100 + 0xff
 dim :: Pixel -> Pixel
 dim (Pixel v) = Pixel $ v `div` 0x100 * 0x100 + 0xa0
 
+obscure :: Pixel -> Pixel
+obscure (Pixel v) = Pixel $ v `div` 0x100 * 0x100 + 0x80
+
 black = Pixel 0x01000000
 white = Pixel 0xffffff00
+orange = Pixel 0xff7f0000
 
 colourWheel :: Int -> Pixel
 colourWheel n = Pixel $ (((((r * 0x100) + g) * 0x100) + b) * 0x100) + a
@@ -142,12 +167,15 @@ colourWheel n = Pixel $ (((((r * 0x100) + g) * 0x100) + b) * 0x100) + a
 	  colourWheel' 1 = [True, True, False]
 	  colourWheel' n = let [a,b,c] = colourWheel' $ n-2 in [b,c,a]
 
+colourOf colouring idx = 
+    case Map.lookup idx colouring of
+	    Nothing -> white
+	    Just n -> colourWheel n
+
 ownedTileGlyph :: PieceColouring -> [PieceIdx] -> OwnedTile -> Glyph
 ownedTileGlyph colouring highlight (owner,t) =
     let col = (if owner `elem` highlight then bright else dim) $
-	    case Map.lookup owner colouring of
-		    Nothing -> white
-		    Just n -> colourWheel n
+	    colourOf colouring owner
     in tileGlyph t col
 
 data SVec = SVec { cx, cy :: Int }
@@ -222,6 +250,23 @@ drawCursorAt :: Maybe HexPos -> UIM ()
 drawCursorAt (Just pos) = drawAt cursor pos
 drawCursorAt _ = return ()
 
+drawBlocked :: GameState -> PieceColouring -> Force -> UIM ()
+drawBlocked st colouring (Torque idx dir) = do
+    let (pos,arms) = case getpp st idx of
+	    PlacedPiece pos (Pivot arms) -> (pos,arms)
+	    PlacedPiece pos (Hook arm _) -> (pos,[arm])
+	col = obscure $ colourOf colouring idx
+    sequence_ [ drawAt (blockedArm arm dir col) (arm <+> pos) |
+	arm <- arms ]
+drawBlocked st colouring (Push idx dir) = do
+    return ()
+{-
+    let pmap = plPieceMap $ getpp st idx
+	col = obscure $ colourOf colouring idx
+    sequence_ [ drawAt (blockedBlock tile dir col) pos |
+	(pos,tile) <- Map.toList pmap ]
+-}
+
 drawPaintSel :: UIM ()
 drawPaintSel = do
     pTile <- gets paintTile
@@ -244,8 +289,8 @@ getGeom = do
     return (scrCentre, size)
 
 
-drawState :: [PieceIdx] -> Bool -> GameState -> UIM ()
-drawState highlight colourFixed st =
+drawState :: [PieceIdx] -> Bool -> [Alert] -> GameState -> UIM ()
+drawState highlight colourFixed alerts st =
     let board = stateBoard st
     in do
 	lastCol <- gets dispLastCol
@@ -255,20 +300,23 @@ drawState highlight colourFixed st =
 	sequence_ [ drawAt glyph pos | 
 	    (pos,glyph) <- Map.toList $ fmap (ownedTileGlyph colouring highlight) board
 	    ]
+	sequence_ $ [ drawBlocked st colouring force | 
+	    AlertBlockedForce force <- alerts ]
+	    -- ++ [ drawAt collisionMarker pos | AlertCollision pos <- alerts ]
 
 instance UIMonad (StateT UIState IO) where
     runUI m = evalStateT m nullUIState
-    drawPlayState (PlayState (st:_) wsel _) = do
+    drawPlayState (PlayState (st:_) alerts wsel _) = do
 	waitFrame
 	let selTools = [ idx |
 		(idx, PlacedPiece pos p) <- enumVec $ placedPieces st
 		, or [wsel && isWrench p, not wsel && isHook p] ]
-	drawState selTools False st
+	drawState selTools False alerts st
 	refresh
 
     drawEditState (EditState (st:_) selPiece selPos _) = do
 	waitFrame
-	drawState (maybeToList selPiece) True st
+	drawState (maybeToList selPiece) True [] st
 	drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
 	drawPaintSel
 	refresh
@@ -279,7 +327,7 @@ instance UIMonad (StateT UIState IO) where
 	    $ do refresh
 		 liftIO $ threadDelay $ 5*10^4
 	where
-	    drawAlert (AlertCollision pos) = return ()
+	    drawAlert _ = return ()
 
     initUI = let {w=800; h=640} in do
 	ok <- liftIO $ catchIOError (SDL.init [InitVideo] >> return True) (\_ -> return False)

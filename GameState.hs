@@ -22,12 +22,6 @@ data GameState = GameState { placedPieces :: Vector PlacedPiece,
 	connections :: [Connection] }
     deriving (Eq, Ord, Show, Read)
 
-data PlayState = PlayState {psGameStateStack::[GameState]
-	, wrenchSelected::Bool, psSwitchMode::Maybe GameMode }
-    deriving (Eq, Ord, Show, Read)
-data EditState = EditState {esGameStateStack::[GameState]
-	, selectedPiece::Maybe PieceIdx, selectedPos::HexPos, esSwitchMode::Maybe GameMode}
-    deriving (Eq, Ord, Show, Read)
 data GameMode = GMEdit | GMPlay Bool | GMQuit
     deriving (Eq, Ord, Show, Read)
 
@@ -212,8 +206,6 @@ data Tile = BlockTile [HexDir] | PivotTile HexDir | ArmTile HexDir Bool | HookTi
 
 type OwnedTile = (PieceIdx, Tile)
 type GameBoard = Map HexPos OwnedTile
-
-data Alert = AlertCollision HexPos
 
 stateBoard :: GameState -> GameBoard
 stateBoard st@(GameState plPieces conns) =

@@ -13,6 +13,7 @@ import Control.Monad.State
 
 import Hex
 import GameState
+import Physics
 import Command
 import KeyBindings
 import UI
@@ -108,8 +109,8 @@ getScrCentre = do
 
 -- TODO: monochrome mode (putting numbers in adjacent squares in place of
 -- colours?)
-drawState :: [PieceIdx] -> Bool -> GameState -> UIM ()
-drawState reversed colourFixed st =
+drawState :: [PieceIdx] -> Bool -> [Alert] -> GameState -> UIM ()
+drawState reversed colourFixed alerts st =
     let board = stateBoard st
     in do
 	UIState cpairs centre lastCol <- get
@@ -143,10 +144,10 @@ colorsToPairs cs =
 
 instance UIMonad (StateT UIState IO) where
     runUI m = evalStateT m nullUIState
-    drawPlayState (PlayState (st:_) wsel _) =
+    drawPlayState (PlayState (st:_) alerts wsel _) = do
 	do
 	    ds@(UIState _ centre _) <- get
-	    drawState [] False st
+	    drawState [] False alerts st
 	    drawCursorAt $ listToMaybe [ pos |
 		(_, PlacedPiece pos p) <- enumVec $ placedPieces st
 		, or [wsel && isWrench p, not wsel && isHook p] ]
@@ -154,7 +155,7 @@ instance UIMonad (StateT UIState IO) where
     drawEditState (EditState (st:_) selPiece selPos _) =
 	do
 	    ds@(UIState _ centre _) <- get
-	    drawState (maybeToList selPiece) True st
+	    drawState (maybeToList selPiece) True [] st
 	    drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
 
     drawAlerts alerts =

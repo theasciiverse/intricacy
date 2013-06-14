@@ -259,6 +259,7 @@ Problem:
 
 	DONE
 
+    
 
 Architecture:
     Board state consists of:
@@ -274,8 +275,85 @@ Architecture:
 	    momentum
     
     The force resolution algorithm above simply maps states to states.
-    
-	
+
+Remarks on unintuitive results of our algorithm:
+    Forces which seem like they should just "cancel out" can nonetheless block
+    third forces due to collisions. e.g. all three forces are blocked in:
+      # $ # /
+	   o   # $ #
+      # $ # \
+    . One could imagine trying to delay or renege on the blocking of the
+    rightmost force. But this isn't straightforward; e.g. consider a setup like
+    the above whereby the pivot turning clockwise propagates to another
+    mismatch which should cancel out the bottom force, while similarly
+    anticlockwise should cancel the top force.
+
+    Generally, having forces block forces from blocking other forces opens a
+    can of knotted ouroboroses.
+
+    Concrete example: consider three pivots and a force on each producing
+    anticlockwise torque, and set things up such that an anticlockwise torque
+    on a pivot propagates to clockwise torque on the next. Then if we want the
+    rule to be that balanced forces don't propagate, we find that the forces
+    are balanced iff they're not.
+
+    So balanced forces must propagate - which means we're bound to get the
+    kinds of unintuitive nastiness exemplified in the diagram above.
+
+    So I should switch to trying to make it seem intuitive.
+
+    Actually, there may be another way, which is to take a hint from CD
+    as to how to cook those ouroboroses: when we get cycles as in the above
+    example, consider something balanced if it's *ever* balanced as we go
+    through the cycle. Would this lead us to surprising consequences with
+    pulses and latches?
+
+    Yes, it really would, just like in CD, only more surprising and harder to
+    think through. This can't be a good idea, can it?
+
+    Alternatively: work monotonically - once something is balanced, it remains
+    balanced.
+
+    So in other words: we use the current rules, but mismatches don't block.
+    once complete, we look for mismatches - multiple forces on a piece. If
+    there are any, we mark those pieces as 'balanced' (better term?), and run
+    the algorithm again; balanced pieces just resist any force. Iterate, only
+    adding to the list of balanced pieces, until we settle.
+
+    One thing to consider: what should happen when a force on a piece
+    propagates to some forces, one of which balances out the first force?
+    Wouldn't it be perverse to have that propagation nullified? So we should
+    say that it takes two differently sourced forces to cause a balance, and
+    one-source mismatches just lead to blocking as currently.
+
+    Simple enough to implement, and fairly intuitive in conception. Does it
+    lead to any pathological results? How unintuitive is a force which is
+    balanced out nonetheless having its propagands balance other forces?
+    Answer: at least as unintuitive as the behaviour which motivated all this.
+    Hrm.
+
+    So a CD-style "iterate until we loop" algorithm is the only one I
+    can see which would lead to reasonable behaviour - the problem being that
+    it also leads to a kind of complexity I was hoping to avoid. Hrm.
+
+    Not only that: at least in any way I can see it working, it would *still*
+    involve forces propagating beyond a balance having an effect, due to the
+    latch effect.
+
+    Note that the results of actual physics in these sorts of situations would
+    involve the finite speed of force transferal - which is something I
+    *really* don't want to be part of the game physics.
+
+    OK, so the current "quantum" physics stays.
+
+Thoughts on representing blocks in the SDL client:
+    Draw every blocked (as opposed to instantly resisted) force. For
+    pivots/hooks: draw dimly arms in partially-rotated positions. For
+    blocks/wrenches: draw dimly shifted to the edge of their hex (when not
+    already drawing to the edge).
+
+
+
 Overgame:
 (writing under the influence of Castle Doctrine (although I'd been planning
 something like this since long before I heard of CD!))
