@@ -290,7 +290,7 @@ getGeom = do
     h <- gets scrHeight 
     w <- gets scrWidth
     let scrCentre = SVec (w`div`2) (h`div`2)
-    let size = minimum [ w`div`80, floor $ (fromIntegral w) / ((sqrt 3)*25) ]
+    let size = minimum [ w`div`80, floor $ (fromIntegral h) / ((sqrt 3)*25) ]
     return (scrCentre, size)
 
 
@@ -308,6 +308,12 @@ drawState highlight colourFixed alerts st =
 	sequence_ $ [ drawBlocked st colouring force | 
 	    AlertBlockedForce force <- alerts ]
 	    -- ++ [ drawAt collisionMarker pos | AlertCollision pos <- alerts ]
+
+initVideo :: Int -> Int -> UIM ()
+initVideo w h = do
+    liftIO $ setVideoMode w h 32 [Resizable]
+    modify $ \ds -> ds { scrWidth = w }
+    modify $ \ds -> ds { scrHeight = h }
 
 instance UIMonad (StateT UIState IO) where
     runUI m = evalStateT m nullUIState
@@ -339,9 +345,7 @@ instance UIMonad (StateT UIState IO) where
 	if not ok
 	    then return False
 	    else do
-		liftIO $ setVideoMode w h 32 []
-		modify $ \ds -> ds { scrWidth = w }
-		modify $ \ds -> ds { scrHeight = h }
+		initVideo w h
 		liftIO $ warpMouse (fromIntegral $ w`div`2) (fromIntegral $ h`div`2)
 		erase
 		liftIO $ enableUnicode True
@@ -407,6 +411,10 @@ instance UIMonad (StateT UIState IO) where
 			    Just (ArmTile _ _) -> Just $ PivotTile zero
 			    }
 			return []
+	    processEvent (VideoResize w h) = do
+		initVideo w h
+		return [ CmdRedraw ]
+		
 	    processEvent _ = return []
 	    paintCmd (Just t) = CmdTile t
 	    paintCmd Nothing = CmdWait

@@ -10,6 +10,7 @@ data Command = CmdDir WrHoSel HexDir | CmdRotate TorqueDir | CmdWait
 	| CmdSelect | CmdUnselect | CmdDelete
 	| CmdEdit | CmdPlay | CmdTest
 	| CmdUndo
+	| CmdRedraw
 	| CmdQuit | CmdWriteState
     deriving (Eq, Ord, Show)
 data WrHoSel = WHSWrench | WHSHook | WHSSelected
