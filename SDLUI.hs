@@ -117,9 +117,14 @@ tileGlyph HookTile col centre@(SVec x y) size surf = do
     aaCircle surf (fromIntegral x) (fromIntegral y) (fromIntegral $ size) $ bright col
     return ()
 
-tileGlyph (WrenchTile moving) col centre@(SVec x y) size surf = do
+tileGlyph (WrenchTile mom) col centre@(SVec x y) size surf = do
     filledCircle surf (fromIntegral x) (fromIntegral y) (fromIntegral $ size`div`2) col
     aaCircle surf (fromIntegral x) (fromIntegral y) (fromIntegral $ size`div`2) $ bright col
+    when (mom /= zero) $
+	let 
+	    (fromx, fromy) = innerCorner centre size $ neg mom
+	    (tox, toy) = edge centre size $ neg mom
+	in void $ aaLine surf fromx fromy tox toy col
     return ()
 
 blockedArm :: HexDir -> TorqueDir -> Pixel -> Glyph
@@ -314,7 +319,7 @@ instance UIMonad (StateT UIState IO) where
 	drawState selTools False alerts st
 	refresh
 
-    drawEditState (EditState (st:_) selPiece selPos _) = do
+    drawEditState (EditState (st:_) selPiece selPos _ _) = do
 	waitFrame
 	drawState (maybeToList selPiece) True [] st
 	drawCursorAt $ if isNothing selPiece then Just selPos else Nothing

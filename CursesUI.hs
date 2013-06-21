@@ -37,7 +37,7 @@ tileChar (ArmTile dir principal) = let
     a = if principal then bold else a0
     in (c,a)
 tileChar HookTile = ('@',bold)
-tileChar (WrenchTile moving) = ('*',if moving then bold else a0)
+tileChar (WrenchTile mom) = ('*',if mom /= zero then bold else a0)
 tileChar (BallTile moving) = ('O',if moving then bold else a0)
 tileChar (SpringTile Relaxed _) = ('S',a0)
 tileChar (SpringTile Compressed _) = ('$',bold)
@@ -152,7 +152,7 @@ instance UIMonad (StateT UIState IO) where
 		(_, PlacedPiece pos p) <- enumVec $ placedPieces st
 		, or [wsel && isWrench p, not wsel && isHook p] ]
 
-    drawEditState (EditState (st:_) selPiece selPos _) =
+    drawEditState (EditState (st:_) selPiece selPos _ _) =
 	do
 	    ds@(UIState _ centre _) <- get
 	    drawState (maybeToList selPiece) True [] st

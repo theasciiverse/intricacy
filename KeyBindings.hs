@@ -40,7 +40,7 @@ dvorakBindingsGlobal = Map.fromList [
 	, ('\r', CmdSelect)
 	, ('\n', CmdSelect)
 	, (' ', CmdSelect)
-	, ('*', CmdTile $ WrenchTile False)
+	, ('*', CmdTile $ WrenchTile zero)
 	, ('@', CmdTile HookTile)
 	, ('-', CmdTile $ ArmTile hu False)
 	, ('\\', CmdTile $ ArmTile hv False)

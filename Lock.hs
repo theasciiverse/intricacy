@@ -63,7 +63,7 @@ test lockSize fname initState = do
     if not ok
 	then return False
 	else do
-	    runStateT edit $ EditState [initState] Nothing (PHS zero) Nothing
+	    runStateT edit $ EditState [initState] Nothing (PHS zero) (PHS zero) Nothing
 	    endUI
 	    return True
     where
@@ -179,23 +179,25 @@ test lockSize fname initState = do
 			Just p -> doForce $ Torque p dir
 		processEditCommand (CmdTile tile) = do
 		    selPos <- gets selectedPos
-		    st:_ <- gets esGameStateStack
-		    pushEState (modTile (Just tile) selPos st)
+		    last <- gets lastModPos
+		    modifyEState $ modTile (Just tile) selPos last
+		    modify $ \es -> es {lastModPos = selPos}
 		processEditCommand CmdMerge = do
 		    selPos <- gets selectedPos
 		    st:_ <- gets esGameStateStack
 		    cmds <- lift $ getInput GMEdit
 		    case cmds of
-			[CmdDir _ mergeDir] ->
-			    let st' = mergeTiles selPos mergeDir True st
-			    in pushEState st'
+			[CmdDir _ mergeDir] -> modifyEState $ mergeTiles selPos mergeDir True
 			_ -> return ()
 		processEditCommand CmdWait = do
 		    selPos <- gets selectedPos
+		    last <- gets lastModPos
 		    selPiece <- gets selectedPiece
 		    st:_ <- gets esGameStateStack
 		    case selPiece of
-			Nothing -> pushEState (modTile Nothing selPos st)
+			Nothing -> do
+			    modifyEState $ modTile Nothing selPos last
+			    modify $ \es -> es {lastModPos = selPos}
 			Just p -> do (st',_) <- lift $ doPhysicsTick nullMove st
 				     pushEState st'
 		processEditCommand CmdDelete = do
@@ -204,7 +206,7 @@ test lockSize fname initState = do
 		    case selPiece of
 			Nothing -> return ()
 			Just p -> do modify $ \es -> es {selectedPiece = Nothing}
-				     pushEState $ delPiece p st
+				     modifyEState $ delPiece p
 		processEditCommand CmdWriteState = do
 		    st:_ <- gets esGameStateStack
 		    let wfname = fromMaybe "unnamed.lock" fname 
@@ -224,6 +226,10 @@ test lockSize fname initState = do
 	pushPState st = do
 	    st':sts <- gets psGameStateStack
 	    when (st' /= st) $ modify $ \ps -> ps {psGameStateStack = st:st':sts}
+	modifyEState :: UIMonad uiM => (GameState -> GameState) -> StateT EditState uiM ()
+	modifyEState f = do
+	    st:_ <- gets esGameStateStack
+	    pushEState $ f st
 	checkBounds :: HexPos -> HexPos -> HexPos
 	checkBounds def pos = if hexLen (pos <-> origin) < lockSize then pos else def
 	canonify st = addTools $ stabilise $ delTools st

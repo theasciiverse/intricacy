@@ -200,12 +200,23 @@ connGraphPathExists st ridx eidx =
 data SpringExtension = Relaxed | Compressed | Stretched
     deriving (Eq, Ord, Show, Read)
 
-data Tile = BlockTile [HexDir] | PivotTile HexDir | ArmTile HexDir Bool | HookTile | WrenchTile Bool
+data Tile = BlockTile [HexDir] | PivotTile HexDir | ArmTile HexDir Bool | HookTile | WrenchTile HexDir
 	  | BallTile Bool | SpringTile SpringExtension HexDir
     deriving (Eq, Ord, Show, Read)
 
 type OwnedTile = (PieceIdx, Tile)
 type GameBoard = Map HexPos OwnedTile
+
+tileType :: Tile -> Tile
+tileType (BlockTile _) = BlockTile []
+tileType (PivotTile _) = PivotTile zero
+tileType (ArmTile _ _) = ArmTile zero False
+tileType (WrenchTile _) = WrenchTile zero
+tileType (BallTile _) = BallTile False
+tileType (SpringTile _ _) = SpringTile Relaxed zero
+tileType t = t
+
+sameTileType t t' = (tileType t) == (tileType t')
 
 stateBoard :: GameState -> GameBoard
 stateBoard st@(GameState plPieces conns) =
@@ -244,7 +255,7 @@ plPieceMap (PlacedPiece pos (Pivot arms)) =
 	    ]
 plPieceMap (PlacedPiece pos (Hook arm _)) =
     Map.fromList $ (pos, HookTile) : [ (arm <+> pos, ArmTile arm True) ]
-plPieceMap (PlacedPiece pos (Wrench mom)) = Map.singleton pos $ WrenchTile (mom /= zero)
+plPieceMap (PlacedPiece pos (Wrench mom)) = Map.singleton pos $ WrenchTile mom
 plPieceMap (PlacedPiece pos (Ball mom)) = Map.singleton pos $ BallTile (mom /= zero)
 
 plPieceFootprint :: PlacedPiece -> [HexPos]
@@ -407,8 +418,8 @@ fiveColour g last =
 
 
 	
-modTile :: Maybe Tile -> HexPos -> GameState -> GameState
-modTile tile pos st =
+modTile :: Maybe Tile -> HexPos -> HexPos -> GameState -> GameState
+modTile tile pos lastPos st =
     let board = stateBoard st
 	curOwnedTile = Map.lookup pos board
 	(st',mowner) = case curOwnedTile of
@@ -417,10 +428,16 @@ modTile tile pos st =
 	    Just (owner,_) -> delPiecePos owner pos st -- XXX may invalidate board's indices to st
 	board' = stateBoard st'
 	addPiece p = addpp $ PlacedPiece pos p
+	same = isJust $ do
+		t <- tile
+		(_,t') <- curOwnedTile
+		guard $ sameTileType t t'
+		return $ Just ()
     in case mowner of
 	 Just o | protectedPiece o -> st
 	 _ -> (case tile of
 	   Nothing -> id
+	   _ | same && (pos /= lastPos) -> id
 	   Just (BlockTile _) ->
 	       let adjacentBlocks = [ idx |
 		       dir <- hexDirs

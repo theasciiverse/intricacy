@@ -19,5 +19,6 @@ data PlayState = PlayState {psGameStateStack::[GameState], psLastAlerts::[Alert]
 	, wrenchSelected::Bool, psSwitchMode::Maybe GameMode }
     deriving (Eq, Ord, Show)
 data EditState = EditState {esGameStateStack::[GameState]
-	, selectedPiece::Maybe PieceIdx, selectedPos::HexPos, esSwitchMode::Maybe GameMode}
+	, selectedPiece::Maybe PieceIdx, selectedPos::HexPos,
+	lastModPos::HexPos, esSwitchMode::Maybe GameMode}
     deriving (Eq, Ord, Show)
