@@ -364,17 +364,25 @@ instance UIMonad (StateT UIState IO) where
 		return $ maybeToList $ Map.lookup ch $ bindings mode
 	    processEvent (MouseMotion x y _ _) = do
 		(scrCentre, size) <- getGeom
+		centre <- gets dispCentre
 		let mPos = sVec2HexVec size $ (SVec (fromIntegral x) (fromIntegral y)) <+> neg scrCentre
-		oldMPos <- gets mousePos
-		if mPos /= oldMPos
-		    then do
-			modify $ \s -> s {mousePos = mPos}
-			centre <- gets dispCentre
-			pTile <- gets paintTile
-			lb <- gets leftButtonDown
-			return $ [ CmdMoveTo $ mPos <+> centre ] ++
-			    if lb then [ drawCmd pTile True ] else []
-		    else return []
+		relMoves <- mouseTo mPos
+		return $ relMoves ++ [ CmdMoveTo $ mPos <+> centre ]
+		where
+		    mouseTo mPos = do
+			oldMPos <- gets mousePos
+			let dir = hexVec2HexDirOrZero $ mPos <-> oldMPos
+			if dir /= zero
+			    then do
+				modify $ \s -> s {mousePos = oldMPos <+> dir}
+				centre <- gets dispCentre
+				pTile <- gets paintTile
+				lb <- gets leftButtonDown
+				more <- mouseTo mPos
+				return $ [ CmdDir WHSSelected dir ] ++
+				    (if lb then [ drawCmd pTile True ] else []) ++
+				    more
+			    else return []
 	    processEvent (MouseButtonDown _ _ ButtonLeft) = do
 		modify $ \s -> s { leftButtonDown = True }
 		pTile <- gets paintTile

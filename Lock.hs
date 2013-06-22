@@ -38,7 +38,7 @@ frame side =
 	    [bolthole side, entrance side])
 bolt :: Int -> PlacedPiece
 bolt side = PlacedPiece (bolthole side <+> origin) $ Block $
-    [ n<*>hu | n <- [0..side`div`4] ] -- ++ [(-2)<*>hu<+>neg hv]
+    [ n<*>hu | n <- [-1..side`div`4] ] -- ++ [(-2)<*>hu<+>neg hv]
 boltbase :: Int -> PlacedPiece
 boltbase side = PlacedPiece ((3*(side`div`4)+1) <*> neg hu <+> bolthole side <+> origin) $ Block [ zero ]
 boltspring :: Int -> Connection
@@ -233,8 +233,17 @@ test lockSize fname initState = do
 	    st:_ <- gets esGameStateStack
 	    pushEState $ f st
 	checkBounds :: HexPos -> HexPos -> HexPos
-	checkBounds def pos = if hexLen (pos <-> origin) < lockSize then pos else def
-	canonify st = addTools $ stabilise $ delTools st
+	checkBounds def pos = if inBounds pos then pos else def
+	inBounds :: HexPos -> Bool
+	inBounds pos = hexLen (pos <-> origin) < lockSize
+	delOOB :: GameState -> GameState
+	delOOB st = case listToMaybe [ idx |
+		(idx,_) <- enumVec $ placedPieces st
+		, not $ isFrame idx
+		, and $ map (not.inBounds) $ fullFootprint st idx ] of
+	    Nothing -> st
+	    Just idx -> delOOB $ delPiece idx st
+	canonify st = addTools $ stabilise $ delTools $ delOOB st
 	delTools st = case listToMaybe [ idx | (idx,pp) <- enumVec $ placedPieces st
 			      , isTool $ placedPiece pp ] of
 			Nothing -> st
