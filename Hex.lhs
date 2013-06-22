@@ -66,14 +66,15 @@ hextant :: HexVec -> Int
 --	3' `5
 --	' 4 `
 hextant (HexVec x y z)
-    | x >= 0 && y > 0 = 0
-    | -z >= 0 && -x > 0 = 1
-    | y >= 0 && z > 0 = 2
-    | -x >= 0 && -y > 0 = 3
-    | z >= 0 && x > 0 = 4
-    | -y >= 0 && -z > 0 = 5
+    | x > 0 && y >= 0 = 0
+    | -z > 0 && -x >= 0 = 1
+    | y > 0 && z >= 0 = 2
+    | -x > 0 && -y >= 0 = 3
+    | z > 0 && x >= 0 = 4
+    | -y > 0 && -z >= 0 = 5
     | otherwise = undefined
 
+-- hextant (rotate n hu) == n
 rotate :: Int -> HexVec -> HexVec
 rotate 0 v = v
 rotate 2 (HexVec x y z) = HexVec z x y
@@ -93,7 +94,7 @@ cmpAngles v@(HexVec x y z) v'@(HexVec x' y' z')
 	compare (hextant v) (hextant v')
     | hextant v /= 0 =
 	cmpAngles (rotate (-(hextant v)) v) (rotate (-(hextant v)) v')
-    | otherwise = compare (x'%y') (x%y)
+    | otherwise = compare (y%x) (y'%x')
 
 instance Ix HexVec where
     range (h,h') = 
@@ -114,7 +115,7 @@ hexDirs = map (\n -> rotate n hu) [0..5]
 hexVec2HexDirOrZero :: HexVec -> HexDirOrZero
 hexVec2HexDirOrZero v
     | v == zero = zero
-    | otherwise = rotate (hextant v + 1) hu
+    | otherwise = rotate (hextant v) hu
 
 --minusHu = HexVec    (-1) 1    0
 --minusHv = HexVec    0    (-1) 1

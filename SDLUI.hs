@@ -31,6 +31,7 @@ aaLines surf verts col =
 
 type Glyph = SVec -> Int -> Surface -> IO ()
 
+corner :: Integral i => SVec -> Int -> Int -> (i,i)
 corner (SVec x y) size hextant = (fromIntegral $ x+dx, fromIntegral $ y+dy)
     where
 	[dx,dy] = map round $ f hextant
@@ -42,6 +43,7 @@ corner (SVec x y) size hextant = (fromIntegral $ x+dx, fromIntegral $ y+dy)
 	    | otherwise = f (n`mod`6)
 	sizeFloat = fromIntegral size
 
+innerCorner :: Integral i => SVec -> Int -> HexDir -> (i,i)
 innerCorner (SVec x y) size dir = (fromIntegral $ x+dx, fromIntegral $ y+dy)
     where
 	[dx,dy] = map round $ f dir
@@ -54,6 +56,7 @@ innerCorner (SVec x y) size dir = (fromIntegral $ x+dx, fromIntegral $ y+dy)
 	sizeFloat = fromIntegral size
 
 
+edge :: Integral i => SVec -> Int -> HexDir -> (i,i)
 edge (SVec x y) size dir = (fromIntegral $ x+dx, fromIntegral $ y+dy)
     where
 	[dx,dy] = map round $ f dir
@@ -76,7 +79,7 @@ tileGlyph (BlockTile adjs) col centre size surf = do
 	where 
 	    corners = concat [
 		if dir `elem` adjs
-		then [corner centre size $ (hextant dir) + n | n <- [0..1]]
+		then [corner centre size $ (hextant dir) + n | n <- [-1,0]]
 		else [innerCorner centre size dir]
 		| dir <- hexDirs ]
 
@@ -87,9 +90,9 @@ tileGlyph (SpringTile extn dir) col centre size surf =
 		Stretched -> 2
 		Relaxed -> 4
 		Compressed -> 6
-	    (sx,sy) = corner centre size (hextant dir)
-	    (offx,offy) = corner centre size (hextant dir + 1)
-	    (ex,ey) = corner centre size (hextant dir - 2)
+	    (sx,sy) = corner centre size (hextant dir - 1)
+	    (offx,offy) = corner centre size (hextant dir)
+	    (ex,ey) = corner centre size (hextant dir - 3)
 	    points = [ (x+dx,y+dy)
 		| i <- [0..n]
 		, let (x,y) = if even i then (sx,sy) else (offx,offy)
