@@ -418,8 +418,8 @@ fiveColour g last =
 
 
 	
-modTile :: Maybe Tile -> HexPos -> HexPos -> GameState -> GameState
-modTile tile pos lastPos st =
+modTile :: Maybe Tile -> HexPos -> HexPos -> Bool -> GameState -> GameState
+modTile tile pos lastPos painting st =
     let board = stateBoard st
 	curOwnedTile = Map.lookup pos board
 	(st',mowner) = case curOwnedTile of
@@ -428,43 +428,53 @@ modTile tile pos lastPos st =
 	    Just (owner,_) -> delPiecePos owner pos st -- XXX may invalidate board's indices to st
 	board' = stateBoard st'
 	addPiece p = addpp $ PlacedPiece pos p
+	lastMOwner = do
+	    (o,_) <- Map.lookup lastPos board
+	    return o
 	same = isJust $ do
 		t <- tile
 		(_,t') <- curOwnedTile
 		guard $ sameTileType t t'
 		return $ Just ()
+	lastElem os = isJust $ do
+	       lastOwner <- lastMOwner
+	       guard $ lastOwner `elem` os
+	lastWasDiff = isNothing $ do
+	       lastOwner <- lastMOwner
+	       owner <- mowner
+	       guard $ owner == lastOwner
+	lastOK = painting || lastWasDiff
+	nextOfAdjacents adjs loop = listToMaybe $ fromMaybe adjs $ do
+		owner <- mowner
+		i <- elemIndex owner adjs
+		return $ (dropWhile (== owner) $ drop i adjs) ++
+		    if loop && i > 0 then adjs else []
     in case mowner of
 	 Just o | protectedPiece o -> st
 	 _ -> (case tile of
 	   Nothing -> id
-	   _ | same && (pos /= lastPos) -> id
+	   -- _ | same && (pos /= lastPos) -> id
 	   Just (BlockTile _) ->
 	       let adjacentBlocks = [ idx |
 		       dir <- hexDirs
 		       , Just (idx, BlockTile _) <- [Map.lookup (dir <+> pos) board']
 		       , not $ protectedPiece idx ]
-		   adjacentBlocks' = 
-			fromMaybe adjacentBlocks $ do
-			    (_,BlockTile _) <- curOwnedTile
-			    owner <- mowner
-			    i <- elemIndex owner adjacentBlocks
-			    return $ dropWhile (== owner) $ drop i adjacentBlocks
-	       in case adjacentBlocks' of
-		      [] -> addPiece $ Block [zero]
-		      b:bs -> addBlockPos b pos
+		   addToIdx = if lastOK && lastElem adjacentBlocks
+		       then lastMOwner
+		       else nextOfAdjacents adjacentBlocks False
+	       in case addToIdx of
+		  Nothing -> addPiece $ Block [zero]
+		  Just b -> addBlockPos b pos
 	   Just (ArmTile armdir _) -> 
 	       let adjacentPivots = [ idx |
 		       dir <- if armdir == zero then hexDirs else [armdir, neg armdir]
 		       , Just (idx, PivotTile _) <- [Map.lookup (dir <+> pos) board'] ]
-		   adjacentPivots' = 
-			fromMaybe adjacentPivots $ do
-			    (_,ArmTile armdir' _) <- curOwnedTile
-			    guard $ armdir' `elem` [armdir, neg armdir] 
-			    owner <- mowner
-			    return $ dropWhile (== owner) adjacentPivots
-	       in case adjacentPivots' of
-		      [] -> id
-		      p:_ -> addPivotArm p pos
+		   addToIdx = if lastOK && lastElem adjacentPivots
+		       then lastMOwner
+		       else nextOfAdjacents adjacentPivots True
+	       in case addToIdx of
+		      Nothing -> id
+		      Just p -> addPivotArm p pos
 	   Just (SpringTile _ _) ->
 	       let possibleSprings = [ Connection root end $ Spring sdir natLen |
 		       sdir <- hexDirs
@@ -483,13 +493,13 @@ modTile tile pos lastPos st =
 		       , let end = (eidx, epos <-> (placedPos $ getpp st eidx))
 		       , let root = (ridx, rpos <-> (placedPos $ getpp st ridx))
 		       ]
-		   possibleSprings' = fromMaybe possibleSprings $ do
+		   nextSpring = listToMaybe $ fromMaybe possibleSprings $ do
 		       (_,SpringTile _ _) <- curOwnedTile -- XXX: therefore the indices of st are still valid
 		       i <- findIndex (`elem` connections st) possibleSprings
 		       return $ drop (i+1) possibleSprings
-	       in case possibleSprings' of
-		      [] -> id
-		      conn:_ -> addConn conn
+	       in case nextSpring of
+		      Nothing -> id
+		      Just conn -> addConn conn
 	   Just (PivotTile _) -> addPiece $ Pivot []
 	   Just (WrenchTile _) -> addPiece $ Wrench zero
 	   Just HookTile -> let arm = listToMaybe [ dir | 

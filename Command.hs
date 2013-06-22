@@ -6,7 +6,7 @@ import Physics (TorqueDir)
 data Command = CmdDir WrHoSel HexDir | CmdRotate TorqueDir | CmdWait
 	| CmdMoveTo HexPos
 	| CmdToggle
-	| CmdTile Tile | CmdMerge
+	| CmdTile Tile | CmdPaint Tile | CmdMerge
 	| CmdSelect | CmdUnselect | CmdDelete
 	| CmdEdit | CmdPlay | CmdTest
 	| CmdUndo

@@ -177,11 +177,8 @@ test lockSize fname initState = do
 		    case selPiece of
 			Nothing -> return ()
 			Just p -> doForce $ Torque p dir
-		processEditCommand (CmdTile tile) = do
-		    selPos <- gets selectedPos
-		    last <- gets lastModPos
-		    modifyEState $ modTile (Just tile) selPos last
-		    modify $ \es -> es {lastModPos = selPos}
+		processEditCommand (CmdTile tile) = drawTile tile False
+		processEditCommand (CmdPaint tile) = drawTile tile True
 		processEditCommand CmdMerge = do
 		    selPos <- gets selectedPos
 		    st:_ <- gets esGameStateStack
@@ -196,7 +193,7 @@ test lockSize fname initState = do
 		    st:_ <- gets esGameStateStack
 		    case selPiece of
 			Nothing -> do
-			    modifyEState $ modTile Nothing selPos last
+			    modifyEState $ modTile Nothing selPos last False
 			    modify $ \es -> es {lastModPos = selPos}
 			Just p -> do (st',_) <- lift $ doPhysicsTick nullMove st
 				     pushEState st'
@@ -212,6 +209,11 @@ test lockSize fname initState = do
 		    let wfname = fromMaybe "unnamed.lock" fname 
 		    liftIO $ writeFile wfname $ show (lockSize, canonify st)
 		processEditCommand _ = return ()
+		drawTile tile painting = do
+		    selPos <- gets selectedPos
+		    last <- gets lastModPos
+		    modifyEState $ modTile (Just tile) selPos last painting
+		    modify $ \es -> es {lastModPos = selPos}
 		subPlay :: UIMonad uiM => GameState -> StateT EditState uiM ()
 		subPlay st = do
 		    modify $ \es -> es {esSwitchMode = Nothing}

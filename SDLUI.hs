@@ -373,12 +373,12 @@ instance UIMonad (StateT UIState IO) where
 			pTile <- gets paintTile
 			lb <- gets leftButtonDown
 			return $ [ CmdMoveTo $ mPos <+> centre ] ++
-			    if lb then [ paintCmd pTile ] else []
+			    if lb then [ drawCmd pTile True ] else []
 		    else return []
 	    processEvent (MouseButtonDown _ _ ButtonLeft) = do
 		modify $ \s -> s { leftButtonDown = True }
 		pTile <- gets paintTile
-		return $ [ paintCmd pTile ]
+		return $ [ drawCmd pTile False ]
 	    processEvent (MouseButtonUp _ _ ButtonLeft) = do
 		modify $ \s -> s { leftButtonDown = False }
 		return []
@@ -419,8 +419,9 @@ instance UIMonad (StateT UIState IO) where
 		return [ CmdRedraw ]
 		
 	    processEvent _ = return []
-	    paintCmd (Just t) = CmdTile t
-	    paintCmd Nothing = CmdWait
+	    drawCmd (Just t) True = CmdPaint t
+	    drawCmd (Just t) False = CmdTile t
+	    drawCmd Nothing _ = CmdWait
 	    getEvents = do
 		e <- waitEvent
 		es <- pollEvents
