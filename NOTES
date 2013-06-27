@@ -506,3 +506,73 @@ Mouse control in play mode:
 
     Instead: click on tool to select; click adjacent to selected tool to move; 
     mouse wheel for rotation.
+
+
+Architectural musings:
+Can we make interaction with the metagame almost entirely email/web based,
+with the client being launched at appropriate points?
+
+The client exists to
+    (i) design and test lockfiles
+    (ii) solve locks
+    (iii) view solutions
+so inputs and outputs are lockfiles and command-sequences.
+
+Remark: given undo, there's not much point in uploading failed attempts -
+only the whole undo tree would really show anything, and usefully displaying
+that is infeasible. Hmm, unless you also upload the undos... could be
+subverted, but that probably isn't worth worrying about. Still would be tricky
+to represent clearly. There's always the possibility that I'll want to revert
+to the chess clock setup, so aim to leave the possibility of uploading and
+viewing failed attempts.
+
+Tempting to keep the client wholly local, letting the user use other means
+(http, email, ftp, whatever) to communicate files with the server(s). But
+perhaps that would be too annoying.
+
+Alternatively, we have some nice simple cgi script as the server, and the
+client uses curl or whatever to talk to it. So we still deal locally with
+files, we just automate the process of uploading and downloading the files.
+
+So we have a few basic high-level operations for the client, which should be
+launchable independently with appropriate command-line options, but which also
+get appropriately twisted together in the default mode:
+    edit/create lockfile (producing canonical lockfiles)
+    play lock (taking lockfile, producing solution)
+    view solution (taking lockfile and solution)
+
+Metagame interactions with the server:
+    buying coffers and selecting locks for them
+    adjusting distribution of picks between coffers
+    choosing coffers to try to crack
+
+Tempting to have these all done purely with cgi+html. But recall just how
+horrible html interfaces are.
+
+Instead, I think I like the idea of using a simple textual interface for
+these, with displays of your locks mixed in where appropriate, which can
+easily be uniform over UIs (recall that in text-mode, a lock takes up only
+25 out of 80 columns, and in SDL we can scale arbitrarily). But let's not
+worry about details of the UI for now. Suffice to say I see that it could be
+done quite neatly - and that having the ability to display the locks is
+another good reason to make it all part of the same client.
+
+The server needs to handle:
+    sending coffer status - including any solution files
+    accepting coffer updates, including new locks
+
+Do we need a database? Or will a directory structure do?
+Server:
+    locks/LOCKIDENTIFIER/{lockfile,creator,solution,attempts/,picks}
+Client:
+    no need to use the file system, except for your collection of lockfiles.
+    The rest can be kept in memory.
+
+On the server, locks are named after sequential numbers.
+
+But then Jason Rohrer wrote this paeon to sql, which made me reconsider:
+http://thecastledoctrine.net/forums/viewtopic.php?pid=2566#p2566
+
+mysql vs sqlite: main difference seems to be that sqlite write-locks the whole
+database when any part of it is written to, while mysql is cleverer. sqlite
+should be fine for this project, I'm sure.
