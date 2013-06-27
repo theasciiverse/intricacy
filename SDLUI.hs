@@ -13,6 +13,8 @@ import Control.Concurrent (threadDelay)
 import Control.Monad.State
 import System.IO.Error
 import Data.Word
+import Data.List (maximumBy)
+--import Debug.Trace (traceShow)
 
 import UI
 import Hex
@@ -201,7 +203,8 @@ hexVec2SVec size (HexVec x y z) =
 
 sVec2HexVec :: Int -> SVec -> HexVec
 sVec2HexVec size (SVec x y) =
-    let size' = fromIntegral size
+    let size' :: Double
+	size' = fromIntegral size
 	x' = fromIntegral x
 	y' = fromIntegral y
 	hy' = -y' / size' / (sqrt 3)
@@ -209,12 +212,12 @@ sVec2HexVec size (SVec x y) =
 	hz' = -((x' / size') + hy') / 2
 	unrounded = Map.fromList [(1,hx'),(2,hy'),(3,hz')]
 	rounded = Map.map round unrounded
-	maxdiff = fst $ Map.findMax $ Map.fromList [ (i, abs $ x'-x) | i <- [1..3],
-	    let x' = unrounded Map.! i, let x = fromIntegral $ rounded Map.! i]
+	maxdiff = fst $ maximumBy (\x y -> compare (snd x) (snd y)) $
+	    [ (i, abs $ x'-x) | i <- [1..3],
+		let x' = unrounded Map.! i, let x = fromIntegral $ rounded Map.! i]
 	[hx,hy,hz] = map snd $ Map.toList $
 	    Map.adjust (\x -> x - (sum $ Map.elems rounded)) maxdiff rounded
     in HexVec hx hy hz
-
 
 data UIState = UIState { scrHeight::Int, scrWidth::Int
     , lastFrameTicks::Word32, paintTile::Maybe Tile
