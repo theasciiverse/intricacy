@@ -484,7 +484,7 @@ modTile tile pos lastPos painting st =
 		       , (ridx, rpos) <- maybeToList $ castRay (neg sdir <+> pos) (neg sdir) board'
 		       , Just (_, BlockTile _) <- [Map.lookup rpos board']
 		       , let natLen = hexLen (rpos <-> epos) - 1
-		       , natLen > 1
+		       , natLen > 0
 		       , null [ conn |
 			   conn@(Connection _ _ (Spring sdir' _)) <-
 			       springsAtIdx st' eidx ++ springsEndAtIdx st' ridx
