@@ -13,7 +13,7 @@ class (Functor m, MonadIO m) => UIMonad m where
     drawPlayState :: PlayState -> m ()
     drawEditState :: EditState -> m ()
     drawAlerts :: [Alert] -> m ()
-    getInput :: GameMode -> m [ Command ]
+    getInput :: InputMode -> m [ Command ]
 
 data PlayState = PlayState {psGameStateStack::[GameState], psLastAlerts::[Alert]
 	, wrenchSelected::Bool, psSwitchMode::Maybe GameMode }
@@ -22,3 +22,5 @@ data EditState = EditState {esGameStateStack::[GameState]
 	, selectedPiece::Maybe PieceIdx, selectedPos::HexPos,
 	lastModPos::HexPos, esSwitchMode::Maybe GameMode}
     deriving (Eq, Ord, Show)
+
+data InputMode = IMEdit | IMPlay | IMConfirm

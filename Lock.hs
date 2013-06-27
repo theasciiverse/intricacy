@@ -74,7 +74,7 @@ test lockSize fname initState = do
 		Just GMQuit -> return ()
 		_ -> do
 		    lift $ drawPlayState ps
-		    cmds <- lift $ getInput $ GMPlay False
+		    cmds <- lift $ getInput $ IMPlay
 		    sequence_ $ map processPlayCommand cmds
 		    play
 	    where
@@ -125,7 +125,7 @@ test lockSize fname initState = do
 		    subPlay st'
 		_ -> do
 		    lift $ drawEditState es
-		    cmds <- lift $ getInput GMEdit
+		    cmds <- lift $ getInput IMEdit
 		    sequence_ $ map processEditCommand cmds
 		    edit
 	    where
@@ -133,8 +133,9 @@ test lockSize fname initState = do
 		    st:_ <- gets esGameStateStack
 		    let (st',alerts) = runWriter $ resolveForces (Vector.singleton force) Vector.empty st
 		    lift (drawAlerts alerts) >> pushEState st'
-		processEditCommand CmdQuit =
-		    modify $ \es -> es {esSwitchMode = Just GMQuit}
+		processEditCommand CmdQuit = do
+		    really <- lift confirm
+		    when really $ modify $ \es -> es {esSwitchMode = Just GMQuit}
 		processEditCommand CmdPlay =
 		    modify $ \es -> es {esSwitchMode = Just $ GMPlay False}
 		processEditCommand CmdTest =
@@ -161,17 +162,7 @@ test lockSize fname initState = do
 			Just p -> doForce $ Push p dir
 		processEditCommand (CmdMoveTo newPos) = do
 		    selPos <- gets selectedPos
-		    selPiece <- gets selectedPiece
 		    modify $ \es -> es {selectedPos = checkBounds selPos newPos}
-		    case selPiece of
-			Nothing -> return ()
-			Just p -> let dir = hexVec2HexDirOrZero $ newPos <-> selPos in
-			    when (dir /= zero) $ do 
-				doForce $ Push p dir
-				selPos' <- gets selectedPos
-				st':_ <- gets esGameStateStack
-				when (Just p /= (liftM fst $ Map.lookup selPos' $ stateBoard st')) $
-				    modify $ \es -> es {selectedPiece = Nothing}
 		processEditCommand (CmdRotate dir) = do
 		    selPiece <- gets selectedPiece
 		    case selPiece of
@@ -182,7 +173,7 @@ test lockSize fname initState = do
 		processEditCommand CmdMerge = do
 		    selPos <- gets selectedPos
 		    st:_ <- gets esGameStateStack
-		    cmds <- lift $ getInput GMEdit
+		    cmds <- lift $ getInput IMEdit
 		    case cmds of
 			[CmdDir _ mergeDir] -> modifyEState $ mergeTiles selPos mergeDir True
 			_ -> return ()
@@ -260,6 +251,14 @@ test lockSize fname initState = do
 	    let r@(st',alerts) = runWriter $ physicsTick pm st in
 	    drawAlerts alerts >> return r
 
+	confirm :: UIMonad uiM => uiM Bool
+	confirm = do
+	    input <- getInput IMConfirm
+	    if CmdYes `elem` input
+		then return True
+		else if CmdNo `elem` input
+		    then return False
+		    else confirm
 
 data Opt = LockSize Int | ForceCurses
     deriving (Eq, Ord, Show)

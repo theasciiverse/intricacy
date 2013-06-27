@@ -4,6 +4,7 @@ import Data.Map as Map
 import Command
 import Hex
 import GameState
+import UI
 
 type KeyBindings = Map Char Command
 dvorakBindingsGlobal = Map.fromList [
@@ -75,5 +76,7 @@ playBindings = dvorakBindingsGlobal `Map.union` dvorakBindingsPlayOnly
 editBindings :: KeyBindings
 editBindings = dvorakBindingsGlobal `Map.union` dvorakBindingsEditOnly
 
-bindings GMEdit = editBindings
-bindings (GMPlay _) = playBindings
+bindings IMEdit = editBindings
+bindings IMPlay = playBindings
+bindings IMConfirm = Map.fromList [
+    ('y', CmdYes), ('n', CmdNo), ('Y', CmdYes), ('N', CmdNo) ]
