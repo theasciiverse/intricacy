@@ -444,6 +444,9 @@ modTile tile pos lastPos painting st =
 	       owner <- mowner
 	       guard $ owner == lastOwner
 	lastOK = painting || lastWasDiff
+	-- |Find next adjacent, skipping over current entity.
+	-- XXX: Note this doesn't work when the entity is adjacent in multiple
+	-- non-contiguous directions.
 	nextOfAdjacents adjs loop = listToMaybe $ fromMaybe adjs $ do
 		owner <- mowner
 		i <- elemIndex owner adjs

@@ -13,6 +13,7 @@ class (Functor m, MonadIO m) => UIMonad m where
     drawPlayState :: PlayState -> m ()
     drawEditState :: EditState -> m ()
     drawAlerts :: [Alert] -> m ()
+    askYesNo :: String -> m ()
     getInput :: InputMode -> m [ Command ]
 
 data PlayState = PlayState {psGameStateStack::[GameState], psLastAlerts::[Alert]

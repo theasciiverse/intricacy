@@ -3,6 +3,7 @@ module SDLUI (UIM) where
 
 import Graphics.UI.SDL
 import qualified Graphics.UI.SDL as SDL
+import qualified Graphics.UI.SDL.TTF as TTF
 import Graphics.UI.SDL.Primitives
 import Data.Char (ord)
 import Data.Monoid
@@ -22,6 +23,10 @@ import GameState
 import Physics
 import Command
 import KeyBindings
+
+maxlocksize = 12 -- TODO: use actual lock size?
+periphery 0 = ((3*maxlocksize)`div`2)<*>hu <+> ((3*maxlocksize)`div`4)<*>hv
+periphery n = rotate n $ periphery 0
 
 -- aaPolygon seems to be a bit buggy in sdl-gfx-0.6.0
 aaPolygon' surf verts col =
@@ -152,6 +157,9 @@ collisionMarker centre@(SVec x y) size surf = do
     aaCircle surf (fromIntegral x) (fromIntegral y) (fromIntegral $ size`div`3) $ bright orange
     return ()
 
+buttonGlyph :: Pixel -> Glyph
+buttonGlyph = tileGlyph (BlockTile [])
+
 cursor :: Glyph
 cursor centre size surf =
     aaPolygon' surf (map (corner centre size) [0..5]) $ bright white
@@ -201,15 +209,19 @@ hexVec2SVec :: Int -> HexVec -> SVec
 hexVec2SVec size (HexVec x y z) =
     SVec ((x-z) * size) (floor $ -(fromIntegral $ y * size) * (sqrt 3))
 
-sVec2HexVec :: Int -> SVec -> HexVec
-sVec2HexVec size (SVec x y) =
-    let size' :: Double
-	size' = fromIntegral size
+sVec2dHV :: Int -> SVec -> (Double,Double,Double)
+sVec2dHV size sv@(SVec x y) =
+    let size' = fromIntegral size
 	x' = fromIntegral x
 	y' = fromIntegral y
 	hy' = -y' / size' / (sqrt 3)
 	hx' = ((x' / size') - hy') / 2
 	hz' = -((x' / size') + hy') / 2
+    in (hx',hy',hz')
+
+sVec2HexVec :: Int -> SVec -> HexVec
+sVec2HexVec size sv =
+    let (hx',hy',hz') = sVec2dHV size sv
 	unrounded = Map.fromList [(1,hx'),(2,hy'),(3,hz')]
 	rounded = Map.map round unrounded
 	maxdiff = fst $ maximumBy (\x y -> compare (snd x) (snd y)) $
@@ -220,12 +232,13 @@ sVec2HexVec size (SVec x y) =
     in HexVec hx hy hz
 
 data UIState = UIState { scrHeight::Int, scrWidth::Int
+    , dispFont::Maybe TTF.Font
     , lastFrameTicks::Word32, paintTile::Maybe Tile
     , leftButtonDown::Bool, rightButtonDown::Bool
     , mousePos::HexVec
     , dispCentre::HexPos, dispLastCol::PieceColouring }
 type UIM = StateT UIState IO
-nullUIState = UIState 0 0 0 (Just $ BlockTile []) False False zero (PHS zero) Map.empty
+nullUIState = UIState 0 0 Nothing 0 (Just $ BlockTile []) False False zero (PHS zero) Map.empty
 
 erase :: UIM ()
 erase = do
@@ -251,11 +264,31 @@ waitFrame = do
 
 drawAt :: Glyph -> HexPos -> UIM ()
 drawAt gl pos = do
-	(scrCentre, size) <- getGeom
 	centre <- gets dispCentre
+	drawAtRel gl (pos <-> centre)
+drawAtRel gl v = do
+	(scrCentre, size) <- getGeom
 	surface <- liftIO getVideoSurface
-	let cpos = scrCentre <+> (hexVec2SVec size (pos <-> centre))
+	let cpos = scrCentre <+> (hexVec2SVec size v)
 	liftIO $ gl cpos size surface
+
+renderStrAt :: String -> HexDir -> UIM ()
+renderStrAt str v = do
+    mfont <- gets dispFont
+    case mfont of
+	Nothing -> return ()
+	Just font -> do
+	    mfsurf <- liftIO $ TTF.tryRenderTextBlended font str (Color 0xff 0xff 0xff)
+	    case mfsurf of
+		Nothing -> return ()
+		Just fsurf -> do
+		    (scrCentre, size) <- getGeom
+		    centre <- gets dispCentre
+		    let SVec x y = scrCentre <+> (hexVec2SVec size v)
+		    let x' = x - (surfaceGetWidth fsurf)`div`2
+		    let y' = y - (surfaceGetHeight fsurf)`div`2
+		    surface <- liftIO getVideoSurface
+		    void $ liftIO $ blitSurface fsurf Nothing surface (Just $ Rect x' y' 0 0)
 
 drawCursorAt :: Maybe HexPos -> UIM ()
 drawCursorAt (Just pos) = drawAt cursor pos
@@ -284,12 +317,7 @@ drawPaintSel = do
     case pTile of
 	Nothing -> return ()
 	Just t -> do
-	    (scrCentre, size) <- getGeom
-	    w <- gets scrWidth
-	    h <- gets scrHeight
-	    surface <- liftIO getVideoSurface
-	    liftIO $ tileGlyph t (dim white)
-		(SVec (3*w `div` 4) (h `div` 5)) size surface
+	    drawAtRel (tileGlyph t (dim white)) (periphery 0)
 
 getGeom :: UIM (SVec, Int)
 getGeom = do 
@@ -315,11 +343,44 @@ drawState highlight colourFixed alerts st =
 	    AlertBlockedForce force <- alerts ]
 	    -- ++ [ drawAt collisionMarker pos | AlertCollision pos <- alerts ]
 
+drawButtons :: InputMode -> UIM ()
+drawButtons mode = do
+    sequence_ $ concat [
+	    [ drawAtRel (buttonGlyph col) v >> renderStrAt [char] v |
+		(i,(v,char)) <- enumerate $ map (\b->(buttonPos b, buttonChar b)) $ buttonGroup
+		, let col = dim $ colourWheel (2*i) ]
+	| buttonGroup <- buttons mode
+	]
+    where enumerate = zip [0..]
+
+data Button = Button { buttonPos::HexVec, buttonCmd::Command, buttonChar::Char, buttonString::String }
+buttons :: InputMode -> [ [ Button ] ]
+buttons mode = case mode of 
+    IMEdit -> [commontl ++
+	[ Button (tl<+>(neg hw)) CmdPlay 'P' "Play"
+	, Button (tl<+>hv) CmdTest 'T' "Test"
+	], [quitButton]]
+    IMPlay -> [commontl, [quitButton]]
+    IMConfirm -> [
+	[ quitButton
+	, Button (br<+>hw) CmdYes 'Y' "Yes"
+	, Button (br<+>(neg hv)) CmdNo 'N' "No"
+	] ]
+    where
+	commontl = [ Button tl CmdUndo 'U' "Undo" ]
+	quitButton = Button br CmdQuit 'Q' "Quit"
+	tl = periphery 2
+	br = periphery 5
+
+
 initVideo :: Int -> Int -> UIM ()
 initVideo w h = do
     liftIO $ setVideoMode w h 32 [Resizable]
     modify $ \ds -> ds { scrWidth = w }
     modify $ \ds -> ds { scrHeight = h }
+    (_,size) <- getGeom
+    font <- liftIO $ TTF.tryOpenFont "VeraMono.ttf" (size)
+    modify $ \ds -> ds { dispFont = font }
 
 instance UIMonad (StateT UIState IO) where
     runUI m = evalStateT m nullUIState
@@ -329,6 +390,7 @@ instance UIMonad (StateT UIState IO) where
 		(idx, PlacedPiece pos p) <- enumVec $ placedPieces st
 		, or [wsel && isWrench p, not wsel && isHook p] ]
 	drawState selTools False alerts st
+	drawButtons IMPlay
 	refresh
 
     drawEditState (EditState (st:_) selPiece selPos _ _) = do
@@ -336,6 +398,12 @@ instance UIMonad (StateT UIState IO) where
 	drawState (maybeToList selPiece) True [] st
 	drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
 	drawPaintSel
+	drawButtons IMEdit
+	refresh
+
+    askYesNo prompt = do
+	waitFrame
+	drawButtons IMConfirm
 	refresh
 
     drawAlerts alerts =
@@ -351,6 +419,7 @@ instance UIMonad (StateT UIState IO) where
 	if not ok
 	    then return False
 	    else do
+		liftIO TTF.init
 		initVideo w h
 		liftIO $ warpMouse (fromIntegral $ w`div`2) (fromIntegral $ h`div`2)
 		erase
@@ -365,10 +434,9 @@ instance UIMonad (StateT UIState IO) where
 	where
 	    processEvent (KeyDown (Keysym _ _ ch)) =
 		return $ maybeToList $ Map.lookup ch $ bindings mode
-	    processEvent (MouseMotion x y _ _) = do
-		(scrCentre, size) <- getGeom
+	    processEvent (MouseMotion _ _ _ _) = do
+		(mPos,_) <- getMousePos
 		centre <- gets dispCentre
-		let mPos = sVec2HexVec size $ (SVec (fromIntegral x) (fromIntegral y)) <+> neg scrCentre
 		relMoves <- mouseTo mPos
 		return $ relMoves ++ [ CmdMoveTo $ mPos <+> centre ]
 		where
@@ -388,8 +456,17 @@ instance UIMonad (StateT UIState IO) where
 			    else return []
 	    processEvent (MouseButtonDown _ _ ButtonLeft) = do
 		modify $ \s -> s { leftButtonDown = True }
-		pTile <- gets paintTile
-		return $ [ drawCmd pTile False ]
+		(mPos,central) <- getMousePos
+		let bCmd = listToMaybe [ buttonCmd button
+			| button <- concat $ buttons mode
+			, mPos == buttonPos button
+			, central
+			]
+		case bCmd of
+		    Just c -> return [c]
+		    Nothing -> do
+			pTile <- gets paintTile
+			return $ [ drawCmd pTile False ]
 	    processEvent (MouseButtonUp _ _ ButtonLeft) = do
 		modify $ \s -> s { leftButtonDown = False }
 		return []
@@ -444,3 +521,13 @@ instance UIMonad (StateT UIState IO) where
 		    _ -> do
 			es <- pollEvents
 			return $ e:es
+
+	    getMousePos = do
+		(scrCentre, size) <- getGeom
+		(x,y,_) <- lift getMouseState
+		let sv = (SVec (fromIntegral x) (fromIntegral y)) <+> neg scrCentre
+		let mPos@(HexVec x y z) = sVec2HexVec size sv
+		let (sx,sy,sz) = sVec2dHV size sv
+		let isCentral = and $ map (\(a,b) -> abs ((fromIntegral a) - b) < 0.5) $
+			[(x,sx),(y,sy),(z,sz)]
+		return (mPos, isCentral)

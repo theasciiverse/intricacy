@@ -167,6 +167,11 @@ instance UIMonad (StateT UIState IO) where
 	    drawAlert (AlertCollision pos) = drawAt cGlyph pos
 	    cGlyph = Glyph '!' 0 a0
 
+    askYesNo prompt = do
+	(h,w) <- liftIO Curses.scrSize
+	liftIO $ Curses.mvWAddStr Curses.stdScr (h-1) 0 prompt
+	refresh
+
     initUI = 
 	do liftIO $ CursesH.start 
 	   cpairs <- liftIO $ colorsToPairs [ (f, CursesH.black) | f <-

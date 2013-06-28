@@ -134,7 +134,7 @@ test lockSize fname initState = do
 		    let (st',alerts) = runWriter $ resolveForces (Vector.singleton force) Vector.empty st
 		    lift (drawAlerts alerts) >> pushEState st'
 		processEditCommand CmdQuit = do
-		    really <- lift confirm
+		    really <- lift $ confirm "Really quit?"
 		    when really $ modify $ \es -> es {esSwitchMode = Just GMQuit}
 		processEditCommand CmdPlay =
 		    modify $ \es -> es {esSwitchMode = Just $ GMPlay False}
@@ -251,14 +251,18 @@ test lockSize fname initState = do
 	    let r@(st',alerts) = runWriter $ physicsTick pm st in
 	    drawAlerts alerts >> return r
 
-	confirm :: UIMonad uiM => uiM Bool
-	confirm = do
-	    input <- getInput IMConfirm
-	    if CmdYes `elem` input
-		then return True
-		else if CmdNo `elem` input
-		    then return False
-		    else confirm
+	confirm :: UIMonad uiM => String -> uiM Bool
+	confirm prompt = do
+	    askYesNo prompt
+	    waitConfirm
+	    where
+		waitConfirm = do
+		    input <- getInput IMConfirm
+		    if CmdYes `elem` input
+			then return True
+			else if CmdNo `elem` input
+			    then return False
+			    else waitConfirm
 
 data Opt = LockSize Int | ForceCurses
     deriving (Eq, Ord, Show)
