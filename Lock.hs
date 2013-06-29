@@ -162,7 +162,7 @@ test lockSize fname initState = do
 			Just p -> doForce $ Push p dir
 		processEditCommand (CmdMoveTo newPos) = do
 		    selPos <- gets selectedPos
-		    modify $ \es -> es {selectedPos = checkBounds selPos newPos}
+		    modify $ \es -> es {selectedPos = truncateToBounds newPos}
 		processEditCommand (CmdRotate dir) = do
 		    selPiece <- gets selectedPiece
 		    case selPiece of
@@ -227,6 +227,11 @@ test lockSize fname initState = do
 	checkBounds def pos = if inBounds pos then pos else def
 	inBounds :: HexPos -> Bool
 	inBounds pos = hexLen (pos <-> origin) < lockSize
+	truncateToBounds :: HexPos -> HexPos
+	truncateToBounds pos@(PHS v) =
+	    if inBounds pos
+		then pos
+		else PHS $ scaleToLength (lockSize-1) v
 	delOOB :: GameState -> GameState
 	delOOB st = case listToMaybe [ idx |
 		(idx,_) <- enumVec $ placedPieces st

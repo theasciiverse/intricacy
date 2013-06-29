@@ -31,6 +31,7 @@ module Hex where
 import Data.Ix
 import Data.Monoid
 import Data.Ratio
+import Data.List (minimumBy)
    
 data HexVec = HexVec {hx,hy,hz :: Int} deriving (Eq, Ord, Show, Read)
 
@@ -126,6 +127,19 @@ canonDir dir | dir `elem` [ hu, hv, hw ] = dir
 	     | isHexDir dir = canonDir $ neg dir
 	     | dir == zero = zero
 	     | otherwise = undefined
+
+scaleToLength :: Int -> HexVec -> HexVec
+scaleToLength n v@(HexVec x y z) =
+    let
+	l = hexLen v
+	lv' = map (\h -> (n * h) `div` l) [x,y,z]
+	minI = fst $ minimumBy (\x y -> compare (snd x) (snd y)) $
+	    zip [0..] $ map abs lv'
+	lv''@[x'',y'',z''] = map (uncurry (-)) $
+	    zip lv' [ n
+		| i <- [0..2]
+		, let n = if i == minI then sum lv' else 0 ]
+    in HexVec x'' y'' z''
 \end{code}
      
 Some general stuff on groups and actions and principal homogeneous spaces. We
