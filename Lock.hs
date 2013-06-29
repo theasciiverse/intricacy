@@ -118,11 +118,7 @@ test lockSize fname initState = do
 	    st:_ <- gets esGameStateStack
 	    case esSwitchMode es of
 		Just GMQuit -> return ()
-		Just (GMPlay False) -> subPlay $ head $ esGameStateStack es
-		Just (GMPlay True) -> do
-		    let st' = canonify st
-		    pushEState st'
-		    subPlay st'
+		Just GMPlay -> subPlay $ head $ esGameStateStack es
 		_ -> do
 		    lift $ drawEditState es
 		    cmds <- lift $ getInput IMEdit
@@ -137,9 +133,8 @@ test lockSize fname initState = do
 		    really <- lift $ confirm "Really quit?"
 		    when really $ modify $ \es -> es {esSwitchMode = Just GMQuit}
 		processEditCommand CmdPlay =
-		    modify $ \es -> es {esSwitchMode = Just $ GMPlay False}
-		processEditCommand CmdTest =
-		    modify $ \es -> es {esSwitchMode = Just $ GMPlay True}
+		    modify $ \es -> es {esSwitchMode = Just GMPlay }
+		processEditCommand CmdResetTools = modifyEState canonify
 		processEditCommand CmdUndo = do
 		    _:sts <- gets esGameStateStack
 		    when (not $ null sts) $ modify $ \es -> es {esGameStateStack = sts}
@@ -208,7 +203,8 @@ test lockSize fname initState = do
 		subPlay :: UIMonad uiM => GameState -> StateT EditState uiM ()
 		subPlay st = do
 		    modify $ \es -> es {esSwitchMode = Nothing}
-		    void $ lift $ runStateT play $ PlayState [st] [] False Nothing
+		    (_,PlayState (st':_) _ _ _) <- lift $ runStateT play $ PlayState [st] [] False Nothing
+		    pushEState st'
 		    edit
 
 	pushEState :: UIMonad uiM => GameState -> StateT EditState uiM ()

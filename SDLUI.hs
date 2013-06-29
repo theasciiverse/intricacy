@@ -388,8 +388,8 @@ data Button = Button { buttonPos::HexVec, buttonCmd::Command, buttonChar::Char, 
 buttons :: InputMode -> [ [ Button ] ]
 buttons mode = case mode of 
     IMEdit -> [commontl ++
-	[ Button (tl<+>(neg hw)) CmdPlay 'P' "Play"
-	, Button (tl<+>hv) CmdTest 'T' "Test"
+	[ Button (tl<+>hv) CmdResetTools 'T' "ResetTools"
+	, Button (tl<+>(neg hw)) CmdPlay 'P' "Play"
 	], [quitButton]]
     IMPlay -> [commontl, [quitButton]]
     IMConfirm -> [
