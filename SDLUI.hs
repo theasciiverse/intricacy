@@ -14,7 +14,7 @@ import Control.Concurrent (threadDelay)
 import Control.Monad.State
 import System.IO.Error
 import Data.Word
-import Data.List (maximumBy)
+import Data.List (maximumBy, findIndex)
 --import Debug.Trace (traceShow)
 
 import UI
@@ -464,8 +464,17 @@ instance UIMonad (StateT UIState IO) where
 	events <- liftIO $ getEvents
 	concat `liftM` (sequence $ map processEvent events)
 	where
-	    processEvent (KeyDown (Keysym _ _ ch)) =
-		return $ maybeToList $ Map.lookup ch $ bindings mode
+	    processEvent (KeyDown (Keysym _ _ ch)) = do
+		let mCmd = Map.lookup ch $ bindings mode
+		sequence_
+		    [ modify $ \s -> s { paintTile = pti }
+			| (pti,pt) <- zip [0..] paintTiles
+			, (pt == Nothing && mCmd == Just CmdWait) ||
+			    (isJust $ do
+				pt' <- pt
+				CmdTile t <- mCmd
+				guard $ sameTileType t pt') ]
+		return $ maybeToList mCmd
 	    processEvent (MouseMotion _ _ _ _) = do
 		(mPos,_) <- getMousePos
 		centre <- gets dispCentre
@@ -497,17 +506,21 @@ instance UIMonad (StateT UIState IO) where
 		case bCmd of
 		    Just c -> return [c]
 		    Nothing -> do
-			let paintSel = listToMaybe [ i
-				| i <- [0..(length paintTiles - 1)]
-				, mPos == paintButtonStart <+> i<*>hv
-				]
-			case paintSel of
-			    Just i -> do
-				modify $ \s -> s { paintTile = i }
-				return []
-			    Nothing -> do
-				pti <- gets paintTile
-				return $ [ drawCmd (paintTiles!!pti) False ]
+			rb <- gets rightButtonDown
+			if rb
+			    then return [ CmdWait ]
+			    else do
+				let paintSel = listToMaybe [ i
+					| i <- [0..(length paintTiles - 1)]
+					, mPos == paintButtonStart <+> i<*>hv
+					]
+				case paintSel of
+				    Just i -> do
+					modify $ \s -> s { paintTile = i }
+					return []
+				    Nothing -> do
+					pti <- gets paintTile
+					return $ [ drawCmd (paintTiles!!pti) False ]
 	    processEvent (MouseButtonUp _ _ ButtonLeft) = do
 		modify $ \s -> s { leftButtonDown = False }
 		return []
@@ -519,6 +532,9 @@ instance UIMonad (StateT UIState IO) where
 		return [ CmdUnselect ]
 	    processEvent (MouseButtonDown _ _ ButtonWheelUp) = doWheel 1
 	    processEvent (MouseButtonDown _ _ ButtonWheelDown) = doWheel $ -1
+	    processEvent (MouseButtonDown _ _ ButtonMiddle) = do
+		rb <- gets rightButtonDown
+		return $ if rb then [ CmdDelete ] else []
 	    processEvent (VideoResize w h) = do
 		initVideo w h
 		return [ CmdRedraw ]
