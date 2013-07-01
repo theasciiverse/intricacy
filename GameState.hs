@@ -262,14 +262,20 @@ plPieceFootprint :: PlacedPiece -> [HexPos]
 plPieceFootprint = Map.keys . plPieceMap
 
 fullFootprint :: GameState -> PieceIdx -> [HexPos]
+-- ^footprint of piece and connections ending at it
 fullFootprint st idx = plPieceFootprint (getpp st idx) ++
+    (concat $ map (connectionFootPrint st) $ springsEndAtIdx st idx)
+
+footprintAt :: GameState -> PieceIdx -> [HexPos]
+-- ^footprint of piece and any connections at it
+footprintAt st idx = plPieceFootprint (getpp st idx) ++
     (concat $ map (connectionFootPrint st) $ springsAtIdx st idx)
 
 collisions :: GameState -> PieceIdx -> PieceIdx -> [HexPos]
 -- ^intersections of two pieces and their connections, disregarding
 -- the connections which connect the two pieces
 collisions st idx idx' =
-    intersect (fullFootprint st idx) (fullFootprint st idx') \\
+    intersect (footprintAt st idx) (footprintAt st idx') \\
 	(concat $ map (connectionFootPrint st)
 	    $ filter (\conn ->
 		Set.fromList [fst $ connectionRoot conn, fst $ connectionEnd conn] ==
@@ -330,24 +336,48 @@ boardColouring st coloured last =
    fiveColour graph last
     where
 	board = stateBoard st
-	touchings :: Map PieceIdx (Map PieceIdx HexVec)
-	touchings = foldr addPoint Map.empty $ Map.toList board
-	addPoint (pos, (owner,_)) ts
-	    | not $ owner `elem` coloured = ts
+	graph = Map.fromList [ (idx, nub $ neighbours idx)
+	    | idx <- coloured ]
+	neighbours idx = 
+	    neighbours' idx (perim idx) []
+	perim :: PieceIdx -> Set (HexPos,HexDir)
+	perim idx =
+	    Set.fromList $ nubBy (\x y -> fst x == fst y) [ (pos', neg dir)
+		| dir <- hexDirs
+		, pos <- fullFootprint st idx
+		, let pos' = dir <+> pos
+		, Just True /= do
+		    (idx',_) <- Map.lookup pos' board
+		    return $ idx == idx'
+		]
+	neighbours' :: PieceIdx -> Set (HexPos,HexDir) -> [PieceIdx] -> [PieceIdx]
+	neighbours' idx as ns 
+	    | Set.null as = ns
 	    | otherwise =
-		let ppos = placedPos $ getpp st owner
-		    adjs = Map.findWithDefault Map.empty owner ts
-		    adjs' = foldr (uncurry Map.insert) adjs
-			[ (owner', pos' <-> ppos) |
-			    pos' <- map (\d -> d<+>pos) hexDirs
-			    , Just (owner',_) <- [Map.lookup pos' board]
-			    , owner' /= owner
-			    , owner' `elem` coloured ]
-		in Map.insert owner adjs' ts
-	graph =
-	    fmap (\adjs ->
-		sortBy (\a a' -> cmpAngles (adjs Map.! a) (adjs Map.! a'))
-		    $ Map.keys adjs) touchings
+		let a = head $ Set.elems as
+		    (path, ns') = march idx (fst a) a True
+		in neighbours' idx
+		    (Set.filter (\(pos,_) -> not $ pos `elem` path) as)
+		    (ns++ns')
+	-- |march around the piece's boundary, returning positions visited and
+	-- neighbouring pieces met (in order)
+	march idx startPos a@(pos,basedir) init
+	    | not init && pos == startPos = ([],[])
+	    | otherwise =
+	    let n = do 
+		    (idx',_) <- Map.lookup pos board
+		    guard $ idx' `elem` coloured
+		    return idx'
+		mNext = listToMaybe 
+		    [ (pos', rotate (n-2) basedir)
+		    | n <- [1..5] 
+		    , let pos' = (rotate n basedir)<+>pos
+		    , (Map.lookup pos' board >>= return.fst) /= Just idx
+		    ]
+		(path,ns) = case mNext of
+		    Nothing -> ([],[])
+		    Just next -> march idx startPos next False
+	    in (pos:path, (maybeToList n)++ns)
 
 type Colouring a = Map a Int
 
@@ -388,8 +418,10 @@ fiveColour g last =
     fiveColour' g
 	| g == Map.empty = Map.empty
 	| otherwise =
-	let v = head $ filter (\v -> length (nub $ g Map.! v) <= 5) $ Map.keys g
-	    adjs = nub $ g Map.! v
+	let 
+	    adjsOf v = (nub $ g Map.! v) \\ [v]
+	    v = head $ filter (\v -> length (adjsOf v) <= 5) $ Map.keys g
+	    adjs = adjsOf v
 	    addTo c = let vc = head $ possCols v \\ map (c Map.!) adjs
 		      in Map.insert v vc c
 	in if length adjs < 5
