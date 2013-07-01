@@ -165,6 +165,7 @@ instance UIMonad (StateT UIState IO) where
 		 liftIO $ threadDelay $ 5*10^4
 	where
 	    drawAlert (AlertCollision pos) = drawAt cGlyph pos
+	    drawAlert _ = return ()
 	    cGlyph = Glyph '!' 0 a0
 
     askYesNo prompt = do

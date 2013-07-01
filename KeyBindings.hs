@@ -61,7 +61,7 @@ dvorakBindingsEditOnly = Map.fromList [
 	, ('W', CmdWriteState)
 	, ('D', CmdDelete)
 	, ('o', CmdTile $ PivotTile zero)
-	-- , ('O', CmdTile $ BallTile False)
+	, ('O', CmdTile $ BallTile False)
 	, ('S', CmdTile $ SpringTile Relaxed zero)
 	--, ('s', CmdTile $ SpringTile Stretched zero)
 	--, ('$', CmdTile $ SpringTile Compressed zero)

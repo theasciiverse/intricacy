@@ -137,6 +137,11 @@ tileGlyph (WrenchTile mom) col centre@(SVec x y) size surf = do
 	in void $ aaLine surf fromx fromy tox toy col
     return ()
 
+tileGlyph (BallTile _) col centre@(SVec x y) size surf = do
+    filledCircle surf (fromIntegral x) (fromIntegral y) (fromIntegral $ 2*size`div`3) $ col
+    aaCircle surf (fromIntegral x) (fromIntegral y) (fromIntegral $ 2*size`div`3) $ bright col
+    return ()
+
 blockedArm :: HexDir -> TorqueDir -> Pixel -> Glyph
 blockedArm armdir tdir col centre@(SVec x y) size surf =
     void $ aaLine surf fromx fromy tox toy col
@@ -190,6 +195,8 @@ colourWheel n = Pixel $ (((((r * 0x100) + g) * 0x100) + b) * 0x100) + a
 	  colourWheel' 1 = [True, True, False]
 	  colourWheel' n = let [a,b,c] = colourWheel' $ n-2 in [b,c,a]
 
+ballCol = colourWheel 0
+
 colourOf colouring idx = 
     case Map.lookup idx colouring of
 	    Nothing -> white
@@ -197,9 +204,10 @@ colourOf colouring idx =
 
 ownedTileGlyph :: PieceColouring -> [PieceIdx] -> OwnedTile -> Glyph
 ownedTileGlyph colouring highlight (owner,t) =
-    let col = (if owner `elem` highlight then bright else dim) $
-	    colourOf colouring owner
-    in tileGlyph t col
+    let col = case t of
+	    BallTile _ -> dim ballCol
+	    _ -> colourOf colouring owner
+    in tileGlyph t $ (if owner `elem` highlight then bright else dim) col
 
 data SVec = SVec { cx, cy :: Int }
     deriving (Eq, Ord, Show)
@@ -322,6 +330,7 @@ paintTiles =
     , Just $ SpringTile Relaxed hu
     , Just $ PivotTile zero
     , Just $ ArmTile zero False
+    , Just $ BallTile False
     , Nothing
     ]
 

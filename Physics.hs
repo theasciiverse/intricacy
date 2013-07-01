@@ -132,13 +132,17 @@ resolveForces plForces envForces st =
 	tell $ map AlertBlockedForce blocked
 	return $ stopWrenches blockedsfs $ foldr applyForce st unblocked
     
+-- | balls roll until blocked? (Doesn't work very well)
+momentousBalls = False
+
 applyForce :: Force -> GameState -> GameState
 applyForce f s =
     let idx = forceIdx f
 	pp' = applyForceTo (getpp s idx) f
 	pp'' = case (placedPiece pp',f) of
 		   -- update momentum
-		   ( (Ball _), (Push _ dir) ) -> pp' {placedPiece = (Ball dir)}
+		   ( (Ball _), (Push _ dir) ) -> pp' {placedPiece =
+			(Ball (if momentousBalls then dir else zero))}
 		   ( (Wrench _), (Push _ dir) ) -> pp' {placedPiece = (Wrench dir)}
 		   _ -> pp'
 	in 
@@ -181,7 +185,7 @@ checkBlocks st@(GameState pps conns) sforces plsforces sforce@(source, force) =
 pieceResists :: GameState -> Force -> Bool -> Bool -> Bool -> Bool
 pieceResists st@(GameState pps conns) force toolsFixed springsResist fixedFixed =
     let idx = forceIdx force
-	pp@(PlacedPiece _ piece) = (getpp st idx)
+	pp@(PlacedPiece pos piece) = (getpp st idx)
         springs = springsEndAtIdx st idx
 	blockingSprings = [ c |
 		    c@(Connection (ridx,_) (eidx,_) (Spring sdir natLen)) <- conns
@@ -201,7 +205,14 @@ pieceResists st@(GameState pps conns) force toolsFixed springsResist fixedFixed 
 			    , stiffness == TorqueStiff && isTorque force]
 		     (Block _) -> null springs
 		     _ -> False
-    in fixed || not (null blockingSprings)
+	mediatedResistance = Just True == do
+	    Ball _ <- Just piece
+	    Push _ dir <- Just force
+	    let cpos = dir<+>pos
+	    (idx',_) <- Map.lookup cpos $ stateBoard st
+	    return $ isBall piece && pieceResists st (transferredForce st idx' cpos dir) toolsFixed springsResist fixedFixed
+
+    in fixed || not (null blockingSprings) || mediatedResistance
 
 transferredForce :: GameState -> Source -> HexPos -> HexDir -> Force
 transferredForce st idx cpos dir =
