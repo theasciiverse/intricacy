@@ -50,22 +50,13 @@ toolForces st (PlayerMove hp ht wp) = Vector.fromList $
 	     else [ Torque hidx ht | (hidx, PlacedPiece _ (Hook _ _)) <- epps ] )
     where epps = enumVec $ placedPieces st
 
-envForces :: GameState -> ([PieceIdx], Forces)
+envForces :: GameState -> Forces
 envForces st@(GameState plPieces conns) =
-    (catMaybes stoppedBallMbs, Vector.fromList $ springForces ++ ballForces)
-    where
-	springForces = [ Push endIdx dir | c@(Connection _ (endIdx, _) (Spring outDir natLen)) <- conns
+    Vector.fromList $ 
+	[ Push endIdx dir | c@(Connection _ (endIdx, _) (Spring outDir natLen)) <- conns
 			    , let curLen = connectionLength st c
 			    , natLen /= curLen
 			    , let dir = if natLen > curLen then outDir else neg outDir ]
-	(stoppedBallMbs, ballForces) = unzip [ (stoppedBall, force) |
-	    (ballIdx, PlacedPiece _ (Ball momentum)) <- enumVec plPieces
-	    , momentum /= zero
-	    , let ballForce = Push ballIdx momentum
-	    , let propagated = propagateForce st ballForce
-	    , let force = fromMaybe ballForce $ listToMaybe propagated
-	    , let stoppedBall = if not $ null propagated then Just ballIdx else Nothing
-	    ]
 
 setTools :: PlayerMove -> GameState -> GameState
 setTools move st =
@@ -96,11 +87,9 @@ physicsTick move st =
 			     in resolveForces (toolForces st' move) Vector.empty st'
 		    else return st
 	st <- return $ setHookStiff st
-	let (stoppedBalls, efs) = envForces st
+	let efs = envForces st
 	st <- resolveForces Vector.empty efs st
-	let stopBall st' idx = setPiece idx (Ball zero) st' 
-	let stopBalls st' = foldl stopBall st' stoppedBalls
-	return $ stopBalls st
+	return st
 
 type Source = Int
 type SourcedForce = (Source,Force)
@@ -133,17 +122,11 @@ resolveForces plForces envForces st =
 	tell $ map AlertBlockedForce blocked
 	return $ stopWrenches blockedsfs $ foldr applyForce st unblocked
     
--- | balls roll until blocked? (Doesn't work very well)
-momentousBalls = False
-
 applyForce :: Force -> GameState -> GameState
 applyForce f s =
     let idx = forceIdx f
 	pp' = applyForceTo (getpp s idx) f
 	pp'' = case (placedPiece pp',f) of
-		   -- update momentum
-		   ( (Ball _), (Push _ dir) ) -> pp' {placedPiece =
-			(Ball (if momentousBalls then dir else zero))}
 		   ( (Wrench _), (Push _ dir) ) -> pp' {placedPiece = (Wrench dir)}
 		   _ -> pp'
 	in 
@@ -207,7 +190,7 @@ pieceResists st@(GameState pps conns) force toolsFixed springsResist fixedFixed 
 		     (Block _) -> null springs
 		     _ -> False
 	mediatedResistance = Just True == do
-	    Ball _ <- Just piece
+	    Ball <- Just piece
 	    Push _ dir <- Just force
 	    let cpos = dir<+>pos
 	    (idx',_) <- Map.lookup cpos $ stateBoard st

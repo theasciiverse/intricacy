@@ -145,14 +145,14 @@ data Piece = Block { blockPattern :: [HexVec] }
 	    | Pivot { pivotArms :: [HexDir] }
 	    | Hook { hookArm :: HexDir, hookStiffness :: Stiffness}
 	    | Wrench { wrenchMomentum :: HexDir }
-	    | Ball { ballMomentum :: HexDir }
+	    | Ball
     deriving (Eq, Ord, Show, Read)
 isBlock p = case p of Block _ -> True; _ -> False
 isPivot p = case p of Pivot _ -> True; _ -> False
 isHook p = case p of Hook _ _ -> True; _ -> False
 isWrench p = case p of Wrench _ -> True; _ -> False
 isTool p = isWrench p || isHook p
-isBall p = case p of Ball _ -> True; _ -> False
+isBall p = case p of Ball -> True; _ -> False
 
 type PieceIdx = Int
 
@@ -201,7 +201,7 @@ data SpringExtension = Relaxed | Compressed | Stretched
     deriving (Eq, Ord, Show, Read)
 
 data Tile = BlockTile [HexDir] | PivotTile HexDir | ArmTile HexDir Bool | HookTile | WrenchTile HexDir
-	  | BallTile Bool | SpringTile SpringExtension HexDir
+	  | BallTile | SpringTile SpringExtension HexDir
     deriving (Eq, Ord, Show, Read)
 
 type OwnedTile = (PieceIdx, Tile)
@@ -212,7 +212,7 @@ tileType (BlockTile _) = BlockTile []
 tileType (PivotTile _) = PivotTile zero
 tileType (ArmTile _ _) = ArmTile zero False
 tileType (WrenchTile _) = WrenchTile zero
-tileType (BallTile _) = BallTile False
+tileType (BallTile) = BallTile
 tileType (SpringTile _ _) = SpringTile Relaxed zero
 tileType t = t
 
@@ -256,7 +256,7 @@ plPieceMap (PlacedPiece pos (Pivot arms)) =
 plPieceMap (PlacedPiece pos (Hook arm _)) =
     Map.fromList $ (pos, HookTile) : [ (arm <+> pos, ArmTile arm True) ]
 plPieceMap (PlacedPiece pos (Wrench mom)) = Map.singleton pos $ WrenchTile mom
-plPieceMap (PlacedPiece pos (Ball mom)) = Map.singleton pos $ BallTile (mom /= zero)
+plPieceMap (PlacedPiece pos Ball) = Map.singleton pos BallTile
 
 plPieceFootprint :: PlacedPiece -> [HexPos]
 plPieceFootprint = Map.keys . plPieceMap
@@ -542,7 +542,7 @@ modTile tile pos lastPos painting st =
 				    , Map.lookup (dir <+> pos) board' == Nothing ]
 			    in case arm of Just armdir -> addPiece $ Hook armdir Unstiff
 					   _ -> id
-	   Just (BallTile _) -> addPiece $ Ball zero
+	   Just (BallTile) -> addPiece Ball
 	   ) st'
 
 mergeTiles :: HexPos -> HexDir -> Bool -> GameState -> GameState

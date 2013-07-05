@@ -137,7 +137,7 @@ tileGlyph (WrenchTile mom) col centre@(SVec x y) size surf = do
 	in void $ aaLine surf fromx fromy tox toy col
     return ()
 
-tileGlyph (BallTile _) col centre@(SVec x y) size surf = do
+tileGlyph BallTile col centre@(SVec x y) size surf = do
     filledCircle surf (fromIntegral x) (fromIntegral y) (fromIntegral $ 2*size`div`3) $ col
     aaCircle surf (fromIntegral x) (fromIntegral y) (fromIntegral $ 2*size`div`3) $ bright col
     return ()
@@ -205,7 +205,7 @@ colourOf colouring idx =
 ownedTileGlyph :: PieceColouring -> [PieceIdx] -> OwnedTile -> Glyph
 ownedTileGlyph colouring highlight (owner,t) =
     let col = case t of
-	    BallTile _ -> dim ballCol
+	    BallTile -> dim ballCol
 	    _ -> colourOf colouring owner
     in tileGlyph t $ (if owner `elem` highlight then bright else dim) col
 
@@ -330,7 +330,7 @@ paintTiles =
     , Just $ SpringTile Relaxed hu
     , Just $ PivotTile zero
     , Just $ ArmTile zero False
-    , Just $ BallTile False
+    , Just BallTile
     , Nothing
     ]
 

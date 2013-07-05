@@ -38,7 +38,7 @@ tileChar (ArmTile dir principal) = let
     in (c,a)
 tileChar HookTile = ('@',bold)
 tileChar (WrenchTile mom) = ('*',if mom /= zero then bold else a0)
-tileChar (BallTile moving) = ('O',if moving then bold else a0)
+tileChar BallTile = ('O',a0)
 tileChar (SpringTile Relaxed _) = ('S',a0)
 tileChar (SpringTile Compressed _) = ('$',bold)
 tileChar (SpringTile Stretched _) = ('s',bold)
