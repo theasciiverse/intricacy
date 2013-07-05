@@ -22,11 +22,11 @@ data Force = Push PieceIdx HexDir | Torque PieceIdx TorqueDir
 
 forceIdx force = case force of (Push idx _) -> idx
 			       (Torque idx _) -> idx
-isPush force = case force of (Push _ _ ) -> True; _ -> False
-isTorque force = case force of (Torque _ _ ) -> True; _ -> False
-forceIsNull force = case force of
-    Push _ dir -> dir == zero
-    Torque _ dir -> dir == 0
+isPush (Push _ _) = True
+isPush _ = False
+isTorque = not . isPush
+forceIsNull (Push _ dir) = dir == zero
+forceIsNull (Torque _ dir) = dir == 0
 getForcedpp :: GameState -> Force -> PlacedPiece
 getForcedpp s f = getpp s (forceIdx f)
 
@@ -36,14 +36,15 @@ data PlayerMove = PlayerMove { hookPush :: HexDir, hookTorque :: TorqueDir, wren
     deriving (Eq, Ord, Show)
 nullMove = PlayerMove zero 0 zero
 
+-- |Alert: for passing information about physics processing to the UI
 data Alert = AlertCollision HexPos | AlertBlockedForce Force
     deriving (Eq, Ord, Show)
 
+-- | player move results in a wrench push and either a non-zero hook torque or
+-- a hook push. Pushes can be zero.
 toolForces :: GameState -> PlayerMove -> Forces
 toolForces st (PlayerMove hp ht wp) = Vector.fromList $
     [ Push widx mom | (widx, PlacedPiece _ (Wrench mom)) <- epps ]
-    -- ++ ( if hp == zero then [] else
-	-- [ Push hidx hp | (hidx, PlacedPiece _ (Hook _ _)) <- epps ] )
     ++ ( if ht == 0
 	     then [ Push hidx hp | (hidx, PlacedPiece _ (Hook _ _)) <- epps ]
 	     else [ Torque hidx ht | (hidx, PlacedPiece _ (Hook _ _)) <- epps ] )
