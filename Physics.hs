@@ -79,40 +79,40 @@ setHookStiff = adjustPieces (\p -> case p of
 
 physicsTick :: PlayerMove -> GameState -> Writer [Alert] GameState
 physicsTick pm st =
-    let wrenchMomentum st' =
-	    head [ mom |
+    let wrenchesStopped st' =
+	    and [ mom == zero |
 		(PlacedPiece _ (Wrench mom)) <- Vector.toList $ placedPieces st' ]
-	initWrenchMomentum = wrenchMomentum st
+	doTools st = let st' = setTools pm st
+	    in resolveForces (toolForces st' pm) Vector.empty st'
     in do
-	st <- let st' = setTools pm st
-		  in resolveForces (toolForces st' pm) Vector.empty st'
-	st <- if and [case pm of {WrenchPush _ -> True; _ -> False}
-		, initWrenchMomentum /= zero
-		, wrenchMomentum st == zero]
-	    then let st' = setTools pm st
-		     in resolveForces (toolForces st' pm) Vector.empty st'
-	    else return st
-	resolveForces Vector.empty (envForces st) $ setHookStiff st
+	st' <- doTools st
+	st' <- if and [case pm of {WrenchPush _ -> True; _ -> False}
+		, or [ mom /= zero && mom' == zero
+		    | (idx, PlacedPiece _ (Wrench mom)) <- enumVec $ placedPieces st
+		    , let PlacedPiece _ (Wrench mom') = getpp st' idx ] ]
+	    then -- we're pushing a moving wrench and it got blocked - try again
+		doTools st'
+	    else return st'
+	resolveForces Vector.empty (envForces st') $ setHookStiff st'
 
 type Source = Int
-type SourcedForce = (Source,Force)
+data SourcedForce = SForce Source Force Bool Bool
+    deriving (Eq, Ord, Show)
 resolveForces :: Forces -> Forces -> GameState -> Writer [Alert] GameState
-resolveForces plForces envForces st =
-    let
-	resolveForce :: SourcedForce -> StateT ([SourcedForce], [Source]) (Writer [Alert]) ()
-	resolveForce sforce@(s,f) = do
+resolveForces plForces eForces st =
+    let resolveForce :: SourcedForce -> StateT ([SourcedForce], [Source]) (Writer [Alert]) ()
+	resolveForce sforce@(SForce s f isPlForce isPlSource) = do
 	    (sforces,blockedsources) <- get
-	    blockInfo <- lift $ checkBlocks st sforces plsforces sforce
+	    blockInfo <- lift $ checkBlocks st sforces sforce
 	    let (propagated, moving, blocks) = case blockInfo of
 		    Unmoving -> ([], False, [s])  -- nip
 		    Moving blocks ->
-			let propagated = [ (s, f') | f' <- propagateForce st f ] \\ sforces
+			let propagated = [ SForce s f' False isPlSource | f' <- propagateForce st f isPlSource ] \\ sforces
 			in (propagated, True, blocks)
 	    put (if moving then sforce:sforces else sforces, blocks ++ blockedsources)
 	    sequence_ $ map resolveForce propagated
-	forces = plForces Vector.++ envForces
-	sforces = enumVec forces
-	plsforces = enumVec plForces
+	forces = plForces Vector.++ eForces
+	sforces = [ SForce s f isPl isPl | (s,f) <- enumVec forces, let isPl = s < Vector.length plForces ]
 	-- stop wrenches which are blocked
 	stopWrench idx = setPiece idx (Wrench zero)
 	stopWrenches blocked st' = foldr stopWrench st' [
@@ -120,8 +120,8 @@ resolveForces plForces envForces st =
 	    , (Wrench _) <- [placedPiece $ getForcedpp st' $ forces!s] ]
     in do --prettyTrace (st, sforces, sforces', blocked, unblocked) $
 	(sforces', blockedsfs) <- (sequence_ (map resolveForce sforces)) `execStateT` ([],[])
-	let blocked = nub [ force | (s,force) <- sforces', s `elem` blockedsfs ]
-	let unblocked = nub [ force | (s,force) <- sforces', not $ s `elem` blockedsfs ]
+	let blocked = nub [ force | SForce s force _ _ <- sforces', s `elem` blockedsfs ]
+	let unblocked = nub [ force | SForce s force _ _ <- sforces', not $ s `elem` blockedsfs ]
 	tell $ map AlertBlockedForce blocked
 	return $ stopWrenches blockedsfs $ foldr applyForce st unblocked
     
@@ -134,6 +134,7 @@ applyForce f s =
 		   _ -> pp'
 	in 
 	s { placedPieces = (placedPieces s) // [(idx, pp'')] }
+
 applyForceTo :: PlacedPiece -> Force -> PlacedPiece
 applyForceTo (PlacedPiece pos piece) (Push _ dir) =
     PlacedPiece (dir <+> pos) piece
@@ -144,45 +145,41 @@ applyForceTo (PlacedPiece pos (Hook arm tstiff)) (Torque _ dir) =
 applyForceTo pp _ = pp
 
 data BlocksReturn = Unmoving | Moving [Source]
-checkBlocks :: GameState -> [SourcedForce] -> [SourcedForce] -> SourcedForce -> Writer [Alert] BlocksReturn
-checkBlocks st@(GameState pps conns) sforces plsforces sforce@(source, force) =
+checkBlocks :: GameState -> [SourcedForce] -> SourcedForce -> Writer [Alert] BlocksReturn
+checkBlocks st@(GameState pps conns) sforces sforce@(SForce source force isPlForce isPlSource) =
     let idx = forceIdx force
-	pp@(PlacedPiece pos piece) = (getpp st idx)
+	pp = getForcedpp st force
 	pp' = applyForceTo pp force
-        mismatches = [ s | (s,force') <- sforces, idx == forceIdx force', force /= force' ]
+        mismatches = [ s | SForce s force' _ _ <- sforces, idx == forceIdx force', force /= force' ]
 	(pieceCollisions, collisionPoints) = unzip [ (s,pos) |
-	    (s,force') <- sforces
+	    SForce s force' _ _ <- sforces
 	    , let idx' = forceIdx force'
 	    , idx /= idx'
 	    , not $ forceIsNull force'
 	    , let st' = applyForce force $ applyForce force' st
 	    , pos <- collisions st' idx idx' ]
 	blocks = mismatches ++ nub pieceCollisions
-	isPlayerSource = source `elem` map fst plsforces
-	isPlayerForce = sforce `elem` plsforces
     in do
-	if pieceResists st force (not isPlayerSource) (not isPlayerSource) (not isPlayerForce)
+	if pieceResists st force (not isPlSource) (not isPlSource) (not isPlForce)
 	    then return $ Unmoving
 	    else if null blocks
 		then return $ Moving []
-		else do -- when isPlayer $
-			tell $ map AlertCollision collisionPoints
+		else do tell $ map AlertCollision collisionPoints
 			return $ Moving $ source:blocks
 
 pieceResists :: GameState -> Force -> Bool -> Bool -> Bool -> Bool
 pieceResists st@(GameState pps conns) force toolsFixed springsResist fixedFixed =
     let idx = forceIdx force
-	pp@(PlacedPiece pos piece) = (getpp st idx)
+	PlacedPiece pos piece = getpp st idx
         springs = springsEndAtIdx st idx
 	blockingSprings = [ c |
-		    c@(Connection (ridx,_) (eidx,_) (Spring sdir natLen)) <- conns
+		    c@(Connection (ridx,_) (eidx,_) (Spring sdir _)) <- conns
 		    , idx `elem` [ridx,eidx]
-		    , let curLen = connectionLength st c
 		    , (Push _ pdir) <- [force]
 		    , not (pdir `elem` [sdir, neg sdir]) || (
 			idx == eidx && springsResist &&
-			    ( (curLen <= natLen && pdir /= sdir) ||
-				(curLen >= natLen && pdir /= neg sdir) ) ) ]
+			    ( (not (springExtended st c) && pdir /= sdir) ||
+				(not (springCompressed st c) && pdir /= neg sdir) ) ) ]
 	fixed = fixedFixed && case piece of
 		     (Pivot _) -> isPush force
 		     (Wrench mom) -> toolsFixed || mom == zero
@@ -197,7 +194,7 @@ pieceResists st@(GameState pps conns) force toolsFixed springsResist fixedFixed 
 	    Push _ dir <- Just force
 	    let cpos = dir<+>pos
 	    (idx',_) <- Map.lookup cpos $ stateBoard st
-	    return $ isBall piece && pieceResists st (transferredForce st idx' cpos dir) toolsFixed springsResist fixedFixed
+	    return $ pieceResists st (transferredForce st idx' cpos dir) toolsFixed springsResist fixedFixed
 
     in fixed || not (null blockingSprings) || mediatedResistance
 
@@ -215,8 +212,9 @@ transferredForce st idx cpos dir =
 	    Pivot _ -> armPush
 	    Hook _ PushStiff -> armPush
 	    _ -> (Push idx dir)
-propagateForce :: GameState -> Force -> [Force]
-propagateForce st@(GameState plPieces conns) force = 
+
+propagateForce :: GameState -> Force -> Bool -> [Force]
+propagateForce st@(GameState plPieces conns) force isPlSource =
     bumps ++ springTransfers
     where
 	idx = forceIdx force
@@ -226,7 +224,7 @@ propagateForce st@(GameState plPieces conns) force =
 	    , cpos <- collisions (applyForce force st) idx idx'
 	    , let dir = case force of
 		    Push _ dir -> dir
-		    Torque _ dir -> if pieceResists st (transferredForce st idx' cpos push) True False True
+		    Torque _ dir -> if pieceResists st (transferredForce st idx' cpos push) (not isPlSource) (not isPlSource) True
 					 then claw else push
 			where push = arm <-> rotate (-dir) arm
 			      claw = rotate dir arm <-> arm
@@ -234,14 +232,13 @@ propagateForce st@(GameState plPieces conns) force =
 	springTransfers =
 	    case force of
 		 Push idx dir -> [ Push idx' dir |
-			c@(Connection (ridx,_) (eidx,_) (Spring sdir natLen)) <- conns
-			, let curLen = connectionLength st c
+			c@(Connection (ridx,_) (eidx,_) (Spring sdir _)) <- conns
 			, let root = idx == ridx
 			, let end = idx == eidx
 			, root || end
 			, let idx' = if root then eidx else ridx
 			, let pull = (root && dir == neg sdir) || (end && dir == sdir)
 			, let push = (root && dir == sdir) || (end && dir == neg sdir)
-			, (push && curLen <= (natLen+1)`div`2) || 
-			    (pull && curLen >= natLen*2) ]
+			, (push && springFullyCompressed st c) ||
+			    (pull && springFullyExtended st c) ]
 		 _ -> []

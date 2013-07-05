@@ -197,6 +197,19 @@ connGraphPathExists st ridx eidx =
 	, or $ map (connGraphPathExists st eidx)
 	    $ map (fst . connectionEnd) (springsRootAtIdx st ridx) ]
 
+springExtended st c@(Connection _ _ (Spring _ natLen)) =
+    let curLen = connectionLength st c
+    in curLen > natLen
+springCompressed st c@(Connection _ _ (Spring _ natLen)) =
+    let curLen = connectionLength st c
+    in curLen < natLen
+springFullyExtended st c@(Connection _ _ (Spring _ natLen)) =
+    let curLen = connectionLength st c
+    in curLen >= 2*natLen
+springFullyCompressed st c@(Connection _ _ (Spring _ natLen)) =
+    let curLen = connectionLength st c
+    in curLen <= (natLen+1)`div`2
+
 data SpringExtension = Relaxed | Compressed | Stretched
     deriving (Eq, Ord, Show, Read)
 
