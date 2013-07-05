@@ -88,11 +88,9 @@ test lockSize fname initState = do
 		    st:_ <- gets psGameStateStack
 		    let push whs dir 
 			    | whs == WHSWrench || (whs == WHSSelected && wsel) =
-				Just $ nullMove { wrenchPush = dir }
-			    | otherwise =
-				Just $ nullMove { hookPush = dir }
-			torque dir = -- if wsel then Nothing else
-			    Just $ nullMove { hookTorque = dir }
+				Just $ WrenchPush dir
+			    | otherwise = Just $ HookPush dir
+			torque dir = Just $ HookTorque dir
 			(wsel', pm) =
 			    case cmd of
 				CmdTile (WrenchTile _) -> (True, Nothing)
@@ -101,8 +99,8 @@ test lockSize fname initState = do
 				CmdToggle -> (not wsel, Nothing)
 				CmdDir whs dir -> (wsel, push whs dir)
 				CmdRotate dir -> (wsel, torque dir)
-				CmdWait -> (wsel, Just nullMove)
-				CmdSelect -> (wsel, Just nullMove)
+				CmdWait -> (wsel, Just NullPM)
+				CmdSelect -> (wsel, Just NullPM)
 				_ -> (wsel, Nothing)
 		    modify $ \ps -> ps {wrenchSelected = wsel'}
 		    case pm of
@@ -181,7 +179,7 @@ test lockSize fname initState = do
 			Nothing -> do
 			    modifyEState $ modTile Nothing selPos last False
 			    modify $ \es -> es {lastModPos = selPos}
-			Just p -> do (st',_) <- lift $ doPhysicsTick nullMove st
+			Just p -> do (st',_) <- lift $ doPhysicsTick NullPM st
 				     pushEState st'
 		processEditCommand CmdDelete = do
 		    selPiece <- gets selectedPiece
@@ -244,7 +242,7 @@ test lockSize fname initState = do
 	    [ PlacedPiece (entrance lockSize <+> neg hu <+> origin) $ Wrench zero,
 	    PlacedPiece (entrance lockSize <+> hw <+> origin) $ Hook (neg hw) Unstiff ]
 	stabilise st =
-	    let (st',_) = runWriter $ physicsTick nullMove st
+	    let (st',_) = runWriter $ physicsTick NullPM st
 	    in if st == st' then st else stabilise st'
     
 	doPhysicsTick :: UIMonad uiM => PlayerMove -> GameState -> uiM (GameState, [Alert])

@@ -32,23 +32,25 @@ getForcedpp s f = getpp s (forceIdx f)
 
 type Forces = Vector.Vector Force
 
-data PlayerMove = PlayerMove { hookPush :: HexDir, hookTorque :: TorqueDir, wrenchPush :: HexDir }
+-- |PlayerMove: if not NullPM, the direction should be non-zero
+data PlayerMove = NullPM | HookPush HexDir | HookTorque TorqueDir | WrenchPush HexDir
     deriving (Eq, Ord, Show)
-nullMove = PlayerMove zero 0 zero
 
 -- |Alert: for passing information about physics processing to the UI
 data Alert = AlertCollision HexPos | AlertBlockedForce Force
     deriving (Eq, Ord, Show)
 
--- | player move results in a wrench push and either a non-zero hook torque or
--- a hook push. Pushes can be zero.
 toolForces :: GameState -> PlayerMove -> Forces
-toolForces st (PlayerMove hp ht wp) = Vector.fromList $
+toolForces st pm = Vector.fromList $
     [ Push widx mom | (widx, PlacedPiece _ (Wrench mom)) <- epps ]
-    ++ ( if ht == 0
-	     then [ Push hidx hp | (hidx, PlacedPiece _ (Hook _ _)) <- epps ]
-	     else [ Torque hidx ht | (hidx, PlacedPiece _ (Hook _ _)) <- epps ] )
-    where epps = enumVec $ placedPieces st
+    ++ ( case pm of
+	HookTorque ht -> [ Torque hidx ht | (hidx, PlacedPiece _ (Hook _ _)) <- epps ]
+	_ -> [ Push hidx hp | (hidx, PlacedPiece _ (Hook _ _)) <- epps ]
+	)
+    where
+	epps = enumVec $ placedPieces st
+	hp = case pm of {HookPush hp -> hp; _ -> zero}
+
 
 envForces :: GameState -> Forces
 envForces st@(GameState plPieces conns) =
@@ -59,13 +61,16 @@ envForces st@(GameState plPieces conns) =
 			    , let dir = if natLen > curLen then outDir else neg outDir ]
 
 setTools :: PlayerMove -> GameState -> GameState
-setTools move st =
-    let stiffness | hookTorque move /= 0 = PushStiff
-	    | hookPush move /= zero = TorqueStiff
-	    | otherwise = ForceStiff
+setTools pm st =
+    let stiffness = case pm of
+	    HookTorque _ -> PushStiff
+	    HookPush _ -> TorqueStiff
+	    _ -> ForceStiff
     in adjustPieces (\p -> case p of
 		Hook arm _ -> Hook arm stiffness
-		Wrench mom -> Wrench $ if mom == zero then wrenchPush move else mom
+		Wrench mom -> Wrench $ if mom == zero
+		    then case pm of {WrenchPush dir -> dir; _ -> zero}
+		    else mom
 		_ -> p) st
 setHookStiff :: GameState -> GameState
 setHookStiff = adjustPieces (\p -> case p of
@@ -73,23 +78,21 @@ setHookStiff = adjustPieces (\p -> case p of
 		_ -> p)
 
 physicsTick :: PlayerMove -> GameState -> Writer [Alert] GameState
-physicsTick move st =
+physicsTick pm st =
     let wrenchMomentum st' =
 	    head [ mom |
 		(PlacedPiece _ (Wrench mom)) <- Vector.toList $ placedPieces st' ]
 	initWrenchMomentum = wrenchMomentum st
     in do
-	st <- let st' = setTools move st
-		  in resolveForces (toolForces st' move) Vector.empty st'
-	st <- if and [wrenchPush move /= zero, initWrenchMomentum /= zero
-			, wrenchMomentum st == zero]
-		    then let st' = setTools move st
-			     in resolveForces (toolForces st' move) Vector.empty st'
-		    else return st
-	st <- return $ setHookStiff st
-	let efs = envForces st
-	st <- resolveForces Vector.empty efs st
-	return st
+	st <- let st' = setTools pm st
+		  in resolveForces (toolForces st' pm) Vector.empty st'
+	st <- if and [case pm of {WrenchPush _ -> True; _ -> False}
+		, initWrenchMomentum /= zero
+		, wrenchMomentum st == zero]
+	    then let st' = setTools pm st
+		     in resolveForces (toolForces st' pm) Vector.empty st'
+	    else return st
+	resolveForces Vector.empty (envForces st) $ setHookStiff st
 
 type Source = Int
 type SourcedForce = (Source,Force)
