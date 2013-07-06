@@ -34,7 +34,16 @@ aaPolygon' surf verts col =
 aaLines surf verts col =
     sequence_ [ aaLine surf x y x' y' col |
 	((x,y),(x',y')) <- zip (take (length verts - 1) verts) (drop 1 verts) ]
-	
+
+rimmedPolygon surf verts fillCol rimCol = do
+    filledPolygon surf verts fillCol
+    aaPolygon' surf verts rimCol
+    return ()
+
+rimmedCircle surf centre@(SVec x y) rad fillCol rimCol = do
+    filledCircle surf (fromIntegral x) (fromIntegral y) (fromIntegral rad) fillCol
+    aaCircle surf (fromIntegral x) (fromIntegral y) (fromIntegral rad) rimCol
+    return ()
 
 type Glyph = SVec -> Int -> Surface -> IO ()
 
@@ -79,10 +88,8 @@ edge (SVec x y) size dir = (fromIntegral $ x+dx, fromIntegral $ y+dy)
 
 tileGlyph :: Tile -> Pixel -> Glyph
 
-tileGlyph (BlockTile adjs) col centre size surf = do
-    filledPolygon surf corners col
-    aaPolygon' surf corners $ bright col
-    return ()
+tileGlyph (BlockTile adjs) col centre size surf =
+    rimmedPolygon surf corners col $ bright col
 	where 
 	    corners = concat [
 		if dir `elem` adjs
@@ -105,69 +112,65 @@ tileGlyph (SpringTile extn dir) col centre size surf =
 		, let (x,y) = if even i then (sx,sy) else (offx,offy)
 		, let (dx,dy) = ((i*(ex-sx))`div`n, (i*(ey-sy))`div`n) ]
 
-tileGlyph (PivotTile dir) col centre@(SVec x y) size surf = do
-    filledCircle surf (fromIntegral x) (fromIntegral y) (fromIntegral $ size) col
-    aaCircle surf (fromIntegral x) (fromIntegral y) (fromIntegral $ size) $ bright col
+tileGlyph (PivotTile dir) col centre size surf = do
+    rimmedCircle surf centre size col $ bright col
     when (dir /= zero)
-	$ void $ aaLine surf fromx fromy tox toy $ bright col
+	$ void $ aaLine surf `uncurry` from `uncurry` to $ bright col
     return ()
 	where
-	    (fromx, fromy) = (edge centre size $ neg dir)
-	    (tox, toy) = (edge centre size dir)
+	    from = edge centre size $ neg dir
+	    to = edge centre size dir
 
-tileGlyph (ArmTile dir _) col centre@(SVec x y) size surf =
-    void $ aaLine surf fromx fromy tox toy (bright col)
+tileGlyph (ArmTile dir _) col centre size surf =
+    void $ aaLine surf `uncurry` from `uncurry` to $ bright col
 	where
 	    dir' = if dir == zero then hu else dir
-	    (fromx, fromy) = edge centre size $ neg dir'
-	    (tox, toy) = innerCorner centre size dir'
+	    from = edge centre size $ neg dir'
+	    to = innerCorner centre size dir'
 
-tileGlyph HookTile col centre@(SVec x y) size surf = do
-    filledCircle surf (fromIntegral x) (fromIntegral y) (fromIntegral $ size) col
-    aaCircle surf (fromIntegral x) (fromIntegral y) (fromIntegral $ size) $ bright col
-    return ()
+tileGlyph HookTile col centre size surf =
+    rimmedCircle surf centre size col $ bright col
 
-tileGlyph (WrenchTile mom) col centre@(SVec x y) size surf = do
-    filledCircle surf (fromIntegral x) (fromIntegral y) (fromIntegral $ size`div`2) col
-    aaCircle surf (fromIntegral x) (fromIntegral y) (fromIntegral $ size`div`2) $ bright col
+tileGlyph (WrenchTile mom) col centre size surf = do
+    rimmedCircle surf centre (size`div`3) col $ bright col
     when (mom /= zero) $
 	let 
-	    (fromx, fromy) = innerCorner centre size $ neg mom
-	    (tox, toy) = edge centre size $ neg mom
-	in void $ aaLine surf fromx fromy tox toy col
+	    from = innerCorner centre size $ neg mom
+	    to = edge centre size $ neg mom
+	in void $ aaLine surf `uncurry` from `uncurry` to $ col
     return ()
 
-tileGlyph BallTile col centre@(SVec x y) size surf = do
-    filledCircle surf (fromIntegral x) (fromIntegral y) (fromIntegral $ 2*size`div`3) $ col
-    aaCircle surf (fromIntegral x) (fromIntegral y) (fromIntegral $ 2*size`div`3) $ bright col
-    return ()
+tileGlyph BallTile col centre size surf =
+    rimmedCircle surf centre (2*size`div`3) (faint col) (obscure col)
 
 blockedArm :: HexDir -> TorqueDir -> Pixel -> Glyph
-blockedArm armdir tdir col centre@(SVec x y) size surf =
-    void $ aaLine surf fromx fromy tox toy col
+blockedArm armdir tdir col centre size surf =
+    void $ aaLine surf `uncurry` from `uncurry` to $ col
 	where
-	    (fromx, fromy) = innerCorner centre size $ rotate (2*tdir) armdir
-	    (tox, toy) = edge centre size $ rotate tdir armdir
+	    from = innerCorner centre size $ rotate (2*tdir) armdir
+	    to = edge centre size $ rotate tdir armdir
 
 blockedBlock :: Tile -> HexDir -> Pixel -> Glyph
-blockedBlock tile dir col centre size = tileGlyph tile col (shift <+> centre) size
-    where
-	shift = SVec (x'-x) (y'-y)
-	(x,y) = innerCorner centre size dir
-	(x',y') = edge centre size dir
+blockedBlock tile dir col centre size =
+    tileGlyph tile col (shift <+> centre) size
+	where
+	    shift = SVec (x'-x) (y'-y)
+	    (x,y) = innerCorner centre size dir
+	    (x',y') = edge centre size dir
 
 blockedPush :: HexDir -> Pixel -> Glyph
 blockedPush dir col centre size surf = do
-    void $ aaLine surf fromx fromy tox toy col
+    void $ aaLine surf `uncurry` from `uncurry` to $ col
+    void $ aaLine surf `uncurry` from' `uncurry` to' $ col
     where
-	(fromx, fromy) = innerCorner centre size dir
-	(tox, toy) = edge centre size dir
+	from = innerCorner centre size dir
+	to = edge centre size dir
+	from' = corner centre size $ hextant dir
+	to' = corner centre size $ (hextant dir) - 1
 	
 collisionMarker :: Glyph
-collisionMarker centre@(SVec x y) size surf = do
-    filledCircle surf (fromIntegral x) (fromIntegral y) (fromIntegral $ size`div`3) $ bright orange
-    aaCircle surf (fromIntegral x) (fromIntegral y) (fromIntegral $ size`div`3) $ bright orange
-    return ()
+collisionMarker centre size surf =
+    rimmedCircle surf centre (size`div`3) (bright orange) $ bright orange
 
 hollowGlyph :: Pixel -> Glyph
 hollowGlyph col centre size surf =
