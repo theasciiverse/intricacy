@@ -155,6 +155,13 @@ blockedBlock tile dir col centre size = tileGlyph tile col (shift <+> centre) si
 	shift = SVec (x'-x) (y'-y)
 	(x,y) = innerCorner centre size dir
 	(x',y') = edge centre size dir
+
+blockedPush :: HexDir -> Pixel -> Glyph
+blockedPush dir col centre size surf = do
+    void $ aaLine surf fromx fromy tox toy col
+    where
+	(fromx, fromy) = innerCorner centre size dir
+	(tox, toy) = edge centre size dir
 	
 collisionMarker :: Glyph
 collisionMarker centre@(SVec x y) size surf = do
@@ -316,13 +323,11 @@ drawBlocked st colouring (Torque idx dir) = do
     sequence_ [ drawAt (blockedArm arm dir col) (arm <+> pos) |
 	arm <- arms ]
 drawBlocked st colouring (Push idx dir) = do
-    return ()
-{-
-    let pmap = plPieceMap $ getpp st idx
+    let footprint = fullFootprint st idx
 	col = obscure $ colourOf colouring idx
-    sequence_ [ drawAt (blockedBlock tile dir col) pos |
-	(pos,tile) <- Map.toList pmap ]
--}
+    sequence_ [ drawAt (blockedPush dir col) pos
+	| pos <- footprint
+	, not $ (dir<+>pos) `elem` footprint ]
 
 paintTiles :: [ Maybe Tile ]
 paintTiles =
