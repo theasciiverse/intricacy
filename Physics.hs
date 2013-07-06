@@ -190,9 +190,13 @@ pieceResists st@(GameState pps conns) force toolsFixed springsResist fixedFixed 
 		     (Block _) -> null springs
 		     _ -> False
 	mediatedResistance = Just True == do
-	    Ball <- Just piece
 	    Push _ dir <- Just force
-	    let cpos = dir<+>pos
+	    cpos <- do { guard $ isBall piece; return $ dir<+>pos}
+		`mplus` listToMaybe [ locusPos st root
+		    | c@(Connection root _ (Spring sdir _)) <- springs
+		    , or [ dir == sdir && springFullyExtended st c
+			, dir == neg sdir && springFullyCompressed st c]
+		    ]
 	    (idx',_) <- Map.lookup cpos $ stateBoard st
 	    return $ pieceResists st (transferredForce st idx' cpos dir) toolsFixed springsResist fixedFixed
 
