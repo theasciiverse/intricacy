@@ -190,6 +190,9 @@ dim (Pixel v) = Pixel $ v `div` 0x100 * 0x100 + 0xa0
 obscure :: Pixel -> Pixel
 obscure (Pixel v) = Pixel $ v `div` 0x100 * 0x100 + 0x80
 
+faint :: Pixel -> Pixel
+faint (Pixel v) = Pixel $ v `div` 0x100 * 0x100 + 0x40
+
 black = Pixel 0x01000000
 white = Pixel 0xffffff00
 orange = Pixel 0xff7f0000
@@ -202,8 +205,6 @@ colourWheel n = Pixel $ (((((r * 0x100) + g) * 0x100) + b) * 0x100) + a
 	  colourWheel' 1 = [True, True, False]
 	  colourWheel' n = let [a,b,c] = colourWheel' $ n-2 in [b,c,a]
 
-ballCol = colourWheel 0
-
 colourOf colouring idx = 
     case Map.lookup idx colouring of
 	    Nothing -> white
@@ -211,9 +212,7 @@ colourOf colouring idx =
 
 ownedTileGlyph :: PieceColouring -> [PieceIdx] -> OwnedTile -> Glyph
 ownedTileGlyph colouring highlight (owner,t) =
-    let col = case t of
-	    BallTile -> dim ballCol
-	    _ -> colourOf colouring owner
+    let col = colourOf colouring owner
     in tileGlyph t $ (if owner `elem` highlight then bright else dim) col
 
 data SVec = SVec { cx, cy :: Int }
