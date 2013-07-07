@@ -160,6 +160,12 @@ blockedBlock tile dir col centre size =
 
 blockedPush :: HexDir -> Pixel -> Glyph
 blockedPush dir col centre size surf = do
+    void $ rimmedPolygon surf verts (obscure orange) (dim orange)
+	where verts =
+		[ innerCorner centre size $ rotate 1 dir
+		, innerCorner centre size $ rotate (-1) dir
+		, innerCorner centre size dir ]
+{-
     void $ aaLine surf `uncurry` from `uncurry` to $ col
     void $ aaLine surf `uncurry` from' `uncurry` to' $ col
     where
@@ -167,6 +173,7 @@ blockedPush dir col centre size surf = do
 	to = edge centre size dir
 	from' = corner centre size $ hextant dir
 	to' = corner centre size $ (hextant dir) - 1
+-}
 	
 collisionMarker :: Glyph
 collisionMarker centre size surf =
@@ -325,11 +332,12 @@ drawBlocked st colouring (Torque idx dir) = do
     sequence_ [ drawAt (blockedArm arm dir col) (arm <+> pos) |
 	arm <- arms ]
 drawBlocked st colouring (Push idx dir) = do
-    let footprint = fullFootprint st idx
+    let footprint = plPieceFootprint $ getpp st idx
+	fullfootprint = fullFootprint st idx
 	col = obscure $ colourOf colouring idx
     sequence_ [ drawAt (blockedPush dir col) pos
 	| pos <- footprint
-	, not $ (dir<+>pos) `elem` footprint ]
+	, not $ (dir<+>pos) `elem` fullfootprint ]
 
 paintTiles :: [ Maybe Tile ]
 paintTiles =
