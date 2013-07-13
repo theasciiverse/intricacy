@@ -135,10 +135,17 @@ tileGlyph (WrenchTile mom) col centre size surf = do
     rimmedCircle surf centre (size`div`3) col $ bright col
     when (mom /= zero) $
 	let 
-	    from = innerCorner centre size $ neg mom
-	    to = edge centre size $ neg mom
-	in void $ aaLine surf `uncurry` from `uncurry` to $ col
-    return ()
+	    from@(fx,fy) = innerCorner centre size $ neg mom
+	    to@(tx,ty) = edge centre size $ neg mom
+	    shifts = map (map (`div` 2)) $
+		[ [ x1-x0, y1-y0 ]
+		| rot <- [-1,0,1]
+		, let (x0,y0) = innerCorner centre size $ neg mom
+		, let (x1,y1) = innerCorner centre size $ rotate rot $ neg mom
+		]
+	in sequence_
+	    [ aaLine surf (fx+dx) (fy+dy) (tx+dx) (ty+dy) $ col
+	    | [dx,dy] <- shifts ]
 
 tileGlyph BallTile col centre size surf =
     rimmedCircle surf centre (2*size`div`3) (faint col) (obscure col)
