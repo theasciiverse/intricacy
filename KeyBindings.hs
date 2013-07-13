@@ -8,20 +8,20 @@ import Hex
 import GameState
 import UI
 
-type KeyBindings = Map Char Command
-dvorakBindingsGlobal = Map.fromList [
+type KeyBindings = [ (Char,Command) ]
+dvorakBindingsGlobal = [
 	('s', CmdDir WHSHook hu)
 	, ('h', CmdDir WHSHook $ neg hu)
 	, ('b', CmdDir WHSHook hw)
 	, ('c', CmdDir WHSHook $ neg hw)
 	, ('g', CmdDir WHSHook hv)
 	, ('m', CmdDir WHSHook $ neg hv)
-	, ('i', CmdDir WHSWrench hu)
-	, ('e', CmdDir WHSWrench $ neg hu)
-	, ('j', CmdDir WHSWrench hw)
-	, ('y', CmdDir WHSWrench $ neg hw)
-	, ('p', CmdDir WHSWrench hv)
-	, ('k', CmdDir WHSWrench $ neg hv)
+	--, ('i', CmdDir WHSWrench hu)
+	--, ('e', CmdDir WHSWrench $ neg hu)
+	--, ('j', CmdDir WHSWrench hw)
+	--, ('y', CmdDir WHSWrench $ neg hw)
+	--, ('p', CmdDir WHSWrench hv)
+	--, ('k', CmdDir WHSWrench $ neg hv)
 	, ('6', CmdDir WHSSelected hu)
 	, ('4', CmdDir WHSSelected $ neg hu)
 	, ('1', CmdDir WHSSelected hw)
@@ -34,8 +34,11 @@ dvorakBindingsGlobal = Map.fromList [
 	, ('2', CmdRotate $ -1)
 	, ('5', CmdWait)
 	, ('.', CmdWait)
+	, ('U', CmdUndo)
 	, ('u', CmdUndo)
+	, ('Q', CmdQuit)
 	, ('q', CmdQuit)
+	, ('P', CmdPlay)
 	, ('p', CmdPlay)
 	, ('\r', CmdSelect)
 	, ('\n', CmdSelect)
@@ -47,7 +50,7 @@ dvorakBindingsGlobal = Map.fromList [
 	, ('/', CmdTile $ ArmTile hw False)
 	]
 
-dvorakBindingsPlayOnly = Map.fromList [
+dvorakBindingsPlayOnly = [
 	('\t', CmdToggle)
 	, ('S', CmdDir WHSWrench hu)
 	, ('H', CmdDir WHSWrench $ neg hu)
@@ -56,11 +59,12 @@ dvorakBindingsPlayOnly = Map.fromList [
 	, ('G', CmdDir WHSWrench hv)
 	, ('M', CmdDir WHSWrench $ neg hv)
 	]
-dvorakBindingsEditOnly = Map.fromList [
+dvorakBindingsEditOnly = [
 	('M', CmdMerge)
+	, ('T', CmdResetTools)
 	, ('t', CmdResetTools)
-	, ('w', CmdWriteState)
 	, ('W', CmdWriteState)
+	, ('w', CmdWriteState)
 	, ('D', CmdDelete)
 	, ('o', CmdTile $ PivotTile zero)
 	, ('O', CmdTile BallTile)
@@ -72,15 +76,15 @@ dvorakBindingsEditOnly = Map.fromList [
 	]
 
 playBindings :: KeyBindings
-playBindings = dvorakBindingsGlobal `Map.union` dvorakBindingsPlayOnly
+playBindings = dvorakBindingsGlobal ++ dvorakBindingsPlayOnly
 editBindings :: KeyBindings
-editBindings = dvorakBindingsGlobal `Map.union` dvorakBindingsEditOnly
+editBindings = dvorakBindingsGlobal ++ dvorakBindingsEditOnly
 
 bindings IMEdit = editBindings
 bindings IMPlay = playBindings
-bindings IMConfirm = Map.fromList [
+bindings IMConfirm = [
     ('y', CmdYes), ('n', CmdNo), ('Y', CmdYes), ('N', CmdNo) ]
 
 findBinding :: KeyBindings -> Command -> String
 findBinding bdgs cmd =
-    fromMaybe "" $ listToMaybe [ [ch] | (ch,cmd') <- assocs bdgs, cmd'==cmd ]
+    fromMaybe "" $ listToMaybe [ [ch] | (ch,cmd') <- bdgs, cmd'==cmd ]

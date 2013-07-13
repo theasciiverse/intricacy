@@ -489,7 +489,7 @@ instance UIMonad (StateT UIState IO) where
 	concat `liftM` (sequence $ map processEvent events)
 	where
 	    processEvent (KeyDown (Keysym _ _ ch)) = do
-		let mCmd = Map.lookup ch $ bindings mode
+		let mCmd = lookup ch $ bindings mode
 		sequence_
 		    [ modify $ \s -> s { paintTile = pti }
 			| (pti,pt) <- zip [0..] paintTiles

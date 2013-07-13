@@ -184,4 +184,4 @@ instance UIMonad (StateT UIState IO) where
 
     getInput mode = do
 	Curses.KeyChar ch <- liftIO $ CursesH.getKey Curses.refresh
-	return $ maybeToList $ Map.lookup ch $ bindings mode
+	return $ maybeToList $ lookup ch $ bindings mode
