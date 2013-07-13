@@ -1,6 +1,8 @@
-module KeyBindings (bindings) where
+module KeyBindings (bindings, findBinding) where
 
 import Data.Map as Map
+import Data.Maybe
+
 import Command
 import Hex
 import GameState
@@ -78,3 +80,7 @@ bindings IMEdit = editBindings
 bindings IMPlay = playBindings
 bindings IMConfirm = Map.fromList [
     ('y', CmdYes), ('n', CmdNo), ('Y', CmdYes), ('N', CmdNo) ]
+
+findBinding :: KeyBindings -> Command -> String
+findBinding bdgs cmd =
+    fromMaybe "" $ listToMaybe [ [ch] | (ch,cmd') <- assocs bdgs, cmd'==cmd ]
