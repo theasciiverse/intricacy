@@ -10,7 +10,19 @@ import UI
 
 type KeyBindings = [ (Char,Command) ]
 dvorakBindingsGlobal = [
-	('s', CmdDir WHSHook hu)
+	('5', CmdWait)
+	, ('6', CmdDir WHSSelected hu)
+	, ('4', CmdDir WHSSelected $ neg hu)
+	, ('1', CmdDir WHSSelected hw)
+	, ('9', CmdDir WHSSelected $ neg hw)
+	, ('7', CmdDir WHSSelected hv)
+	, ('3', CmdDir WHSSelected $ neg hv)
+	, ('8', CmdRotate 1)
+	, ('2', CmdRotate $ -1)
+	, ('*', CmdTile $ WrenchTile zero)
+	, ('/', CmdTile $ ArmTile hw False)
+
+	, ('s', CmdDir WHSHook hu)
 	, ('h', CmdDir WHSHook $ neg hu)
 	, ('b', CmdDir WHSHook hw)
 	, ('c', CmdDir WHSHook $ neg hw)
@@ -22,17 +34,8 @@ dvorakBindingsGlobal = [
 	--, ('y', CmdDir WHSWrench $ neg hw)
 	--, ('p', CmdDir WHSWrench hv)
 	--, ('k', CmdDir WHSWrench $ neg hv)
-	, ('6', CmdDir WHSSelected hu)
-	, ('4', CmdDir WHSSelected $ neg hu)
-	, ('1', CmdDir WHSSelected hw)
-	, ('9', CmdDir WHSSelected $ neg hw)
-	, ('7', CmdDir WHSSelected hv)
-	, ('3', CmdDir WHSSelected $ neg hv)
 	, ('r', CmdRotate 1)
 	, ('l', CmdRotate $ -1)
-	, ('8', CmdRotate 1)
-	, ('2', CmdRotate $ -1)
-	, ('5', CmdWait)
 	, ('.', CmdWait)
 	, ('U', CmdUndo)
 	, ('u', CmdUndo)
@@ -43,11 +46,9 @@ dvorakBindingsGlobal = [
 	, ('\r', CmdSelect)
 	, ('\n', CmdSelect)
 	, (' ', CmdSelect)
-	, ('*', CmdTile $ WrenchTile zero)
-	, ('@', CmdTile HookTile)
 	, ('-', CmdTile $ ArmTile hu False)
 	, ('\\', CmdTile $ ArmTile hv False)
-	, ('/', CmdTile $ ArmTile hw False)
+	, ('@', CmdTile HookTile)
 	]
 
 dvorakBindingsPlayOnly = [
@@ -83,7 +84,8 @@ editBindings = dvorakBindingsGlobal ++ dvorakBindingsEditOnly
 bindings IMEdit = editBindings
 bindings IMPlay = playBindings
 bindings IMConfirm = [
-    ('y', CmdYes), ('n', CmdNo), ('Y', CmdYes), ('N', CmdNo) ]
+    ('Y', CmdYes), ('N', CmdNo)
+    , ('y', CmdYes), ('n', CmdNo) ]
 
 findBinding :: KeyBindings -> Command -> String
 findBinding bdgs cmd =

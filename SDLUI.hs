@@ -401,30 +401,42 @@ drawState highlight colourFixed alerts st =
 drawButtons :: InputMode -> UIM ()
 drawButtons mode = do
     sequence_ $ concat [
-	    [ drawAtRel (buttonGlyph col) v >> renderStrAt [char] v |
-		(i,(v,char)) <- enumerate $ map (\b->(buttonPos b, buttonChar b)) $ buttonGroup
-		, let col = dim $ colourWheel (2*i) ]
-	| buttonGroup <- buttons mode
+	    [ drawAtRel (buttonGlyph col) v >> renderStrAt bdg v |
+		(i,(v,bdg)) <- enumerate $ map (\b->(buttonPos b, findBinding (bindings mode) $ buttonCmd b)) $ buttonGroup
+		, let col = dim $ colourWheel (base+inc*i) ]
+	| (buttonGroup,(base,inc)) <- buttons mode
 	]
     where enumerate = zip [0..]
 
-data Button = Button { buttonPos::HexVec, buttonCmd::Command, buttonChar::Char, buttonString::String }
-buttons :: InputMode -> [ [ Button ] ]
+data Button = Button { buttonPos::HexVec, buttonCmd::Command }
+buttons :: InputMode -> [ ([Button],(Int,Int)) ]
 buttons mode = case mode of 
-    IMEdit -> [commontl ++
-	[ Button (tl<+>hv) CmdResetTools 'T' "ResetTools"
-	, Button (tl<+>(neg hw)) CmdPlay 'P' "Play"
-	], [quitButton]]
-    IMPlay -> [commontl, [quitButton]]
+    IMEdit -> [(commontl ++
+	[ Button (tl<+>hv) CmdResetTools
+	, Button (tl<+>(neg hw)) CmdPlay
+	],(0,2)), ([quitButton],(0,2))]
+    IMPlay -> 
+	[ (commontl,(0,2))
+	, ([quitButton],(0,2))
+	, ( [ Button bl CmdWait ], (0,0))
+	, ( [ Button (bl<+>dir) (CmdDir WHSSelected dir) | dir <- hexDirs ], (4,0) )
+	, ( [ Button (bl<+>((-2)<*>hv)) (CmdRotate (-1))
+	    , Button (bl<+>((-2)<*>hw)) (CmdRotate 1)
+	    ], (4,0) )
+	, ( [ Button (bl<+>(2<*>hv)<+>hw) (CmdTile $ WrenchTile zero)
+	    , Button (bl<+>(2<*>hv)) (CmdTile $ ArmTile hw False)
+	    ], (2,0) )
+	]
     IMConfirm -> [
-	[ quitButton
-	, Button (br<+>hw) CmdYes 'Y' "Yes"
-	, Button (br<+>(neg hv)) CmdNo 'N' "No"
-	] ]
+	([ quitButton
+	, Button (br<+>hw) CmdYes
+	, Button (br<+>(neg hv)) CmdNo
+	],(0,2)) ]
     where
-	commontl = [ Button tl CmdUndo 'U' "Undo" ]
-	quitButton = Button br CmdQuit 'Q' "Quit"
+	commontl = [ Button tl CmdUndo ]
+	quitButton = Button br CmdQuit
 	tl = periphery 2
+	bl = periphery 3
 	br = periphery 5
 
 
@@ -523,7 +535,7 @@ instance UIMonad (StateT UIState IO) where
 		modify $ \s -> s { leftButtonDown = True }
 		(mPos,central) <- getMousePos
 		let bCmd = listToMaybe [ buttonCmd button
-			| button <- concat $ buttons mode
+			| button <- concat $ map fst $ buttons mode
 			, mPos == buttonPos button
 			, central
 			]

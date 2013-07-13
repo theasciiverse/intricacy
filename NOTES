@@ -450,6 +450,9 @@ wagering a pick - these should include a "hall of fame" of the locks which
 withstood the most pick attempts before being picked.
 
 
+Alternatively: can we judo sock puppets? Design the metagame such that there's
+no advantage to having multiple accounts?
+
 
 Misc:
 
@@ -509,9 +512,6 @@ Mouse control in play mode:
 
 
 Architectural musings:
-Can we make interaction with the metagame almost entirely email/web based,
-with the client being launched at appropriate points?
-
 The client exists to
     (i) design and test lockfiles
     (ii) solve locks
@@ -520,9 +520,7 @@ so inputs and outputs are lockfiles and command-sequences.
 
 Remark: given undo, there's not much point in uploading failed attempts -
 only the whole undo tree would really show anything, and usefully displaying
-that is infeasible. Hmm, unless you also upload the undos... could be
-subverted, but that probably isn't worth worrying about. Still would be tricky
-to represent clearly. There's always the possibility that I'll want to revert
+that is infeasible. There's always the possibility that I'll want to revert
 to the chess clock setup, so aim to leave the possibility of uploading and
 viewing failed attempts.
 
@@ -576,3 +574,32 @@ http://thecastledoctrine.net/forums/viewtopic.php?pid=2566#p2566
 mysql vs sqlite: main difference seems to be that sqlite write-locks the whole
 database when any part of it is written to, while mysql is cleverer. sqlite
 should be fine for this project, I'm sure.
+
+
+Simplifying the metagame:
+One active lock per player.
+
+No penalty for changing the lock you're using.
+
+Players are wholly anonymous (*not* pseudonymous) and before agreeing to try a
+lock you're told only the approximate number of picks it protects. This way
+there's no real way to abuse multiple accounts, because you can't really
+transfer picks between accounts.
+
+So although having a single account should be the default, we can allow the
+addicted to create extra.
+
+Note there *is* a potential for abuse if one person owns a significant
+proportion of the accounts... I'll just have to watch out for that.
+
+Given anonymity, no need for usernames - a single secret identifier will
+suffice.
+
+Handling revenge with anonymity: just make it an explicit option, a key/button
+when watching a replay.
+
+But maybe the *locks* should get (code)named - at least the successful,
+publically displayed ones? That way people can talk about them in sidechannel
+discussions, and there can even be publically accessible urls for them.
+No need to let the creator choose the name (a recipe for profanity and
+SQL-injection...), can use a wordlist.
