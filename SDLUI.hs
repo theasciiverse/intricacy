@@ -113,13 +113,14 @@ tileGlyph (SpringTile extn dir) col centre size surf =
 		, let (dx,dy) = ((i*(ex-sx))`div`n, (i*(ey-sy))`div`n) ]
 
 tileGlyph (PivotTile dir) col centre size surf = do
-    rimmedCircle surf centre size col $ bright col
+    rimmedCircle surf centre rad col $ bright col
     when (dir /= zero)
 	$ void $ aaLine surf `uncurry` from `uncurry` to $ bright col
     return ()
 	where
-	    from = edge centre size $ neg dir
-	    to = edge centre size dir
+	    rad = (7*size)`div`8
+	    from = edge centre rad $ neg dir
+	    to = edge centre rad dir
 
 tileGlyph (ArmTile dir _) col centre size surf =
     void $ aaLine surf `uncurry` from `uncurry` to $ bright col
@@ -129,7 +130,9 @@ tileGlyph (ArmTile dir _) col centre size surf =
 	    to = innerCorner centre size dir'
 
 tileGlyph HookTile col centre size surf =
-    rimmedCircle surf centre size col $ bright col
+    rimmedCircle surf centre rad col $ bright col
+	where
+	    rad = (7*size)`div`8
 
 tileGlyph (WrenchTile mom) col centre size surf = do
     rimmedCircle surf centre (size`div`3) col $ bright col
