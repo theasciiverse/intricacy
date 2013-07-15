@@ -39,6 +39,7 @@ dvorakBindingsGlobal = [
 	, ('.', CmdWait)
 	, ('U', CmdUndo)
 	, ('u', CmdUndo)
+	, ('R', CmdRedo)
 	, ('Q', CmdQuit)
 	, ('q', CmdQuit)
 	, ('P', CmdPlay)

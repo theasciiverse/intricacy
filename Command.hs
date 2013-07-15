@@ -9,7 +9,7 @@ data Command = CmdDir WrHoSel HexDir | CmdRotate TorqueDir | CmdWait
 	| CmdTile Tile | CmdPaint Tile | CmdMerge
 	| CmdSelect | CmdUnselect | CmdDelete
 	| CmdEdit | CmdPlay | CmdResetTools
-	| CmdUndo
+	| CmdUndo | CmdRedo
 	| CmdYes | CmdNo
 	| CmdRedraw
 	| CmdQuit | CmdWriteState

@@ -273,11 +273,11 @@ sVec2HexVec size sv =
 data UIState = UIState { scrHeight::Int, scrWidth::Int
     , dispFont::Maybe TTF.Font
     , lastFrameTicks::Word32, paintTile::Int
-    , leftButtonDown::Bool, rightButtonDown::Bool
+    , leftButtonDown::Bool, middleButtonDown::Bool, rightButtonDown::Bool
     , mousePos::HexVec
     , dispCentre::HexPos, dispLastCol::PieceColouring }
 type UIM = StateT UIState IO
-nullUIState = UIState 0 0 Nothing 0 0 False False zero (PHS zero) Map.empty
+nullUIState = UIState 0 0 Nothing 0 0 False False False zero (PHS zero) Map.empty
 
 erase :: UIM ()
 erase = do
@@ -443,7 +443,7 @@ buttons mode = case mode of
 	, Button (br<+>(neg hv)) CmdNo
 	],(0,2)) ]
     where
-	commontl = [ Button tl CmdUndo ]
+	commontl = [ Button tl CmdUndo, Button (tl<+>neg hu) CmdRedo ]
 	quitButton = Button br CmdQuit
 	tl = periphery 2
 	bl = periphery 3
@@ -461,7 +461,7 @@ initVideo w h = do
 
 instance UIMonad (StateT UIState IO) where
     runUI m = evalStateT m nullUIState
-    drawPlayState (PlayState (st:_) alerts wsel _) = do
+    drawPlayState (PlayState (st:_) _ alerts wsel _) = do
 	waitFrame
 	let selTools = [ idx |
 		(idx, PlacedPiece pos p) <- enumVec $ placedPieces st
@@ -470,7 +470,7 @@ instance UIMonad (StateT UIState IO) where
 	drawButtons IMPlay
 	refresh
 
-    drawEditState (EditState (st:_) selPiece selPos _ _) = do
+    drawEditState (EditState (st:_) _ selPiece selPos _ _) = do
 	waitFrame
 	drawState (maybeToList selPiece) True [] st
 	drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
@@ -579,8 +579,12 @@ instance UIMonad (StateT UIState IO) where
 	    processEvent (MouseButtonDown _ _ ButtonWheelUp) = doWheel 1
 	    processEvent (MouseButtonDown _ _ ButtonWheelDown) = doWheel $ -1
 	    processEvent (MouseButtonDown _ _ ButtonMiddle) = do
+		modify $ \s -> s { middleButtonDown = True }
 		rb <- gets rightButtonDown
 		return $ if rb then [ CmdDelete ] else []
+	    processEvent (MouseButtonUp _ _ ButtonMiddle) = do
+		modify $ \s -> s { middleButtonDown = False }
+		return []
 	    processEvent (VideoResize w h) = do
 		initVideo w h
 		return [ CmdRedraw ]
@@ -589,11 +593,15 @@ instance UIMonad (StateT UIState IO) where
 
 	    doWheel dw = do
 		rb <- gets rightButtonDown
+		mb <- gets middleButtonDown
 		if rb
 		    then return [ CmdRotate dw ]
-		    else do
+		    else if mb 
+			then return [ if dw == 1 then CmdUndo else CmdRedo ]
+			else do
 			modify $ \s -> s { paintTile = (paintTile s + dw) `mod` (length paintTiles) }
 			return []
+		
 
 	    drawCmd (Just t) True = CmdPaint t
 	    drawCmd (Just t) False = CmdTile t

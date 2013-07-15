@@ -63,7 +63,7 @@ test lockSize fname initState = do
     if not ok
 	then return False
 	else do
-	    runStateT edit $ EditState [initState] Nothing (PHS zero) (PHS zero) Nothing
+	    runStateT edit $ EditState [initState] [] Nothing (PHS zero) (PHS zero) Nothing
 	    endUI
 	    return True
     where
@@ -81,8 +81,16 @@ test lockSize fname initState = do
 		processPlayCommand CmdQuit =
 		    modify $ \ps -> ps {psSwitchMode = Just GMQuit}
 	        processPlayCommand CmdUndo = do
-		    _:sts <- gets psGameStateStack
-		    when (not $ null sts) $ modify $ \ps -> ps {psGameStateStack = sts, psLastAlerts = []}
+		    st:sts <- gets psGameStateStack
+		    usts <- gets psUndoneStack
+		    when (not $ null sts) $ modify $ \ps -> ps {psGameStateStack = sts, psLastAlerts = [], psUndoneStack = st:usts}
+		processPlayCommand CmdRedo = do
+		    usts <- gets psUndoneStack
+		    case usts of 
+			[] -> return ()
+			ust:usts' -> do
+			    pushPState ust
+			    modify $ \ps -> ps {psUndoneStack = usts'}
 		processPlayCommand cmd = do
 		    wsel <- gets wrenchSelected
 		    st:_ <- gets psGameStateStack
@@ -134,8 +142,16 @@ test lockSize fname initState = do
 		    modify $ \es -> es {esSwitchMode = Just GMPlay }
 		processEditCommand CmdResetTools = modifyEState canonify
 		processEditCommand CmdUndo = do
-		    _:sts <- gets esGameStateStack
-		    when (not $ null sts) $ modify $ \es -> es {esGameStateStack = sts}
+		    st:sts <- gets esGameStateStack
+		    usts <- gets esUndoneStack
+		    when (not $ null sts) $ modify $ \es -> es {esGameStateStack = sts, esUndoneStack = st:usts}
+		processEditCommand CmdRedo = do
+		    usts <- gets esUndoneStack
+		    case usts of 
+			[] -> return ()
+			ust:usts' -> do
+			    pushEState ust
+			    modify $ \es -> es {esUndoneStack = usts'}
 		processEditCommand CmdUnselect =
 		    modify $ \es -> es {selectedPiece = Nothing}
 		processEditCommand CmdSelect = do
@@ -201,18 +217,18 @@ test lockSize fname initState = do
 		subPlay :: UIMonad uiM => GameState -> StateT EditState uiM ()
 		subPlay st = do
 		    modify $ \es -> es {esSwitchMode = Nothing}
-		    (_,PlayState (st':_) _ _ _) <- lift $ runStateT play $ PlayState [st] [] False Nothing
+		    (_,PlayState (st':_) _ _ _ _) <- lift $ runStateT play $ PlayState [st] [] [] False Nothing
 		    pushEState st'
 		    edit
 
 	pushEState :: UIMonad uiM => GameState -> StateT EditState uiM ()
 	pushEState st = do
 	    st':sts <- gets esGameStateStack
-	    when (st' /= st) $ modify $ \es -> es {esGameStateStack = st:st':sts}
+	    when (st' /= st) $ modify $ \es -> es {esGameStateStack = st:st':sts, esUndoneStack = []}
 	pushPState :: UIMonad uiM => GameState -> StateT PlayState uiM ()
 	pushPState st = do
 	    st':sts <- gets psGameStateStack
-	    when (st' /= st) $ modify $ \ps -> ps {psGameStateStack = st:st':sts}
+	    when (st' /= st) $ modify $ \ps -> ps {psGameStateStack = st:st':sts, psUndoneStack = []}
 	modifyEState :: UIMonad uiM => (GameState -> GameState) -> StateT EditState uiM ()
 	modifyEState f = do
 	    st:_ <- gets esGameStateStack

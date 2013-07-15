@@ -144,7 +144,7 @@ colorsToPairs cs =
 
 instance UIMonad (StateT UIState IO) where
     runUI m = evalStateT m nullUIState
-    drawPlayState (PlayState (st:_) alerts wsel _) = do
+    drawPlayState (PlayState (st:_) _ alerts wsel _) = do
 	do
 	    ds@(UIState _ centre _) <- get
 	    drawState [] False alerts st
@@ -152,7 +152,7 @@ instance UIMonad (StateT UIState IO) where
 		(_, PlacedPiece pos p) <- enumVec $ placedPieces st
 		, or [wsel && isWrench p, not wsel && isHook p] ]
 
-    drawEditState (EditState (st:_) selPiece selPos _ _) =
+    drawEditState (EditState (st:_) _ selPiece selPos _ _) =
 	do
 	    ds@(UIState _ centre _) <- get
 	    drawState (maybeToList selPiece) True [] st
