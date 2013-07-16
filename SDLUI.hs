@@ -433,8 +433,8 @@ buttons mode = case mode of
 	, ( [ Button (bl<+>((-2)<*>hv)) (CmdRotate (-1))
 	    , Button (bl<+>((-2)<*>hw)) (CmdRotate 1)
 	    ], (4,0) )
-	, ( [ Button (bl<+>(2<*>hv)<+>hw) (CmdTile $ WrenchTile zero)
-	    , Button (bl<+>(2<*>hv)) (CmdTile $ ArmTile hw False)
+	, ( [ Button (bl<+>(2<*>hv)<+>hw) (CmdTile $ ArmTile hw False)
+	    , Button (bl<+>(2<*>hv)) (CmdTile $ WrenchTile zero)
 	    ], (2,0) )
 	]
     IMConfirm -> [
@@ -502,6 +502,7 @@ instance UIMonad (StateT UIState IO) where
 		liftIO $ warpMouse (fromIntegral $ w`div`2) (fromIntegral $ h`div`2)
 		erase
 		liftIO $ enableUnicode True
+		liftIO $ enableKeyRepeat 500 30
 		return True
 
     endUI = liftIO $ quit
