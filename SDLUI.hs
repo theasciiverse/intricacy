@@ -223,7 +223,7 @@ colourWheel n = Pixel $ (((((r * 0x100) + g) * 0x100) + b) * 0x100) + a
 	  a = 0x00
 	  colourWheel' 0 = [True, False, False]
 	  colourWheel' 1 = [True, True, False]
-	  colourWheel' n = let [a,b,c] = colourWheel' $ n-2 in [b,c,a]
+	  colourWheel' n = let [a,b,c] = colourWheel' $ n-2 in [c,a,b]
 
 colourOf colouring idx = 
     case Map.lookup idx colouring of
@@ -271,13 +271,15 @@ sVec2HexVec size sv =
     in HexVec hx hy hz
 
 data UIState = UIState { scrHeight::Int, scrWidth::Int
+    , gsSurface::Maybe Surface
+    , lastDrawArgs::Maybe DrawArgs
     , dispFont::Maybe TTF.Font
     , lastFrameTicks::Word32, paintTile::Int
     , leftButtonDown::Bool, middleButtonDown::Bool, rightButtonDown::Bool
     , mousePos::HexVec
     , dispCentre::HexPos, dispLastCol::PieceColouring }
 type UIM = StateT UIState IO
-nullUIState = UIState 0 0 Nothing 0 0 False False False zero (PHS zero) Map.empty
+nullUIState = UIState 0 0 Nothing Nothing Nothing 0 0 False False False zero (PHS zero) Map.empty
 
 erase :: UIM ()
 erase = do
@@ -393,20 +395,37 @@ getGeom = do
     return (scrCentre, size)
 
 
+data DrawArgs = DrawArgs [PieceIdx] Bool [Alert] GameState
+    deriving (Eq, Ord, Show)
+
 drawState :: [PieceIdx] -> Bool -> [Alert] -> GameState -> UIM ()
 drawState highlight colourFixed alerts st =
-    let board = stateBoard st
-    in do
-	lastCol <- gets dispLastCol
-	let colouring = boardColouring st (colouredPieces colourFixed st) lastCol
-	modify $ \ds -> ds { dispLastCol = colouring }
-	erase
-	sequence_ [ drawAt glyph pos | 
-	    (pos,glyph) <- Map.toList $ fmap (ownedTileGlyph colouring highlight) board
-	    ]
-	sequence_ $ [ drawBlocked st colouring force | 
-	    AlertBlockedForce force <- alerts ]
-	    -- ++ [ drawAt collisionMarker pos | AlertCollision pos <- alerts ]
+    drawState' $ DrawArgs highlight colourFixed alerts st
+
+drawState' :: DrawArgs -> UIM ()
+drawState' args@(DrawArgs highlight colourFixed alerts st) = do
+    lastArgs <- gets lastDrawArgs
+    void $ if lastArgs == Just args
+	then do
+	    vidSurf <- liftIO getVideoSurface
+	    gsSurf <- liftM fromJust $ gets gsSurface
+	    liftIO $ blitSurface gsSurf Nothing vidSurf Nothing
+	else do
+	    modify $ \ds -> ds { lastDrawArgs = Just args }
+	    let board = stateBoard st
+	    lastCol <- gets dispLastCol
+	    let colouring = boardColouring st (colouredPieces colourFixed st) lastCol
+	    modify $ \ds -> ds { dispLastCol = colouring }
+	    erase
+	    sequence_ [ drawAt glyph pos | 
+		(pos,glyph) <- Map.toList $ fmap (ownedTileGlyph colouring highlight) board
+		]
+	    sequence_ $ [ drawBlocked st colouring force | 
+		AlertBlockedForce force <- alerts ]
+		-- ++ [ drawAt collisionMarker pos | AlertCollision pos <- alerts ]
+	    vidSurf <- liftIO getVideoSurface
+	    gsSurf <- liftM fromJust $ gets gsSurface
+	    liftIO $ blitSurface vidSurf Nothing gsSurf Nothing
 
 drawButtons :: InputMode -> UIM ()
 drawButtons mode = do
@@ -455,6 +474,8 @@ initVideo w h = do
     liftIO $ setVideoMode w h 32 [Resizable]
     modify $ \ds -> ds { scrWidth = w }
     modify $ \ds -> ds { scrHeight = h }
+    surf <- liftIO $ createRGBSurface [ SWSurface ] w h 32 0xff000000 0xff0000 0xff00 0
+    modify $ \ds -> ds { gsSurface = Just surf, lastDrawArgs = Nothing }
     (_,size) <- getGeom
     font <- liftIO $ TTF.tryOpenFont "VeraMono.ttf" (size)
     modify $ \ds -> ds { dispFont = font }
