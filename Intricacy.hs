@@ -1,8 +1,6 @@
 module Main where
 
-import qualified Data.Vector as Vector
 import Control.Monad.State
-import Data.List ((\\))
 import qualified Data.Vector as Vector
 import qualified Data.Map as Map
 import Data.Map (Map)
@@ -22,43 +20,13 @@ import qualified CursesUI
 import GameState
 import Physics
 import Command
+import Frame
 
-bolthole :: Int -> HexVec
-bolthole side = side<*>hu <+> (side`div`2)<*>hv
-entrance :: Int -> HexVec
--- entrance side = (side-1)<*> neg hu <+> (side-1)`div`2<*>neg hv
-entrance side = neg $ bolthole side
-frame :: Int -> PlacedPiece
-frame side =
-    PlacedPiece origin $ Block $ [bolthole side <+> (side`div`4+1)<*>hu <+> n<*>hv | n <- [0..side`div`4+1] ]
-	++ (map (entrance side <+>) [neg hu <+> hv, 2 <*> neg hu, neg hu <+> hw,
-		2 <*> hw, neg hv <+> hw])
-	++ (concat [
-		map (rotate r) [ (n<*>hu) <+> (side<*>hw) | n <- [0..side-1] ] | r <- [0..5] ] \\ 
-	    [bolthole side, entrance side])
-bolt :: Int -> PlacedPiece
-bolt side = PlacedPiece (bolthole side <+> origin) $ Block $
-    [ n<*>hu | n <- [-1..side`div`4] ] -- ++ [(-2)<*>hu<+>neg hv]
-boltbase :: Int -> PlacedPiece
-boltbase side = PlacedPiece ((3*(side`div`4)+1) <*> neg hu <+> bolthole side <+> origin) $ Block [ zero ]
-boltspring :: Int -> Connection
-boltspring side = Connection (1,zero) (2,(-(side`div`4)) <*>hu) $ Spring hu $ 2*(side`div`4)
-
-baseState side =
-    GameState (Vector.fromList [
-	frame side
-	--, boltbase side
-	, bolt side
-	, PlacedPiece (entrance side <+> neg hu <+> origin) $ Wrench zero
-	, PlacedPiece (entrance side <+> hw <+> origin) $ Hook (neg hw) Unstiff
-    ]) [
-	-- boltspring side
-	]
-
+type Lock = (Frame, GameState)
 
 --test = CursesH.start >> drawBoard testBoard (PHS zero) >> CursesH.getKey (return ()) >> CursesH.end
-test :: UIMonad uiM => Int -> Maybe String -> GameState -> uiM Bool
-test lockSize fname initState = do
+test :: UIMonad uiM => Lock -> Maybe String -> uiM Bool
+test lock@(frame,initState) fname = do
     ok <- initUI
     if not ok
 	then return False
@@ -207,7 +175,7 @@ test lockSize fname initState = do
 		processEditCommand CmdWriteState = do
 		    st:_ <- gets esGameStateStack
 		    let wfname = fromMaybe "unnamed.lock" fname 
-		    liftIO $ writeFile wfname $ show (lockSize, canonify st)
+		    liftIO $ writeFile wfname $ show (frame, canonify st)
 		processEditCommand _ = return ()
 		drawTile tile painting = do
 		    selPos <- gets selectedPos
@@ -236,12 +204,12 @@ test lockSize fname initState = do
 	checkBounds :: HexPos -> HexPos -> HexPos
 	checkBounds def pos = if inBounds pos then pos else def
 	inBounds :: HexPos -> Bool
-	inBounds pos = hexLen (pos <-> origin) < lockSize
+	inBounds pos = hexLen (pos <-> origin) < lockBodySize frame
 	truncateToBounds :: HexPos -> HexPos
 	truncateToBounds pos@(PHS v) =
 	    if inBounds pos
 		then pos
-		else PHS $ scaleToLength (lockSize-1) v
+		else PHS $ scaleToLength ((lockBodySize frame)-1) v
 	delOOB :: GameState -> GameState
 	delOOB st = case listToMaybe [ idx |
 		(idx,_) <- enumVec $ placedPieces st
@@ -254,9 +222,7 @@ test lockSize fname initState = do
 			      , isTool $ placedPiece pp ] of
 			Nothing -> st
 			Just idx -> delTools $ delPiece idx st
-	addTools st = foldr addpp st
-	    [ PlacedPiece (entrance lockSize <+> neg hu <+> origin) $ Wrench zero,
-	    PlacedPiece (entrance lockSize <+> hw <+> origin) $ Hook (neg hw) Unstiff ]
+	addTools st = foldr addpp st $ initTools frame
 	stabilise st =
 	    let (st',_) = runWriter $ physicsTick NullPM st
 	    in if st == st' then st else stabilise st'
@@ -292,7 +258,7 @@ parseArgs argv =
 	(_,_,errs) -> ioError (userError (concat errs ++ usageInfo header options))
     where header = "Usage: lock [OPTION...] [file]"
 
-readLockFile :: String -> IO (Maybe (Int, GameState))
+readLockFile :: String -> IO (Maybe Lock)
 readLockFile file = do
     lockstr <- liftIO $ catchJust (guard . isDoesNotExistError)
 		  (readFile file)
@@ -303,14 +269,15 @@ readLockFile file = do
 main = do
     argv <- getArgs
     (opts,args) <- parseArgs argv
-    let initSize = fromMaybe 8 $ listToMaybe [ size | LockSize size <- opts ]
+    let frameSize = fromMaybe 8 $ listToMaybe [ size | LockSize size <- opts ]
+    let initFrame = BasicFrame frameSize
     let fname = listToMaybe args
-    lock <- case fname of
+    mlock <- case fname of
 		Nothing -> return Nothing
 		Just fname -> readLockFile fname
-    let (size, initState) = fromMaybe (initSize, baseState initSize) $ lock
+    let lock = fromMaybe (initFrame, baseState initFrame) $ mlock
     
     sdlOk <- if ForceCurses `elem` opts
 	then return False
-	else runUI $ ((test size fname initState)::SDLUI.UIM Bool)
-    when (not sdlOk) $ void $ runUI $ ((test size fname initState)::CursesUI.UIM Bool)
+	else runUI $ ((test lock fname)::SDLUI.UIM Bool)
+    when (not sdlOk) $ void $ runUI $ ((test lock fname)::CursesUI.UIM Bool)
