@@ -344,12 +344,15 @@ drawBlocked st colouring sidx (Torque idx dir) = do
     sequence_ [ drawAt (blockedArm arm dir col) (arm <+> pos) |
 	arm <- arms ]
 drawBlocked st colouring sidx (Push idx dir) = do
+    return ()
+{-
     let footprint = plPieceFootprint $ getpp st idx
 	fullfootprint = fullFootprint st idx
 	col = obscure $ colourOf colouring sidx
     sequence_ [ drawAt (blockedPush dir col) pos
 	| pos <- footprint
 	, not $ (dir<+>pos) `elem` fullfootprint ]
+-}
 
 paintTiles :: [ Maybe Tile ]
 paintTiles =
