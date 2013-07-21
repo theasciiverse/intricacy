@@ -170,7 +170,7 @@ blockedBlock tile dir col centre size =
 
 blockedPush :: HexDir -> Pixel -> Glyph
 blockedPush dir col centre size surf = do
-    void $ rimmedPolygon surf verts (obscure orange) (dim orange)
+    void $ rimmedPolygon surf verts (obscure col) (dim col)
 	where verts =
 		[ innerCorner centre size $ rotate 1 dir
 		, innerCorner centre size $ rotate (-1) dir
@@ -335,24 +335,21 @@ drawCursorAt :: Maybe HexPos -> UIM ()
 drawCursorAt (Just pos) = drawAt cursor pos
 drawCursorAt _ = return ()
 
-drawBlocked :: GameState -> PieceColouring -> Force -> UIM ()
-drawBlocked st colouring (Torque idx dir) = do
+drawBlocked :: GameState -> PieceColouring -> PieceIdx -> Force -> UIM ()
+drawBlocked st colouring sidx (Torque idx dir) = do
     let (pos,arms) = case getpp st idx of
 	    PlacedPiece pos (Pivot arms) -> (pos,arms)
 	    PlacedPiece pos (Hook arm _) -> (pos,[arm])
 	col = obscure $ colourOf colouring idx
     sequence_ [ drawAt (blockedArm arm dir col) (arm <+> pos) |
 	arm <- arms ]
-drawBlocked st colouring (Push idx dir) = do
-    return ()
-{-
+drawBlocked st colouring sidx (Push idx dir) = do
     let footprint = plPieceFootprint $ getpp st idx
 	fullfootprint = fullFootprint st idx
-	col = obscure $ colourOf colouring idx
+	col = obscure $ colourOf colouring sidx
     sequence_ [ drawAt (blockedPush dir col) pos
 	| pos <- footprint
 	, not $ (dir<+>pos) `elem` fullfootprint ]
--}
 
 paintTiles :: [ Maybe Tile ]
 paintTiles =
@@ -423,8 +420,8 @@ drawState' args@(DrawArgs highlight colourFixed alerts st) = do
 	    sequence_ [ drawAt glyph pos | 
 		(pos,glyph) <- Map.toList $ fmap (ownedTileGlyph colouring highlight) board
 		]
-	    sequence_ $ [ drawBlocked st colouring force | 
-		AlertBlockedForce force <- alerts ]
+	    sequence_ $ [ drawBlocked st colouring sourceIdx force | 
+		AlertBlockedForce sourceIdx force <- alerts ]
 		-- ++ [ drawAt collisionMarker pos | AlertCollision pos <- alerts ]
 	    vidSurf <- liftIO getVideoSurface
 	    gsSurf <- liftM fromJust $ gets gsSurface

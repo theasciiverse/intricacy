@@ -37,7 +37,7 @@ data PlayerMove = NullPM | HookPush HexDir | HookTorque TorqueDir | WrenchPush H
     deriving (Eq, Ord, Show)
 
 -- |Alert: for passing information about physics processing to the UI
-data Alert = AlertCollision HexPos | AlertBlockedForce Force
+data Alert = AlertCollision HexPos | AlertBlockedForce PieceIdx Force
     deriving (Eq, Ord, Show)
 
 toolForces :: GameState -> PlayerMove -> Forces
@@ -85,14 +85,16 @@ physicsTick pm st =
 	doTools st = let st' = setTools pm st
 	    in resolveForces (toolForces st' pm) Vector.empty st'
     in do
-	st' <- doTools st
+	let (st', alerts1) = runWriter $ doTools st
 	st' <- if and [case pm of {WrenchPush _ -> True; _ -> False}
 		, or [ mom /= zero && mom' == zero
 		    | (idx, PlacedPiece _ (Wrench mom)) <- enumVec $ placedPieces st
 		    , let PlacedPiece _ (Wrench mom') = getpp st' idx ] ]
-	    then -- we're pushing a moving wrench and it got blocked - try again
+	    then -- we're pushing a moving wrench and it got blocked. Try again.
 		doTools st'
-	    else return st'
+	    else do
+		tell alerts1
+		return st'
 	resolveForces Vector.empty (envForces st') $ setHookStiff st'
 
 type Source = Int
@@ -120,9 +122,8 @@ resolveForces plForces eForces st =
 	    , (Wrench _) <- [placedPiece $ getForcedpp st' $ forces!s] ]
     in do --prettyTrace (st, sforces, sforces', blocked, unblocked) $
 	(sforces', blockedsfs) <- (sequence_ (map resolveForce sforces)) `execStateT` ([],[])
-	let blocked = nub [ force | SForce s force _ _ <- sforces', s `elem` blockedsfs ]
 	let unblocked = nub [ force | SForce s force _ _ <- sforces', not $ s `elem` blockedsfs ]
-	tell $ map AlertBlockedForce blocked
+	tell $ nub [ AlertBlockedForce (forceIdx $ forces!s) force | SForce s force _ _ <- sforces', s `elem` blockedsfs ]
 	return $ stopWrenches blockedsfs $ foldr applyForce st unblocked
     
 applyForce :: Force -> GameState -> GameState

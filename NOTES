@@ -589,17 +589,41 @@ transfer picks between accounts.
 So although having a single account should be the default, we can allow the
 addicted to create extra.
 
-Note there *is* a potential for abuse if one person owns a significant
+Actually no, this doesn't work at all - we *have* to avoid the same player
+getting two stabs at a lock. Hrm.
+
+Note there *is* anyway a potential for abuse if one person owns a significant
 proportion of the accounts... I'll just have to watch out for that.
 
 Given anonymity, no need for usernames - a single secret identifier will
 suffice.
 
 Handling revenge with anonymity: just make it an explicit option, a key/button
-when watching a replay.
+when watching a replay. But maybe revenge doesn't fit this game anyway.
 
 But maybe the *locks* should get (code)named - at least the successful,
 publically displayed ones? That way people can talk about them in sidechannel
 discussions, and there can even be publically accessible urls for them.
 No need to let the creator choose the name (a recipe for profanity and
 SQL-injection...), can use a wordlist.
+
+
+Sketch of the metagame UI:
+
+On start, we have options:
+    design
+    solve
+
+
+
+
+
+
+
+Remind me: why is this idea of having a metagame a good one and not a silly
+	one?
+    Answer: because the whole point is to explore the outer reaches of
+	complexity within the space of possible puzzles - which given the hard
+	restriction on lock size, means exploring the extremes of intricacy.
+	For this, we need clear motivation from puzzle designers to design the
+	hardest puzzles they can. This is the point of the metagame.
