@@ -178,6 +178,7 @@ test lock@(frame,initState) fname = do
 		    liftIO $ writeFile wfname $ show (frame, canonify st)
 		processEditCommand _ = return ()
 		drawTile tile painting = do
+		    modify $ \es -> es {selectedPiece = Nothing}
 		    selPos <- gets selectedPos
 		    last <- gets lastModPos
 		    modifyEState $ modTile (Just tile) selPos last painting
