@@ -607,6 +607,267 @@ discussions, and there can even be publically accessible urls for them.
 No need to let the creator choose the name (a recipe for profanity and
 SQL-injection...), can use a wordlist.
 
+-----
+
+Need to take seriously this exploit:
+    create two accounts (can't hope to prevent this)
+    log in with account 1, try a load of locks
+    solve them in your own time
+    log in with account 2, knowing the solutions to lots of locks.
+
+This isn't preventable, nor is it really detectable. So it's a fatal flaw with
+the current design.
+
+So ditch the idea that a user can only try a lock once.
+
+So it seems we're led to: a race to be the first to solve a lock.
+
+So like the current design, but without the time limit, and with no second
+prize (lest the same player with multiple accounts take all the prizes).
+
+Obvious worry: solving locks, particularly given undo, is so much quicker than
+creating them that it'll be rare that there are any unsolved locks available.
+
+This may not be too bad if the userbase is large and active enough. If I spend
+an hour designing a fiendish lock which someone then picks in ten minutes,
+that's arguably not a problem if at least five others were also trying to pick
+it during those ten minutes. If the solver is the only person who ever sees
+it, we have a decided imbalance.
+
+But maybe this is overly simplistic - as long as the design stage is
+sufficiently painless and engaging, spending most of your time there shouldn't
+be a problem. Still, it's an argument e.g. for keeping the balls, making
+greater intricacy easier to achieve. Possibly relaxing size limits would do
+this too (on the basis that squeezing an intricate lock into a small space
+takes extra ingenuity).
+
+We need to think about incentives. Unoriginality - e.g. just using the same
+lock over and over again, or copying someone else's - is naturally discouraged
+since such a lock is likely to be solved very quickly. (Note that we don't
+have to worry about someone copying a lock design before solving it
+themselves, thanks to the self-test.)
+
+We need to set things up to foil another obvious exploit: setting a lock with
+one account and then solving it with another. It's ok for this to result in a
+flow of points, but it shouldn't be a net gain if the solution is given
+quickly. I suppose it won't be possible to foil this strategy completely,
+since for a decently hard lock we do want to reward both setter and solver...
+but it is at least relatively easy to detect. We could also try anonymisation
+techniques (which would have to include adding a random delay, invisible to
+the setter, between a lock being set and it becoming available...) but there
+will anyway be a systematic advantage to be gained from sock-puppetry.
+
+Cunning solution to all of these problems: information as currency! See below.
+
+------
+
+Information-based economy
+=========================
+
+Cryptocurrencies and attempts by backwards-looking business-types aside, an
+information-based economy differs crucially from a resource-based one, in that
+information can be copied.
+
+This deals with all sock-puppet problems.
+
+How I'm thinking this should work:
+
+When you solve a lock, you take notes. You store your notes behind your lock.
+When you crack a lock, you take a copy of everything behind it, adding them to
+your own stash. Your "score" is the number of locks for which you have a
+solution (whether discovered yourself or copied).
+
+Consequences:
+    It is important to set a strong lock, to protect the secrets to which you
+    become privy. Doing so adds something to the game "economy" (weak
+    metaphor), which dissipates slowly and most likely only after the lock has
+    been independently cracked by a fair few players. 
+
+    Problem: optimal play would have you change your lock as soon as it's been
+    cracked, since knowledge of how to crack it will spread exponentially, so
+    it will soon become useless for protecting new secrets. (Note that for the
+    secrets it originally protected, it's too late - they will spread
+    exponentially anyway.) This could prove tiresome, and more to the point
+    will mean a lock doesn't provide as much entertainment for solvers.
+    Solution: don't allow changing a lock or removing what it guards, but do
+    allow setting a new active lock behind which newly acquired secrets will
+    go.
+    Problem with solution: now optimal play is to create a new lock for each
+    lock you crack, leading to exponential growth in number of uncracked
+    locks.
+
+Thought: notes needn't give full solutions, they could just give hints - e.g.
+a snapshot of the gamestate at a random point during the solution. Problem
+with that: players could take a deliberately contorted path to the solution,
+such that a random snapshot might well be misleading.
+Or: similar, but automated - say you need to gather notes resulting from n
+independent solutions of a lock, and then you automatically solve the lock.
+
+
+Revised version:
+----------------
+Each time you solve a lock, you take "notes". In order to "claim" your
+solutions, you must design locks of your own behind which to secure your
+notes. Behind each lock goes n notes. Whenever you claim a solution to a lock,
+you get to see the n notes it secures. Once you have seen k notes on the same
+lock, you automatically solve it (and get to see the notes it secures, which
+may result recursively in further automatic solving).
+
+Your "score" is the number of locks you have claimed solutions for - direct or
+automatic. Locks you have set yourself count towards this.
+
+Effects of parameters:
+    b:=n/k is the branching number: solving a lock lets you solve on average
+    b^t of the locks t layers back. We want b>1, so old locks effectively lose
+    value over time. 
+
+    k is the "fragmentation index", and controls the relative value of
+    designing and solving locks.
+
+    n=3, k=2 seems like a decent first thing to try, twiddling later if it
+    seems appropriate.
+
+Subtleties:
+    The tougher locks will be more valuable, since solving one will increase
+    your relative score for longer. So it's in your interest to put your notes
+    on them behind your own most ingenious locks. So the hardest locks should
+    keep their value for the longest.
+
+    We shouldn't force players to claim their solutions as soon as possible,
+    because that could be got around by working out how to solve locks but
+    avoiding actually doing so until you're ready to claim them, and also
+    because players who enjoy solving might not bother to design a sound lock.
+    But note that there's a strong incentive to claim quickly - the value of a
+    solution depreciates exponentially as others solve the lock.
+
+    What I mean by 'value' of a solution should maybe be spelt out: solving a
+    new lock gives you (on average) b^t solutions of locks of "age" t, where
+    (as discussed above) easier locks age much faster than hard ones. So by
+    having score be a simple count of the number of locks you have solutions
+    to, we get this natural depreciation.
+    
+    Note that this means that coming in late as a new player, you can catch up
+    with the old hands quickly by solving some of the latest locks (and
+    there'll be a nice rich bank of old locks to study if the new ones are too
+    hard).
+
+Potential for cheating:
+    Devise a tricky lock, and learn how to solve k existing locks.
+    Create a whole cupboard of sock puppets. Have each puppet solve those k
+    locks and put the notes behind that tricky lock. Then have your main
+    account solve each of these many instances of that tricky lock. Result:
+    your main account gets a cupboard of points. Arse.
+
+Another problem:
+    You could deliberately solve earlier locks before the later ones, to
+    maximise the number of notes you get and hence the number of locks you can
+    set. This is grinding, and rational. That's a problem.
+
+Recovery:
+    What happens if we just explicitly allow that kind of "cheating"? That
+    comes down to: allow setting a lock which secures nothing, with you still
+    getting a point for it. Answer: spam. Hrm.
+
+
+Another separate worry:
+    What about public accounts? If a whole load of players use the same
+    account, it would end up as a spoilerbank. Could try to detect multiple
+    simultaneous uses, I guess.
+
+Rethinking motivation:
+    Aim is to motivate designing locks which can't be easily solved by the
+    current playerbase.
+
+    Simplest way to do that: each player designs a lock, and they're ranked
+    according to how long they've remained unsolved. But that gives locks a
+    very short life - solved once then valueless. And there wouldn't be much
+    interest in trying to solve any lock other than the currently top-rated
+    one. So something more subtle is required.
+
+    Designing locks as a means to protect your winnings from solving them is
+    a natural and appealing setup. Given sock-puppets, these winnings must be
+    of a kind you can only obtain from other humans. Which has to mean
+    solutions to puzzles, which you yourself might not be able to solve. We
+    want these puzzles to be player-produced, so naturally they should be the
+    locks themselves. So the basic design above seems pretty much inevitable.
+
+    The tricky bit is to motivate trying to keep your solutions secret, while
+    avoiding potential for abuse. If we simply motivate having solutions
+    others don't, we clearly motivate sock-puppetry. We want to motivate
+    having solutions *to the locks of other humans* which others don't.
+
+    How about if we drop the idea of a linear scale. A dominates B iff A can
+    crack more of B's locks than can B A's. The point being that you're not
+    going to care about dominating your sock puppets. Problem: you don't
+    really care about others dominating those you dominate, either, so won't
+    care about protecting your secrets.
+
+    But consider Ultra. You want to keep your solution to a lock to yourself
+    because you don't want the owner of the lock to stop using it. So we need
+    a cost associated to setting up a new lock, such that you're motivated to
+    keep using an old one until it's been too thoroughly compromised.
+
+New version
+-----------
+
+You're allowed at most l active locks at any time. To declare a solution
+to a lock, you put your notes on it behind one of your active locks. If
+you deactivate one of your locks, then its solution along with all notes
+it secured become common knowledge. You have access to all public
+knowledge notes and to all notes secured by locks to which you have a
+declared or automatic solution, and having access to k notes on a lock
+gives you an automatic solution to it. There is no absolute scoring;
+rather, A scores a point against B for each of B's locks to which A has a
+solution, and each player sees other players ranked according to relative
+score. Optionally, you can get fractional points for having notes on a lock.
+
+Player motivation:
+    If too many players have solutions to one of your active locks, you'll
+    want to ditch it. So if you have a solution to someone's active lock, you
+    won't want too many others to get solutions to it. So you want to protect
+    your notes. So you will put your most valuable notes behind your hardest /
+    least compromised lock. So notes to harder locks will be more valuable.
+
+    Note that it can be rational to put notes behind your more compromised
+    locks, in order to spread risk and not make your most valuable lock too
+    tempting a target.
+
+Parameters:
+    Increasing l lengthens the active life of a lock. It also makes the
+    scoring finer.
+
+    Large k reduces the importance of lock compromisation, and in particular
+    also lengthens the active life of a lock.
+
+    l=3 k=3 sounds good.
+
+Potential for abuse:
+    Sock puppets:
+	You can set locks as a sock-puppet and solve them with your main
+	account, but this will affect only the relative score between these
+	two accounts.
+
+	You could scare someone into thinking their lock is utterly
+	compromised by solving it with many accounts. But this wouldn't be
+	rational - if they ditch the lock, its solution and contents become
+	public knowledge, so your situation is only worsened.
+
+	You could be a complete arse and create lots of mirror accounts, which
+	copy your every action. With enough mirrors, players wouldn't waste
+	their time solving every copy of your locks, so whichever account you
+	decide is the real one would get an advantage. This could be made more
+	difficult with IP checks and checking for identical locks, but can't
+	really be prevented. But the only motivation for doing this is to show
+	off that you can break the game if you want to, so hopefully a "yes
+	yes, well done" followed by manual purging of the accounts would
+	suffice.
+	
+    Shared accounts and other conspiracies:
+	We can't prevent these. Discouragement and banning discovered accounts
+	should suffice.
+	
+
+------
 
 Sketch of the metagame UI:
 
@@ -614,10 +875,7 @@ On start, we have options:
     design
     solve
 
-
-
-
-
+------
 
 
 Remind me: why is this idea of having a metagame a good one and not a silly
