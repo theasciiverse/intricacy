@@ -575,6 +575,18 @@ mysql vs sqlite: main difference seems to be that sqlite write-locks the whole
 database when any part of it is written to, while mysql is cleverer. sqlite
 should be fine for this project, I'm sure.
 
+-----
+
+
+Remind me: why is this idea of having a metagame a good one and not a silly
+	one?
+    Answer: because the whole point is to explore the outer reaches of
+	complexity within the space of possible puzzles - which given the hard
+	restriction on lock size, means exploring the extremes of intricacy.
+	For this, we need clear motivation from puzzle designers to design the
+	hardest puzzles they can. This is the point of the metagame.
+
+-----
 
 Simplifying the metagame:
 One active lock per player.
@@ -830,7 +842,8 @@ Player motivation:
 
     Note that it can be rational to put notes behind your more compromised
     locks, in order to spread risk and not make your most valuable lock too
-    tempting a target.
+    tempting a target. For this to work, it should be public knowledge what
+    notes are secured by each of your locks.
 
 Parameters:
     Increasing l lengthens the active life of a lock. It also makes the
@@ -865,23 +878,211 @@ Potential for abuse:
     Shared accounts and other conspiracies:
 	We can't prevent these. Discouragement and banning discovered accounts
 	should suffice.
-	
+
+Possible complications:
+    Could incorporate variable locksize by allowing one large lock in place of
+    two normal sized locks, and two small locks in place of one normal.
+
+    Hints: having 0<n<k notes could give you hints on solving the lock. To
+    minimise potential for planting false information, this should consist of
+    views of the final, solved state of the lock, as obtained by the solver.
+    For n=k-1, this should be the whole final state; for smaller n, some part
+    of it.
+
+Other remarks:
+  Locksize(s) for new locks should be server-configurable (so I can fiddle
+  with it as necessary).
+
+  I worry that the design rewards people for playing more as well as for
+  playing better. But there's no unabusable way to restrict it - you can
+  always log in with sock puppets, obtain some locks, spend however long you
+  need cracking them, and then use this information with your main account.
+
 
 ------
 
-Sketch of the metagame UI:
+Metagame UI
+===========
 
-On start, we have options:
-    design
-    solve
+Even with relative scoring, sock-puppetry would be an annoyance to other
+players. So showing anything like a total of the relative scores would
+be a bad idea - it could motivate a player to sock-puppet just to boost
+that total, even if it's only going to be shown to sem.
+
+So relative scores should be shown one-by-one, not tallied.
+
+But for each player, I think it is important to give a single number for
+the relative score, something you're directly motivated to increase,
+rather than just describing the details of how you relate to that
+player. The relative score could be called something like the "advantage
+over" the player; recall it's calculated as
+[number of seir locks I can solve] - [number of my locks sey can solve].
+Forget the idea of fractional score, that would just complicate things.
+
+When you create an account, you choose a three-character codename.
+
+The main metagame display will show your three active locks; below each
+lock is listed the locks notes on which are secured by the lock, above
+each lock information on who has solved it (or a warning if its solution
+is common knowledge), and somewhere on the screen a random selection of
+other players who have no particular relation to you. In all cases, the
+player concerned will be represented by seir codename along with your
+score relative to sem (with both being colour coded for sign and
+magnitude of the score, so +3 is bright green etc). Selecting a player
+will switch to a version of the main view for sem, showing seir locks
+and notes and notednesses, and some text of the form "You hold
+a slight/substantial/absolute advantage over ZGZ" or "ZGZ holds
+a slight/substantial/absolute advantage over you" or "You are even with
+ZGZ", with the adjective being colour coded with the same colours as the
+numbers. Then some detail on which of seir locks you've solved and which
+of yours sey's solved.
+
+(Selecting one of seir locks will let you try to solve it. Selecting one
+of your locks gives you the option of deactivating it and replacing it
+with one of the locks in your library; designing locks to go in your
+library is done in a separate interface.)
+
+Hopefully this will be enough to encourage players to try to increase
+the numbers.
+
+Note in particular that if some of your locks have common-knowledge
+solutions (i.e. if three players have solved the lock and then
+deactivated the locks which secured their notes on your lock) the
+randoms shown to the right will all be red.
+
+
+Monochrome mockup for the curses version of this in an 80x24 terminal
+follows. Graphical version will be similar, but the actual locks will be
+shown (the graphics for that being arbitrarily scalable). For
+terminals which are a bit larger, the same can be done in the curses
+version. The words in the centre are names for the locks, given by and
+seen only by yourself (these are actual names of locks in my own
+library).
+
+--------------------------------------------------------------------------------
+                                      ZGZ
+                                  (That's you)
+                         |                           |
+                         |                           |
+      Cracked by:        |       Cracked by:         |        Cracked by:
+                         |                           |
+    FKU -2    +++ +1     |        Everyone!          |         [no-one]
+                         |                           |
+                         |                           |
+           A             |            B              |            C
+        cannon           |         nameless          |         tricksy
+                         |                           |
+     Holds notes on:     |      Holds notes on:      |       Holds notes on:
+                         |                           |
+        C:NGS +2         |   A:NGS +2    C:+++ +1    |    B:NGS +2  B:+++ +1
+                         |                           |    A:#$% 0   C:ARG +1 
+                         |                           |         A:AAA 0
+                         |                           |
+  Random players:   CNT -1   ^&^ -1   #Z# +1   +3! -1   YHW 0
+	[more random players; I can't be arsed to come up with more codenames]
+
+  UNDECLARED solutions:   B:BLL -1  A:#Z# +1
+
+  x: examine player  c: change lock  d: declare solution  e: edit locks  q: quit  
+--------------------------------------------------------------------------------
+
+If I then type 'x', it will prompt me for a codename (which doesn't have
+to be one displayed on the screen); if I type '#Z#' I'll get the
+screen below. (In graphical mode, I could achieve the same effect by
+clicking on '#Z#' wherever in the above.)
+
+--------------------------------------------------------------------------------
+                                      #Z# +1
+                     You hold a slight advantage over #Z#
+                         |                           |
+                         |                           |
+      Cracked by:        |       Cracked by:         |        Cracked by:
+                         |                           |
+        BLA -1           |  NGS +2   YHW 0   ARG +1  |         Everyone!
+                         |           ZGZ -           |
+                         |                           |
+          A              |             B             |             C
+  Cracked but UNDECLARED |   Cracked! (from notes)   |   Cracked! (from notes)
+                         |                           |
+     Holds notes on:     |      Holds notes on:      |       Holds notes on:
+                         |                           |
+        A:NGS +2         |     B:NGS +2  A:+++ +1    |    B:YHW 0   C:ZGZ - 
+                         |                           |         B:+3! -1
+                         |                           |
+                         |                           |
+     You have cracked 2 of #Z#'s locks; #Z# has cracked 1 of your locks.
+	A:ZGZ - 1 note read by #Z#
+	B:ZGZ - cracked directly by #Z#
+
+
+	      x: view player  c: crack lock  m: view ZGZ  q: quit  
+--------------------------------------------------------------------------------
+
+Note that the scores shown here are still those relative to me, not to
+#Z#. 
+
+In this example, I have read three notes on each of B and C, which is
+why I've cracked them; if I had read only 2 notes, it would say "read
+2 notes" in place of "Cracked! (from notes)".
+
+Note that players who have cracked a lock from notes appear in the
+"Cracked by:" section, undifferentiated from those who cracked it
+directly. If there are too many to display, a random selection is
+displayed (ending with "and N more").
+
+Note that I'll use colour to pick out the important words where I've
+written out blocks of text. I'll probably also use consistent colours
+for 'A', 'B', and 'C' when they are indicating locks.
+
+Note also that I've started using the terminology "cracked" rather than
+"solved". Obviously this is by analogy with crypto... not sure how
+appropriate it is!
+
+
+Thoughts on automatically gauging difficulty of a lock, so as to allow a "hall
+of fame" for the best retired locks: basing it on how long the lock lasts
+isn't much good, since if no notes are put behind, it could just survive in
+obscurity. Anything involving seeing how many attempt a lock would be
+gameable. Similarly anything involving counting notes. Hmm.
+
+Maybe no need for that. Just let players see the retired locks of other
+players, and maybe have players decide which of their retired locks they're
+most proud of so should be shown first. Hmm. Or maybe just ignore this problem
+for now.
+
 
 ------
 
+Architecture
+------------
 
-Remind me: why is this idea of having a metagame a good one and not a silly
-	one?
-    Answer: because the whole point is to explore the outer reaches of
-	complexity within the space of possible puzzles - which given the hard
-	restriction on lock size, means exploring the extremes of intricacy.
-	For this, we need clear motivation from puzzle designers to design the
-	hardest puzzles they can. This is the point of the metagame.
+Size estimates:
+    metagame stuff:
+	for each user
+	    codename: C bytes
+	    serial numbers for active locks: 3*L bytes
+	    *who's solved them: S*3 bytes
+	    notes declared: N*(C+L) bytes
+	    *notes read: R*(C+L) bytes
+	C=3.
+	L=3 is plenty.
+	Starred entries can theoretically be computed just from knowing all
+	the declared notes, but not cheaply.
+    lock:
+	based on ascii representation: 30<2^5 possibilities per cell, 175 cells
+	    875 bits; 110 bytes
+	but can do better, I'm sure.
+    solution: 10<2^4 commands, say average 100 moves: 50 bytes.
+	gzipping might work on it.
+
+Let's dream big, and say we want to be able to support 5000 players. With
+three locks each, that's about 1.5M of lock data.
+
+Meanwhile, with S=30, N=20, R=40, we get 3+9+90+120+240 =~ 460 bytes per
+player for metagame data. So around 2.5M.
+
+We don't want the server to have to push 4M of data to each of 5000 players.
+
+So on-demand is the way to go. Locks and solutions are permanent, so can and
+should be cached permanently. User entries can be too - but checked for
+updates whenever displayed.
