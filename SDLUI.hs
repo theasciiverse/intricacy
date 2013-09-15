@@ -151,7 +151,7 @@ tileGlyph (WrenchTile mom) col centre size surf = do
 	    | [dx,dy] <- shifts ]
 
 tileGlyph BallTile col centre size surf =
-    rimmedCircle surf centre (2*size`div`3) (faint col) (obscure col)
+    rimmedCircle surf centre size (faint col) (obscure col)
 
 blockedArm :: HexDir -> TorqueDir -> Pixel -> Glyph
 blockedArm armdir tdir col centre size surf =
