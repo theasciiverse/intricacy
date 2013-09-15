@@ -47,3 +47,13 @@ boltArea :: Frame -> [HexPos]
 boltArea (BasicFrame size) = map PHS
 	[ bolthole size <+> bw<*>hu <+> i<*>hw <+> n<*>hv | i <- [1..bw-1], n <- [1..bw+i-1] ]
     where bw = (size`div`4+1)
+
+inBounds :: Frame -> HexPos -> Bool
+inBounds f pos = hexLen (pos <-> origin) < lockBodySize f
+checkBounds :: Frame -> HexPos -> HexPos -> HexPos
+checkBounds f def pos = if inBounds f pos then pos else def
+truncateToBounds :: Frame -> HexPos -> HexPos
+truncateToBounds f pos@(PHS v) =
+    if inBounds f pos
+	then pos
+	else PHS $ scaleToLength ((lockBodySize f)-1) v
