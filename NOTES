@@ -1072,7 +1072,7 @@ Size estimates:
 	Show + gzip: ~1K
 	based on ascii representation: 30<2^5 possibilities per cell, 175 cells
 	    875 bits; 110 bytes
-	Data.Binary + gzip: ~650 bytes. Hrm.
+	Data.Binary + gzip: ~450 bytes. Hrm.
 
     solution: 10<2^4 commands, say average 100 moves: 50 bytes.
 	gzipping might work on it.
