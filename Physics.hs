@@ -115,16 +115,15 @@ resolveForces plForces eForces st =
 	    sequence_ $ map resolveForce propagated
 	forces = plForces Vector.++ eForces
 	sforces = [ SForce s f isPl isPl | (s,f) <- enumVec forces, let isPl = s < Vector.length plForces ]
-	-- stop wrenches which are blocked
 	stopWrench idx = setPiece idx (Wrench zero)
-	stopWrenches blocked st' = foldr stopWrench st' [
+	stopBlockedWrenches blocked st' = foldr stopWrench st' [
 	    forceIdx $ forces!s | s <- blocked
 	    , (Wrench _) <- [placedPiece $ getForcedpp st' $ forces!s] ]
     in do --prettyTrace (st, sforces, sforces', blocked, unblocked) $
 	(sforces', blockedsfs) <- (sequence_ (map resolveForce sforces)) `execStateT` ([],[])
 	let unblocked = nub [ force | SForce s force _ _ <- sforces', not $ s `elem` blockedsfs ]
 	tell $ nub [ AlertBlockedForce (forceIdx $ forces!s) force | SForce s force _ _ <- sforces', s `elem` blockedsfs ]
-	return $ stopWrenches blockedsfs $ foldr applyForce st unblocked
+	return $ stopBlockedWrenches blockedsfs $ foldr applyForce st unblocked
     
 applyForce :: Force -> GameState -> GameState
 applyForce f s =

@@ -151,6 +151,9 @@ class Monoid g => Grp g where
     zero :: g
     zero = mempty
 
+instance (Grp g1, Grp g2) => Grp (g1,g2) where
+    neg (a,b) = (neg a, neg b)
+
 infixl 6 <+>
 infixl 6 <->
 class Action a b where

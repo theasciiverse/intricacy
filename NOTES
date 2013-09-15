@@ -352,6 +352,20 @@ Thoughts on representing blocks in the SDL client:
     blocks/wrenches: draw dimly shifted to the edge of their hex (when not
     already drawing to the edge).
 
+Tool resistance:
+						 /
+    Currently, the wrench can't move east in: - o
+					       * \
+    This is kind of counterintuitive. Similarly with a pushing hook.
+    But if we allowed wrenches to turn cogs like this, while keeping with our
+    simple 'momentum' setup for wrenches and our current resistance mechanics,
+    it seems we would have to have a wrench resist all pushes not in its
+    current direction of motion, which means we lose the neat current mechanic
+    of being able to stop a wrench by pushing it to one side.
+
+    So let's not complicate things in order to allow it, but rather try to
+    make it seem more natural that it's blocked. Force arrows will hopefully
+    suffice.
 
 
 Overgame:

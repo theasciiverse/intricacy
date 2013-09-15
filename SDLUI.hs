@@ -170,20 +170,27 @@ blockedBlock tile dir col centre size =
 
 blockedPush :: HexDir -> Pixel -> Glyph
 blockedPush dir col centre size surf = do
+{-
     void $ rimmedPolygon surf verts (obscure col) (dim col)
 	where verts =
 		[ innerCorner centre size $ rotate 1 dir
 		, innerCorner centre size $ rotate (-1) dir
 		, innerCorner centre size dir ]
-{-
-    void $ aaLine surf `uncurry` from `uncurry` to $ col
-    void $ aaLine surf `uncurry` from' `uncurry` to' $ col
-    where
-	from = innerCorner centre size dir
-	to = edge centre size dir
-	from' = corner centre size $ hextant dir
-	to' = corner centre size $ (hextant dir) - 1
 -}
+    void $ aaLine surf `uncurry` base `uncurry` head $ col
+    --void $ aaLine surf `uncurry` from' `uncurry` to' $ col
+    void $ aaLine surf `uncurry` head `uncurry` (arms!!0) $ col
+    void $ aaLine surf `uncurry` head `uncurry` (arms!!1) $ col
+    where
+	--base@(bx,by) = innerCorner centre size dir
+	SVec bx' by' = centre
+	base@(bx,by) = (fromIntegral bx',fromIntegral by')
+	head@(hx,hy) = edge centre size dir
+	arms = [(bx + (hx-bx)`div`2 + dir*(hy-by)`div`4,
+	    by + (hy-by)`div`2 - dir*(hx-bx)`div`4) | dir <- [-1,1]]
+
+	--from' = corner centre size $ hextant dir
+	--to' = corner centre size $ (hextant dir) - 1
 	
 collisionMarker :: Glyph
 collisionMarker centre size surf =
@@ -344,15 +351,13 @@ drawBlocked st colouring sidx (Torque idx dir) = do
     sequence_ [ drawAt (blockedArm arm dir col) (arm <+> pos) |
 	arm <- arms ]
 drawBlocked st colouring sidx (Push idx dir) = do
-    return ()
-{-
     let footprint = plPieceFootprint $ getpp st idx
 	fullfootprint = fullFootprint st idx
 	col = obscure $ colourOf colouring sidx
-    sequence_ [ drawAt (blockedPush dir col) pos
+    sequence_ [ drawAt (blockedPush dir $ bright orange) pos
 	| pos <- footprint
 	, not $ (dir<+>pos) `elem` fullfootprint ]
--}
+    -- drawAt (blockedPush dir $ bright orange) $ placedPos $ getpp st idx
 
 paintTiles :: [ Maybe Tile ]
 paintTiles =
