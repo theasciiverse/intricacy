@@ -6,6 +6,8 @@ import qualified Data.Map as Map
 import Data.Map (Map)
 import Control.Monad.Writer
 import Data.Maybe
+import qualified Data.Binary as Bin
+import qualified Data.ByteString.Lazy as B
 
 import Control.Exception
 import System.IO.Error
@@ -21,6 +23,7 @@ import GameState
 import Physics
 import Command
 import Frame
+import BinaryInstances
 
 type Lock = (Frame, GameState)
 
@@ -176,6 +179,8 @@ test lock@(frame,initState) fname = do
 		    st:_ <- gets esGameStateStack
 		    let wfname = fromMaybe "unnamed.lock" fname 
 		    liftIO $ writeFile wfname $ show (frame, canonify st)
+		    let wfbname = wfname ++ ".bin"
+		    liftIO $ B.writeFile wfbname $ Bin.encode (frame, canonify st)
 		processEditCommand _ = return ()
 		drawTile tile painting = do
 		    modify $ \es -> es {selectedPiece = Nothing}

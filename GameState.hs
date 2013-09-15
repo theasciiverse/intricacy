@@ -139,7 +139,7 @@ adjustPieces f st =
        $ placedPieces st }
 
 data Stiffness = Unstiff | PushStiff | TorqueStiff | ForceStiff
-    deriving (Eq, Ord, Show, Read)
+    deriving (Eq, Ord, Show, Read, Enum)
 
 data Piece = Block { blockPattern :: [HexVec] }
 	    | Pivot { pivotArms :: [HexDir] }
