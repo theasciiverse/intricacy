@@ -168,11 +168,15 @@ checkBlocks st@(GameState pps conns) sforces sforce@(SForce source force isPlFor
 		else do tell $ map AlertCollision collisionPoints
 			return $ Moving $ source:blocks
 
+-- A force on a piece which resists it is immediately blocked
 pieceResists :: GameState -> Force -> Bool -> Bool -> Bool -> Bool
 pieceResists st@(GameState pps conns) force toolsFixed springsResist fixedFixed =
     let idx = forceIdx force
 	PlacedPiece pos piece = getpp st idx
         springs = springsEndAtIdx st idx
+	-- |blockingSprings: a spring resists any push not along its line, and
+	-- if springsResist also resist any force on the end which isn't
+	-- replicating a force produced by the spring.
 	blockingSprings = [ c |
 		    c@(Connection (ridx,_) (eidx,_) (Spring sdir _)) <- conns
 		    , idx `elem` [ridx,eidx]
@@ -190,6 +194,9 @@ pieceResists st@(GameState pps conns) force toolsFixed springsResist fixedFixed 
 			    , stiffness == TorqueStiff && isTorque force]
 		     (Block _) -> null springs
 		     _ -> False
+	-- |mediatedResistance: balls and fully compressed/extended springs
+	-- "immediately transmit" a push, so resist it if the transmitted
+	-- force is resisted.
 	mediatedResistance = Just True == do
 	    Push _ dir <- Just force
 	    cpos <- do { guard $ isBall piece; return $ dir<+>pos}
@@ -199,12 +206,13 @@ pieceResists st@(GameState pps conns) force toolsFixed springsResist fixedFixed 
 			, dir == neg sdir && springFullyCompressed st c]
 		    ]
 	    (idx',_) <- Map.lookup cpos $ stateBoard st
-	    return $ pieceResists st (transferredForce st idx' cpos dir) toolsFixed springsResist fixedFixed
+	    return $ pieceResists st (transmittedForce st idx' cpos dir) toolsFixed springsResist fixedFixed
 
     in fixed || not (null blockingSprings) || mediatedResistance
 
-transferredForce :: GameState -> Source -> HexPos -> HexDir -> Force
-transferredForce st idx cpos dir =
+-- |transmittedForce: convert pushes into torques as appropriate
+transmittedForce :: GameState -> Source -> HexPos -> HexDir -> Force
+transmittedForce st idx cpos dir =
     let pp@(PlacedPiece pos piece) = getpp st idx
 	rpos = cpos <-> placedPos pp
 	armPush = case
@@ -218,23 +226,25 @@ transferredForce st idx cpos dir =
 	    Hook _ PushStiff -> armPush
 	    _ -> (Push idx dir)
 
+-- |propagateForce: return forces a force causes via bumps and fully
+-- compressed/extended springs
 propagateForce :: GameState -> Force -> Bool -> [Force]
 propagateForce st@(GameState plPieces conns) force isPlSource =
-    bumps ++ springTransfers
+    bumps ++ springTransmissions
     where
 	idx = forceIdx force
-	bumps = [ transferredForce st idx' cpos dir |
+	bumps = [ transmittedForce st idx' cpos dir |
 	    idx' <- ppidxs st
 	    , idx' /= idx
 	    , cpos <- collisions (applyForce force st) idx idx'
 	    , let dir = case force of
 		    Push _ dir -> dir
-		    Torque _ dir -> if pieceResists st (transferredForce st idx' cpos push) (not isPlSource) (not isPlSource) True
+		    Torque _ dir -> if pieceResists st (transmittedForce st idx' cpos push) (not isPlSource) (not isPlSource) True
 					 then claw else push
 			where push = arm <-> rotate (-dir) arm
 			      claw = rotate dir arm <-> arm
 			      arm = cpos <-> placedPos (getpp st idx) ]
-	springTransfers =
+	springTransmissions =
 	    case force of
 		 Push idx dir -> [ Push idx' dir |
 			c@(Connection (ridx,_) (eidx,_) (Spring sdir _)) <- conns
