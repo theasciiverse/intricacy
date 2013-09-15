@@ -1,0 +1,47 @@
+module Lock where
+import Control.Monad.Writer
+import Data.Maybe
+
+import Frame
+import GameState
+import Hex
+import Physics
+
+type Lock = (Frame, GameState)
+
+deframe :: Lock -> Lock
+deframe = delTools . liftLock (setpp 0 nullpp)
+nullpp = PlacedPiece (PHS zero) (Block [])
+
+reframe :: Lock -> Lock
+reframe l@(f, st) = addTools $ delTools $ liftLock (setpp 0 (framePiece f)) l
+
+liftLock :: (GameState -> GameState) -> (Lock -> Lock)
+liftLock g (f,st) = (f,g st)
+canonify :: Lock -> Lock
+canonify = addTools . stabilise . delTools . delOOB
+delTools :: Lock -> Lock
+delTools = liftLock delTools'
+    where
+	delTools' :: GameState -> GameState
+	delTools' st =
+	    case listToMaybe [ idx | (idx,pp) <- enumVec $ placedPieces st
+			      , isTool $ placedPiece pp ] of
+		Nothing -> st
+		Just idx -> delTools' $ delPiece idx st
+addTools :: Lock -> Lock
+addTools (f,st) = (f, foldr addpp st $ initTools f)
+stabilise :: Lock -> Lock
+stabilise = liftLock stabilise'
+    where
+	stabilise' :: GameState -> GameState
+	stabilise' st =
+	    let (st',_) = runWriter $ physicsTick NullPM st
+	    in if st == st' then st else stabilise' st'
+delOOB :: Lock -> Lock
+delOOB l@(f,st) = case listToMaybe [ idx |
+	(idx,_) <- enumVec $ placedPieces st
+	, not $ isFrame idx
+	, and $ map (not.inBounds f) $ fullFootprint st idx ] of
+    Nothing -> l
+    Just idx -> delOOB $ liftLock (delPiece idx) l

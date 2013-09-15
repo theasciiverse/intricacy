@@ -21,8 +21,7 @@ import GameState
 import Physics
 import Command
 import Frame
-
-type Lock = (Frame, GameState)
+import Lock
 
 --test = CursesH.start >> drawBoard testBoard (PHS zero) >> CursesH.getKey (return ()) >> CursesH.end
 test :: UIMonad uiM => Lock -> Maybe String -> uiM Bool
@@ -108,7 +107,7 @@ test lock@(frame,initState) fname = do
 		    when really $ modify $ \es -> es {esSwitchMode = Just GMQuit}
 		processEditCommand CmdPlay =
 		    modify $ \es -> es {esSwitchMode = Just GMPlay }
-		processEditCommand CmdResetTools = modifyEState canonify
+		processEditCommand CmdResetTools = modifyEState (\st -> snd $ canonify (frame, st))
 		processEditCommand CmdUndo = do
 		    st:sts <- gets esGameStateStack
 		    usts <- gets esUndoneStack
@@ -135,11 +134,11 @@ test lock@(frame,initState) fname = do
 		    selPos <- gets selectedPos
 		    selPiece <- gets selectedPiece
 		    case selPiece of
-			Nothing -> modify $ \es -> es {selectedPos = checkBounds selPos $ dir <+> selPos}
+			Nothing -> modify $ \es -> es {selectedPos = checkBounds frame selPos $ dir <+> selPos}
 			Just p -> doForce $ Push p dir
 		processEditCommand (CmdMoveTo newPos) = do
 		    selPos <- gets selectedPos
-		    modify $ \es -> es {selectedPos = truncateToBounds newPos}
+		    modify $ \es -> es {selectedPos = truncateToBounds frame newPos}
 		processEditCommand (CmdRotate dir) = do
 		    selPiece <- gets selectedPiece
 		    case selPiece of
@@ -175,7 +174,7 @@ test lock@(frame,initState) fname = do
 		processEditCommand CmdWriteState = do
 		    st:_ <- gets esGameStateStack
 		    let wfname = fromMaybe "unnamed.lock" fname 
-		    liftIO $ writeFile wfname $ show (frame, canonify st)
+		    liftIO $ writeFile wfname $ show $ deframe $ canonify (frame, st)
 		processEditCommand _ = return ()
 		drawTile tile painting = do
 		    modify $ \es -> es {selectedPiece = Nothing}
@@ -202,31 +201,6 @@ test lock@(frame,initState) fname = do
 	modifyEState f = do
 	    st:_ <- gets esGameStateStack
 	    pushEState $ f st
-	checkBounds :: HexPos -> HexPos -> HexPos
-	checkBounds def pos = if inBounds pos then pos else def
-	inBounds :: HexPos -> Bool
-	inBounds pos = hexLen (pos <-> origin) < lockBodySize frame
-	truncateToBounds :: HexPos -> HexPos
-	truncateToBounds pos@(PHS v) =
-	    if inBounds pos
-		then pos
-		else PHS $ scaleToLength ((lockBodySize frame)-1) v
-	delOOB :: GameState -> GameState
-	delOOB st = case listToMaybe [ idx |
-		(idx,_) <- enumVec $ placedPieces st
-		, not $ isFrame idx
-		, and $ map (not.inBounds) $ fullFootprint st idx ] of
-	    Nothing -> st
-	    Just idx -> delOOB $ delPiece idx st
-	canonify st = addTools $ stabilise $ delTools $ delOOB st
-	delTools st = case listToMaybe [ idx | (idx,pp) <- enumVec $ placedPieces st
-			      , isTool $ placedPiece pp ] of
-			Nothing -> st
-			Just idx -> delTools $ delPiece idx st
-	addTools st = foldr addpp st $ initTools frame
-	stabilise st =
-	    let (st',_) = runWriter $ physicsTick NullPM st
-	    in if st == st' then st else stabilise st'
     
 	doPhysicsTick :: UIMonad uiM => PlayerMove -> GameState -> uiM (GameState, [Alert])
 	doPhysicsTick pm st =
@@ -276,7 +250,7 @@ main = do
     mlock <- case fname of
 		Nothing -> return Nothing
 		Just fname -> readLockFile fname
-    let lock = fromMaybe (initFrame, baseState initFrame) $ mlock
+    let lock = fromMaybe (initFrame, baseState initFrame) $ liftM reframe mlock
     
     sdlOk <- if ForceCurses `elem` opts
 	then return False
