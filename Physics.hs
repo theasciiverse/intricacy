@@ -160,7 +160,7 @@ checkBlocks st@(GameState pps conns) sforces sforce@(SForce source force isPlFor
 	    , pos <- collisions st' idx idx' ]
 	blocks = mismatches ++ nub pieceCollisions
     in do
-	if pieceResists st force (not isPlSource) (not isPlSource) (not isPlForce)
+	if pieceResists st force (not isPlSource) (not isPlForce)
 	    then return $ Unmoving
 	    else if null blocks
 		then return $ Moving []
@@ -168,22 +168,17 @@ checkBlocks st@(GameState pps conns) sforces sforce@(SForce source force isPlFor
 			return $ Moving $ source:blocks
 
 -- A force on a piece which resists it is immediately blocked
-pieceResists :: GameState -> Force -> Bool -> Bool -> Bool -> Bool
-pieceResists st@(GameState pps conns) force toolsFixed springsResist fixedFixed =
+pieceResists :: GameState -> Force -> Bool -> Bool -> Bool 
+pieceResists st@(GameState pps conns) force toolsFixed fixedFixed =
     let idx = forceIdx force
 	PlacedPiece pos piece = getpp st idx
         springs = springsEndAtIdx st idx
-	-- |blockingSprings: a spring resists any push not along its line, and
-	-- if springsResist also resist any force on the end which isn't
-	-- replicating a force produced by the spring.
+	-- |blockingSprings: a spring resists any push not along its line
 	blockingSprings = [ c |
 		    c@(Connection (ridx,_) (eidx,_) (Spring sdir _)) <- conns
 		    , idx `elem` [ridx,eidx]
 		    , (Push _ pdir) <- [force]
-		    , not (pdir `elem` [sdir, neg sdir]) || (
-			idx == eidx && springsResist &&
-			    ( (not (springExtended st c) && pdir /= sdir) ||
-				(not (springCompressed st c) && pdir /= neg sdir) ) ) ]
+		    , not (pdir `elem` [sdir, neg sdir]) ]
 	fixed = fixedFixed && case piece of
 		     (Pivot _) -> isPush force
 		     (Wrench mom) -> toolsFixed || mom == zero
@@ -205,7 +200,7 @@ pieceResists st@(GameState pps conns) force toolsFixed springsResist fixedFixed 
 			, dir == neg sdir && springFullyCompressed st c]
 		    ]
 	    (idx',_) <- Map.lookup cpos $ stateBoard st
-	    return $ pieceResists st (transmittedForce st idx' cpos dir) toolsFixed springsResist fixedFixed
+	    return $ pieceResists st (transmittedForce st idx' cpos dir) toolsFixed fixedFixed
 
     in fixed || not (null blockingSprings) || mediatedResistance
 
@@ -238,7 +233,7 @@ propagateForce st@(GameState plPieces conns) force isPlSource =
 	    , cpos <- collisions (applyForce force st) idx idx'
 	    , let dir = case force of
 		    Push _ dir -> dir
-		    Torque _ dir -> if pieceResists st (transmittedForce st idx' cpos push) (not isPlSource) (not isPlSource) True
+		    Torque _ dir -> if pieceResists st (transmittedForce st idx' cpos push) (not isPlSource) True
 					 then claw else push
 			where push = arm <-> rotate (-dir) arm
 			      claw = rotate dir arm <-> arm
@@ -253,6 +248,6 @@ propagateForce st@(GameState plPieces conns) force isPlSource =
 			, let idx' = if root then eidx else ridx
 			, let pull = (root && dir == neg sdir) || (end && dir == sdir)
 			, let push = (root && dir == sdir) || (end && dir == neg sdir)
-			, (push && springFullyCompressed st c) ||
-			    (pull && springFullyExtended st c) ]
+			, (push && if isPlSource then springFullyCompressed st c else not $ springExtended st c) ||
+			    (pull && if isPlSource then springFullyExtended st c else not $ springCompressed st c) ]
 		 _ -> []
