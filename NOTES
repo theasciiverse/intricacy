@@ -367,6 +367,12 @@ Tool resistance:
     make it seem more natural that it's blocked. Force arrows will hopefully
     suffice.
 
+Spring oddity:
+    Following is stable:
+	# $ $ # s s #
+	     #   # #
+
+
 Overgame:
 (writing under the influence of Castle Doctrine (although I'd been planning
 something like this since long before I heard of CD!))
