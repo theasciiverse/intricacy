@@ -30,7 +30,9 @@ delTools = liftLock delTools'
 		Nothing -> st
 		Just idx -> delTools' $ delPiece idx st
 addTools :: Lock -> Lock
-addTools (f,st) = (f, foldr addpp st $ initTools f)
+addTools (f,st) =
+    let st' = clearToolArea f st
+    in (f, foldr addpp st' $ initTools f)
 stabilise :: Lock -> Lock
 stabilise = liftLock stabilise'
     where

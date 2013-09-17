@@ -40,6 +40,10 @@ initTools (BasicFrame size) =
     [ PlacedPiece (entrance size <+> neg hu <+> origin) $ Wrench zero,
     PlacedPiece (entrance size <+> hw <+> origin) $ Hook (neg hw) NullHF ]
 
+clearToolArea :: Frame -> GameState -> GameState
+clearToolArea (BasicFrame size) st = foldr delPieceIn st [entrance size <+> v <+> origin
+	    | v <- [ neg hu, hw, zero ] ]
+
 lockBodySize :: Frame -> Int
 lockBodySize (BasicFrame size) = size
 

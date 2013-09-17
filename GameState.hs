@@ -125,6 +125,12 @@ delPiece idx st@(GameState pps conns) =
 	    , let ridx' = if ridx > idx then ridx-1 else ridx
 	    , let eidx' = if eidx > idx then eidx-1 else eidx ]
 
+delPieceIn :: HexPos -> GameState -> GameState
+delPieceIn pos st =
+    case liftM fst $ Map.lookup pos $ stateBoard st of
+	Just idx -> delPiece idx st
+	_ -> st
+
 enumVec :: Vector a -> [(Int,a)]
 enumVec = Vector.toList . Vector.indexed
 
