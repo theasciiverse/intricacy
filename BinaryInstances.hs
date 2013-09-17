@@ -44,9 +44,16 @@ instance Binary Link where
 	case tag of
 	    0 -> liftM Free get
 	    1 -> liftM2 Spring get get
-instance Binary Stiffness where
-    put = put . fromEnum
-    get = liftM toEnum get
+instance Binary HookForce where
+    put NullHF = put (0::Word8)
+    put (TorqueHF dir) = put (1::Word8) >> put dir
+    put (PushHF v) = put (2::Word8) >> put v
+    get = do
+	tag <- get :: Get Word8
+	case tag of
+	    0 -> return NullHF
+	    1 -> liftM TorqueHF get
+	    2 -> liftM PushHF get
 instance Binary Frame where
     put (BasicFrame s) = put s
     get = liftM BasicFrame get

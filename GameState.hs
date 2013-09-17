@@ -138,12 +138,12 @@ adjustPieces f st =
 	(\pp -> pp { placedPiece = f $ placedPiece pp })
        $ placedPieces st }
 
-data Stiffness = Unstiff | PushStiff | TorqueStiff | ForceStiff
-    deriving (Eq, Ord, Show, Read, Enum)
+data HookForce = NullHF | PushHF HexDir | TorqueHF Int
+    deriving (Eq, Ord, Show, Read)
 
 data Piece = Block { blockPattern :: [HexVec] }
 	    | Pivot { pivotArms :: [HexDir] }
-	    | Hook { hookArm :: HexDir, hookStiffness :: Stiffness}
+	    | Hook { hookArm :: HexDir, hookForce :: HookForce}
 	    | Wrench { wrenchMomentum :: HexDir }
 	    | Ball
     deriving (Eq, Ord, Show, Read)
@@ -553,7 +553,7 @@ modTile tile pos lastPos painting st =
 	   Just HookTile -> let arm = listToMaybe [ dir | 
 				    dir <- hexDirs
 				    , Map.lookup (dir <+> pos) board' == Nothing ]
-			    in case arm of Just armdir -> addPiece $ Hook armdir Unstiff
+			    in case arm of Just armdir -> addPiece $ Hook armdir NullHF
 					   _ -> id
 	   Just (BallTile) -> addPiece Ball
 	   ) st'

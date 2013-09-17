@@ -38,7 +38,7 @@ framePiece (BasicFrame size) =
 initTools :: Frame -> [PlacedPiece]
 initTools (BasicFrame size) =
     [ PlacedPiece (entrance size <+> neg hu <+> origin) $ Wrench zero,
-    PlacedPiece (entrance size <+> hw <+> origin) $ Hook (neg hw) Unstiff ]
+    PlacedPiece (entrance size <+> hw <+> origin) $ Hook (neg hw) NullHF ]
 
 lockBodySize :: Frame -> Int
 lockBodySize (BasicFrame size) = size

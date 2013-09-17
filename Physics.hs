@@ -62,20 +62,16 @@ envForces st@(GameState plPieces conns) =
 
 setTools :: PlayerMove -> GameState -> GameState
 setTools pm st =
-    let stiffness = case pm of
-	    HookTorque _ -> PushStiff
-	    HookPush _ -> TorqueStiff
-	    _ -> ForceStiff
+    let hf = case pm of
+	    HookTorque dir -> TorqueHF dir
+	    HookPush v -> PushHF v
+	    _ -> NullHF
     in adjustPieces (\p -> case p of
-		Hook arm _ -> Hook arm stiffness
+		Hook arm _ -> Hook arm hf
 		Wrench mom -> Wrench $ if mom == zero
 		    then case pm of {WrenchPush dir -> dir; _ -> zero}
 		    else mom
 		_ -> p) st
-setHookStiff :: GameState -> GameState
-setHookStiff = adjustPieces (\p -> case p of
-		Hook arm _ -> Hook arm ForceStiff
-		_ -> p)
 
 physicsTick :: PlayerMove -> GameState -> Writer [Alert] GameState
 physicsTick pm st =
@@ -83,7 +79,7 @@ physicsTick pm st =
 	    and [ mom == zero |
 		(PlacedPiece _ (Wrench mom)) <- Vector.toList $ placedPieces st' ]
 	doTools st = let st' = setTools pm st
-	    in resolveForces (toolForces st' pm) Vector.empty st'
+	    in setTools NullPM `liftM` resolveForces (toolForces st' pm) Vector.empty st'
     in do
 	let (st', alerts1) = runWriter $ doTools st
 	st' <- if and [case pm of {WrenchPush _ -> True; _ -> False}
@@ -95,7 +91,7 @@ physicsTick pm st =
 	    else do
 		tell alerts1
 		return st'
-	resolveForces Vector.empty (envForces st') $ setHookStiff st'
+	resolveForces Vector.empty (envForces st') st'
 
 type Source = Int
 data SourcedForce = SForce Source Force Bool Bool
@@ -140,8 +136,8 @@ applyForceTo (PlacedPiece pos piece) (Push _ dir) =
     PlacedPiece (dir <+> pos) piece
 applyForceTo (PlacedPiece pos (Pivot arms)) (Torque _ dir) =
     PlacedPiece pos (Pivot $ map (rotate dir) arms)
-applyForceTo (PlacedPiece pos (Hook arm tstiff)) (Torque _ dir) =
-    PlacedPiece pos (Hook (rotate dir arm) tstiff)
+applyForceTo (PlacedPiece pos (Hook arm hf)) (Torque _ dir) =
+    PlacedPiece pos (Hook (rotate dir arm) hf)
 applyForceTo pp _ = pp
 
 data BlocksReturn = Unmoving | Moving [Source]
@@ -181,12 +177,13 @@ pieceResists st@(GameState pps conns) force toolsFixed fixedFixed =
 		    , not (pdir `elem` [sdir, neg sdir]) ]
 	fixed = fixedFixed && case piece of
 		     (Pivot _) -> isPush force
-		     (Wrench mom) -> toolsFixed || mom == zero
-		     (Hook _ stiffness) ->
-			 or [toolsFixed, stiffness == ForceStiff
-			    , stiffness == PushStiff && isPush force
-			    , stiffness == TorqueStiff && isTorque force]
 		     (Block _) -> null springs
+		     (Wrench mom) -> toolsFixed || case force of
+			    Push _ v -> v /= mom
+			    _ -> True
+		     (Hook _ hf) -> toolsFixed || case force of 
+			    Push _ v -> hf /= PushHF v
+			    Torque _ dir -> hf /= TorqueHF dir
 		     _ -> False
 	-- |mediatedResistance: balls and fully compressed/extended springs
 	-- "immediately transmit" a push, so resist it if the transmitted
@@ -217,7 +214,7 @@ transmittedForce st idx cpos dir =
 	    EQ -> Push idx dir
     in case piece of
 	    Pivot _ -> armPush
-	    Hook _ PushStiff -> armPush
+	    Hook _ (TorqueHF _) -> armPush
 	    _ -> (Push idx dir)
 
 -- |propagateForce: return forces a force causes via bumps and fully
