@@ -192,7 +192,7 @@ springsRootAtIdx st idx =
 	  , ridx==idx ]
 
 connGraphPathExists :: GameState -> PieceIdx -> PieceIdx -> Bool
-connGraphPathExists st ridx eidx =
+connGraphPathExists st eidx ridx =
     or [ridx == eidx 
 	, or $ map (connGraphPathExists st eidx)
 	    $ map (fst . connectionEnd) (springsRootAtIdx st ridx) ]
@@ -537,7 +537,7 @@ modTile tile pos lastPos painting st =
 			   conn@(Connection _ _ (Spring sdir' _)) <-
 			       springsAtIdx st' eidx ++ springsEndAtIdx st' ridx
 			   , not $ sdir' `elem` [sdir,neg sdir] ]
-		       , not $ connGraphPathExists st' eidx ridx
+		       , not $ connGraphPathExists st' ridx eidx
 		       , let end = (eidx, epos <-> (placedPos $ getpp st eidx))
 		       , let root = (ridx, rpos <-> (placedPos $ getpp st ridx))
 		       ]
