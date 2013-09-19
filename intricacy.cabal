@@ -1,0 +1,17 @@
+name:                intricacy
+version:             0.0
+synopsis:            lockpicking puzzle game
+-- description:         
+homepage:            http://mbays.freeshell.org/intricacy
+license:             GPL-3
+license-file:        COPYING
+author:              Martin Bays
+maintainer:          mbays@sdf.org
+-- copyright:           
+category:            Game
+build-type:          Simple
+cabal-version:       >=1.8
+
+executable intricacy
+  main-is:  Intricacy.hs
+  build-depends:       base ==4.6.*, mtl ==2.1.*, containers ==0.5.*, vector ==0.10.*, pretty-show ==1.5.*, SDL ==0.6.*, SDL-ttf ==0.6.*, SDL-gfx ==0.6.*, hscurses ==1.4.*, binary ==0.7.*, bytestring ==0.10.*, HUnit ==1.2.*, array ==0.4.*, transformers ==0.3.*, void ==0.6.*
