@@ -107,8 +107,7 @@ getScrCentre = do
     (h,w) <- liftIO Curses.scrSize
     return $ CVec (h`div`2) (w`div`2)
 
--- TODO: monochrome mode (putting numbers in adjacent squares in place of
--- colours?)
+-- TODO: monochrome mode
 drawState :: [PieceIdx] -> Bool -> [Alert] -> GameState -> UIM ()
 drawState reversed colourFixed alerts st =
     let board = stateBoard st
@@ -141,13 +140,18 @@ colorsToPairs cs =
                in do Curses.initPair p fg bg
                      return p
 
+say str = do
+    (h,w) <- liftIO Curses.scrSize
+    liftIO $ Curses.mvWAddStr Curses.stdScr (h-1) 0 str
+    refresh
 
 instance UIMonad (StateT UIState IO) where
     runUI m = evalStateT m nullUIState
-    drawPlayState (PlayState (st:_) _ alerts wsel _) = do
+    drawPlayState (PlayState (st:_) _ alerts wsel _ solved) = do
 	do
 	    ds@(UIState _ centre _) <- get
 	    drawState [] False alerts st
+	    when solved $ say "Unlocked!"
 	    drawCursorAt $ listToMaybe [ pos |
 		(_, PlacedPiece pos p) <- enumVec $ placedPieces st
 		, or [wsel && isWrench p, not wsel && isHook p] ]
@@ -168,10 +172,7 @@ instance UIMonad (StateT UIState IO) where
 	    drawAlert _ = return ()
 	    cGlyph = Glyph '!' 0 a0
 
-    askYesNo prompt = do
-	(h,w) <- liftIO Curses.scrSize
-	liftIO $ Curses.mvWAddStr Curses.stdScr (h-1) 0 prompt
-	refresh
+    askYesNo prompt = say prompt
 
     initUI = 
 	do liftIO $ CursesH.start 

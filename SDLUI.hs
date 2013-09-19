@@ -488,15 +488,18 @@ initVideo w h = do
     font <- liftIO $ TTF.tryOpenFont "VeraMono.ttf" (size)
     modify $ \ds -> ds { dispFont = font }
 
+say str = renderStrAt str $ periphery 0
+
 instance UIMonad (StateT UIState IO) where
     runUI m = evalStateT m nullUIState
-    drawPlayState (PlayState (st:_) _ alerts wsel _) = do
+    drawPlayState (PlayState (st:_) _ alerts wsel _ solved) = do
 	waitFrame
 	let selTools = [ idx |
 		(idx, PlacedPiece pos p) <- enumVec $ placedPieces st
 		, or [wsel && isWrench p, not wsel && isHook p] ]
 	drawState selTools False alerts st
 	drawButtons IMPlay
+	when solved $ say "Unlocked!"
 	refresh
 
     drawEditState (EditState (st:_) _ selPiece selPos _ _) = do

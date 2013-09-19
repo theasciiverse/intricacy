@@ -1,6 +1,7 @@
 module Lock where
 import Control.Monad.Writer
 import Data.Maybe
+import qualified Data.Map as Map
 
 import Frame
 import GameState
@@ -8,6 +9,8 @@ import Hex
 import Physics
 
 type Lock = (Frame, GameState)
+liftLock :: (GameState -> GameState) -> (Lock -> Lock)
+liftLock g (f,st) = (f,g st)
 
 deframe :: Lock -> Lock
 deframe = delTools . liftLock (setpp 0 nullpp)
@@ -16,8 +19,11 @@ nullpp = PlacedPiece (PHS zero) (Block [])
 reframe :: Lock -> Lock
 reframe l@(f, st) = addTools $ delTools $ liftLock (setpp 0 (framePiece f)) l
 
-liftLock :: (GameState -> GameState) -> (Lock -> Lock)
-liftLock g (f,st) = (f,g st)
+checkSolved :: Lock -> Bool
+checkSolved (f,st) =
+    let b = stateBoard st in
+	and [ Map.lookup p b == Nothing | p <- boltArea f ]
+
 canonify :: Lock -> Lock
 canonify = addTools . stabilise . delTools . delOOB
 delTools :: Lock -> Lock

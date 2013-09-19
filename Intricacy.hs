@@ -46,8 +46,12 @@ test lock@(frame,initState) fname = do
 		    lift $ drawPlayState ps
 		    cmds <- lift $ getInput $ IMPlay
 		    sequence_ $ map processPlayCommand cmds
+		    checkWon
 		    play
 	    where
+		checkWon = do
+		    st:_ <- gets psGameStateStack
+		    when (checkSolved (frame,st)) $ modify $ \ps -> ps {psSolved = True}
 		processPlayCommand CmdQuit =
 		    modify $ \ps -> ps {psSwitchMode = Just GMQuit}
 	        processPlayCommand CmdUndo = do
@@ -190,7 +194,7 @@ test lock@(frame,initState) fname = do
 		subPlay :: UIMonad uiM => GameState -> StateT EditState uiM ()
 		subPlay st = do
 		    modify $ \es -> es {esSwitchMode = Nothing}
-		    (_,PlayState (st':_) _ _ _ _) <- lift $ runStateT play $ PlayState [st] [] [] False Nothing
+		    (_,PlayState (st':_) _ _ _ _ _) <- lift $ runStateT play $ PlayState [st] [] [] False Nothing False
 		    pushEState st'
 		    edit
 

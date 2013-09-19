@@ -19,7 +19,7 @@ class (Functor m, MonadIO m) => UIMonad m where
 data PlayState = PlayState {
 	psGameStateStack::[GameState], psUndoneStack::[GameState]
 	, psLastAlerts::[Alert]
-	, wrenchSelected::Bool, psSwitchMode::Maybe GameMode }
+	, wrenchSelected::Bool, psSwitchMode::Maybe GameMode, psSolved::Bool }
     deriving (Eq, Ord, Show)
 data EditState = EditState {
 	esGameStateStack::[GameState], esUndoneStack::[GameState]
