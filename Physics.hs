@@ -51,14 +51,28 @@ toolForces st pm = Vector.fromList $
 	epps = enumVec $ placedPieces st
 	hp = case pm of {HookPush hp -> hp; _ -> zero}
 
+-- |Dominance: a propagand of a source force F can not block any progagand of
+-- a source force which dominates F.
+-- F dominates F' iff F and F' are spring forces, and the end of F is an
+-- ancestor of the root of F'.
+-- Note that by acyclicity of the connection digraph, domination is
+-- antisymmetric.
+type Dominance = Int -> Int -> Bool
 
-envForces :: GameState -> Forces
+envForces :: GameState -> (Forces, Dominance)
 envForces st@(GameState plPieces conns) =
-    Vector.fromList $ 
-	[ Push endIdx dir | c@(Connection _ (endIdx, _) (Spring outDir natLen)) <- conns
-			    , let curLen = connectionLength st c
-			    , natLen /= curLen
-			    , let dir = if natLen > curLen then outDir else neg outDir ]
+    let rootedForces :: Vector (Maybe PieceIdx, Force)
+	rootedForces = Vector.fromList [ (Just rootIdx, Push endIdx dir)
+	    | c@(Connection (rootIdx,_) (endIdx,_) (Spring outDir natLen)) <- conns
+	    , let curLen = connectionLength st c
+	    , natLen /= curLen
+	    , let dir = if natLen > curLen then outDir else neg outDir ]
+
+    in ( Vector.map snd rootedForces, 
+	\f1 f2 -> Just True == do
+		rootIdx <- fst $ rootedForces!f2
+		return $ connGraphPathExists st (forceIdx.snd $ rootedForces!f1) rootIdx )
+	
 
 setTools :: PlayerMove -> GameState -> GameState
 setTools pm st =
@@ -79,7 +93,8 @@ physicsTick pm st =
 	    and [ mom == zero |
 		(PlacedPiece _ (Wrench mom)) <- Vector.toList $ placedPieces st' ]
 	doTools st = let st' = setTools pm st
-	    in setTools NullPM `liftM` resolveForces (toolForces st' pm) Vector.empty st'
+	    in setTools NullPM `liftM`
+		resolveForces (toolForces st' pm) Vector.empty (\_ _->False) st'
     in do
 	let (st', alerts1) = runWriter $ doTools st
 	st' <- if and [case pm of {WrenchPush _ -> True; _ -> False}
@@ -91,17 +106,18 @@ physicsTick pm st =
 	    else do
 		tell alerts1
 		return st'
-	resolveForces Vector.empty (envForces st') st'
+	let (efs, dominates) = envForces st'
+	    in resolveForces Vector.empty efs dominates st'
 
 type Source = Int
 data SourcedForce = SForce Source Force Bool Bool
     deriving (Eq, Ord, Show)
-resolveForces :: Forces -> Forces -> GameState -> Writer [Alert] GameState
-resolveForces plForces eForces st =
+resolveForces :: Forces -> Forces -> Dominance -> GameState -> Writer [Alert] GameState
+resolveForces plForces eForces dominates st =
     let resolveForce :: SourcedForce -> StateT ([SourcedForce], [Source]) (Writer [Alert]) ()
 	resolveForce sforce@(SForce s f isPlForce isPlSource) = do
 	    (sforces,blockedsources) <- get
-	    blockInfo <- lift $ checkBlocks st sforces sforce
+	    blockInfo <- lift $ checkBlocks st sforces sforce dominates
 	    let (propagated, moving, blocks) = case blockInfo of
 		    Unmoving -> ([], False, [s])  -- nip
 		    Moving blocks ->
@@ -141,8 +157,8 @@ applyForceTo (PlacedPiece pos (Hook arm hf)) (Torque _ dir) =
 applyForceTo pp _ = pp
 
 data BlocksReturn = Unmoving | Moving [Source]
-checkBlocks :: GameState -> [SourcedForce] -> SourcedForce -> Writer [Alert] BlocksReturn
-checkBlocks st@(GameState pps conns) sforces sforce@(SForce source force isPlForce isPlSource) =
+checkBlocks :: GameState -> [SourcedForce] -> SourcedForce -> Dominance -> Writer [Alert] BlocksReturn
+checkBlocks st@(GameState pps conns) sforces sforce@(SForce source force isPlForce isPlSource) dominates =
     let idx = forceIdx force
 	pp = getForcedpp st force
 	pp' = applyForceTo pp force
@@ -161,7 +177,9 @@ checkBlocks st@(GameState pps conns) sforces sforce@(SForce source force isPlFor
 	    else if null blocks
 		then return $ Moving []
 		else do tell $ map AlertCollision collisionPoints
-			return $ Moving $ source:blocks
+			return $ Moving $
+			    (if not.and $ map (dominates source) blocks then (source:) else id) $
+			    filter (\s -> not $ dominates s source) blocks
 
 -- A force on a piece which resists it is immediately blocked
 pieceResists :: GameState -> Force -> Bool -> Bool -> Bool 

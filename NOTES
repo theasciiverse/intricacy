@@ -363,15 +363,38 @@ Tool resistance:
     current direction of motion, which means we lose the neat current mechanic
     of being able to stop a wrench by pushing it to one side.
 
-    So let's not complicate things in order to allow it, but rather try to
-    make it seem more natural that it's blocked. Force arrows will hopefully
-    suffice.
+    But on consideration, this is the lesser evil.
 
 Spring oddity:
-    Following is stable:
-	# $ $ # s s #
-	     #   # #
+    Following are stable:
+	# $ $ # s s %
+	     #   % %
 
+	# $ $ # s s %
+	       # % %
+
+    and so on. Complicated solution: bring back spring strengths.
+
+    Simpler solution desired!
+
+    Maybe not simpler, but neater: work directly with the porder of the DAG of
+    connections. A spring source-force dominates any source-force on an
+    ancestor of its root. Say "latter force *> former force" in this case (not
+    that it's transitive) we should see that we can't have x*>y*>x.
+
+    Indeed: if F:r->e and F':r'->e' are spring forces and F*>F' and F'*>F, then 
+    e' >= r > e >= r' > e' (porder of connectivity), which is a contradiction.
+
+    A sforce with source F can't block any sforce whose source dominates F.
+
+    Note we're left with some arguably surprising cases, e.g.
+	 # $ $ $ #   #
+	#           #
+	       % # # 
+	# $ $ % s s #
+
+    But that makes a kind of sense if we think of the right piece wobbling
+    leftwards... I think it's fine.
 
 Overgame:
 (writing under the influence of Castle Doctrine (although I'd been planning

@@ -28,6 +28,12 @@ data GameMode = GMEdit | GMPlay | GMQuit
 data PlacedPiece = PlacedPiece { placedPos :: HexPos, placedPiece :: Piece }
     deriving (Eq, Ord, Show, Read)
 
+-- |validGameState: TODO. Should check that the connection digraph is acyclic,
+-- that there are no overlaps, that all the connections make sense, and that
+-- blocks are connected.
+validGameState :: GameState -> Bool
+validGameState st = True
+
 ppidxs :: GameState -> [PieceIdx]
 ppidxs = Vector.toList . (Vector.findIndices $ \_ -> True) . placedPieces
 
@@ -198,7 +204,7 @@ springsRootAtIdx st idx =
 	  , ridx==idx ]
 
 connGraphPathExists :: GameState -> PieceIdx -> PieceIdx -> Bool
-connGraphPathExists st eidx ridx =
+connGraphPathExists st ridx eidx =
     or [ridx == eidx 
 	, or $ map (connGraphPathExists st eidx)
 	    $ map (fst . connectionEnd) (springsRootAtIdx st ridx) ]
@@ -543,7 +549,7 @@ modTile tile pos lastPos painting st =
 			   conn@(Connection _ _ (Spring sdir' _)) <-
 			       springsAtIdx st' eidx ++ springsEndAtIdx st' ridx
 			   , not $ sdir' `elem` [sdir,neg sdir] ]
-		       , not $ connGraphPathExists st' ridx eidx
+		       , not $ connGraphPathExists st' eidx ridx
 		       , let end = (eidx, epos <-> (placedPos $ getpp st eidx))
 		       , let root = (ridx, rpos <-> (placedPos $ getpp st ridx))
 		       ]
