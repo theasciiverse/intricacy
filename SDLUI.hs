@@ -342,19 +342,19 @@ drawCursorAt :: Maybe HexPos -> UIM ()
 drawCursorAt (Just pos) = drawAt cursor pos
 drawCursorAt _ = return ()
 
-drawBlocked :: GameState -> PieceColouring -> PieceIdx -> Force -> UIM ()
-drawBlocked st colouring sidx (Torque idx dir) = do
+drawBlocked :: GameState -> PieceColouring -> Bool -> Force -> UIM ()
+drawBlocked st colouring blocking (Torque idx dir) = do
     let (pos,arms) = case getpp st idx of
 	    PlacedPiece pos (Pivot arms) -> (pos,arms)
 	    PlacedPiece pos (Hook arm _) -> (pos,[arm])
-	col = obscure $ colourOf colouring idx
+	col = if blocking then bright $ colourWheel 5 else dim $ colourOf colouring idx
     sequence_ [ drawAt (blockedArm arm dir col) (arm <+> pos) |
 	arm <- arms ]
-drawBlocked st colouring sidx (Push idx dir) = do
+drawBlocked st colouring blocking (Push idx dir) = do
     let footprint = plPieceFootprint $ getpp st idx
 	fullfootprint = fullFootprint st idx
-	col = obscure $ colourOf colouring sidx
-    sequence_ [ drawAt (blockedPush dir $ bright orange) pos
+	col = if blocking then bright $ colourWheel 5 else bright orange
+    sequence_ [ drawAt (blockedPush dir $ col) pos
 	| pos <- footprint
 	, not $ (dir<+>pos) `elem` fullfootprint ]
     -- drawAt (blockedPush dir $ bright orange) $ placedPos $ getpp st idx
@@ -428,8 +428,12 @@ drawState' args@(DrawArgs highlight colourFixed alerts st) = do
 	    sequence_ [ drawAt glyph pos | 
 		(pos,glyph) <- Map.toList $ fmap (ownedTileGlyph colouring highlight) board
 		]
-	    sequence_ $ [ drawBlocked st colouring sourceIdx force | 
+	    sequence_ $ [ drawBlocked st colouring False force |
 		AlertBlockedForce sourceIdx force <- alerts ]
+		++ [ drawBlocked st colouring True force |
+		AlertBlockingForce force <- alerts ]
+		++ [ drawBlocked st colouring True force |
+		AlertResistedForce force <- alerts ]
 		-- ++ [ drawAt collisionMarker pos | AlertCollision pos <- alerts ]
 	    vidSurf <- liftIO getVideoSurface
 	    gsSurf <- liftM fromJust $ gets gsSurface

@@ -37,7 +37,8 @@ data PlayerMove = NullPM | HookPush HexDir | HookTorque TorqueDir | WrenchPush H
     deriving (Eq, Ord, Show)
 
 -- |Alert: for passing information about physics processing to the UI
-data Alert = AlertCollision HexPos | AlertBlockedForce PieceIdx Force
+data Alert = AlertCollision HexPos | AlertBlockingForce Force
+	   | AlertResistedForce Force | AlertBlockedForce PieceIdx Force
     deriving (Eq, Ord, Show)
 
 toolForces :: GameState -> PlayerMove -> Forces
@@ -162,9 +163,11 @@ checkBlocks st@(GameState pps conns) sforces sforce@(SForce source force isPlFor
     let idx = forceIdx force
 	pp = getForcedpp st force
 	pp' = applyForceTo pp force
-        mismatches = [ s | SForce s force' _ _ <- sforces, idx == forceIdx force', force /= force' ]
-	(pieceCollisions, collisionPoints) = unzip [ (s,pos) |
-	    SForce s force' _ _ <- sforces
+        (mismatches, mismatchForces) = unzip [ (s,force')
+	    | SForce s force' _ _ <- sforces
+	    , idx == forceIdx force', force /= force' ]
+	(pieceCollisions, collisionPoints, collisionForces) = unzip3 [ (s,pos,force')
+	    | SForce s force' _ _ <- sforces
 	    , let idx' = forceIdx force'
 	    , idx /= idx'
 	    , not $ forceIsNull force'
@@ -173,10 +176,13 @@ checkBlocks st@(GameState pps conns) sforces sforce@(SForce source force isPlFor
 	blocks = mismatches ++ nub pieceCollisions
     in do
 	if pieceResists st force (not isPlSource) (not isPlForce)
-	    then return $ Unmoving
+	    then do
+		tell $ [ AlertResistedForce force ]
+		return $ Unmoving
 	    else if null blocks
 		then return $ Moving []
 		else do tell $ map AlertCollision collisionPoints
+			tell $ map AlertBlockingForce $ (force:) $ mismatchForces++collisionForces
 			return $ Moving $
 			    (if not.and $ map (dominates source) blocks then (source:) else id) $
 			    filter (\s -> not $ dominates s source) blocks
