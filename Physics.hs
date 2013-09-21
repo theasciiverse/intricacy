@@ -112,7 +112,7 @@ resolveForces plForces eForces eDominates st =
 	pln = Vector.length plForces
 	dominates i j = case map (< pln) [i,j] of
 		[True,False] -> True
-		[False,False] -> True || eDominates (i-pln) (j-pln)
+		[False,False] -> eDominates (i-pln) (j-pln)
 		_ -> False
 	initGrps = fmap (propagate st True) plForces Vector.++
 		fmap (propagate st False) eForces 
@@ -120,7 +120,7 @@ resolveForces plForces eForces eDominates st =
 	blockInconsistent i j = do
 	    grps <- mapM gets [(!i),(!j)]
 	    blocks <- lift $ checkInconsistent i j $ map (fst.runWriter) grps
-	    modify (// [(k, tell (Any True) >> grp) | k <- blocks, let grp=grps!!(if k==i then 0 else 1)])
+	    modify $ Vector.imap (\k -> if k `elem` blocks then (tell (Any True) >>) else id)
 	checkInconsistent :: Int -> Int -> [[Force]] -> Writer [Alert] [Int]
 	checkInconsistent i j fss = 
 	    let st' = foldr applyForce st $ nub $ concat fss
@@ -143,10 +143,10 @@ resolveForces plForces eForces eDominates st =
     in do 
 	let unresisted = [ s | (s, (_, Any False)) <- enumVec $ fmap runWriter initGrps ]
 
-	-- check for inconsistencies within and between pairs of forcegroups
+	-- check for inconsistencies within, and between pairs of, forcegroups
 	grps <- sequence [ blockInconsistent i j
-			| j <- [0..Vector.length initGrps - 1], i <- [0..j]
-			, and $ map (`elem` unresisted) [i,j] ]
+			| [i,j] <- sequence [unresisted,unresisted]
+			, i <= j ]
 		    `execStateT` initGrps
 
 	let [blocked, unblocked] = map (nub.concat.(map (fst.runWriter)).Vector.toList) $
