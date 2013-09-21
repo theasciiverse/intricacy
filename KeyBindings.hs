@@ -1,4 +1,4 @@
-module KeyBindings (bindings, findBinding) where
+module KeyBindings (KeyBindings, bindings, findBinding) where
 
 import Data.Map as Map
 import Data.Maybe

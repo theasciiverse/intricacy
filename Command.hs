@@ -13,7 +13,7 @@ data Command = CmdDir WrHoSel HexDir | CmdRotate TorqueDir | CmdWait
 	| CmdYes | CmdNo
 	| CmdRedraw
 	| CmdQuit | CmdWriteState
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Read)
 data WrHoSel = WHSWrench | WHSHook | WHSSelected
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Ord, Show, Read)
 	

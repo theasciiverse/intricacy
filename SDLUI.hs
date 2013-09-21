@@ -204,6 +204,19 @@ hollowGlyph col centre size surf =
 buttonGlyph :: Pixel -> Glyph
 buttonGlyph = tileGlyph (BlockTile [])
 
+useFiveColourButton :: Bool -> Glyph
+useFiveColourButton using centre@(SVec x y) size surf = do
+    mapM_ (\h -> tileGlyph (BlockTile [])
+	    (dim $ colourWheel (if using then h`div`2 else 0))
+	    (SVec `uncurry` corner centre (size`div`2) h) (size`div`2) surf)
+	[0,2,4]
+
+showBlocksButton :: Bool -> Glyph
+showBlocksButton showing centre size surf = do
+    tileGlyph (BlockTile []) (dim $ colourWheel 0) centre size surf
+    when showing $ blockedPush hu (bright orange) centre size surf
+
+
 cursor :: Glyph
 cursor centre size surf =
     aaPolygon' surf (map (corner centre size) [0..5]) $ bright white
@@ -280,13 +293,23 @@ sVec2HexVec size sv =
 data UIState = UIState { scrHeight::Int, scrWidth::Int
     , gsSurface::Maybe Surface
     , lastDrawArgs::Maybe DrawArgs
+    , uiOptions::UIOptions
     , dispFont::Maybe TTF.Font
     , lastFrameTicks::Word32, paintTile::Int
     , leftButtonDown::Bool, middleButtonDown::Bool, rightButtonDown::Bool
     , mousePos::HexVec
     , dispCentre::HexPos, dispLastCol::PieceColouring }
 type UIM = StateT UIState IO
-nullUIState = UIState 0 0 Nothing Nothing Nothing 0 0 False False False zero (PHS zero) Map.empty
+nullUIState = UIState 0 0 Nothing Nothing defaultUIOptions Nothing 0 0 False False False zero (PHS zero) Map.empty
+
+data UIOptions = UIOptions
+    { useFiveColouring::Bool
+    , showBlocks::Bool
+    , keyBindings :: [(Maybe InputMode,KeyBindings)]
+    }
+    deriving (Eq, Ord, Show, Read)
+
+defaultUIOptions = UIOptions False True []
 
 erase :: UIM ()
 erase = do
@@ -394,6 +417,20 @@ drawPaintButtons = do
 	, let selected = i == pti
 	]
 
+uiOptButtons = [ (useFiveColouring, \v o -> o {useFiveColouring=v},
+	periphery 0 <+> 2 <*> neg hw <+> neg hv, useFiveColourButton)
+    , (showBlocks, \v o -> o {showBlocks=v},
+	periphery 0 <+> 2 <*> neg hw <+> 3 <*> neg hv, showBlocksButton) ]
+drawUIOptionButtons :: UIM ()
+drawUIOptionButtons = mapM_ drawUIOptionButton uiOptButtons
+drawUIOptionButton (opt,_,pos,button) = do
+    value <- gets $ opt.uiOptions
+    drawAtRel (button value) pos
+-- XXX: hand-hacking lenses...
+toggleUIOption opt setopt = do
+    value <- gets $ opt.uiOptions
+    modify $ \s -> s {uiOptions = setopt (not value) $ uiOptions s}
+
 getGeom :: UIM (SVec, Int)
 getGeom = do 
     h <- gets scrHeight 
@@ -422,13 +459,20 @@ drawState' args@(DrawArgs highlight colourFixed alerts st) = do
 	    modify $ \ds -> ds { lastDrawArgs = Just args }
 	    let board = stateBoard st
 	    lastCol <- gets dispLastCol
-	    let colouring = boardColouring st (colouredPieces colourFixed st) lastCol
+	    use5Col <- gets $ useFiveColouring.uiOptions
+	    let coloured = colouredPieces colourFixed st
+	    let colouring = if use5Col
+		then boardColouring st coloured lastCol
+		else pieceTypeColouring st coloured
 	    modify $ \ds -> ds { dispLastCol = colouring }
 	    erase
 	    sequence_ [ drawAt glyph pos | 
 		(pos,glyph) <- Map.toList $ fmap (ownedTileGlyph colouring highlight) board
 		]
-	    sequence_ $ [ drawBlocked st colouring False force |
+
+	    showBlks <- gets $ showBlocks.uiOptions
+	    when showBlks $ sequence_
+		$ [ drawBlocked st colouring False force |
 		AlertBlockedForce force <- alerts ]
 		++ [ drawBlocked st colouring True force |
 		AlertBlockingForce force <- alerts ]
@@ -503,6 +547,7 @@ instance UIMonad (StateT UIState IO) where
 		, or [wsel && isWrench p, not wsel && isHook p] ]
 	drawState selTools False alerts st
 	drawButtons IMPlay
+	drawUIOptionButtons
 	when solved $ say "Unlocked!"
 	refresh
 
@@ -513,6 +558,7 @@ instance UIMonad (StateT UIState IO) where
 	-- drawPaintSel
 	drawButtons IMEdit
 	drawPaintButtons
+	drawUIOptionButtons
 	refresh
 
     askYesNo prompt = do
@@ -586,26 +632,28 @@ instance UIMonad (StateT UIState IO) where
 		let bCmd = listToMaybe [ buttonCmd button
 			| button <- concat $ map fst $ buttons mode
 			, mPos == buttonPos button
-			, central
-			]
-		case bCmd of
+			, central ]
+		    paintSel = listToMaybe [ i
+			| i <- [0..(length paintTiles - 1)]
+			, mPos == paintButtonStart <+> i<*>hv ]
+		    uiOptToggle = listToMaybe [ toggleUIOption opt setopt |
+			(opt,setopt,pos,_) <- uiOptButtons, mPos == pos ]
+		rb <- gets rightButtonDown
+		if rb
+		then return [ CmdWait ]
+		else case bCmd of
 		    Just c -> return [c]
-		    Nothing -> do
-			rb <- gets rightButtonDown
-			if rb
-			    then return [ CmdWait ]
-			    else do
-				let paintSel = listToMaybe [ i
-					| i <- [0..(length paintTiles - 1)]
-					, mPos == paintButtonStart <+> i<*>hv
-					]
-				case paintSel of
-				    Just i -> do
-					modify $ \s -> s { paintTile = i }
-					return []
-				    Nothing -> do
-					pti <- gets paintTile
-					return $ [ drawCmd (paintTiles!!pti) False ]
+		    Nothing -> case paintSel of
+			Just i -> do
+			    modify $ \s -> s { paintTile = i }
+			    return []
+			Nothing -> case uiOptToggle of
+			    Just toggle -> do
+				toggle
+				return []
+			    Nothing -> do
+				pti <- gets paintTile
+				return $ [ drawCmd (paintTiles!!pti) False ]
 	    processEvent (MouseButtonUp _ _ ButtonLeft) = do
 		modify $ \s -> s { leftButtonDown = False }
 		return []

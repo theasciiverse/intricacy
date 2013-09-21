@@ -1,4 +1,6 @@
 intricacy: *.lhs *.hs
+	ghc -o intricacy --make -auto-all Intricacy.hs
+intricacy-prof: *.lhs *.hs
 	ghc -o intricacy --make -rtsopts -prof -auto-all Intricacy.hs
 # DO NOT DELETE: Beginning of Haskell dependencies
 Hex.o : Hex.lhs

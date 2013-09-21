@@ -28,3 +28,4 @@ data EditState = EditState {
     deriving (Eq, Ord, Show)
 
 data InputMode = IMEdit | IMPlay | IMConfirm
+    deriving (Eq, Ord, Show, Read)

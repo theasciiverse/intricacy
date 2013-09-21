@@ -353,6 +353,13 @@ colouredPieces colourFixed st = [ idx |
 	and [ isBlock p, idx > 0
 	      , or [ colourFixed, not $ null $ springsEndAtIdx st idx ] ] ]
 
+pieceTypeColouring :: GameState -> [PieceIdx] -> PieceColouring
+pieceTypeColouring st coloured = Map.fromList
+    [ (idx, col) | (idx, PlacedPiece _ p) <- enumVec $ placedPieces st
+	, idx `elem` coloured
+	, let col = if isBlock p then 0 else 2 ]
+    
+
 type Graph a = (Set a, Set (Set a))
 type PlanarGraph a = Map a [a]
 
