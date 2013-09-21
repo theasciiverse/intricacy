@@ -206,7 +206,7 @@ springsRootAtIdx st idx =
 connGraphPathExists :: GameState -> PieceIdx -> PieceIdx -> Bool
 connGraphPathExists st ridx eidx =
     or [ridx == eidx 
-	, or $ map (connGraphPathExists st eidx)
+	, or $ map (\ridx' -> connGraphPathExists st ridx' eidx)
 	    $ map (fst . connectionEnd) (springsRootAtIdx st ridx) ]
 
 springExtended st c@(Connection _ _ (Spring _ natLen)) =
