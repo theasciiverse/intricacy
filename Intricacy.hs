@@ -107,7 +107,9 @@ test lock@(frame,initState) fname = do
 	    where
 		doForce force = do
 		    st:_ <- gets esGameStateStack
-		    let (st',alerts) = runWriter $ resolveForces (Vector.singleton force) Vector.empty (\_ _->False) st
+		    let (st',alerts) = runWriter $ resolveForces
+			    (Vector.singleton (ForceChoice [force])) Vector.empty
+			    (\_ _->False) st
 		    lift (drawAlerts alerts) >> pushEState st'
 		processEditCommand CmdQuit = do
 		    really <- lift $ confirm "Really quit?"

@@ -429,7 +429,7 @@ drawState' args@(DrawArgs highlight colourFixed alerts st) = do
 		(pos,glyph) <- Map.toList $ fmap (ownedTileGlyph colouring highlight) board
 		]
 	    sequence_ $ [ drawBlocked st colouring False force |
-		AlertBlockedForce sourceIdx force <- alerts ]
+		AlertBlockedForce force <- alerts ]
 		++ [ drawBlocked st colouring True force |
 		AlertBlockingForce force <- alerts ]
 		++ [ drawBlocked st colouring True force |

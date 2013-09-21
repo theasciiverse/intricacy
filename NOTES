@@ -398,6 +398,26 @@ Spring oddity:
 
     Implemented.
 
+
+Rethinking the physics:
+    I think we took a wrong turning in trying to work one force at a time.
+
+    Rather, we should fully propagate each source force, and then look for
+    conflicts between the forcegroups. This seems to simplify many things,
+    and make multispring less problematic.
+
+    Propagation: sources and propagands are allowed to be ordered lists of
+    forces; if one fails, the next is tried; if all fail, the source/propagand
+    fails. Recursively propagate out; a force fails if it is resisted or if
+    one of its propagands fails. No need for special 'mediated resistance',
+    nor for partially compressed springs to convey forces.
+
+    Then check for pairwise conflicts between forcegroups:
+	mismatches (different forces on the same piece)
+	pairwise collisions (applying each forcegroup to the initial state)
+    using domination rules to determine resulting blocks.
+    
+
 Overgame:
 (writing under the influence of Castle Doctrine (although I'd been planning
 something like this since long before I heard of CD!))
