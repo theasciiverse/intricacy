@@ -18,12 +18,14 @@ import GameState
 -- |TorqueDir: Int of absolute value <= 1
 type TorqueDir = Int
 
--- |Crappy terminology: 'force' encompasses both usual directional forces and
--- torques; we use 'push' for the former.
+-- |'force' encompasses both usual directional forces and torques; we use
+-- 'push' for the former.
 data Force = Push PieceIdx HexDir | Torque PieceIdx TorqueDir
     deriving (Eq, Ord, Show)
 
+-- | a list of forces to try in order:
 newtype ForceChoice = ForceChoice {getForceChoice :: [Force]}
+
 type ForceChoices = Vector.Vector ForceChoice
 
 forceIdx force = case force of (Push idx _) -> idx
@@ -110,7 +112,7 @@ resolveForces plForces eForces eDominates st =
 	pln = Vector.length plForces
 	dominates i j = case map (< pln) [i,j] of
 		[True,False] -> True
-		[False,False] -> eDominates (i-pln) (j-pln)
+		[False,False] -> True || eDominates (i-pln) (j-pln)
 		_ -> False
 	initGrps = fmap (propagate st True) plForces Vector.++
 		fmap (propagate st False) eForces 
@@ -139,12 +141,16 @@ resolveForces plForces eForces eDominates st =
 	stopBlockedWrenches fs st' = foldr stopWrench st' [
 	    idx | f <- fs, let idx = forceIdx f, isWrench.placedPiece $ getpp st' idx ]
     in do 
-	grps <- fmap runWriter `liftM` (
-		sequence [ blockInconsistent i j
-			| j <- [0..Vector.length initGrps - 1], i <- [0..j] ]
-		    `execStateT` initGrps )
-	let blocked = nub $ concat [ fs | (s, (fs, Any True)) <- enumVec grps ]
-	let unblocked = nub $ concat [ fs | (s, (fs, Any False)) <- enumVec grps ]
+	let unresisted = [ s | (s, (_, Any False)) <- enumVec $ fmap runWriter initGrps ]
+
+	-- check for inconsistencies within and between pairs of forcegroups
+	grps <- sequence [ blockInconsistent i j
+			| j <- [0..Vector.length initGrps - 1], i <- [0..j]
+			, and $ map (`elem` unresisted) [i,j] ]
+		    `execStateT` initGrps
+
+	let [blocked, unblocked] = map (nub.concat.(map (fst.runWriter)).Vector.toList) $
+		(\(x,y) -> [x,y]) $ Vector.partition (getAny.snd.runWriter) grps
 	tell $ map AlertBlockedForce blocked
 	return $ stopBlockedWrenches blocked $ foldr applyForce st unblocked
     
