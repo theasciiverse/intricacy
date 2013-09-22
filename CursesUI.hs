@@ -16,6 +16,7 @@ import GameState
 import Physics
 import Command
 import KeyBindings
+import Mundanities
 import UI
 
 type AttrChar = (Char, Curses.Attr)
@@ -74,10 +75,18 @@ mvAddGlyph cpairs v (Glyph ch col attr) =
 move :: CVec -> IO ()
 move (CVec y x) = Curses.move y x
 
-data UIState = UIState { dispCPairs::[Curses.Pair], dispCentre::HexPos, dispLastCol::PieceColouring }
+data UIState = UIState { dispCPairs::[Curses.Pair], dispCentre::HexPos
+    , dispLastCol::PieceColouring, uiKeyBindings :: Map InputMode KeyBindings }
 type UIM = StateT UIState IO
-nullUIState = UIState [] (PHS zero) Map.empty
+nullUIState = UIState [] (PHS zero) Map.empty Map.empty
 
+readBindings :: UIM ()
+readBindings = do 
+    path <- liftIO $ confFilePath "bindings"
+    mbdgs <- liftIO $ readReadFile path
+    case mbdgs of
+	Just bdgs -> modify $ \s -> s {uiKeyBindings = bdgs}
+	Nothing -> return ()
 
 erase :: UIM ()
 erase = liftIO Curses.erase
@@ -112,7 +121,7 @@ drawState :: [PieceIdx] -> Bool -> [Alert] -> GameState -> UIM ()
 drawState reversed colourFixed alerts st =
     let board = stateBoard st
     in do
-	UIState cpairs centre lastCol <- get
+	lastCol <- gets dispLastCol
 	let colouring = boardColouring st (colouredPieces colourFixed st) lastCol
 	modify $ \ds -> ds { dispLastCol = colouring }
 	erase
@@ -149,7 +158,6 @@ instance UIMonad (StateT UIState IO) where
     runUI m = evalStateT m nullUIState
     drawPlayState (PlayState (st:_) _ alerts wsel _ solved) = do
 	do
-	    ds@(UIState _ centre _) <- get
 	    drawState [] False alerts st
 	    when solved $ say "Unlocked!"
 	    drawCursorAt $ listToMaybe [ pos |
@@ -158,7 +166,6 @@ instance UIMonad (StateT UIState IO) where
 
     drawEditState (EditState (st:_) _ selPiece selPos _ _) =
 	do
-	    ds@(UIState _ centre _) <- get
 	    drawState (maybeToList selPiece) True [] st
 	    drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
 
@@ -178,11 +185,13 @@ instance UIMonad (StateT UIState IO) where
 	do liftIO $ CursesH.start 
 	   cpairs <- liftIO $ colorsToPairs [ (f, CursesH.black) | f <-
 		[ CursesH.white, CursesH.red, CursesH.green, CursesH.yellow, CursesH.blue, CursesH.magenta] ] 
-	   put $ UIState cpairs (PHS zero) Map.empty
+	   modify $ \s -> s {dispCPairs = cpairs}
+	   readBindings
 	   return True
 
     endUI = liftIO CursesH.end
 
     getInput mode = do
 	Curses.KeyChar ch <- liftIO $ CursesH.getKey Curses.refresh
-	return $ maybeToList $ lookup ch $ bindings mode
+	uibdgs <- Map.findWithDefault [] mode `liftM` gets uiKeyBindings
+	return $ maybeToList $ lookup ch $ uibdgs ++ bindings mode

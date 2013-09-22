@@ -49,6 +49,7 @@ dvorakBindingsGlobal = [
 	, (' ', CmdSelect)
 	, ('-', CmdTile $ ArmTile hu False)
 	, ('\\', CmdTile $ ArmTile hv False)
+	, ('-', CmdTile $ ArmTile zero False)
 	, ('@', CmdTile HookTile)
 	]
 
@@ -75,12 +76,13 @@ dvorakBindingsEditOnly = [
 	--, ('$', CmdTile $ SpringTile Compressed zero)
 	, ('#', CmdTile $ BlockTile [])
 	, ('w', CmdTile $ BlockTile [])
+	, ('.', CmdWait)
 	]
 
 playBindings :: KeyBindings
-playBindings = dvorakBindingsGlobal ++ dvorakBindingsPlayOnly
+playBindings = dvorakBindingsPlayOnly ++ dvorakBindingsGlobal
 editBindings :: KeyBindings
-editBindings = dvorakBindingsGlobal ++ dvorakBindingsEditOnly
+editBindings = dvorakBindingsEditOnly ++ dvorakBindingsGlobal
 
 bindings IMEdit = editBindings
 bindings IMPlay = playBindings

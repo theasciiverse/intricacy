@@ -15,6 +15,7 @@ import Control.Monad.State
 import System.IO.Error
 import Data.Word
 import Data.List (maximumBy, findIndex, elemIndex)
+import Text.Show.Pretty (ppShow)
 --import Debug.Trace (traceShow)
 
 import UI
@@ -23,6 +24,7 @@ import GameState
 import Physics
 import Command
 import KeyBindings
+import Mundanities
 
 maxlocksize = 12 -- TODO: use actual lock size?
 periphery 0 = ((3*maxlocksize)`div`2)<*>hu <+> ((3*maxlocksize)`div`4)<*>hv
@@ -109,9 +111,10 @@ tileGlyph (SpringTile extn dir) col centre size surf =
 		Stretched -> 2
 		Relaxed -> 4
 		Compressed -> 6
-	    (sx,sy) = corner centre size (hextant dir - 1)
-	    (offx,offy) = corner centre size (hextant dir)
-	    (ex,ey) = corner centre size (hextant dir - 3)
+	    dir' = if dir == zero then hu else dir
+	    (sx,sy) = corner centre size (hextant dir' - 1)
+	    (offx,offy) = corner centre size (hextant dir')
+	    (ex,ey) = corner centre size (hextant dir' - 3)
 	    points = [ (x+dx,y+dy)
 		| i <- [0..n]
 		, let (x,y) = if even i then (sx,sy) else (offx,offy)
@@ -311,22 +314,22 @@ data UIState = UIState { scrHeight::Int, scrWidth::Int
     , lastDrawArgs::Maybe DrawArgs
     , uiOptions::UIOptions
     , settingBinding::Maybe Command
+    , uiKeyBindings :: Map InputMode KeyBindings
     , dispFont::Maybe TTF.Font
     , lastFrameTicks::Word32, paintTile::Int
     , leftButtonDown::Bool, middleButtonDown::Bool, rightButtonDown::Bool
     , mousePos::HexVec
     , dispCentre::HexPos, dispLastCol::PieceColouring }
 type UIM = StateT UIState IO
-nullUIState = UIState 0 0 Nothing Nothing defaultUIOptions Nothing Nothing 0 0 False False False zero (PHS zero) Map.empty
+nullUIState = UIState 0 0 Nothing Nothing defaultUIOptions Nothing Map.empty Nothing 0 0 False False False zero (PHS zero) Map.empty
 
 data UIOptions = UIOptions
     { useFiveColouring::Bool
     , showBlocks::Bool
     , whsButtons::WrHoSel
-    , uiKeyBindings :: Map InputMode KeyBindings
     }
     deriving (Eq, Ord, Show, Read)
-defaultUIOptions = UIOptions False True WHSSelected Map.empty
+defaultUIOptions = UIOptions False True WHSSelected
 modifyUIOptions f = modify $ \s -> s { uiOptions = f $ uiOptions s }
 
 erase :: UIM ()
@@ -406,9 +409,13 @@ getButtons mode = do
     whs <- gets $ whsButtons.uiOptions
     return $ case mode of 
 	IMEdit -> [(commontl ++
-	    [ Button (tl<+>hv) CmdResetTools
-	    , Button (tl<+>(neg hw)) CmdPlay
-	    ],(0,2)), ([quitButton],(0,2))]
+		[ Button (tl<+>hv) CmdResetTools
+		, Button (tl<+>(neg hw)) CmdPlay
+		],(0,2))
+	    , ([quitButton],(0,2))
+	    , ([Button (paintButtonStart <+> hu <+> i<*>hv) (paintTileCmds!!i)
+		| i <- take (length paintTiles) [0..] ],(5,0))
+	    ]
 	IMPlay -> 
 	    [ (commontl,(0,2))
 	    , ([quitButton],(0,2))
@@ -463,16 +470,45 @@ toggleUIOption (UIOptButton getopt setopt vals _ _) = do
     let value' = head $ drop (1 + (fromMaybe 0 $ elemIndex value vals)) $ cycle vals
     modifyUIOptions $ setopt value'
 
+readUIConfigFile :: UIM ()
+readUIConfigFile = do 
+    path <- liftIO $ confFilePath "SDLUI.conf"
+    mOpts <- liftIO $ readReadFile path
+    case mOpts of
+	Just opts -> modify $ \s -> s {uiOptions = opts}
+	Nothing -> return ()
+writeUIConfigFile :: UIM ()
+writeUIConfigFile = do
+    path <- liftIO $ confFilePath "SDLUI.conf"
+    opts <- gets uiOptions
+    liftIO makeConfDir
+    liftIO $ writeFile path $ ppShow opts
+
+readBindings :: UIM ()
+readBindings = do 
+    path <- liftIO $ confFilePath "bindings"
+    mbdgs <- liftIO $ readReadFile path
+    case mbdgs of
+	Just bdgs -> modify $ \s -> s {uiKeyBindings = bdgs}
+	Nothing -> return ()
+writeBindings :: UIM ()
+writeBindings = do
+    path <- liftIO $ confFilePath "bindings"
+    bdgs <- gets uiKeyBindings
+    liftIO makeConfDir
+    liftIO $ writeFile path $ ppShow bdgs
 
 paintTiles :: [ Maybe Tile ]
 paintTiles =
     [ Just $ BlockTile []
-    , Just $ SpringTile Relaxed hu
+    , Just $ SpringTile Relaxed zero
     , Just $ PivotTile zero
     , Just $ ArmTile zero False
     , Just BallTile
     , Nothing
     ]
+
+paintTileCmds = map (maybe CmdWait CmdTile) paintTiles
 
 paintButtonStart :: HexVec
 paintButtonStart = periphery 0 <+> (- length paintTiles `div` 2)<*>hv
@@ -494,7 +530,7 @@ drawPaintButtons = do
 		    Just t -> tileGlyph t $ dim $ colourWheel 5
 	    drawAtRel gl pos
 	    when selected $ drawAtRel cursor pos
-	| i <- [0..(length paintTiles - 1)]
+	| i <- take (length paintTiles) [0..]
 	, let pos = paintButtonStart <+> i<*>hv
 	, let selected = i == pti
 	]
@@ -554,7 +590,7 @@ drawState' args@(DrawArgs highlight colourFixed alerts st) = do
 getBindingStr :: InputMode -> UIM (Command -> String)
 getBindingStr mode = do
     setting <- gets settingBinding
-    uibdgs <- Map.findWithDefault [] mode `liftM` gets (uiKeyBindings.uiOptions)
+    uibdgs <- Map.findWithDefault [] mode `liftM` gets uiKeyBindings
     return (\cmd ->
 	if Just cmd == setting then ".."
 	else findBinding (uibdgs ++ bindings mode) cmd)
@@ -623,17 +659,22 @@ instance UIMonad (StateT UIState IO) where
     initUI = let {w=800; h=640} in do
 	ok <- liftIO $ catchIOError (SDL.init [InitVideo] >> return True) (\_ -> return False)
 	if not ok
-	    then return False
-	    else do
-		liftIO TTF.init
-		initVideo w h
-		liftIO $ warpMouse (fromIntegral $ w`div`2) (fromIntegral $ h`div`2)
-		erase
-		liftIO $ enableUnicode True
-		liftIO $ enableKeyRepeat 500 30
-		return True
+	then return False
+	else do
+	    liftIO TTF.init
+	    initVideo w h
+	    liftIO $ warpMouse (fromIntegral $ w`div`2) (fromIntegral $ h`div`2)
+	    erase
+	    liftIO $ enableUnicode True
+	    liftIO $ enableKeyRepeat 500 30
+	    readUIConfigFile
+	    readBindings
+	    return True
 
-    endUI = liftIO $ quit
+    endUI = do
+	writeUIConfigFile
+	writeBindings
+	liftIO $ quit
 
     getInput mode = do
 	events <- liftIO $ getEvents
@@ -645,11 +686,11 @@ instance UIMonad (StateT UIState IO) where
 		then do
 		    modify $ \s -> s {settingBinding = Nothing}
 		    when (ch /= '\ESC') $
-			modifyUIOptions $ \o -> o { uiKeyBindings =
-			    Map.insertWith (++) mode [(ch,fromJust setting)] $ uiKeyBindings o }
+			modify $ \s -> s { uiKeyBindings =
+			    Map.insertWith (++) mode [(ch,fromJust setting)] $ uiKeyBindings s }
 		    return []
 		else do
-		    uibdgs <- Map.findWithDefault [] mode `liftM` gets (uiKeyBindings.uiOptions)
+		    uibdgs <- Map.findWithDefault [] mode `liftM` gets uiKeyBindings
 		    let mCmd = lookup ch $ uibdgs ++ bindings mode
 		    sequence_
 			[ modify $ \s -> s { paintTile = pti }
@@ -691,7 +732,7 @@ instance UIMonad (StateT UIState IO) where
 			$ [ return [buttonCmd button]
 			    | button <- buttons, mPos == buttonPos button, central]
 			++ [ (modify $ \s -> s {paintTile = i}) >> return []
-			    | i <- [0..(length paintTiles - 1)]
+			    | i <- take (length paintTiles) [0..]
 			    , mPos == paintButtonStart <+> i<*>hv ]
 			++ [ toggleUIOption uiOB1 >> return []
 			    | mPos == uiOptPos uiOB1 ]

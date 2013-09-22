@@ -19,6 +19,7 @@ import Hex
 import UI
 import qualified SDLUI
 import qualified CursesUI
+import Mundanities
 import GameState
 import Physics
 import Command
@@ -245,13 +246,8 @@ parseArgs argv =
     where header = "Usage: lock [OPTION...] [file]"
 
 readLockFile :: String -> IO (Maybe Lock)
-readLockFile file = do
-    lockstr <- liftIO $ catchJust (guard . isDoesNotExistError)
-		  (readFile file)
-		  (\_ -> return "")
-    return $ length lockstr `seq` -- XXX: forces file to be read and closed
-	(liftM fst $ listToMaybe $ reads lockstr)
-    
+readLockFile = readReadFile
+
 main = do
     argv <- getArgs
     (opts,args) <- parseArgs argv
