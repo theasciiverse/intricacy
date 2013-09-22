@@ -508,6 +508,10 @@ modTile tile pos lastPos painting st =
 	       owner <- mowner
 	       guard $ owner == lastOwner
 	lastOK = painting || lastWasDiff
+	validSpringRootTile ot = case snd ot of
+	    BlockTile _ -> True
+	    PivotTile _ -> True
+	    _ -> False
 	-- |Find next adjacent, skipping over current entity.
 	-- XXX: Note this doesn't work when the entity is adjacent in multiple
 	-- non-contiguous directions.
@@ -549,7 +553,7 @@ modTile tile pos lastPos painting st =
 		       , Just (eidx, BlockTile _) <- [Map.lookup epos board']
 		       , not $ protectedPiece eidx
 		       , (ridx, rpos) <- maybeToList $ castRay (neg sdir <+> pos) (neg sdir) board'
-		       , Just (_, BlockTile _) <- [Map.lookup rpos board']
+		       , Just True == (validSpringRootTile `liftM` Map.lookup rpos board')
 		       , let natLen = hexLen (rpos <-> epos) - 1
 		       , natLen > 0
 		       {-
