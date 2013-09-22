@@ -310,23 +310,24 @@ data UIState = UIState { scrHeight::Int, scrWidth::Int
     , gsSurface::Maybe Surface
     , lastDrawArgs::Maybe DrawArgs
     , uiOptions::UIOptions
+    , settingBinding::Maybe Command
     , dispFont::Maybe TTF.Font
     , lastFrameTicks::Word32, paintTile::Int
     , leftButtonDown::Bool, middleButtonDown::Bool, rightButtonDown::Bool
     , mousePos::HexVec
     , dispCentre::HexPos, dispLastCol::PieceColouring }
 type UIM = StateT UIState IO
-nullUIState = UIState 0 0 Nothing Nothing defaultUIOptions Nothing 0 0 False False False zero (PHS zero) Map.empty
+nullUIState = UIState 0 0 Nothing Nothing defaultUIOptions Nothing Nothing 0 0 False False False zero (PHS zero) Map.empty
 
 data UIOptions = UIOptions
     { useFiveColouring::Bool
     , showBlocks::Bool
     , whsButtons::WrHoSel
-    , keyBindings :: [(Maybe InputMode,KeyBindings)]
+    , uiKeyBindings :: Map InputMode KeyBindings
     }
     deriving (Eq, Ord, Show, Read)
-
-defaultUIOptions = UIOptions False True WHSSelected []
+defaultUIOptions = UIOptions False True WHSSelected Map.empty
+modifyUIOptions f = modify $ \s -> s { uiOptions = f $ uiOptions s }
 
 erase :: UIM ()
 erase = do
@@ -460,7 +461,7 @@ drawUIOptionButton b = do
 toggleUIOption (UIOptButton getopt setopt vals _ _) = do
     value <- gets $ getopt.uiOptions
     let value' = head $ drop (1 + (fromMaybe 0 $ elemIndex value vals)) $ cycle vals
-    modify $ \s -> s {uiOptions = setopt value' $ uiOptions s}
+    modifyUIOptions $ setopt value'
 
 
 paintTiles :: [ Maybe Tile ]
@@ -550,12 +551,21 @@ drawState' args@(DrawArgs highlight colourFixed alerts st) = do
 	    gsSurf <- liftM fromJust $ gets gsSurface
 	    liftIO $ blitSurface vidSurf Nothing gsSurf Nothing
 
+getBindingStr :: InputMode -> UIM (Command -> String)
+getBindingStr mode = do
+    setting <- gets settingBinding
+    uibdgs <- Map.findWithDefault [] mode `liftM` gets (uiKeyBindings.uiOptions)
+    return (\cmd ->
+	if Just cmd == setting then ".."
+	else findBinding (uibdgs ++ bindings mode) cmd)
+
 drawButtons :: InputMode -> UIM ()
 drawButtons mode = do
     buttons <- getButtons mode
+    bindingStr <- getBindingStr mode
     sequence_ $ concat [
 	    [ drawAtRel (buttonGlyph col) v >> renderStrAt bdg v |
-		(i,(v,bdg)) <- enumerate $ map (\b->(buttonPos b, findBinding (bindings mode) $ buttonCmd b)) $ buttonGroup
+		(i,(v,bdg)) <- enumerate $ map (\b->(buttonPos b, bindingStr $ buttonCmd b)) $ buttonGroup
 		, let col = dim $ colourWheel (base+inc*i) ]
 	| (buttonGroup,(base,inc)) <- buttons
 	]
@@ -630,16 +640,26 @@ instance UIMonad (StateT UIState IO) where
 	concat `liftM` (sequence $ map processEvent events)
 	where
 	    processEvent (KeyDown (Keysym _ _ ch)) = do
-		let mCmd = lookup ch $ bindings mode
-		sequence_
-		    [ modify $ \s -> s { paintTile = pti }
-			| (pti,pt) <- zip [0..] paintTiles
-			, (pt == Nothing && mCmd == Just CmdWait) ||
-			    (isJust $ do
-				pt' <- pt
-				CmdTile t <- mCmd
-				guard $ sameTileType t pt') ]
-		return $ maybeToList mCmd
+		setting <- gets settingBinding
+		if isJust setting && ch /= '\0'
+		then do
+		    modify $ \s -> s {settingBinding = Nothing}
+		    when (ch /= '\ESC') $
+			modifyUIOptions $ \o -> o { uiKeyBindings =
+			    Map.insertWith (++) mode [(ch,fromJust setting)] $ uiKeyBindings o }
+		    return []
+		else do
+		    uibdgs <- Map.findWithDefault [] mode `liftM` gets (uiKeyBindings.uiOptions)
+		    let mCmd = lookup ch $ uibdgs ++ bindings mode
+		    sequence_
+			[ modify $ \s -> s { paintTile = pti }
+			    | (pti,pt) <- zip [0..] paintTiles
+			    , (pt == Nothing && mCmd == Just CmdWait) ||
+				(isJust $ do
+				    pt' <- pt
+				    CmdTile t <- mCmd
+				    guard $ sameTileType t pt') ]
+		    return $ maybeToList mCmd
 	    processEvent (MouseMotion _ _ _ _) = case mode of
 		IMEdit -> do
 		    (mPos,_) <- getMousePos
@@ -669,9 +689,7 @@ instance UIMonad (StateT UIState IO) where
 		rb <- gets rightButtonDown
 		let hotspotAction = listToMaybe
 			$ [ return [buttonCmd button]
-			    | button <- buttons
-			    , mPos == buttonPos button
-			    , central]
+			    | button <- buttons, mPos == buttonPos button, central]
 			++ [ (modify $ \s -> s {paintTile = i}) >> return []
 			    | i <- [0..(length paintTiles - 1)]
 			    , mPos == paintButtonStart <+> i<*>hv ]
@@ -693,7 +711,14 @@ instance UIMonad (StateT UIState IO) where
 		return []
 	    processEvent (MouseButtonDown _ _ ButtonRight) = do
 		modify $ \s -> s { rightButtonDown = True }
-		return [ CmdSelect ]
+		(mPos,central) <- getMousePos
+		buttons <- (concat . map fst) `liftM` getButtons mode
+		case listToMaybe [ buttonCmd button
+			| button <- buttons, mPos == buttonPos button, central] of
+		    Just cmd -> do
+			modify $ \s -> s { settingBinding = Just cmd }
+			return []
+		    Nothing -> return [ CmdSelect ]
 	    processEvent (MouseButtonUp _ _ ButtonRight) = do
 		modify $ \s -> s { rightButtonDown = False }
 		return [ CmdUnselect ]
