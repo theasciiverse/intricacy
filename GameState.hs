@@ -559,8 +559,8 @@ modTile tile pos lastPos painting st =
 			   , not $ sdir' `elem` [sdir,neg sdir] ]
 		       -}
 		       , not $ connGraphPathExists st' eidx ridx
-		       , let end = (eidx, epos <-> (placedPos $ getpp st eidx))
-		       , let root = (ridx, rpos <-> (placedPos $ getpp st ridx))
+		       , let end = (eidx, epos <-> (placedPos $ getpp st' eidx))
+		       , let root = (ridx, rpos <-> (placedPos $ getpp st' ridx))
 		       ]
 		   nextSpring = listToMaybe $ fromMaybe possibleSprings $ do
 		       (_,SpringTile _ _) <- curOwnedTile -- XXX: therefore the indices of st are still valid
