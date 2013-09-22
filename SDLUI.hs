@@ -31,6 +31,11 @@ periphery n = rotate n $ periphery 0
 -- aaPolygon seems to be a bit buggy in sdl-gfx-0.6.0
 aaPolygon' surf verts col =
     aaLines surf (verts ++ take 1 verts) col
+-- aaCircle too
+aaCircle' surf x y rad col =
+    if (rad == 1) then pixel surf x y col
+    else aaCircle surf x y rad col
+
 aaLines surf verts col =
     sequence_ [ aaLine surf x y x' y' col |
 	((x,y),(x',y')) <- zip (take (length verts - 1) verts) (drop 1 verts) ]
@@ -42,7 +47,7 @@ rimmedPolygon surf verts fillCol rimCol = do
 
 rimmedCircle surf centre@(SVec x y) rad fillCol rimCol = do
     filledCircle surf (fromIntegral x) (fromIntegral y) (fromIntegral rad) fillCol
-    aaCircle surf (fromIntegral x) (fromIntegral y) (fromIntegral rad) rimCol
+    aaCircle' surf (fromIntegral x) (fromIntegral y) (fromIntegral rad) rimCol
     return ()
 
 type Glyph = SVec -> Int -> Surface -> IO ()
@@ -660,11 +665,11 @@ instance UIMonad (StateT UIState IO) where
 	    processEvent (MouseButtonDown _ _ ButtonLeft) = do
 		modify $ \s -> s { leftButtonDown = True }
 		(mPos,central) <- getMousePos
-		buttons <- getButtons mode
+		buttons <- (concat . map fst) `liftM` getButtons mode
 		rb <- gets rightButtonDown
 		let hotspotAction = listToMaybe
 			$ [ return [buttonCmd button]
-			    | button <- concat $ map fst buttons
+			    | button <- buttons
 			    , mPos == buttonPos button
 			    , central]
 			++ [ (modify $ \s -> s {paintTile = i}) >> return []
