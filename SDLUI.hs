@@ -14,7 +14,7 @@ import Control.Concurrent (threadDelay)
 import Control.Monad.State
 import System.IO.Error
 import Data.Word
-import Data.List (maximumBy, findIndex)
+import Data.List (maximumBy, findIndex, elemIndex)
 --import Debug.Trace (traceShow)
 
 import UI
@@ -216,6 +216,17 @@ showBlocksButton showing centre size surf = do
     tileGlyph (BlockTile []) (dim $ colourWheel 0) centre size surf
     when showing $ blockedPush hu (bright orange) centre size surf
 
+whsButtonsButton :: WrHoSel -> Glyph
+whsButtonsButton whs centre size surf = do
+    when (whs /= WHSHook) $
+	tileGlyph (WrenchTile zero) col (miniCentre 0) miniSize surf
+    when (whs /= WHSWrench) $ do
+	tileGlyph HookTile col (miniCentre 4) miniSize surf
+	tileGlyph (ArmTile hv False) col (miniCentre 2) miniSize surf
+    where
+	miniSize = size `div` 2
+	miniCentre h = SVec `uncurry` corner centre miniSize h
+	col = dim white
 
 cursor :: Glyph
 cursor centre size surf =
@@ -305,11 +316,12 @@ nullUIState = UIState 0 0 Nothing Nothing defaultUIOptions Nothing 0 0 False Fal
 data UIOptions = UIOptions
     { useFiveColouring::Bool
     , showBlocks::Bool
+    , whsButtons::WrHoSel
     , keyBindings :: [(Maybe InputMode,KeyBindings)]
     }
     deriving (Eq, Ord, Show, Read)
 
-defaultUIOptions = UIOptions False True []
+defaultUIOptions = UIOptions False True WHSSelected []
 
 erase :: UIM ()
 erase = do
@@ -382,6 +394,70 @@ drawBlocked st colouring blocking (Push idx dir) = do
 	, not $ (dir<+>pos) `elem` fullfootprint ]
     -- drawAt (blockedPush dir $ bright orange) $ placedPos $ getpp st idx
 
+data Button = Button { buttonPos::HexVec, buttonCmd::Command }
+getButtons :: InputMode -> UIM [ ([Button],(Int,Int)) ]
+getButtons mode = do
+    whs <- gets $ whsButtons.uiOptions
+    return $ case mode of 
+	IMEdit -> [(commontl ++
+	    [ Button (tl<+>hv) CmdResetTools
+	    , Button (tl<+>(neg hw)) CmdPlay
+	    ],(0,2)), ([quitButton],(0,2))]
+	IMPlay -> 
+	    [ (commontl,(0,2))
+	    , ([quitButton],(0,2))
+	    , ( [ Button bl CmdWait ], (0,0))
+	    , ( [ Button (bl<+>dir) (CmdDir whs dir) | dir <- hexDirs ], (4,0) )
+	    ] ++
+	    (if whs == WHSWrench then [] else
+		[ ( [ Button (bl<+>((-2)<*>hv)) (CmdRotate (-1))
+		    , Button (bl<+>((-2)<*>hw)) (CmdRotate 1)
+		    ], (4,0) )
+	    ]) ++
+	    (if whs /= WHSSelected then [] else
+		[ ( [ Button (bl<+>(2<*>hv)<+>hw) (CmdTile $ ArmTile hw False)
+		    , Button (bl<+>(2<*>hv)) (CmdTile $ WrenchTile zero)
+		    ], (2,0) )
+	    ])
+	IMConfirm -> [
+	    ([ quitButton
+	    , Button (br<+>hw) CmdYes
+	    , Button (br<+>(neg hv)) CmdNo
+	    ],(0,2)) ]
+	where
+	    commontl = [ Button tl CmdUndo, Button (tl<+>neg hu) CmdRedo ]
+	    quitButton = Button br CmdQuit
+	    tl = periphery 2
+	    bl = periphery 3
+	    br = periphery 5
+
+
+data UIOptButton a = UIOptButton { getUIOpt::UIOptions->a, setUIOpt::a->UIOptions->UIOptions,
+    uiOptVals::[a], uiOptPos::HexVec, uiOptGlyph::a->Glyph }
+
+-- non-uniform type, so can't use a list...
+uiOB1 = UIOptButton useFiveColouring (\v o -> o {useFiveColouring=v}) [True,False]
+	(periphery 0 <+> 2 <*> neg hw <+> neg hv) useFiveColourButton
+uiOB2 = UIOptButton showBlocks (\v o -> o {showBlocks=v}) [True,False]
+	(periphery 0 <+> 2 <*> neg hw <+> 3 <*> neg hv) showBlocksButton
+uiOB3 = UIOptButton whsButtons (\v o -> o {whsButtons=v}) [WHSSelected, WHSWrench, WHSHook]
+	(periphery 3 <+> 3 <*> hv) whsButtonsButton
+
+drawUIOptionButtons :: InputMode -> UIM ()
+drawUIOptionButtons mode = do
+    drawUIOptionButton uiOB1
+    drawUIOptionButton uiOB2 
+    when (mode == IMPlay) $ drawUIOptionButton uiOB3
+drawUIOptionButton b = do
+    value <- gets $ (getUIOpt b).uiOptions
+    drawAtRel (uiOptGlyph b value) $ uiOptPos b
+-- XXX: hand-hacking lenses...
+toggleUIOption (UIOptButton getopt setopt vals _ _) = do
+    value <- gets $ getopt.uiOptions
+    let value' = head $ drop (1 + (fromMaybe 0 $ elemIndex value vals)) $ cycle vals
+    modify $ \s -> s {uiOptions = setopt value' $ uiOptions s}
+
+
 paintTiles :: [ Maybe Tile ]
 paintTiles =
     [ Just $ BlockTile []
@@ -416,20 +492,6 @@ drawPaintButtons = do
 	, let pos = paintButtonStart <+> i<*>hv
 	, let selected = i == pti
 	]
-
-uiOptButtons = [ (useFiveColouring, \v o -> o {useFiveColouring=v},
-	periphery 0 <+> 2 <*> neg hw <+> neg hv, useFiveColourButton)
-    , (showBlocks, \v o -> o {showBlocks=v},
-	periphery 0 <+> 2 <*> neg hw <+> 3 <*> neg hv, showBlocksButton) ]
-drawUIOptionButtons :: UIM ()
-drawUIOptionButtons = mapM_ drawUIOptionButton uiOptButtons
-drawUIOptionButton (opt,_,pos,button) = do
-    value <- gets $ opt.uiOptions
-    drawAtRel (button value) pos
--- XXX: hand-hacking lenses...
-toggleUIOption opt setopt = do
-    value <- gets $ opt.uiOptions
-    modify $ \s -> s {uiOptions = setopt (not value) $ uiOptions s}
 
 getGeom :: UIM (SVec, Int)
 getGeom = do 
@@ -485,45 +547,14 @@ drawState' args@(DrawArgs highlight colourFixed alerts st) = do
 
 drawButtons :: InputMode -> UIM ()
 drawButtons mode = do
+    buttons <- getButtons mode
     sequence_ $ concat [
 	    [ drawAtRel (buttonGlyph col) v >> renderStrAt bdg v |
 		(i,(v,bdg)) <- enumerate $ map (\b->(buttonPos b, findBinding (bindings mode) $ buttonCmd b)) $ buttonGroup
 		, let col = dim $ colourWheel (base+inc*i) ]
-	| (buttonGroup,(base,inc)) <- buttons mode
+	| (buttonGroup,(base,inc)) <- buttons
 	]
     where enumerate = zip [0..]
-
-data Button = Button { buttonPos::HexVec, buttonCmd::Command }
-buttons :: InputMode -> [ ([Button],(Int,Int)) ]
-buttons mode = case mode of 
-    IMEdit -> [(commontl ++
-	[ Button (tl<+>hv) CmdResetTools
-	, Button (tl<+>(neg hw)) CmdPlay
-	],(0,2)), ([quitButton],(0,2))]
-    IMPlay -> 
-	[ (commontl,(0,2))
-	, ([quitButton],(0,2))
-	, ( [ Button bl CmdWait ], (0,0))
-	, ( [ Button (bl<+>dir) (CmdDir WHSSelected dir) | dir <- hexDirs ], (4,0) )
-	, ( [ Button (bl<+>((-2)<*>hv)) (CmdRotate (-1))
-	    , Button (bl<+>((-2)<*>hw)) (CmdRotate 1)
-	    ], (4,0) )
-	, ( [ Button (bl<+>(2<*>hv)<+>hw) (CmdTile $ ArmTile hw False)
-	    , Button (bl<+>(2<*>hv)) (CmdTile $ WrenchTile zero)
-	    ], (2,0) )
-	]
-    IMConfirm -> [
-	([ quitButton
-	, Button (br<+>hw) CmdYes
-	, Button (br<+>(neg hv)) CmdNo
-	],(0,2)) ]
-    where
-	commontl = [ Button tl CmdUndo, Button (tl<+>neg hu) CmdRedo ]
-	quitButton = Button br CmdQuit
-	tl = periphery 2
-	bl = periphery 3
-	br = periphery 5
-
 
 initVideo :: Int -> Int -> UIM ()
 initVideo w h = do
@@ -547,7 +578,7 @@ instance UIMonad (StateT UIState IO) where
 		, or [wsel && isWrench p, not wsel && isHook p] ]
 	drawState selTools False alerts st
 	drawButtons IMPlay
-	drawUIOptionButtons
+	drawUIOptionButtons IMPlay
 	when solved $ say "Unlocked!"
 	refresh
 
@@ -558,7 +589,7 @@ instance UIMonad (StateT UIState IO) where
 	-- drawPaintSel
 	drawButtons IMEdit
 	drawPaintButtons
-	drawUIOptionButtons
+	drawUIOptionButtons IMEdit
 	refresh
 
     askYesNo prompt = do
@@ -629,31 +660,29 @@ instance UIMonad (StateT UIState IO) where
 	    processEvent (MouseButtonDown _ _ ButtonLeft) = do
 		modify $ \s -> s { leftButtonDown = True }
 		(mPos,central) <- getMousePos
-		let bCmd = listToMaybe [ buttonCmd button
-			| button <- concat $ map fst $ buttons mode
-			, mPos == buttonPos button
-			, central ]
-		    paintSel = listToMaybe [ i
-			| i <- [0..(length paintTiles - 1)]
-			, mPos == paintButtonStart <+> i<*>hv ]
-		    uiOptToggle = listToMaybe [ toggleUIOption opt setopt |
-			(opt,setopt,pos,_) <- uiOptButtons, mPos == pos ]
+		buttons <- getButtons mode
 		rb <- gets rightButtonDown
+		let hotspotAction = listToMaybe
+			$ [ return [buttonCmd button]
+			    | button <- concat $ map fst buttons
+			    , mPos == buttonPos button
+			    , central]
+			++ [ (modify $ \s -> s {paintTile = i}) >> return []
+			    | i <- [0..(length paintTiles - 1)]
+			    , mPos == paintButtonStart <+> i<*>hv ]
+			++ [ toggleUIOption uiOB1 >> return []
+			    | mPos == uiOptPos uiOB1 ]
+			++ [ toggleUIOption uiOB2 >> return []
+			    | mPos == uiOptPos uiOB2 ]
+			++ [ toggleUIOption uiOB3 >> return []
+			    | mPos == uiOptPos uiOB3 ]
 		if rb
 		then return [ CmdWait ]
-		else case bCmd of
-		    Just c -> return [c]
-		    Nothing -> case paintSel of
-			Just i -> do
-			    modify $ \s -> s { paintTile = i }
-			    return []
-			Nothing -> case uiOptToggle of
-			    Just toggle -> do
-				toggle
-				return []
-			    Nothing -> do
-				pti <- gets paintTile
-				return $ [ drawCmd (paintTiles!!pti) False ]
+		else case hotspotAction of
+		    Just a -> a
+		    Nothing -> do
+			pti <- gets paintTile
+			return $ [ drawCmd (paintTiles!!pti) False ]
 	    processEvent (MouseButtonUp _ _ ButtonLeft) = do
 		modify $ \s -> s { leftButtonDown = False }
 		return []
