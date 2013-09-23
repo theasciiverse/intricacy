@@ -544,15 +544,16 @@ getGeom = do
     return (scrCentre, size)
 
 
-data DrawArgs = DrawArgs [PieceIdx] Bool [Alert] GameState
+data DrawArgs = DrawArgs [PieceIdx] Bool [Alert] GameState UIOptions
     deriving (Eq, Ord, Show)
 
 drawState :: [PieceIdx] -> Bool -> [Alert] -> GameState -> UIM ()
-drawState highlight colourFixed alerts st =
-    drawState' $ DrawArgs highlight colourFixed alerts st
+drawState highlight colourFixed alerts st = do
+    uiopts <- gets uiOptions
+    drawState' $ DrawArgs highlight colourFixed alerts st uiopts
 
 drawState' :: DrawArgs -> UIM ()
-drawState' args@(DrawArgs highlight colourFixed alerts st) = do
+drawState' args@(DrawArgs highlight colourFixed alerts st uiopts) = do
     lastArgs <- gets lastDrawArgs
     void $ if lastArgs == Just args
 	then do
@@ -563,9 +564,8 @@ drawState' args@(DrawArgs highlight colourFixed alerts st) = do
 	    modify $ \ds -> ds { lastDrawArgs = Just args }
 	    let board = stateBoard st
 	    lastCol <- gets dispLastCol
-	    use5Col <- gets $ useFiveColouring.uiOptions
 	    let coloured = colouredPieces colourFixed st
-	    let colouring = if use5Col
+	    let colouring = if useFiveColouring uiopts
 		then boardColouring st coloured lastCol
 		else pieceTypeColouring st coloured
 	    modify $ \ds -> ds { dispLastCol = colouring }
@@ -574,8 +574,7 @@ drawState' args@(DrawArgs highlight colourFixed alerts st) = do
 		(pos,glyph) <- Map.toList $ fmap (ownedTileGlyph colouring highlight) board
 		]
 
-	    showBlks <- gets $ showBlocks.uiOptions
-	    when showBlks $ sequence_
+	    when (showBlocks uiopts) $ sequence_
 		$ [ drawBlocked st colouring False force |
 		AlertBlockedForce force <- alerts ]
 		++ [ drawBlocked st colouring True force |
