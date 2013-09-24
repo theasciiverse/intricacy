@@ -316,7 +316,8 @@ data UIState = UIState { scrHeight::Int, scrWidth::Int
     , settingBinding::Maybe Command
     , uiKeyBindings :: Map InputMode KeyBindings
     , dispFont::Maybe TTF.Font
-    , lastFrameTicks::Word32, paintTile::Int
+    , lastFrameTicks::Word32
+    , paintTileIndex::Int
     , leftButtonDown::Bool, middleButtonDown::Bool, rightButtonDown::Bool
     , mousePos::HexVec
     , dispCentre::HexPos, dispLastCol::PieceColouring }
@@ -329,7 +330,7 @@ data UIOptions = UIOptions
     , whsButtons::WrHoSel
     }
     deriving (Eq, Ord, Show, Read)
-defaultUIOptions = UIOptions False True WHSSelected
+defaultUIOptions = UIOptions True True WHSSelected
 modifyUIOptions f = modify $ \s -> s { uiOptions = f $ uiOptions s }
 
 erase :: UIM ()
@@ -412,7 +413,8 @@ getButtons mode = do
 		[ Button (tl<+>hv) CmdResetTools
 		, Button (tl<+>(neg hw)) CmdPlay
 		],(0,2))
-	    , ([quitButton],(0,2))
+	    , ([quitButton, Button (br<+>2<*>hu) CmdWriteState],(0,2))
+	    , ( [ Button (bl<+>dir) (CmdDir whs dir) | dir <- hexDirs ], (4,0) )
 	    , ([Button (paintButtonStart <+> hu <+> i<*>hv) (paintTileCmds!!i)
 		| i <- take (length paintTiles) [0..] ],(5,0))
 	    ]
@@ -510,19 +512,26 @@ paintTiles =
 
 paintTileCmds = map (maybe CmdWait CmdTile) paintTiles
 
+getEffPaintTileIndex :: UIM Int
+getEffPaintTileIndex = do
+    mods <- liftIO getModState
+    if (or $ map (`elem` mods) [KeyModLeftCtrl, KeyModRightCtrl]) 
+    then return $ length paintTiles - 1
+    else gets paintTileIndex
+
 paintButtonStart :: HexVec
 paintButtonStart = periphery 0 <+> (- length paintTiles `div` 2)<*>hv
 
 drawPaintSel :: UIM ()
 drawPaintSel = do
-    pti <- gets paintTile
+    pti <- getEffPaintTileIndex
     case (paintTiles!!pti) of
 	Nothing -> return ()
 	Just t -> drawAtRel (tileGlyph t (dim $ colourWheel 5)) (periphery 0)
 
 drawPaintButtons :: UIM ()
 drawPaintButtons = do
-    pti <- gets paintTile
+    pti <- getEffPaintTileIndex
     sequence_ [ 
 	do
 	    let gl = case paintTiles!!i of
@@ -692,7 +701,7 @@ instance UIMonad (StateT UIState IO) where
 		    uibdgs <- Map.findWithDefault [] mode `liftM` gets uiKeyBindings
 		    let mCmd = lookup ch $ uibdgs ++ bindings mode
 		    sequence_
-			[ modify $ \s -> s { paintTile = pti }
+			[ modify $ \s -> s { paintTileIndex = pti }
 			    | (pti,pt) <- zip [0..] paintTiles
 			    , (pt == Nothing && mCmd == Just CmdWait) ||
 				(isJust $ do
@@ -714,7 +723,7 @@ instance UIMonad (StateT UIState IO) where
 				then do
 				    modify $ \s -> s {mousePos = oldMPos <+> dir}
 				    centre <- gets dispCentre
-				    pti <- gets paintTile
+				    pti <- getEffPaintTileIndex
 				    lb <- gets leftButtonDown
 				    more <- mouseTo mPos
 				    return $ [ CmdDir WHSSelected dir ] ++
@@ -730,7 +739,7 @@ instance UIMonad (StateT UIState IO) where
 		let hotspotAction = listToMaybe
 			$ [ return [buttonCmd button]
 			    | button <- buttons, mPos == buttonPos button, central]
-			++ [ (modify $ \s -> s {paintTile = i}) >> return []
+			++ [ (modify $ \s -> s {paintTileIndex = i}) >> return []
 			    | i <- take (length paintTiles) [0..]
 			    , mPos == paintButtonStart <+> i<*>hv ]
 			++ [ toggleUIOption uiOB1 >> return []
@@ -744,7 +753,7 @@ instance UIMonad (StateT UIState IO) where
 		else case hotspotAction of
 		    Just a -> a
 		    Nothing -> do
-			pti <- gets paintTile
+			pti <- getEffPaintTileIndex
 			return $ [ drawCmd (paintTiles!!pti) False ]
 	    processEvent (MouseButtonUp _ _ ButtonLeft) = do
 		modify $ \s -> s { leftButtonDown = False }
@@ -785,7 +794,7 @@ instance UIMonad (StateT UIState IO) where
 		    else if mb 
 			then return [ if dw == 1 then CmdUndo else CmdRedo ]
 			else do
-			modify $ \s -> s { paintTile = (paintTile s + dw) `mod` (length paintTiles) }
+			modify $ \s -> s { paintTileIndex = (paintTileIndex s + dw) `mod` (length paintTiles) }
 			return []
 		
 
