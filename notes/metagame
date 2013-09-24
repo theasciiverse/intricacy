@@ -666,11 +666,16 @@ Size estimates:
 	for each user
 	    codename: C bytes
 	    serial numbers for active locks: 3*L bytes
-	    *who's solved them: S*3 bytes
-	    notes declared: N*(C+L) bytes
+	    *who's solved them (and whether directly): S*(C+1) bytes
+	    how many notes on each lock are public knowledge: 3 bytes
+	    notes declared: N*(C+L+1) bytes
 	    *notes read: R*(C+L) bytes
 	C=3.
 	L=3 is plenty.
+
+	This information, along with public knowledge, suffices to display the
+	info screen for the user.
+
 	Starred entries can theoretically be computed just from knowing all
 	the declared notes, but not cheaply.
     lock:
@@ -693,3 +698,55 @@ We don't want the server to have to push 4M of data to each of 5000 players.
 So on-demand is the way to go. Locks and solutions are permanent, so can and
 should be cached permanently. User entries can be too - but checked for
 updates whenever displayed.
+
+
+Communication we want to support:
+    client->server
+	Setting locks
+	Declaring solutions
+	    these can block on verification
+    client<-server
+	Updating user info
+	Get lock
+	Get (partial) solution
+
+We should send only deltas where possible. So user info and PK are versioned
+with serial numbers; the server stores the latest version and the previous N
+deltas, and if requested an update from a recent enough version sends only the
+deltas, else sends the whole latest version.
+
+Sounds like we're hand-rolling, then. Fine by me!
+
+Server consists of a simple CGI script to handle incoming locks and solutions
+    verifies account ownership
+    fires up intricacy to verify solutions
+    updates files appropriately
+
+For getting stuff off the server, we can use straight HTTP for locks (which
+    are public knowledge and don't change). For the rest, we can use a CGI
+    script, which can send deltas when appropriate and verify passwords and
+    privs when requesting solutions.
+
+Updates:
+    On solution declaration:
+	Add as read note for all who have access to the lock it's stored
+	behind; this may result in that user getting three notes (public
+	notes included), leading to that user reading extra notes.
+    On lock change:
+	All notes behind the lock become public knowledge. These locks may
+	themselves become public knowledge, or become cracked by those who
+	have read sufficient notes on them, which as above results in them
+	reading notes.
+
+Security:
+    No need for TLS; just encrypt all requests to the server's public key.
+    One such request is 'reserve codename', and we send a password with that
+    and all future requests requiring authentication.
+
+    Fine to ignore this for now, and just send everything in the clear. Can
+    add crypto later.
+
+PoW:
+    Would be easy to require a little proof of work when reserving a
+    codename... but I don't think it's a good idea.
+
