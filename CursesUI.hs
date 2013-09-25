@@ -156,7 +156,7 @@ say str = do
 
 instance UIMonad (StateT UIState IO) where
     runUI m = evalStateT m nullUIState
-    drawPlayState (PlayState (st:_) _ alerts wsel _ solved) = do
+    drawPlayState (PlayState st alerts wsel solved _ _ _) = do
 	do
 	    drawState [] False alerts st
 	    when solved $ say "Unlocked!"

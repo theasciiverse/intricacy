@@ -16,11 +16,18 @@ class (Functor m, MonadIO m) => UIMonad m where
     askYesNo :: String -> m ()
     getInput :: InputMode -> m [ Command ]
 
-data PlayState = PlayState {
-	psGameStateStack::[GameState], psUndoneStack::[GameState]
+data PlayState = PlayState
+	{ psCurrentState::GameState
 	, psLastAlerts::[Alert]
-	, wrenchSelected::Bool, psSwitchMode::Maybe GameMode, psSolved::Bool }
+	, wrenchSelected::Bool
+	, psSolved::Bool
+	, psSwitchMode::Maybe GameMode
+	, psGameStateMoveStack::[(GameState, PlayerMove)]
+	, psUndoneStack::[(GameState, PlayerMove)]
+	}
     deriving (Eq, Ord, Show)
+newPlayState st = PlayState st [] False False Nothing [] []
+
 data EditState = EditState {
 	esGameStateStack::[GameState], esUndoneStack::[GameState]
 	, selectedPiece::Maybe PieceIdx, selectedPos::HexPos

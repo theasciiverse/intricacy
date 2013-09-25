@@ -630,7 +630,7 @@ say str = renderStrAt str $ periphery 0
 
 instance UIMonad (StateT UIState IO) where
     runUI m = evalStateT m nullUIState
-    drawPlayState (PlayState (st:_) _ alerts wsel _ solved) = do
+    drawPlayState (PlayState st alerts wsel solved _ _ _) = do
 	waitFrame
 	let selTools = [ idx |
 		(idx, PlacedPiece pos p) <- enumVec $ placedPieces st

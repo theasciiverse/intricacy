@@ -51,24 +51,29 @@ test lock@(frame,initState) fname = do
 		    play
 	    where
 		checkWon = do
-		    st:_ <- gets psGameStateStack
-		    when (checkSolved (frame,st)) $ modify $ \ps -> ps {psSolved = True}
+		    st <- gets psCurrentState
+		    when (checkSolved (frame,st)) $ do
+			modify $ \ps -> ps {psSolved = True}
+			let wfname = fromMaybe "unnamed.lock" fname 
+			pms <- (reverse.(map snd)) `liftM` gets psGameStateMoveStack
+			liftIO $ writeFile (wfname++".solution") $ show pms
 		processPlayCommand CmdQuit =
 		    modify $ \ps -> ps {psSwitchMode = Just GMQuit}
 	        processPlayCommand CmdUndo = do
-		    st:sts <- gets psGameStateStack
-		    usts <- gets psUndoneStack
-		    when (not $ null sts) $ modify $ \ps -> ps {psGameStateStack = sts, psLastAlerts = [], psUndoneStack = st:usts}
+		    st <- gets psCurrentState
+		    (st',pm):stms <- gets psGameStateMoveStack
+		    ustms <- gets psUndoneStack
+		    when (not $ null stms) $ modify $ \ps -> ps {psCurrentState=st', psGameStateMoveStack = stms, psLastAlerts = [], psUndoneStack = (st,pm):ustms}
 		processPlayCommand CmdRedo = do
-		    usts <- gets psUndoneStack
-		    case usts of 
+		    ustms <- gets psUndoneStack
+		    case ustms of 
 			[] -> return ()
-			ust:usts' -> do
-			    pushPState ust
-			    modify $ \ps -> ps {psUndoneStack = usts'}
+			ustm:ustms' -> do
+			    pushPState ustm
+			    modify $ \ps -> ps {psUndoneStack = ustms'}
 		processPlayCommand cmd = do
 		    wsel <- gets wrenchSelected
-		    st:_ <- gets psGameStateStack
+		    st <- gets psCurrentState
 		    let push whs dir 
 			    | whs == WHSWrench || (whs == WHSSelected && wsel) =
 				Just $ WrenchPush dir
@@ -91,7 +96,7 @@ test lock@(frame,initState) fname = do
 			 Just pm' -> do
 			    (st',alerts) <- lift $ doPhysicsTick pm' st
 			    modify $ \ps -> ps {psLastAlerts = alerts}
-			    pushPState st'
+			    pushPState (st',pm')
 
 	edit :: UIMonad uiM => StateT EditState uiM ()
 	edit = do
@@ -197,7 +202,7 @@ test lock@(frame,initState) fname = do
 		subPlay :: UIMonad uiM => GameState -> StateT EditState uiM ()
 		subPlay st = do
 		    modify $ \es -> es {esSwitchMode = Nothing}
-		    (_,PlayState (st':_) _ _ _ _ _) <- lift $ runStateT play $ PlayState [st] [] [] False Nothing False
+		    st' <- (psCurrentState.snd) `liftM` (lift $ runStateT play $ newPlayState st)
 		    pushEState st'
 		    edit
 
@@ -205,10 +210,11 @@ test lock@(frame,initState) fname = do
 	pushEState st = do
 	    st':sts <- gets esGameStateStack
 	    when (st' /= st) $ modify $ \es -> es {esGameStateStack = st:st':sts, esUndoneStack = []}
-	pushPState :: UIMonad uiM => GameState -> StateT PlayState uiM ()
-	pushPState st = do
-	    st':sts <- gets psGameStateStack
-	    when (st' /= st) $ modify $ \ps -> ps {psGameStateStack = st:st':sts, psUndoneStack = []}
+	pushPState :: UIMonad uiM => (GameState,PlayerMove) -> StateT PlayState uiM ()
+	pushPState (st,pm) = do
+	    st' <- gets psCurrentState
+	    stms <- gets psGameStateMoveStack
+	    when (st' /= st) $ modify $ \ps -> ps {psCurrentState = st, psGameStateMoveStack = (st',pm):stms, psUndoneStack = []}
 	modifyEState :: UIMonad uiM => (GameState -> GameState) -> StateT EditState uiM ()
 	modifyEState f = do
 	    st:_ <- gets esGameStateStack
