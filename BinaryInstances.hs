@@ -5,10 +5,18 @@ import Data.Word
 import Control.Monad
 
 import GameState
+import Physics
 import Hex
 import Frame
+
+-- XXX: Only small numbers appear, so we write integers as bytes
+packInt8 :: Int -> Int8
+packInt8 = fromIntegral
+
 instance Binary HexVec where
-    put (HexVec hx hy hz) = put hx >> put hy >> put hz
+    put (HexVec hx hy hz) = 
+	let [hx',hy',hz'] = map packInt8 [hx,hy,hz] in
+	put hx' >> put hy' >> put hz'
     get = liftM3 HexVec get get get
 instance Binary g => Binary (PHS g) where
     put (PHS v) = put v
@@ -38,7 +46,7 @@ instance Binary Connection where
     get = liftM3 Connection get get get
 instance Binary Link where
     put (Free p) = put (0::Word8) >> put p
-    put (Spring d l) = put (1::Word8) >> put d >> put l
+    put (Spring d l) = put (1::Word8) >> put d >> put (packInt8 l)
     get = do
 	tag <- get :: Get Word8
 	case tag of
@@ -46,7 +54,7 @@ instance Binary Link where
 	    1 -> liftM2 Spring get get
 instance Binary HookForce where
     put NullHF = put (0::Word8)
-    put (TorqueHF dir) = put (1::Word8) >> put dir
+    put (TorqueHF dir) = put (1::Word8) >> put (packInt8 dir)
     put (PushHF v) = put (2::Word8) >> put v
     get = do
 	tag <- get :: Get Word8
@@ -57,3 +65,16 @@ instance Binary HookForce where
 instance Binary Frame where
     put (BasicFrame s) = put s
     get = liftM BasicFrame get
+
+instance Binary PlayerMove where
+    put NullPM = put (0::Word8)
+    put (HookPush v) = put (1::Word8) >> put v
+    put (HookTorque dir) = put (2::Word8) >> put (packInt8 dir)
+    put (WrenchPush v) = put (3::Word8) >> put v
+    get = do
+	tag <- get :: Get Word8
+	case tag of
+	    0 -> return NullPM
+	    1 -> liftM HookPush get
+	    2 -> liftM HookTorque get
+	    3 -> liftM WrenchPush get

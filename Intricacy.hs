@@ -54,9 +54,10 @@ test lock@(frame,initState) fname = do
 		    st <- gets psCurrentState
 		    when (checkSolved (frame,st)) $ do
 			modify $ \ps -> ps {psSolved = True}
-			let wfname = fromMaybe "unnamed.lock" fname 
 			pms <- (reverse.(map snd)) `liftM` gets psGameStateMoveStack
+			let wfname = fromMaybe "unnamed.lock" fname 
 			liftIO $ writeFile (wfname++".solution") $ show pms
+			liftIO $ B.writeFile (wfname++".solution.bin") $ Bin.encode $ pms
 		processPlayCommand CmdQuit =
 		    modify $ \ps -> ps {psSwitchMode = Just GMQuit}
 	        processPlayCommand CmdUndo = do
