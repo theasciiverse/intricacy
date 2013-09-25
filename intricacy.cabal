@@ -14,4 +14,5 @@ cabal-version:       >=1.8
 
 executable intricacy
   main-is:  Intricacy.hs
+  extensions: DoAndIfThenElse
   build-depends:       base >=4.3, mtl >=2.0, containers >=0.4, vector >=0.9, pretty-show >=1.5, SDL >=0.6, SDL-ttf >=0.6, SDL-gfx >=0.6, hscurses >=1.4, binary >=0.7, bytestring >=0.9, array >=0.3, transformers >=0.2, directory >= 1.0
