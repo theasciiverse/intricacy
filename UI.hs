@@ -1,10 +1,24 @@
 module UI where 
 
 import Control.Monad.Trans
+import Control.Monad.State
+import qualified Data.Vector as Vector
+import qualified Data.Map as Map
+import Data.Map (Map)
+import Control.Monad.Writer
+import Data.Maybe
+import qualified Data.Binary as Bin
+import qualified Data.ByteString.Lazy as B
 
+import Hex
+import Command
+import Mundanities
 import GameState
 import Physics
 import Command
+import Frame
+import BinaryInstances
+import Lock
 
 class (Functor m, MonadIO m) => UIMonad m where
     runUI :: m a -> IO a
@@ -36,3 +50,216 @@ data EditState = EditState {
 
 data InputMode = IMEdit | IMPlay | IMConfirm
     deriving (Eq, Ord, Show, Read)
+
+--test = CursesH.start >> drawBoard testBoard (PHS zero) >> CursesH.getKey (return ()) >> CursesH.end
+test :: UIMonad uiM => Lock -> Maybe String -> uiM Bool
+test lock@(frame,initState) fname = do
+    ok <- initUI
+    if not ok
+	then return False
+	else do
+	    runStateT edit $ EditState [initState] [] Nothing (PHS zero) (PHS zero) Nothing
+	    endUI
+	    return True
+    where
+	play :: UIMonad uiM => StateT PlayState uiM ()
+	play = do
+	    ps <- get
+	    case psSwitchMode ps of
+		Just GMQuit -> return ()
+		_ -> do
+		    lift $ drawPlayState ps
+		    cmds <- lift $ getInput $ IMPlay
+		    sequence_ $ map processPlayCommand cmds
+		    checkWon
+		    play
+	    where
+		checkWon = do
+		    st <- gets psCurrentState
+		    when (checkSolved (frame,st)) $ do
+			modify $ \ps -> ps {psSolved = True}
+			pms <- (reverse.(map snd)) `liftM` gets psGameStateMoveStack
+			let wfname = fromMaybe "unnamed.lock" fname 
+			liftIO $ writeFile (wfname++".solution") $ show pms
+			liftIO $ B.writeFile (wfname++".solution.bin") $ Bin.encode $ pms
+		processPlayCommand CmdQuit =
+		    modify $ \ps -> ps {psSwitchMode = Just GMQuit}
+	        processPlayCommand CmdUndo = do
+		    st <- gets psCurrentState
+		    (st',pm):stms <- gets psGameStateMoveStack
+		    ustms <- gets psUndoneStack
+		    when (not $ null stms) $ modify $ \ps -> ps {psCurrentState=st', psGameStateMoveStack = stms, psLastAlerts = [], psUndoneStack = (st,pm):ustms}
+		processPlayCommand CmdRedo = do
+		    ustms <- gets psUndoneStack
+		    case ustms of 
+			[] -> return ()
+			ustm:ustms' -> do
+			    pushPState ustm
+			    modify $ \ps -> ps {psUndoneStack = ustms'}
+		processPlayCommand cmd = do
+		    wsel <- gets wrenchSelected
+		    st <- gets psCurrentState
+		    let push whs dir 
+			    | whs == WHSWrench || (whs == WHSSelected && wsel) =
+				Just $ WrenchPush dir
+			    | otherwise = Just $ HookPush dir
+			torque dir = Just $ HookTorque dir
+			(wsel', pm) =
+			    case cmd of
+				CmdTile (WrenchTile _) -> (True, Nothing)
+				CmdTile HookTile -> (False, Nothing)
+				CmdTile (ArmTile _ _) -> (False, Nothing)
+				CmdToggle -> (not wsel, Nothing)
+				CmdDir whs dir -> (wsel, push whs dir)
+				CmdRotate dir -> (wsel, torque dir)
+				CmdWait -> (wsel, Just NullPM)
+				CmdSelect -> (wsel, Just NullPM)
+				_ -> (wsel, Nothing)
+		    modify $ \ps -> ps {wrenchSelected = wsel'}
+		    case pm of
+			 Nothing -> return ()
+			 Just pm' -> do
+			    (st',alerts) <- lift $ doPhysicsTick pm' st
+			    modify $ \ps -> ps {psLastAlerts = alerts}
+			    pushPState (st',pm')
+
+	edit :: UIMonad uiM => StateT EditState uiM ()
+	edit = do
+	    es <- get
+	    st:_ <- gets esGameStateStack
+	    case esSwitchMode es of
+		Just GMQuit -> return ()
+		Just GMPlay -> subPlay $ head $ esGameStateStack es
+		_ -> do
+		    lift $ drawEditState es
+		    cmds <- lift $ getInput IMEdit
+		    sequence_ $ map processEditCommand cmds
+		    edit
+	    where
+		doForce force = do
+		    st:_ <- gets esGameStateStack
+		    let (st',alerts) = runWriter $ resolveForces
+			    (Vector.singleton (ForceChoice [force])) Vector.empty
+			    (\_ _->False) st
+		    lift (drawAlerts alerts) >> pushEState st'
+		processEditCommand CmdQuit = do
+		    really <- lift $ confirm "Really quit?"
+		    when really $ modify $ \es -> es {esSwitchMode = Just GMQuit}
+		processEditCommand CmdPlay =
+		    modify $ \es -> es {esSwitchMode = Just GMPlay }
+		processEditCommand CmdResetTools = modifyEState (\st -> snd $ canonify (frame, st))
+		processEditCommand CmdUndo = do
+		    st:sts <- gets esGameStateStack
+		    usts <- gets esUndoneStack
+		    when (not $ null sts) $ modify $ \es -> es {esGameStateStack = sts, esUndoneStack = st:usts}
+		processEditCommand CmdRedo = do
+		    usts <- gets esUndoneStack
+		    case usts of 
+			[] -> return ()
+			ust:usts' -> do
+			    pushEState ust
+			    modify $ \es -> es {esUndoneStack = usts'}
+		processEditCommand CmdUnselect =
+		    modify $ \es -> es {selectedPiece = Nothing}
+		processEditCommand CmdSelect = do
+		    selPiece <- gets selectedPiece
+		    selPos <- gets selectedPos
+		    st:_ <- gets esGameStateStack
+		    let selPiece' =
+			    if isJust selPiece
+				then Nothing
+				else liftM fst $ Map.lookup selPos $ stateBoard st
+		    modify $ \es -> es {selectedPiece = selPiece'}
+		processEditCommand (CmdDir _ dir) = do
+		    selPos <- gets selectedPos
+		    selPiece <- gets selectedPiece
+		    case selPiece of
+			Nothing -> modify $ \es -> es {selectedPos = checkBounds frame selPos $ dir <+> selPos}
+			Just p -> doForce $ Push p dir
+		processEditCommand (CmdMoveTo newPos) = do
+		    selPos <- gets selectedPos
+		    modify $ \es -> es {selectedPos = truncateToBounds frame newPos}
+		processEditCommand (CmdRotate dir) = do
+		    selPiece <- gets selectedPiece
+		    case selPiece of
+			Nothing -> return ()
+			Just p -> doForce $ Torque p dir
+		processEditCommand (CmdTile tile) = drawTile tile False
+		processEditCommand (CmdPaint tile) = drawTile tile True
+		processEditCommand CmdMerge = do
+		    selPos <- gets selectedPos
+		    st:_ <- gets esGameStateStack
+		    cmds <- lift $ getInput IMEdit
+		    case cmds of
+			[CmdDir _ mergeDir] -> modifyEState $ mergeTiles selPos mergeDir True
+			_ -> return ()
+		processEditCommand CmdWait = do
+		    selPos <- gets selectedPos
+		    last <- gets lastModPos
+		    selPiece <- gets selectedPiece
+		    st:_ <- gets esGameStateStack
+		    case selPiece of
+			Nothing -> do
+			    modifyEState $ modTile Nothing selPos last False
+			    modify $ \es -> es {lastModPos = selPos}
+			Just p -> do (st',_) <- lift $ doPhysicsTick NullPM st
+				     pushEState st'
+		processEditCommand CmdDelete = do
+		    selPiece <- gets selectedPiece
+		    st:_ <- gets esGameStateStack
+		    case selPiece of
+			Nothing -> return ()
+			Just p -> do modify $ \es -> es {selectedPiece = Nothing}
+				     modifyEState $ delPiece p
+		processEditCommand CmdWriteState = do
+		    st:_ <- gets esGameStateStack
+		    let wfname = fromMaybe "unnamed.lock" fname 
+		    liftIO $ writeFile wfname $ show $ deframe $ canonify (frame, st)
+		    let wfbname = wfname ++ ".bin"
+		    liftIO $ B.writeFile wfbname $ Bin.encode $ deframe $ canonify (frame, st)
+		processEditCommand _ = return ()
+		drawTile tile painting = do
+		    modify $ \es -> es {selectedPiece = Nothing}
+		    selPos <- gets selectedPos
+		    last <- gets lastModPos
+		    modifyEState $ modTile (Just tile) selPos last painting
+		    modify $ \es -> es {lastModPos = selPos}
+		subPlay :: UIMonad uiM => GameState -> StateT EditState uiM ()
+		subPlay st = do
+		    modify $ \es -> es {esSwitchMode = Nothing}
+		    st' <- (psCurrentState.snd) `liftM` (lift $ runStateT play $ newPlayState st)
+		    pushEState st'
+		    edit
+
+	pushEState :: UIMonad uiM => GameState -> StateT EditState uiM ()
+	pushEState st = do
+	    st':sts <- gets esGameStateStack
+	    when (st' /= st) $ modify $ \es -> es {esGameStateStack = st:st':sts, esUndoneStack = []}
+	pushPState :: UIMonad uiM => (GameState,PlayerMove) -> StateT PlayState uiM ()
+	pushPState (st,pm) = do
+	    st' <- gets psCurrentState
+	    stms <- gets psGameStateMoveStack
+	    when (st' /= st) $ modify $ \ps -> ps {psCurrentState = st, psGameStateMoveStack = (st',pm):stms, psUndoneStack = []}
+	modifyEState :: UIMonad uiM => (GameState -> GameState) -> StateT EditState uiM ()
+	modifyEState f = do
+	    st:_ <- gets esGameStateStack
+	    pushEState $ f st
+    
+	doPhysicsTick :: UIMonad uiM => PlayerMove -> GameState -> uiM (GameState, [Alert])
+	doPhysicsTick pm st =
+	    let r@(st',alerts) = runWriter $ physicsTick pm st in
+	    drawAlerts alerts >> return r
+
+	confirm :: UIMonad uiM => String -> uiM Bool
+	confirm prompt = do
+	    askYesNo prompt
+	    waitConfirm
+	    where
+		waitConfirm = do
+		    input <- getInput IMConfirm
+		    if CmdYes `elem` input
+			then return True
+			else if CmdNo `elem` input
+			    then return False
+			    else waitConfirm
+
