@@ -1,6 +1,7 @@
 module Main where
 
 import System.Environment
+import System.Exit
 import Control.Monad.Writer
 
 import Hex
@@ -19,5 +20,5 @@ main = do
     Just lock <- readReadFile lockfn
     Just solution <- readReadFile solutionfn
 
-    print $ check (reframe lock) solution
+    if check (reframe lock) solution then exitSuccess else exitFailure
 
