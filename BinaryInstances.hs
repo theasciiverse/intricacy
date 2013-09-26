@@ -10,19 +10,24 @@ import Physics
 import Hex
 import Frame
 
-putPackedNat :: Int -> Put
-putPackedNat n = if n < 255 then putWord8 (fromIntegral n) else putWord8 255 >> put n
-getPackedNat :: Get Int
-getPackedNat = do
-    n' <- get :: Get Word8
-    if n' == 255 then get else return $ fromIntegral n'
+newtype SmallInt = SmallInt {fromSmallInt :: Int}
+newtype SmallNat = SmallNat {fromSmallNat :: Int}
+instance Binary SmallNat where
+    put (SmallNat n) = if n < 255 then putWord8 (fromIntegral n) else putWord8 255 >> put n
+    get = do
+	n' <- get :: Get Word8
+	if n' == 255 then liftM SmallNat get else return $ SmallNat $ fromIntegral n'
 
-putPackedInt :: Int -> Put
-putPackedInt n = if abs n < 127 then put (fromIntegral n :: Int8) else put (127::Int8) >> put n
-getPackedInt :: Get Int
-getPackedInt = do
-    n' <- get :: Get Int8
-    if n' == 127 then get else return $ fromIntegral n'
+instance Binary SmallInt where
+    put (SmallInt n) = if abs n < 127 then putWord8 (fromIntegral n) else put (127::Int8) >> put n
+    get = do
+	n' <- get :: Get Word8
+	if n' == 127 then liftM SmallInt get else return $ SmallInt $ fromIntegral n'
+
+putPackedNat n = put $ SmallNat n
+getPackedNat = liftM fromSmallNat get
+putPackedInt n = put $ SmallInt n
+getPackedInt = liftM fromSmallInt get
 
 newtype ShortList a = ShortList {fromShortList :: [a]}
 instance Binary a => Binary (ShortList a) where
