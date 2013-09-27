@@ -619,10 +619,10 @@ drawButtons mode = do
 
 initVideo :: Int -> Int -> UIM ()
 initVideo w h = do
-    liftIO $ setVideoMode w h 32 [Resizable]
+    liftIO $ setVideoMode w h 0 [Resizable]
     modify $ \ds -> ds { scrWidth = w }
     modify $ \ds -> ds { scrHeight = h }
-    surf <- liftIO $ createRGBSurface [ SWSurface ] w h 32 0xff000000 0xff0000 0xff00 0
+    surf <- liftIO $ createRGBSurface [ HWSurface ] w h 16 0 0 0 0
     modify $ \ds -> ds { gsSurface = Just surf, lastDrawArgs = Nothing }
     (_,size) <- getGeom
     font <- liftIO $ TTF.tryOpenFont "VeraMono.ttf" (size)
