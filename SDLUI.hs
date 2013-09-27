@@ -107,17 +107,18 @@ tileGlyph (BlockTile adjs) col centre size surf =
 tileGlyph (SpringTile extn dir) col centre size surf =
     aaLines surf points $ bright col
 	where
-	    n = case extn of
-		Stretched -> 2
-		Relaxed -> 4
-		Compressed -> 6
+	    n = 3*case extn of
+		Stretched -> 1
+		Relaxed -> 2
+		Compressed -> 3
 	    dir' = if dir == zero then hu else dir
 	    (sx,sy) = corner centre size (hextant dir' - 1)
 	    (offx,offy) = corner centre size (hextant dir')
 	    (ex,ey) = corner centre size (hextant dir' - 3)
 	    points = [ (x+dx,y+dy)
 		| i <- [0..n]
-		, let (x,y) = if even i then (sx,sy) else (offx,offy)
+		, i`mod`3 /= 1
+		, let (x,y) = if i`mod`3==0 then (sx,sy) else (offx,offy)
 		, let (dx,dy) = ((i*(ex-sx))`div`n, (i*(ey-sy))`div`n) ]
 
 tileGlyph (PivotTile dir) col centre size surf = do
