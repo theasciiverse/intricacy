@@ -1,6 +1,7 @@
 module Main where
 
 import Control.Monad
+import System.Exit
 
 import Init
 import UI
@@ -9,7 +10,7 @@ import qualified CursesUI
 
 main = do
     (lock,opts,fname) <- Init.init
-    sdlOk <- if ForceCurses `elem` opts
-	then return False
+    ok <- if ForceCurses `elem` opts
+	then runUI $ ((test lock fname)::CursesUI.UIM Bool)
 	else runUI $ ((test lock fname)::SDLUI.UIM Bool)
-    when (not sdlOk) $ void $ runUI $ ((test lock fname)::CursesUI.UIM Bool)
+    if ok then exitSuccess else exitFailure

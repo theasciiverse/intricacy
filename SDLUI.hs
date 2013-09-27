@@ -12,6 +12,7 @@ import Data.Map (Map)
 import Data.Maybe
 import Control.Concurrent (threadDelay)
 import Control.Monad.State
+import Control.Monad.Trans.Maybe
 import System.IO.Error
 import Data.Word
 import Data.List (maximumBy, findIndex, elemIndex)
@@ -665,12 +666,15 @@ instance UIMonad (StateT UIState IO) where
 	where
 	    drawAlert _ = return ()
 
-    initUI = let {w=800; h=640} in do
-	ok <- liftIO $ catchIOError (SDL.init [InitVideo] >> return True) (\_ -> return False)
-	if not ok
-	then return False
-	else do
-	    liftIO TTF.init
+    initUI = liftM isJust (runMaybeT $ do
+	catchIOErrorMT $ SDL.init [InitVideo]
+	catchIOErrorMT $ TTF.init
+	lift $ do
+	    modes <- liftIO $ listModes Nothing [Resizable]
+	    let Rect _ _ w h = case modes of
+		    Modes (mode:_) -> mode
+		    AnyOK -> Rect 0 0 1024 768
+		    NonAvailable -> error "SDL says no resolution available"
 	    initVideo w h
 	    liftIO $ warpMouse (fromIntegral $ w`div`2) (fromIntegral $ h`div`2)
 	    erase
@@ -678,7 +682,9 @@ instance UIMonad (StateT UIState IO) where
 	    liftIO $ enableKeyRepeat 500 30
 	    readUIConfigFile
 	    readBindings
-	    return True
+	)
+	where
+	    catchIOErrorMT m = MaybeT $ liftIO $ catchIOError (m >> return (Just ())) (\_ -> return Nothing)
 
     endUI = do
 	writeUIConfigFile
