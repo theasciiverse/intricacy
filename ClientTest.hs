@@ -17,7 +17,8 @@ main = withStream (IP "localhost" port) handler
 
 handler :: Handle -> IO ()
 handler handle = do
-    let testReq = ClientRequest protocolVersion (Just $ Auth "ZGZ" "secret") Authenticate
+    --let testReq = ClientRequest protocolVersion (Just $ Auth "ZGZ" "secret") Authenticate
+    let testReq = ClientRequest protocolVersion (Just $ Auth "../" "secret") Authenticate
     --com <- BC.binaryCom handle
     --BC.send testReq
     --BC.receive com >>= print

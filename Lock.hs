@@ -19,10 +19,17 @@ nullpp = PlacedPiece (PHS zero) (Block [])
 reframe :: Lock -> Lock
 reframe l@(f, st) = addTools $ delTools $ liftLock (setpp 0 (framePiece f)) l
 
+
+type Solution = [PlayerMove]
+
+checkSolution :: Lock -> Solution -> Bool
+checkSolution (frame,st) pms = or $ map (\st' -> checkSolved (frame,st')) $ scanl (((fst.runWriter).).flip physicsTick) st pms
+
 checkSolved :: Lock -> Bool
 checkSolved (f,st) =
     let b = stateBoard st in
 	and [ Map.lookup p b == Nothing | p <- boltArea f ]
+
 
 canonify :: Lock -> Lock
 canonify = addTools . stabilise . delTools . delOOB
