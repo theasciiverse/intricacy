@@ -12,7 +12,7 @@ import Data.List
 import Data.Vector (Vector, (!), (!?), (//))
 
 import Hex
-import Debug
+--import Debug
 
 type HexPos = PHS HexVec
 origin :: HexPos
