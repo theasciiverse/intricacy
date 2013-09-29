@@ -23,7 +23,10 @@ reframe l@(f, st) = addTools $ delTools $ liftLock (setpp 0 (framePiece f)) l
 type Solution = [PlayerMove]
 
 checkSolution :: Lock -> Solution -> Bool
-checkSolution (frame,st) pms = or $ map (\st' -> checkSolved (frame,st')) $ scanl (((fst.runWriter).).flip physicsTick) st pms
+checkSolution lock pms =
+    let (frame,st) = reframe lock
+    in or $ map (\st' -> checkSolved (frame,st')) $
+		scanl (((fst.runWriter).).flip physicsTick) st pms
 
 checkSolved :: Lock -> Bool
 checkSolved (f,st) =

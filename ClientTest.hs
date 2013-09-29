@@ -1,30 +1,45 @@
 module Main where
 
-import Data.BinaryCom as BC
-import Network.Fancy
-
+import System.Environment
 import Control.Monad
+import Data.Maybe
 import System.IO
 import qualified Data.ByteString.Lazy as L
 import Data.Binary
+import Data.List (intersperse)
+import Data.Char
+
+--import Data.BinaryCom as BC
+import Network.Fancy
+import Text.Show.Pretty (ppShow)
 
 import Protocol
 import Metagame
 import BinaryInstances
+import Mundanities
+import Lock
+import Physics
 
 port = 27001 -- 27001 == ('i'<<8) + 'y'
 main = withStream (IP "localhost" port) handler
 
+readAL :: String -> ActiveLock
+readAL s = ActiveLock (take 3 s) ((ord $ head $ drop 4 s) - ord 'A')
+    
 handler :: Handle -> IO ()
 handler handle = do
-    --let testReq = ClientRequest protocolVersion (Just $ Auth "ZGZ" "secret") Authenticate
-    let testReq = ClientRequest protocolVersion (Just $ Auth "../" "secret") Authenticate
-    --com <- BC.binaryCom handle
-    --BC.send testReq
-    --BC.receive com >>= print
-
-    L.hPut handle $ encode testReq 
+    (name:passwd:cmd:args) <- getArgs
+    action <- case cmd of
+	"auth" -> return Authenticate
+	"reg" -> return Register
+	"sinfo" -> return GetServerInfo
+	"getlock" -> return $ GetLock (read $ head args)
+	"getuinfo" -> return $ GetUserInfo (head args)
+	"setlock" -> liftM3 SetLock (fromJust `liftM` readReadFile (args!!0)) (return $ read (args!!1)) (fromJust `liftM` readReadFile (args!!2))
+	"declare" -> liftM4 DeclareSolution (fromJust `liftM` readReadFile (args!!0)) (return $ read (args!!1)) (return $ readAL (args!!2)) (return $ read (args!!3))
+    let request = ClientRequest protocolVersion (Just (Auth name passwd)) action
+    L.hPut handle $ encode request 
     hFlush handle
     response <- decode `liftM` L.hGetContents handle
-    print (response :: ServerResponse)
+    putStrLn $ ppShow (response :: ServerResponse)
 

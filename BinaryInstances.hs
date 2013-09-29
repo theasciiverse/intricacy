@@ -19,9 +19,9 @@ instance Binary SmallNat where
 	if n' == 255 then liftM SmallNat get else return $ SmallNat $ fromIntegral n'
 
 instance Binary SmallInt where
-    put (SmallInt n) = if abs n < 127 then putWord8 (fromIntegral n) else put (127::Int8) >> put n
+    put (SmallInt n) = if abs n < 127 then put ((fromIntegral n)::Int8) else put (127::Int8) >> put n
     get = do
-	n' <- get :: Get Word8
+	n' <- get :: Get Int8
 	if n' == 127 then liftM SmallInt get else return $ SmallInt $ fromIntegral n'
 
 putPackedNat n = put $ SmallNat n

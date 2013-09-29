@@ -15,5 +15,5 @@ main = do
     Just lock <- readReadFile lockfn
     Just solution <- readReadFile solutionfn
 
-    if checkSolution (reframe lock) solution then exitSuccess else exitFailure
+    if checkSolution lock solution then exitSuccess else exitFailure
 

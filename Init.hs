@@ -7,6 +7,7 @@ import Control.Exception
 import System.IO.Error
 import System.Environment
 import System.Console.GetOpt
+import Data.Binary
 
 import Mundanities
 import Frame
@@ -27,7 +28,8 @@ parseArgs argv =
     where header = "Usage: lock [OPTION...] [file]"
 
 readLockFile :: String -> IO (Maybe Lock)
-readLockFile = readReadFile
+readLockFile fname = readReadFile fname
+    -- Just `liftM` decodeFile fname
 
 init :: IO (Lock,[Opt],Maybe String)
 init = do

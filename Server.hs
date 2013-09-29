@@ -16,12 +16,15 @@ import Data.Char
 import Data.Word
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Char8 as CL
+import qualified Data.ByteString.Char8 as CS
 import qualified Data.Binary as B
 import Data.Array
 import Control.Exception
 import System.IO.Error
-import OpenSSL.Digest (MessageDigest(SHA1))
+import OpenSSL.Digest (MessageDigest(SHA1), toHex)
 import OpenSSL.Digest.ByteString.Lazy (digest)
+import qualified Data.Text.IO as TIO
+import qualified Data.Text as T
 
 import Protocol
 import Metagame
@@ -41,12 +44,6 @@ setDefaultServerInfo = do
 
 hash :: String -> IO String
 hash str = fmap (>>=toHex) $ digest SHA1 $ CL.pack $ str
-
-toHex :: Word8 -> String
-toHex n = let (n1,n2) = divMod (fromIntegral n) 16
-	in map toHex' [n1,n2]
-    where toHex' n | n < 10 = chr $ ord '0' + n 
-	    | n < 16 = chr $ ord 'a' + n - 10
 
 logit = putStrLn
 
@@ -94,12 +91,15 @@ handleRequest req@(ClientRequest pv auth action) = do
 		DeclareSolution soln ls target idx -> do
 		    info <- getUserInfoOfAuth auth
 		    lock <- getLock ls
-		    when (not $ checkSolution lock soln) $ throwError "Bad solution"
 		    tinfo <- getALock target
 		    when (ls /= lockSpec tinfo) $ throwError "Lock no longer in use!"
+		    when (public tinfo) $ throwError "Lock solution already public knowledge!"
 		    let name = codename info
-		    let note = NoteInfo name target
 		    let behind = ActiveLock name idx
+		    let note = NoteInfo name (Just behind) target
+		    when (name `elem` map (noteAuthor) (lockSolutions tinfo)) $
+			throwError "Note already taken on that lock!"
+		    when (not $ checkSolution lock soln) $ throwError "Bad solution"
 		    erroredIO $ putRecord (RecNote note) (RCSolution soln)
 		    execStateT (stowNote note behind) [] >>= applyDeltasToRecords
 		    return ServerAck
@@ -112,16 +112,18 @@ handleRequest req@(ClientRequest pv auth action) = do
 		    when (not $ checkSolution lock soln) $ throwError "Bad solution"
 		    ls <- erroredIO $ newLockRecord lock
 		    execStateT (do
-			when (isJust $ userLocks info ! idx) $ retireLock al
-			prependDelta name $ PutLock ls idx) [] >>= applyDeltasToRecords
+			    prependDelta name $ PutLock ls idx
+			    when (isJust $ userLocks info ! idx) $
+				lift (getALock al) >>= publiciseLock al
+			) [] >>= applyDeltasToRecords
 		    return ServerAck
 		_ -> throwError "BUG: bad request"
 	erroredIO :: IO a -> ErrorT String IO a
 	erroredIO c = do
-	    ret <- liftIO $ catchIOError (liftM Just c) (\_ -> return Nothing)
+	    ret <- liftIO $ catchIOError (liftM Right c) (return.Left)
 	    case ret of
-		Nothing -> throwError "IO error"
-		Just x -> return x
+		Left e -> throwError $ "Server IO error: " ++ show e
+		Right x -> return x
 	getLock ls = erroredIO $ do 
 	    RCLock lock <- getRecord $ RecLock ls
 	    return lock
@@ -165,61 +167,69 @@ handleRequest req@(ClientRequest pv auth action) = do
 	    erroredIO $ putRecord (RecUserInfo name) (RCUserInfo $ initUserInfo name)
 	applyDeltasToRecords :: [(Codename, UserInfoDelta)] -> ErrorT String IO ()
 	applyDeltasToRecords = mapM_ applyDeltaToRecords
+	-- FIXME: really ought to write-lock all the files first?
 	applyDeltaToRecords (name,delta) =
 	    erroredIO $ modifyRecord (RecUserInfo name) $
 		\(RCUserInfo info) -> RCUserInfo $ applyDelta delta info
+	-- TODO: prove that the deltas produced by the below really are what
+	-- we want
 	stowNote note behind@(ActiveLock name idx) = do
 	    prependDelta name $ LockDelta idx $ AddSecured note
 	    prependDelta (lockOwner $ noteOn note) $ LockDelta idx $ AddSolution note
 	    accessed <- lift $ accessedBy `liftM` getALock behind
 	    mapM_ (addReadNote note) (name:accessed)
-	addReadNote note@(NoteInfo _ target) name = do
+	addReadNote note@(NoteInfo _ _ target) name = do
 	    info <- lift $ getUserInfo name
 	    tlock <- lift $ getALock target
 	    when (not $ name `elem` accessedBy tlock || note `elem` notesRead info) $ do
 		prependDelta name $ AddRead note
-		checkSuffReadNotes name info target tlock
+		checkSuffReadNotes name info target
 	accessLock name target@(ActiveLock tname ti) tlock = do
 	    prependDelta tname $ LockDelta ti $ AddAccessed name
 	    mapM_ (flip addReadNote name) $ notesSecured tlock
 	publiciseLock al@(ActiveLock name idx) lock = do
 	    prependDelta name $ LockDelta idx SetPublic
+	    mapM_ scrapNote $ lockSolutions lock
 	    mapM_ publiciseNote $ notesSecured lock
-	retireLock al@(ActiveLock name idx) = do
+	scrapNote note@(NoteInfo _ (Just al@(ActiveLock name idx)) _) = do
+	    prependDelta name $ LockDelta idx (DelSecured note)
+	    unreadNote note
+	scrapNote _ = return ()
+	unreadNote note@(NoteInfo name (Just al) _) = do
 	    lock <- lift $ getALock al
-	    mapM_ publiciseNote $ notesSecured lock
-	publiciseNote note@(NoteInfo _ al@(ActiveLock name idx)) = do
-	    prependDelta name $ LockDelta idx $ AddPubNote note
-	    lock <- lift $ getALock al
-	    publified <- checkSuffPubNotes al lock
+	    mapM_ (\name' -> prependDelta name' (DelRead note)) $ name:(accessedBy lock)
+	publiciseNote note@(NoteInfo _ _ al@(ActiveLock name idx)) = do
+	    unreadNote note
+	    prependDelta name $ LockDelta idx $ SetPubNote note
+	    publified <- checkSuffPubNotes al
 	    when (not publified) $ do
+	    lock <- lift $ getALock al
 	    accessorsOfNotesOnLock <- ((++ map noteAuthor (lockSolutions lock)).concat)
 		`liftM` (sequence 
-		    [ accessedBy `liftM` lift (getALock (noteOn n)) | n <- lockSolutions lock ] )
+		    [ accessedBy `liftM` lift (getALock behind) | NoteInfo _ (Just behind) _ <- lockSolutions lock ] )
 	    flip mapM_ accessorsOfNotesOnLock (\name' -> do
 		info' <- lift $ getUserInfo name'
-		checkSuffReadNotes name' info' al lock)
-	checkSuffReadNotes name info target tlock = do
-	    added <- gets $ filter (\delta -> case delta of 
-		    (name', AddRead (NoteInfo _ target')) -> name==name' && target==target'
-		    (_, LockDelta _ (AddPubNote (NoteInfo _ target'))) -> target==target'
-		    _ -> False)
-	    let countRead =
-		    (length $ filter (\n -> noteOn n == target) $ notesRead info) +
-		    (length $ publicNotes tlock) +
-		    (length added)
-	    when (fromIntegral countRead == notesNeeded) $
-		accessLock name target tlock
-	checkSuffPubNotes al lock = do
-	    added <- gets $ filter (\delta -> case delta of 
-		    (_, LockDelta _ (AddPubNote (NoteInfo _ al'))) -> al==al'
-		    _ -> False)
-	    let countRead = (length $ publicNotes lock) + (length added)
-	    if (fromIntegral countRead == notesNeeded)
-		then publiciseLock al lock >> return True
+		checkSuffReadNotes name' info' al)
+	checkSuffReadNotes name info target = do
+	    info' <- applyDeltasSoFar info
+	    tinfo <- lift $ getUserInfo (lockOwner target)
+	    tinfo' <- applyDeltasSoFar tinfo
+	    let Just tlock' = userLocks tinfo' ! lockIndex target
+	    let countRead = fromIntegral $ length $
+		    filter (\n -> isNothing (noteBehind n) || n `elem` notesRead info') $ lockSolutions tlock'
+	    when (not (public tlock') && countRead >= notesNeeded) $
+		accessLock name target tlock'
+	checkSuffPubNotes al@(ActiveLock name idx) = do
+	    info <- lift $ getUserInfo name
+	    info' <- applyDeltasSoFar info
+	    let Just lock' = userLocks info' ! idx
+	    let countPub = fromIntegral $ length $
+		    filter (isNothing.noteBehind) $ lockSolutions lock'
+	    if (countPub >= notesNeeded)
+		then publiciseLock al lock' >> return True
 		else return False
-	    
 	prependDelta name delta = modify ((name,delta):)
+	applyDeltasSoFar info = get >>= return . foldr applyDelta info . map snd . filter (\(n,_) -> n == codename info)
 
 	    
 	
@@ -246,36 +256,58 @@ recordExists :: Record -> IO Bool
 recordExists = doesFileExist . recordPath
 
 getRecord :: Record -> IO RecordContents
-getRecord rec = getRecord' rec
-    where
-	path = recordPath rec
-	getRecord' (RecPassword _) = liftM RCPassword $ read `liftM` readFile path
-	getRecord' (RecUserInfo _) = liftM RCUserInfo $ read `liftM` readFile path
-	getRecord' (RecLock _) = liftM RCLock $ read `liftM` readFile path
-	getRecord' (RecNote _) = liftM RCSolution $ read `liftM` readFile path
-	getRecord' (RecServerInfo) = liftM RCServerInfo $ read `liftM` readFile path
+getRecord rec = do
+    h <- openFile (recordPath rec) ReadMode
+    rc <- getRecordh rec h
+    hClose h
+    return rc
+getRecordh (RecPassword _) h = liftM RCPassword $ read `liftM` hGetStrict h
+getRecordh (RecUserInfo _) h = liftM RCUserInfo $ read `liftM` hGetStrict h
+getRecordh (RecLock _) h = liftM RCLock $ read `liftM` hGetStrict h
+getRecordh (RecNote _) h = liftM RCSolution $ read `liftM` hGetStrict h
+getRecordh (RecServerInfo) h = liftM RCServerInfo $ read `liftM` hGetStrict h
+
+hGetStrict h = CS.unpack `liftM` concatMWhileNonempty (repeat $ CS.hGet h 1000)
+    where concatMWhileNonempty (m:ms) = do
+	    bs <- m
+	    if CS.null bs
+		then return bs
+		else (bs `CS.append`) `liftM` concatMWhileNonempty ms
 
 putRecord :: Record -> RecordContents -> IO ()
-putRecord rec rc = putRecord' rc
-    where
-	path = recordPath rec
-	putFile str = mkdirhier path >> writeFile path str
-	putRecord' (RCPassword hpw) = putFile $ show hpw
-	putRecord' (RCUserInfo info) = putFile $ show info
-	putRecord' (RCLock lock) = putFile $ show lock
-	putRecord' (RCSolution solution) = putFile $ show solution
-	putRecord' (RCServerInfo sinfo) = putFile $ show sinfo
+putRecord rec rc = do
+    let path = recordPath rec
+    mkdirhier path 
+    h <- openFile path WriteMode 
+    putRecordh rc h
+    hClose h
+putRecordh (RCPassword hpw) h = hPutStr h $ show hpw
+putRecordh (RCUserInfo info) h = hPutStr h $ show info
+putRecordh (RCLock lock) h = hPutStr h $ show lock
+putRecordh (RCSolution solution) h = hPutStr h $ show solution
+putRecordh (RCServerInfo sinfo) h = hPutStr h $ show sinfo
 
--- | relying on laziness to actually open the file for writing (hence locking
--- it) before reading
 modifyRecord :: Record -> (RecordContents -> RecordContents) -> IO ()
-modifyRecord rec f = f `liftM` getRecord rec >>= putRecord rec
+modifyRecord rec f = do
+    h <- openFile (recordPath rec) ReadWriteMode 
+    rc <- getRecordh rec h
+    hSeek h AbsoluteSeek 0
+    putRecordh (f rc) h
+    hTell h >>= hSetFileSize h 
+    hClose h
+
+delRecord :: Record -> IO ()
+delRecord rec = removeFile $ recordPath rec
 
 newLockRecord :: Lock -> IO LockSpec
 newLockRecord lock = do
     let path = dbpath++"lastlock"
-    ls <- catchIOError (((1+).read) `liftM` readFile path) (\_ -> return 0)
-    writeFile path $ show ls
+    h <- openFile path ReadWriteMode
+    contents <- hGetStrict h
+    let ls = if null contents then 0 else 1 + read contents
+    hSeek h AbsoluteSeek 0
+    hPutStr h $ show ls
+    hClose h
     putRecord (RecLock ls) (RCLock lock)
     return ls
 
@@ -289,7 +321,7 @@ recordPath = (dbpath++) . recordPath'
 	recordPath' (RecPassword name) = userDir name ++ "passwd"
 	recordPath' (RecUserInfo name) = userDir name ++ "info"
 	recordPath' (RecLock ls) = locksDir ++ show ls
-	recordPath' (RecNote (NoteInfo name alock)) = userDir name ++ "notes/" ++ alockFN alock
+	recordPath' (RecNote (NoteInfo name _  alock)) = userDir name ++ "notes/" ++ alockFN alock
 	recordPath' (RecServerInfo) = "serverInfo"
 
 	userDir name = "users/" ++ pathifyName name ++ "/"
