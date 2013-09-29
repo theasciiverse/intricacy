@@ -39,7 +39,7 @@ data ServerResponse
     | ServedHint Hint
     deriving (Eq, Ord, Show, Read)
 
-newtype ServerInfo {serverInfoString::String, serverLockSize :: Int}
+data ServerInfo = ServerInfo {serverLockSize :: Int, serverInfoString::String}
     deriving (Eq, Ord, Show, Read)
 defaultServerInfo = ServerInfo 8 ""
 
@@ -77,7 +77,7 @@ instance Binary Auth where
 instance Binary ServerResponse where
     put ServerAck = put (0::Word8)
     put (ServerError error) = put (1::Word8) >> put error
-    put (ServedServerInfo str size) = put (2::Word8) >> put str >> put size
+    put (ServedServerInfo sinfo) = put (2::Word8) >> put sinfo
     put (ServedLock lock) = put (3::Word8) >> put lock
     put (ServedUserInfo info) = put (4::Word8) >> put info
     put (ServedSolution soln) = put (5::Word8) >> put soln
@@ -87,8 +87,11 @@ instance Binary ServerResponse where
 	case tag of
 	    0 -> return ServerAck
 	    1 -> liftM ServerError get
-	    2 -> liftM2 ServedServerInfo get get
+	    2 -> liftM ServedServerInfo get
 	    3 -> liftM ServedLock get
 	    4 -> liftM ServedUserInfo get
 	    5 -> liftM ServedSolution get
 	    6 -> liftM ServedHint get
+instance Binary ServerInfo where
+    put (ServerInfo sz str) = put sz >> put str
+    get = liftM2 ServerInfo get get
