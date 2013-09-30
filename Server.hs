@@ -1,11 +1,14 @@
 module Main where
 
+-- TODO: use ByteString everywhere
+
 --import Data.BinaryCom as BC
 import Network.Fancy
 
 import System.IO
 import System.FilePath
 import System.Directory
+import Control.Concurrent (threadDelay)
 import Control.Monad
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Error
@@ -23,8 +26,6 @@ import Control.Exception
 import System.IO.Error
 import OpenSSL.Digest (MessageDigest(SHA1), toHex)
 import OpenSSL.Digest.ByteString.Lazy (digest)
-import qualified Data.Text.IO as TIO
-import qualified Data.Text as T
 
 import Protocol
 import Metagame
@@ -35,7 +36,8 @@ import GameState
 port = 27001 -- 27001 == ('i'<<8) + 'y'
 main = do 
     setDefaultServerInfo
-    streamServer serverSpec{address = IPv4 "" port} handler
+    writeFile lockFilePath ""
+    streamServer serverSpec{address = IPv4 "" port, threading=Inline} handler
     sleepForever
 
 setDefaultServerInfo = do
@@ -73,9 +75,26 @@ handler handle addr = do
 
     --BC.send com response
 
+-- | We lock the whole database during each request, using haskell's native
+-- file locking, meaning that we have at any time one writer *xor* any number
+-- of readers.
+withDBLock lockMode m = do
+    h <- getDBLock lockMode
+    ret <- m
+    hClose h
+    return ret
+    where getDBLock lockMode =
+	    catchIOError (openFile lockFilePath lockMode) (\_ -> threadDelay 50 >> getDBLock lockMode)
+
 handleRequest :: ClientRequest -> IO ServerResponse
 handleRequest req@(ClientRequest pv auth action) = do
-    eresp <- runErrorT handleRequest'
+    let lockMode = case action of
+	    Authenticate -> ReadMode
+	    GetServerInfo -> ReadMode
+	    GetLock _ -> ReadMode
+	    GetUserInfo _ -> ReadMode
+	    _ -> ReadWriteMode
+    eresp <- withDBLock lockMode $ runErrorT handleRequest'
     case eresp of
 	Left error -> return $ ServerError error
 	Right resp -> return resp
@@ -99,6 +118,8 @@ handleRequest req@(ClientRequest pv auth action) = do
 		    let note = NoteInfo name (Just behind) target
 		    when (name `elem` map (noteAuthor) (lockSolutions tinfo)) $
 			throwError "Note already taken on that lock!"
+		    behindLock <- getALock behind
+		    when (public behindLock) $ throwError "Your lock is cracked!"
 		    when (not $ checkSolution lock soln) $ throwError "Bad solution"
 		    erroredIO $ putRecord (RecNote note) (RCSolution soln)
 		    execStateT (stowNote note behind) [] >>= applyDeltasToRecords
@@ -112,9 +133,9 @@ handleRequest req@(ClientRequest pv auth action) = do
 		    when (not $ checkSolution lock soln) $ throwError "Bad solution"
 		    ls <- erroredIO $ newLockRecord lock
 		    execStateT (do
-			    prependDelta name $ PutLock ls idx
 			    when (isJust $ userLocks info ! idx) $
-				lift (getALock al) >>= publiciseLock al
+				lift (getALock al) >>= retireLock
+			    addDelta name $ PutLock ls idx
 			) [] >>= applyDeltasToRecords
 		    return ServerAck
 		_ -> throwError "BUG: bad request"
@@ -166,70 +187,71 @@ handleRequest req@(ClientRequest pv auth action) = do
 	    erroredIO $ putRecord rec (RCPassword hpw)
 	    erroredIO $ putRecord (RecUserInfo name) (RCUserInfo $ initUserInfo name)
 	applyDeltasToRecords :: [(Codename, UserInfoDelta)] -> ErrorT String IO ()
-	applyDeltasToRecords = mapM_ applyDeltaToRecords
-	-- FIXME: really ought to write-lock all the files first?
+	applyDeltasToRecords = (mapM_ applyDeltaToRecords) . reverse
 	applyDeltaToRecords (name,delta) =
 	    erroredIO $ modifyRecord (RecUserInfo name) $
 		\(RCUserInfo info) -> RCUserInfo $ applyDelta delta info
-	-- TODO: prove that the deltas produced by the below really are what
-	-- we want
 	stowNote note behind@(ActiveLock name idx) = do
-	    prependDelta name $ LockDelta idx $ AddSecured note
-	    prependDelta (lockOwner $ noteOn note) $ LockDelta idx $ AddSolution note
-	    accessed <- lift $ accessedBy `liftM` getALock behind
+	    addDelta name $ LockDelta idx $ AddSecured note
+	    addDelta (lockOwner $ noteOn note) $ LockDelta idx $ AddSolution note
+	    accessed <- accessedBy `liftM` getCurrALock behind
 	    mapM_ (addReadNote note) (name:accessed)
 	addReadNote note@(NoteInfo _ _ target) name = do
-	    info <- lift $ getUserInfo name
-	    tlock <- lift $ getALock target
+	    info <- getCurrUserInfo name
+	    tlock <- getCurrALock target
 	    when (not $ name `elem` accessedBy tlock || note `elem` notesRead info) $ do
-		prependDelta name $ AddRead note
+		addDelta name $ AddRead note
 		checkSuffReadNotes name info target
 	accessLock name target@(ActiveLock tname ti) tlock = do
-	    prependDelta tname $ LockDelta ti $ AddAccessed name
+	    addDelta tname $ LockDelta ti $ AddAccessed name
 	    mapM_ (flip addReadNote name) $ notesSecured tlock
 	publiciseLock al@(ActiveLock name idx) lock = do
-	    prependDelta name $ LockDelta idx SetPublic
+	    addDelta name $ LockDelta idx SetPublic
+	    retireLock lock
+	retireLock lock = do
 	    mapM_ scrapNote $ lockSolutions lock
 	    mapM_ publiciseNote $ notesSecured lock
 	scrapNote note@(NoteInfo _ (Just al@(ActiveLock name idx)) _) = do
-	    prependDelta name $ LockDelta idx (DelSecured note)
+	    addDelta name $ LockDelta idx (DelSecured note)
 	    unreadNote note
 	scrapNote _ = return ()
 	unreadNote note@(NoteInfo name (Just al) _) = do
-	    lock <- lift $ getALock al
-	    mapM_ (\name' -> prependDelta name' (DelRead note)) $ name:(accessedBy lock)
+	    lock <- getCurrALock al
+	    mapM_ (\name' -> addDelta name' (DelRead note)) $ name:(accessedBy lock)
 	publiciseNote note@(NoteInfo _ _ al@(ActiveLock name idx)) = do
 	    unreadNote note
-	    prependDelta name $ LockDelta idx $ SetPubNote note
+	    addDelta name $ LockDelta idx $ SetPubNote note
 	    publified <- checkSuffPubNotes al
 	    when (not publified) $ do
-	    lock <- lift $ getALock al
+	    lock <- getCurrALock al
 	    accessorsOfNotesOnLock <- ((++ map noteAuthor (lockSolutions lock)).concat)
 		`liftM` (sequence 
-		    [ accessedBy `liftM` lift (getALock behind) | NoteInfo _ (Just behind) _ <- lockSolutions lock ] )
+		    [ accessedBy `liftM` getCurrALock behind | NoteInfo _ (Just behind) _ <- lockSolutions lock ] )
 	    flip mapM_ accessorsOfNotesOnLock (\name' -> do
-		info' <- lift $ getUserInfo name'
+		info' <- getCurrUserInfo name'
 		checkSuffReadNotes name' info' al)
 	checkSuffReadNotes name info target = do
-	    info' <- applyDeltasSoFar info
-	    tinfo <- lift $ getUserInfo (lockOwner target)
-	    tinfo' <- applyDeltasSoFar tinfo
-	    let Just tlock' = userLocks tinfo' ! lockIndex target
+	    tinfo <- getCurrUserInfo (lockOwner target)
+	    let Just tlock = userLocks tinfo ! lockIndex target
 	    let countRead = fromIntegral $ length $
-		    filter (\n -> isNothing (noteBehind n) || n `elem` notesRead info') $ lockSolutions tlock'
-	    when (not (public tlock') && countRead >= notesNeeded) $
-		accessLock name target tlock'
+		    filter (\n -> isNothing (noteBehind n) || n `elem` notesRead info) $ lockSolutions tlock
+	    when (not (public tlock) && countRead == notesNeeded) $
+		accessLock name target tlock
 	checkSuffPubNotes al@(ActiveLock name idx) = do
-	    info <- lift $ getUserInfo name
-	    info' <- applyDeltasSoFar info
-	    let Just lock' = userLocks info' ! idx
+	    info <- getCurrUserInfo name
+	    let Just lock = userLocks info ! idx
 	    let countPub = fromIntegral $ length $
-		    filter (isNothing.noteBehind) $ lockSolutions lock'
-	    if (countPub >= notesNeeded)
-		then publiciseLock al lock' >> return True
+		    filter (isNothing.noteBehind) $ lockSolutions lock
+	    if (countPub == notesNeeded)
+		then publiciseLock al lock >> return True
 		else return False
-	prependDelta name delta = modify ((name,delta):)
-	applyDeltasSoFar info = get >>= return . foldr applyDelta info . map snd . filter (\(n,_) -> n == codename info)
+	-- | XXX we apply deltas right-to-left, so in the order of adding
+	addDelta name delta = modify ((name,delta):)
+	getCurrUserInfo name = do
+	    info <- lift $ getUserInfo name
+	    get >>= return . foldr applyDelta info . map snd . filter (\(n,_) -> n == name)
+	getCurrALock al@(ActiveLock name idx) = do
+	    getCurrUserInfo name >>= return.fromJust.(!idx).userLocks
 
 	    
 	
@@ -329,3 +351,4 @@ recordPath = (dbpath++) . recordPath'
 	alockFN (ActiveLock name idx) = pathifyName name++":"++(show idx)
 	locksDir = "locks/"
 dbpath = "intricacydb/"
+lockFilePath = dbpath ++ "lockfile"

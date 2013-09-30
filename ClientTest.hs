@@ -35,6 +35,8 @@ handler handle = do
 	"sinfo" -> return GetServerInfo
 	"getlock" -> return $ GetLock (read $ head args)
 	"getuinfo" -> return $ GetUserInfo (head args)
+	"getsolution" -> return $ GetSolution (read $ head args)
+	"gethint" -> return $ GetHint (read $ head args)
 	"setlock" -> liftM3 SetLock (fromJust `liftM` readReadFile (args!!0)) (return $ read (args!!1)) (fromJust `liftM` readReadFile (args!!2))
 	"declare" -> liftM4 DeclareSolution (fromJust `liftM` readReadFile (args!!0)) (return $ read (args!!1)) (return $ readAL (args!!2)) (return $ read (args!!3))
     let request = ClientRequest protocolVersion (Just (Auth name passwd)) action
