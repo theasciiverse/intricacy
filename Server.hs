@@ -1,13 +1,7 @@
 module Main where
 
--- TODO: use ByteString everywhere
-
---import Data.BinaryCom as BC
 import Network.Fancy
 
-import System.IO
-import System.FilePath
-import System.Directory
 import Control.Concurrent (threadDelay)
 import Control.Monad
 import Control.Monad.Trans.State
@@ -15,23 +9,19 @@ import Control.Monad.Trans.Error
 import Control.Monad.Trans
 import Control.Monad.IO.Class
 import Data.Maybe
-import Data.Char
 import Data.Word
+import System.IO
 import qualified Data.ByteString.Lazy as L
-import qualified Data.ByteString.Lazy.Char8 as CL
-import qualified Data.ByteString.Char8 as CS
 import qualified Data.Binary as B
 import Data.Array
 import Control.Exception
 import System.IO.Error
-import OpenSSL.Digest (MessageDigest(SHA1), toHex)
-import OpenSSL.Digest.ByteString.Lazy (digest)
 
 import Protocol
 import Metagame
 import Lock
 import Frame
-import GameState
+import Database
 
 port = 27001 -- 27001 == ('i'<<8) + 'y'
 main = do 
@@ -44,18 +34,10 @@ setDefaultServerInfo = do
     alreadySet <- recordExists RecServerInfo
     when (not alreadySet) $ putRecord RecServerInfo (RCServerInfo defaultServerInfo)
 
-hash :: String -> IO String
-hash str = fmap (>>=toHex) $ digest SHA1 $ CL.pack $ str
-
 logit = putStrLn
 
 handler :: Handle -> Address -> IO ()
 handler handle addr = do
-    --com <- BC.binaryCom handle
-    --request <- BC.receive com
-
-    --request <- read `liftM` hGetContents handle
-
     request <- B.decode `liftM` L.hGetContents handle
 
     let hostname = case addr of
@@ -70,10 +52,6 @@ handler handle addr = do
     logit $ hashedHostname ++ " <<< " ++ show response
 
     L.hPut handle $ B.encode response
-
-    --hPutStr handle $ show response
-
-    --BC.send com response
 
 -- | We lock the whole database during each request, using haskell's native
 -- file locking, meaning that we have at any time one writer *xor* any number
@@ -252,103 +230,3 @@ handleRequest req@(ClientRequest pv auth action) = do
 	    get >>= return . foldr applyDelta info . map snd . filter (\(n,_) -> n == name)
 	getCurrALock al@(ActiveLock name idx) = do
 	    getCurrUserInfo name >>= return.fromJust.(!idx).userLocks
-
-	    
-	
-
-validCodeName name = length name == 3 && and (map (validChar) name)
-    where validChar c = isPrint c && not (isLower c) && c /= ' '
-
-data Record
-    = RecPassword Codename
-    | RecUserInfo Codename
-    | RecLock LockSpec
-    | RecNote NoteInfo
-    | RecServerInfo
-    deriving (Eq, Ord, Show)
-data RecordContents
-    = RCPassword Password
-    | RCUserInfo UserInfo
-    | RCLock Lock
-    | RCSolution Solution
-    | RCServerInfo ServerInfo
-    deriving (Eq, Ord, Show)
-
-recordExists :: Record -> IO Bool
-recordExists = doesFileExist . recordPath
-
-getRecord :: Record -> IO RecordContents
-getRecord rec = do
-    h <- openFile (recordPath rec) ReadMode
-    rc <- getRecordh rec h
-    hClose h
-    return rc
-getRecordh (RecPassword _) h = liftM RCPassword $ read `liftM` hGetStrict h
-getRecordh (RecUserInfo _) h = liftM RCUserInfo $ read `liftM` hGetStrict h
-getRecordh (RecLock _) h = liftM RCLock $ read `liftM` hGetStrict h
-getRecordh (RecNote _) h = liftM RCSolution $ read `liftM` hGetStrict h
-getRecordh (RecServerInfo) h = liftM RCServerInfo $ read `liftM` hGetStrict h
-
-hGetStrict h = CS.unpack `liftM` concatMWhileNonempty (repeat $ CS.hGet h 1000)
-    where concatMWhileNonempty (m:ms) = do
-	    bs <- m
-	    if CS.null bs
-		then return bs
-		else (bs `CS.append`) `liftM` concatMWhileNonempty ms
-
-putRecord :: Record -> RecordContents -> IO ()
-putRecord rec rc = do
-    let path = recordPath rec
-    mkdirhier path 
-    h <- openFile path WriteMode 
-    putRecordh rc h
-    hClose h
-putRecordh (RCPassword hpw) h = hPutStr h $ show hpw
-putRecordh (RCUserInfo info) h = hPutStr h $ show info
-putRecordh (RCLock lock) h = hPutStr h $ show lock
-putRecordh (RCSolution solution) h = hPutStr h $ show solution
-putRecordh (RCServerInfo sinfo) h = hPutStr h $ show sinfo
-
-modifyRecord :: Record -> (RecordContents -> RecordContents) -> IO ()
-modifyRecord rec f = do
-    h <- openFile (recordPath rec) ReadWriteMode 
-    rc <- getRecordh rec h
-    hSeek h AbsoluteSeek 0
-    putRecordh (f rc) h
-    hTell h >>= hSetFileSize h 
-    hClose h
-
-delRecord :: Record -> IO ()
-delRecord rec = removeFile $ recordPath rec
-
-newLockRecord :: Lock -> IO LockSpec
-newLockRecord lock = do
-    let path = dbpath++"lastlock"
-    h <- openFile path ReadWriteMode
-    contents <- hGetStrict h
-    let ls = if null contents then 0 else 1 + read contents
-    hSeek h AbsoluteSeek 0
-    hPutStr h $ show ls
-    hClose h
-    putRecord (RecLock ls) (RCLock lock)
-    return ls
-
-mkdirhier path = let dir = takeDirectory path in do
-    exists <- doesDirectoryExist dir
-    when (not exists) $ mkdirhier dir >> createDirectory dir
-
-recordPath :: Record -> FilePath
-recordPath = (dbpath++) . recordPath'
-    where
-	recordPath' (RecPassword name) = userDir name ++ "passwd"
-	recordPath' (RecUserInfo name) = userDir name ++ "info"
-	recordPath' (RecLock ls) = locksDir ++ show ls
-	recordPath' (RecNote (NoteInfo name _  alock)) = userDir name ++ "notes/" ++ alockFN alock
-	recordPath' (RecServerInfo) = "serverInfo"
-
-	userDir name = "users/" ++ pathifyName name ++ "/"
-	pathifyName = map (\c -> case c of {'/'->'s'; '.'->'d'; '\\'->'b'; _ -> c})
-	alockFN (ActiveLock name idx) = pathifyName name++":"++(show idx)
-	locksDir = "locks/"
-dbpath = "intricacydb/"
-lockFilePath = dbpath ++ "lockfile"
