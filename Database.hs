@@ -9,6 +9,8 @@ import System.Directory
 import Data.Char
 import qualified Data.ByteString.Lazy.Char8 as CL
 import qualified Data.ByteString.Char8 as CS
+
+--FIXME: should be using OpenSSL.EVP.Digest from HsOpenSSL?
 import OpenSSL.Digest (MessageDigest(SHA1), toHex)
 import OpenSSL.Digest.ByteString.Lazy (digest)
 
@@ -16,6 +18,7 @@ import Protocol
 import Metagame
 import Lock
 import Frame
+import Mundanities
 
 hash :: String -> IO String
 hash str = fmap (>>=toHex) $ digest SHA1 $ CL.pack $ str
@@ -38,6 +41,11 @@ data RecordContents
     | RCServerInfo ServerInfo
     deriving (Eq, Ord, Show)
 
+rcOfServerResp (ServedServerInfo x) = RCServerInfo x
+rcOfServerResp (ServedLock x) = RCLock x
+rcOfServerResp (ServedSolution x) = RCSolution x
+rcOfServerResp (ServedUserInfo x) = RCUserInfo x
+	    
 recordExists :: Record -> IO Bool
 recordExists = doesFileExist . recordPath
 
@@ -53,7 +61,7 @@ getRecordh (RecLock _) h = liftM RCLock $ read `liftM` hGetStrict h
 getRecordh (RecNote _) h = liftM RCSolution $ read `liftM` hGetStrict h
 getRecordh (RecServerInfo) h = liftM RCServerInfo $ read `liftM` hGetStrict h
 
-hGetStrict h = CS.unpack `liftM` concatMWhileNonempty (repeat $ CS.hGet h 1000)
+hGetStrict h = CS.unpack `liftM` concatMWhileNonempty (repeat $ CS.hGet h 1024)
     where concatMWhileNonempty (m:ms) = do
 	    bs <- m
 	    if CS.null bs
@@ -97,10 +105,6 @@ newLockRecord lock = do
     putRecord (RecLock ls) (RCLock lock)
     return ls
 
-mkdirhier path = let dir = takeDirectory path in do
-    exists <- doesDirectoryExist dir
-    when (not exists) $ mkdirhier dir >> createDirectory dir
-
 -- | TODO: use System.Directory functions to make this OS-independent
 recordPath :: Record -> FilePath
 recordPath = (dbpath++) . recordPath'
@@ -116,4 +120,3 @@ recordPath = (dbpath++) . recordPath'
 	alockFN (ActiveLock name idx) = pathifyName name++":"++(show idx)
 	locksDir = "locks/"
 dbpath = "intricacydb/"
-lockFilePath = dbpath ++ "lockfile"

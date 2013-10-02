@@ -63,6 +63,7 @@ withDBLock lockMode m = do
     return ret
     where getDBLock lockMode =
 	    catchIOError (openFile lockFilePath lockMode) (\_ -> threadDelay 50 >> getDBLock lockMode)
+lockFilePath = dbpath ++ "lockfile"
 
 handleRequest :: ClientRequest -> IO ServerResponse
 handleRequest req@(ClientRequest pv auth action) = do
@@ -107,7 +108,8 @@ handleRequest req@(ClientRequest pv auth action) = do
 		    let name = codename info
 		    let al = ActiveLock name idx
 		    ServerInfo serverSize _ <- getServerInfo
-		    when (frame /= BasicFrame serverSize) $ throwError "Bad frame"
+		    when (frame /= BasicFrame serverSize) $ throwError $
+			"Server only accepts size "++show serverSize++" locks."
 		    when (not $ checkSolution lock soln) $ throwError "Bad solution"
 		    ls <- erroredIO $ newLockRecord lock
 		    execStateT (do
@@ -164,6 +166,7 @@ handleRequest req@(ClientRequest pv auth action) = do
 	    when exists $ throwError "Codename taken"
 	    erroredIO $ putRecord rec (RCPassword hpw)
 	    erroredIO $ putRecord (RecUserInfo name) (RCUserInfo $ initUserInfo name)
+	--- | TODO: journalling so we can survive death during database writes?
 	applyDeltasToRecords :: [(Codename, UserInfoDelta)] -> ErrorT String IO ()
 	applyDeltasToRecords = (mapM_ applyDeltaToRecords) . reverse
 	applyDeltaToRecords (name,delta) =

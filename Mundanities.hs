@@ -4,6 +4,7 @@ import Control.Monad.IO.Class
 import Control.Exception
 import System.IO.Error
 import System.Directory
+import System.FilePath
 import System.Environment
 import Data.Maybe
 
@@ -23,3 +24,8 @@ confFilePath str = do
 
 makeConfDir :: IO ()
 makeConfDir = confFilePath "" >>= createDirectoryIfMissing False
+
+mkdirhier path = let dir = takeDirectory path in do
+    exists <- doesDirectoryExist dir
+    when (not exists) $ mkdirhier dir >> createDirectory dir
+

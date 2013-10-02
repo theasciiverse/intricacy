@@ -749,3 +749,68 @@ Security:
 PoW:
     Would be easy to require a little proof of work when reserving a
     codename... but I don't think it's a good idea.
+
+
+-----
+Caching - implementation details
+--------------------------------
+
+Use STM. When the UI wants a userinfo, we
+    infoTV <- atomically $ newTVar (Nothing :: Maybe UserInfo)
+    forkIO getUserInfo infoTV
+then record infoTV in the UI state, and then whenever we want to draw it or
+whatever, we get at it like this:
+    atomically $ readTVar infoTV >>= maybe retry return
+meanwhile, the 'getUserInfo' thread first looks in the cache and writes any
+result to infoTV, and then consults the server and updates infoTV (and the
+cache) if appropriate.
+
+Neato.
+
+The cache can use the Database module, first cding to a dir named after the
+server (hostname[:port]).
+
+Implemented
+
+-----
+Metagame UI architecture
+------------------------
+
+IMMeta.
+
+Single view for everything:
+    Server, along with indicator of pending requests, with the option to
+    select cache-only mode.
+
+    Lock library, with currently selected lock name shown, with preview in SDL
+    mode, and buttons/keys to change, to edit, and to set as current lock - to
+    create a new one, first set the name to something not yet in the library.
+
+    Tutorials.
+
+    Currently viewed codename. If not yet authenticated: if server says
+    codename is free, option to register it; else, option to authenticate.
+    After successful auth/reg, send the auth with all future server requests.
+
+    Userinfo, if appropriate.
+
+    Message/Promt line.
+
+In curses mode, this comes down to adding a couple of lines above the above
+mockup, assuming default keybindings:
+
+(S) server: gonzales.homelinux.org:27001  [...]	 (C) cache only     (T) tutorial
+(L) lock: plug2              (e) edit   (s) set   (n/p) next/prev  (R) rename
+                                      ZGZ
+				  (R) register
+
+
+IMConfirm should be removed, becoming a special cross-IM case of prompting. In
+both curses and SDL UIs, this is handled with a prompt line at the bottom.
+
+Lock library: just a directory within the confdir containing lockfiles. Should
+be able to enter any path, relative or absolute, with relative paths
+interpreted as relative to the default lock dir and with mkdirhier applied as
+appropriate. All locks stored with ppshow, so revision control systems etc
+won't be useless. Locks shown in order of modification. Tab completion up to
+longest unique stem.
