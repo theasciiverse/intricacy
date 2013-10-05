@@ -13,6 +13,7 @@ import Data.Maybe
 import Control.Concurrent (threadDelay)
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
+import Control.Monad.Trans.Reader
 import System.IO.Error
 import Data.Word
 import Data.List (maximumBy, findIndex, elemIndex)
@@ -335,11 +336,30 @@ data UIOptions = UIOptions
 defaultUIOptions = UIOptions True True WHSSelected
 modifyUIOptions f = modify $ \s -> s { uiOptions = f $ uiOptions s }
 
-erase :: UIM ()
+data RenderContext = RenderContext
+    { renderSurf :: Surface
+    , renderHCentre :: HexPos
+    , renderSCentre :: SVec
+    , renderSize :: Int
+    , renderFont :: Maybe TTF.Font
+    }
+type RenderM = ReaderT RenderContext IO
+
+renderToMain :: RenderM a -> UIM a
+renderToMain m = do
+    surf <- liftIO getVideoSurface
+    renderToMainWithSurf surf m
+renderToMainWithSurf :: Surface -> RenderM a -> UIM a
+renderToMainWithSurf surf m = do
+    (scrCentre, size) <- getGeom
+    centre <- gets dispCentre
+    mfont <- gets dispFont
+    liftIO $ runReaderT m $ RenderContext surf centre scrCentre size mfont
+
+erase :: RenderM ()
 erase = do
-    surface <- liftIO getVideoSurface
-    liftIO $ fillRect surface Nothing black
-    return ()
+    surf <- asks renderSurf
+    void $ liftIO $ fillRect surf Nothing black
 
 refresh :: UIM ()
 refresh = do 
@@ -357,39 +377,31 @@ waitFrame = do
 	else return ()
     modify $ \ds -> ds { lastFrameTicks = now }
 
-drawAt :: Glyph -> HexPos -> UIM ()
+drawAt :: Glyph -> HexPos -> RenderM ()
 drawAt gl pos = do
-	centre <- gets dispCentre
+	centre <- asks renderHCentre
 	drawAtRel gl (pos <-> centre)
 drawAtRel gl v = do
-	(scrCentre, size) <- getGeom
-	surface <- liftIO getVideoSurface
+	(surf, scrCentre, size) <- asks $ liftM3 (,,) renderSurf renderSCentre renderSize
 	let cpos = scrCentre <+> (hexVec2SVec size v)
-	liftIO $ gl cpos size surface
+	liftIO $ gl cpos size surf
 
-renderStrAt :: String -> HexDir -> UIM ()
-renderStrAt str v = do
-    mfont <- gets dispFont
-    case mfont of
-	Nothing -> return ()
-	Just font -> do
-	    mfsurf <- liftIO $ TTF.tryRenderTextBlended font str (Color 0xff 0xff 0xff)
-	    case mfsurf of
-		Nothing -> return ()
-		Just fsurf -> do
-		    (scrCentre, size) <- getGeom
-		    centre <- gets dispCentre
-		    let SVec x y = scrCentre <+> (hexVec2SVec size v)
-		    let x' = x - (surfaceGetWidth fsurf)`div`2
-		    let y' = y - (surfaceGetHeight fsurf)`div`2
-		    surface <- liftIO getVideoSurface
-		    void $ liftIO $ blitSurface fsurf Nothing surface (Just $ Rect x' y' 0 0)
+renderStrAt :: String -> HexDir -> RenderM ()
+renderStrAt str v = void $ runMaybeT $ do
+    font <- MaybeT $ asks renderFont
+    fsurf <- MaybeT $ liftIO $ TTF.tryRenderTextBlended font str (Color 0xff 0xff 0xff)
+    (surf, scrCentre, size, centre) <- lift $ asks $
+	liftM4 (,,,) renderSurf renderSCentre renderSize renderHCentre
+    let SVec x y = scrCentre <+> (hexVec2SVec size v)
+    let x' = x - (surfaceGetWidth fsurf)`div`2
+    let y' = y - (surfaceGetHeight fsurf)`div`2
+    void $ liftIO $ blitSurface fsurf Nothing surf (Just $ Rect x' y' 0 0)
 
-drawCursorAt :: Maybe HexPos -> UIM ()
+drawCursorAt :: Maybe HexPos -> RenderM ()
 drawCursorAt (Just pos) = drawAt cursor pos
 drawCursorAt _ = return ()
 
-drawBlocked :: GameState -> PieceColouring -> Bool -> Force -> UIM ()
+drawBlocked :: GameState -> PieceColouring -> Bool -> Force -> RenderM ()
 drawBlocked st colouring blocking (Torque idx dir) = do
     let (pos,arms) = case getpp st idx of
 	    PlacedPiece pos (Pivot arms) -> (pos,arms)
@@ -467,7 +479,7 @@ drawUIOptionButtons mode = do
     when (mode == IMPlay) $ drawUIOptionButton uiOB3
 drawUIOptionButton b = do
     value <- gets $ (getUIOpt b).uiOptions
-    drawAtRel (uiOptGlyph b value) $ uiOptPos b
+    renderToMain $ drawAtRel (uiOptGlyph b value) $ uiOptPos b
 -- XXX: hand-hacking lenses...
 toggleUIOption (UIOptButton getopt setopt vals _ _) = do
     value <- gets $ getopt.uiOptions
@@ -529,12 +541,12 @@ drawPaintSel = do
     pti <- getEffPaintTileIndex
     case (paintTiles!!pti) of
 	Nothing -> return ()
-	Just t -> drawAtRel (tileGlyph t (dim $ colourWheel 5)) (periphery 0)
+	Just t -> renderToMain $ drawAtRel (tileGlyph t (dim $ colourWheel 5)) (periphery 0)
 
 drawPaintButtons :: UIM ()
 drawPaintButtons = do
     pti <- getEffPaintTileIndex
-    sequence_ [ 
+    renderToMain $ sequence_ [ 
 	do
 	    let gl = case paintTiles!!i of
 		    Nothing -> hollowGlyph $ dim $ colourWheel 5
@@ -558,13 +570,13 @@ getGeom = do
 data DrawArgs = DrawArgs [PieceIdx] Bool [Alert] GameState UIOptions
     deriving (Eq, Ord, Show)
 
-drawState :: [PieceIdx] -> Bool -> [Alert] -> GameState -> UIM ()
-drawState highlight colourFixed alerts st = do
+drawMainState :: [PieceIdx] -> Bool -> [Alert] -> GameState -> UIM ()
+drawMainState highlight colourFixed alerts st = do
     uiopts <- gets uiOptions
-    drawState' $ DrawArgs highlight colourFixed alerts st uiopts
+    drawMainState' $ DrawArgs highlight colourFixed alerts st uiopts
 
-drawState' :: DrawArgs -> UIM ()
-drawState' args@(DrawArgs highlight colourFixed alerts st uiopts) = do
+drawMainState' :: DrawArgs -> UIM ()
+drawMainState' args@(DrawArgs highlight colourFixed alerts st uiopts) = do
     lastArgs <- gets lastDrawArgs
     void $ if lastArgs == Just args
 	then do
@@ -580,22 +592,23 @@ drawState' args@(DrawArgs highlight colourFixed alerts st uiopts) = do
 		then boardColouring st coloured lastCol
 		else pieceTypeColouring st coloured
 	    modify $ \ds -> ds { dispLastCol = colouring }
-	    erase
-	    sequence_ [ drawAt glyph pos | 
-		(pos,glyph) <- Map.toList $ fmap (ownedTileGlyph colouring highlight) board
-		]
-
-	    when (showBlocks uiopts) $ sequence_
-		$ [ drawBlocked st colouring False force |
-		AlertBlockedForce force <- alerts ]
-		++ [ drawBlocked st colouring True force |
-		AlertBlockingForce force <- alerts ]
-		++ [ drawBlocked st colouring True force |
-		AlertResistedForce force <- alerts ]
-		-- ++ [ drawAt collisionMarker pos | AlertCollision pos <- alerts ]
-	    vidSurf <- liftIO getVideoSurface
 	    gsSurf <- liftM fromJust $ gets gsSurface
-	    liftIO $ blitSurface vidSurf Nothing gsSurf Nothing
+	    renderToMainWithSurf gsSurf $ do
+		erase
+		sequence_ [ drawAt glyph pos | 
+		    (pos,glyph) <- Map.toList $ fmap (ownedTileGlyph colouring highlight) board
+		    ]
+
+		when (showBlocks uiopts) $ sequence_
+		    $ [ drawBlocked st colouring False force |
+		    AlertBlockedForce force <- alerts ]
+		    ++ [ drawBlocked st colouring True force |
+		    AlertBlockingForce force <- alerts ]
+		    ++ [ drawBlocked st colouring True force |
+		    AlertResistedForce force <- alerts ]
+		    -- ++ [ drawAt collisionMarker pos | AlertCollision pos <- alerts ]
+	    vidSurf <- liftIO getVideoSurface
+	    liftIO $ blitSurface gsSurf Nothing vidSurf Nothing
 
 getBindingStr :: InputMode -> UIM (Command -> String)
 getBindingStr mode = do
@@ -609,7 +622,7 @@ drawButtons :: InputMode -> UIM ()
 drawButtons mode = do
     buttons <- getButtons mode
     bindingStr <- getBindingStr mode
-    sequence_ $ concat [
+    renderToMain $ sequence_ $ concat [
 	    [ drawAtRel (buttonGlyph col) v >> renderStrAt bdg v |
 		(i,(v,bdg)) <- enumerate $ map (\b->(buttonPos b, bindingStr $ buttonCmd b)) $ buttonGroup
 		, let col = dim $ colourWheel (base+inc*i) ]
@@ -628,7 +641,7 @@ initVideo w h = do
     font <- liftIO $ TTF.tryOpenFont "VeraMono.ttf" (size)
     modify $ \ds -> ds { dispFont = font }
 
-say str = renderStrAt str $ periphery 0
+say str = renderToMain $ renderStrAt str $ periphery 0
 
 instance UIMonad (StateT UIState IO) where
     runUI m = evalStateT m nullUIState
@@ -637,7 +650,7 @@ instance UIMonad (StateT UIState IO) where
 	let selTools = [ idx |
 		(idx, PlacedPiece pos p) <- enumVec $ placedPieces st
 		, or [wsel && isWrench p, not wsel && isHook p] ]
-	drawState selTools False alerts st
+	drawMainState selTools False alerts st
 	drawButtons IMPlay
 	drawUIOptionButtons IMPlay
 	when solved $ say "Unlocked!"
@@ -645,8 +658,8 @@ instance UIMonad (StateT UIState IO) where
 
     drawEditState (EditState (st:_) _ selPiece selPos _ _) = do
 	waitFrame
-	drawState (maybeToList selPiece) True [] st
-	drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
+	drawMainState (maybeToList selPiece) True [] st
+	renderToMain $ drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
 	-- drawPaintSel
 	drawButtons IMEdit
 	drawPaintButtons
@@ -677,7 +690,7 @@ instance UIMonad (StateT UIState IO) where
 		    NonAvailable -> error "SDL says no resolution available"
 	    initVideo w h
 	    liftIO $ warpMouse (fromIntegral $ w`div`2) (fromIntegral $ h`div`2)
-	    erase
+	    renderToMain $ erase
 	    liftIO $ enableUnicode True
 	    liftIO $ enableKeyRepeat 500 30
 	    readUIConfigFile
