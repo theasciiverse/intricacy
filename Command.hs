@@ -10,7 +10,7 @@ data Command = CmdDir WrHoSel HexDir | CmdRotate TorqueDir | CmdWait
 	| CmdSelect | CmdUnselect | CmdDelete
 	| CmdEdit | CmdPlay | CmdResetTools
 	| CmdUndo | CmdRedo
-	| CmdYes | CmdNo
+	| CmdInputChar Char | CmdCancelInput
 	| CmdRedraw
 	| CmdQuit | CmdWriteState
     deriving (Eq, Ord, Show, Read)

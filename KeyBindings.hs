@@ -91,9 +91,6 @@ editBindings = globalBindings ++ editOnlyBindings
 
 bindings IMEdit = editBindings
 bindings IMPlay = playBindings
-bindings IMConfirm = [
-    ('Y', CmdYes), ('N', CmdNo)
-    , ('y', CmdYes), ('n', CmdNo) ]
 
 findBinding :: KeyBindings -> Command -> String
 findBinding bdgs cmd =

@@ -179,7 +179,7 @@ instance UIMonad (StateT UIState IO) where
 	    drawAlert _ = return ()
 	    cGlyph = Glyph '!' 0 a0
 
-    askYesNo prompt = say prompt
+    drawMessage prompt = say prompt
 
     initUI = 
 	do liftIO $ CursesH.start 

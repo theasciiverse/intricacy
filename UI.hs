@@ -27,7 +27,7 @@ class (Functor m, MonadIO m) => UIMonad m where
     drawPlayState :: PlayState -> m ()
     drawEditState :: EditState -> m ()
     drawAlerts :: [Alert] -> m ()
-    askYesNo :: String -> m ()
+    drawMessage :: String -> m ()
     getInput :: InputMode -> m [ Command ]
 
 data PlayState = PlayState
@@ -48,7 +48,7 @@ data EditState = EditState {
 	, lastModPos::HexPos, esSwitchMode::Maybe GameMode}
     deriving (Eq, Ord, Show)
 
-data InputMode = IMEdit | IMPlay | IMConfirm
+data InputMode = IMEdit | IMPlay | IMTextInput
     deriving (Eq, Ord, Show, Read)
 
 --test = CursesH.start >> drawBoard testBoard (PHS zero) >> CursesH.getKey (return ()) >> CursesH.end
@@ -252,14 +252,18 @@ test lock@(frame,initState) fname = do
 
 	confirm :: UIMonad uiM => String -> uiM Bool
 	confirm prompt = do
-	    askYesNo prompt
+	    drawMessage prompt
 	    waitConfirm
 	    where
 		waitConfirm = do
-		    input <- getInput IMConfirm
-		    if CmdYes `elem` input
-			then return True
-			else if CmdNo `elem` input
-			    then return False
-			    else waitConfirm
+		    cmds <- getInput IMTextInput
+		    case msum $ map ansOfCmd cmds of
+			Just answer -> return answer
+			Nothing -> waitConfirm
+		ansOfCmd CmdCancelInput = Just False
+		ansOfCmd (CmdInputChar 'n') = Just False
+		ansOfCmd (CmdInputChar 'N') = Just False
+		ansOfCmd (CmdInputChar 'y') = Just True
+		ansOfCmd (CmdInputChar 'Y') = Just True
+		ansOfCmd _ = Nothing
 

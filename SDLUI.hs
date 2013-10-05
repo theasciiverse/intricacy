@@ -31,6 +31,7 @@ import Mundanities
 maxlocksize = 12 -- TODO: use actual lock size?
 periphery 0 = ((3*maxlocksize)`div`2)<*>hu <+> ((3*maxlocksize)`div`4)<*>hv
 periphery n = rotate n $ periphery 0
+messageLineStart = (maxlocksize+1)<*>hw
 
 -- aaPolygon seems to be a bit buggy in sdl-gfx-0.6.0
 aaPolygon' surf verts col =
@@ -448,11 +449,12 @@ getButtons mode = do
 		    , Button (bl<+>(2<*>hv)) (CmdTile $ WrenchTile zero)
 		    ], (2,0) )
 	    ])
-	IMConfirm -> [
+	{- IMConfirm -> [
 	    ([ quitButton
 	    , Button (br<+>hw) CmdYes
 	    , Button (br<+>(neg hv)) CmdNo
 	    ],(0,2)) ]
+	-}
 	where
 	    commontl = [ Button tl CmdUndo, Button (tl<+>neg hu) CmdRedo ]
 	    quitButton = Button br CmdQuit
@@ -641,7 +643,7 @@ initVideo w h = do
     font <- liftIO $ TTF.tryOpenFont "VeraMono.ttf" (size)
     modify $ \ds -> ds { dispFont = font }
 
-say str = renderToMain $ renderStrAt str $ periphery 0
+say str = renderToMain $ renderStrAt str $ messageLineStart
 
 instance UIMonad (StateT UIState IO) where
     runUI m = evalStateT m nullUIState
@@ -666,9 +668,8 @@ instance UIMonad (StateT UIState IO) where
 	drawUIOptionButtons IMEdit
 	refresh
 
-    askYesNo prompt = do
-	waitFrame
-	drawButtons IMConfirm
+    drawMessage prompt = do
+	say prompt
 	refresh
 
     drawAlerts alerts =
@@ -708,27 +709,33 @@ instance UIMonad (StateT UIState IO) where
 	events <- liftIO $ getEvents
 	concat `liftM` (sequence $ map processEvent events)
 	where
-	    processEvent (KeyDown (Keysym _ _ ch)) = do
-		setting <- gets settingBinding
-		if isJust setting && ch /= '\0'
-		then do
-		    modify $ \s -> s {settingBinding = Nothing}
-		    when (ch /= '\ESC') $
-			modify $ \s -> s { uiKeyBindings =
-			    Map.insertWith (++) mode [(ch,fromJust setting)] $ uiKeyBindings s }
-		    return []
-		else do
-		    uibdgs <- Map.findWithDefault [] mode `liftM` gets uiKeyBindings
-		    let mCmd = lookup ch $ uibdgs ++ bindings mode
-		    sequence_
-			[ modify $ \s -> s { paintTileIndex = pti }
-			    | (pti,pt) <- zip [0..] paintTiles
-			    , (pt == Nothing && mCmd == Just CmdWait) ||
-				(isJust $ do
-				    pt' <- pt
-				    CmdTile t <- mCmd
-				    guard $ sameTileType t pt') ]
-		    return $ maybeToList mCmd
+	    processEvent (KeyDown (Keysym _ _ ch)) = case mode of
+		IMTextInput -> do
+		    case ch of
+			'\0' -> return []
+			'\ESC' -> return [CmdCancelInput]
+			_ -> return [CmdInputChar ch]
+		_ -> do
+		    setting <- gets settingBinding
+		    if isJust setting && ch /= '\0'
+		    then do
+			modify $ \s -> s {settingBinding = Nothing}
+			when (ch /= '\ESC') $
+			    modify $ \s -> s { uiKeyBindings =
+				Map.insertWith (++) mode [(ch,fromJust setting)] $ uiKeyBindings s }
+			return []
+		    else do
+			uibdgs <- Map.findWithDefault [] mode `liftM` gets uiKeyBindings
+			let mCmd = lookup ch $ uibdgs ++ bindings mode
+			sequence_
+			    [ modify $ \s -> s { paintTileIndex = pti }
+				| (pti,pt) <- zip [0..] paintTiles
+				, (pt == Nothing && mCmd == Just CmdWait) ||
+				    (isJust $ do
+					pt' <- pt
+					CmdTile t <- mCmd
+					guard $ sameTileType t pt') ]
+			return $ maybeToList mCmd
 	    processEvent (MouseMotion _ _ _ _) = case mode of
 		IMEdit -> do
 		    (mPos,_) <- getMousePos
@@ -800,9 +807,13 @@ instance UIMonad (StateT UIState IO) where
 	    processEvent (MouseButtonUp _ _ ButtonMiddle) = do
 		modify $ \s -> s { middleButtonDown = False }
 		return []
-	    processEvent (VideoResize w h) = do
-		initVideo w h
-		return [ CmdRedraw ]
+	    processEvent (VideoResize w h) =
+		if mode == IMTextInput
+		    then -- TODO: resize only when we next draw the screen
+			return []
+		    else do
+			initVideo w h
+			return [ CmdRedraw ]
 		
 	    processEvent _ = return []
 
