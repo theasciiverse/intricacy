@@ -1,0 +1,356 @@
+module SDLRender where
+
+import Graphics.UI.SDL
+import Graphics.UI.SDL.Primitives
+import qualified Graphics.UI.SDL.TTF as TTF
+import Data.Monoid
+import Control.Monad
+import Control.Monad.IO.Class
+import Control.Monad.Trans.Reader
+import Control.Monad.Trans.Maybe
+import Control.Monad.Trans.Class
+import qualified Data.Map as Map
+import Data.Map (Map)
+import Data.List (maximumBy, findIndex)
+
+import Hex
+import GameState
+import Physics
+import Command
+
+-- aaPolygon seems to be a bit buggy in sdl-gfx-0.6.0
+aaPolygon' surf verts col =
+    aaLines surf (verts ++ take 1 verts) col
+-- aaCircle too
+aaCircle' surf x y rad col =
+    if (rad == 1) then pixel surf x y col
+    else aaCircle surf x y rad col
+
+aaLines surf verts col =
+    sequence_ [ aaLine surf x y x' y' col |
+	((x,y),(x',y')) <- zip (take (length verts - 1) verts) (drop 1 verts) ]
+
+rimmedPolygon surf verts fillCol rimCol = do
+    filledPolygon surf verts fillCol
+    aaPolygon' surf verts rimCol
+    return ()
+
+rimmedCircle surf centre@(SVec x y) rad fillCol rimCol = do
+    filledCircle surf (fromIntegral x) (fromIntegral y) (fromIntegral rad) fillCol
+    aaCircle' surf (fromIntegral x) (fromIntegral y) (fromIntegral rad) rimCol
+    return ()
+
+type Glyph = SVec -> Int -> Surface -> IO ()
+
+corner :: Integral i => SVec -> Int -> Int -> (i,i)
+corner (SVec x y) size hextant = (fromIntegral $ x+dx, fromIntegral $ y+dy)
+    where
+	[dx,dy] = map round $ f hextant
+	f 0 = [sizeFloat, -(1 / (sqrt 3)) * sizeFloat]
+	f 1 = [0, -(2 / (sqrt 3)) * sizeFloat]
+	f 2 = [-sizeFloat, -(1 / (sqrt 3)) * sizeFloat]
+	f n | n < 6 = let [x,y] = f (5-n) in [x,-y]
+	    | n < 0 = f (6-n)
+	    | otherwise = f (n`mod`6)
+	sizeFloat = fromIntegral size
+
+innerCorner :: Integral i => SVec -> Int -> HexDir -> (i,i)
+innerCorner (SVec x y) size dir = (fromIntegral $ x+dx, fromIntegral $ y+dy)
+    where
+	[dx,dy] = map round $ f dir
+	f dir
+	    | dir == hu = [2*sizeFloat/3, 0]
+	    | dir == hv = [-sizeFloat/3, - (1 / (sqrt 3)) * sizeFloat]
+	    | dir == hw = [-sizeFloat/3, (1 / (sqrt 3)) * sizeFloat]
+	    | not (isHexDir dir) = error "innerCorner: not a hexdir"
+	    | otherwise = map (\z -> -z) $ f $ neg dir
+	sizeFloat = fromIntegral size
+
+
+edge :: Integral i => SVec -> Int -> HexDir -> (i,i)
+edge (SVec x y) size dir = (fromIntegral $ x+dx, fromIntegral $ y+dy)
+    where
+	[dx,dy] = map round $ f dir
+	y' = ((sqrt 3) / 2) * sizeFloat
+	x' = sizeFloat / 2
+	f dir
+	    | dir == hu = [sizeFloat, 0]
+	    | dir == hv = [-x', -y']
+	    | dir == hw = [-x', y']
+	    | not (isHexDir dir) = error "edge: not a hexdir"
+	    | otherwise = map (\z -> -z) $ f $ neg dir
+	sizeFloat = fromIntegral $ size - 1
+
+tileGlyph :: Tile -> Pixel -> Glyph
+
+tileGlyph (BlockTile adjs) col centre size surf =
+    rimmedPolygon surf corners col $ bright col
+	where 
+	    corners = concat [
+		if dir `elem` adjs
+		then [corner centre size $ (hextant dir) + n | n <- [-1,0]]
+		else [innerCorner centre size dir]
+		| dir <- hexDirs ]
+
+tileGlyph (SpringTile extn dir) col centre size surf =
+    aaLines surf points $ bright col
+	where
+	    n = 3*case extn of
+		Stretched -> 1
+		Relaxed -> 2
+		Compressed -> 3
+	    dir' = if dir == zero then hu else dir
+	    (sx,sy) = corner centre size (hextant dir' - 1)
+	    (offx,offy) = corner centre size (hextant dir')
+	    (ex,ey) = corner centre size (hextant dir' - 3)
+	    points = [ (x+dx,y+dy)
+		| i <- [0..n]
+		, i`mod`3 /= 1
+		, let (x,y) = if i`mod`3==0 then (sx,sy) else (offx,offy)
+		, let (dx,dy) = ((i*(ex-sx))`div`n, (i*(ey-sy))`div`n) ]
+
+tileGlyph (PivotTile dir) col centre size surf = do
+    rimmedCircle surf centre rad col $ bright col
+    when (dir /= zero)
+	$ void $ aaLine surf `uncurry` from `uncurry` to $ bright col
+    return ()
+	where
+	    rad = (7*size)`div`8
+	    from = edge centre rad $ neg dir
+	    to = edge centre rad dir
+
+tileGlyph (ArmTile dir _) col centre size surf =
+    void $ aaLine surf `uncurry` from `uncurry` to $ bright col
+	where
+	    dir' = if dir == zero then hu else dir
+	    from = edge centre size $ neg dir'
+	    to = innerCorner centre size dir'
+
+tileGlyph HookTile col centre size surf =
+    rimmedCircle surf centre rad col $ bright col
+	where
+	    rad = (7*size)`div`8
+
+tileGlyph (WrenchTile mom) col centre size surf = do
+    rimmedCircle surf centre (size`div`3) col $ bright col
+    when (mom /= zero) $
+	let 
+	    from@(fx,fy) = innerCorner centre size $ neg mom
+	    to@(tx,ty) = edge centre size $ neg mom
+	    shifts = map (map (`div` 2)) $
+		[ [ x1-x0, y1-y0 ]
+		| rot <- [-1,0,1]
+		, let (x0,y0) = innerCorner centre size $ neg mom
+		, let (x1,y1) = innerCorner centre size $ rotate rot $ neg mom
+		]
+	in sequence_
+	    [ aaLine surf (fx+dx) (fy+dy) (tx+dx) (ty+dy) $ col
+	    | [dx,dy] <- shifts ]
+
+tileGlyph BallTile col centre size surf =
+    rimmedCircle surf centre size (faint col) (obscure col)
+
+blockedArm :: HexDir -> TorqueDir -> Pixel -> Glyph
+blockedArm armdir tdir col centre size surf =
+    void $ aaLine surf `uncurry` from `uncurry` to $ col
+	where
+	    from = innerCorner centre size $ rotate (2*tdir) armdir
+	    to = edge centre size $ rotate tdir armdir
+
+blockedBlock :: Tile -> HexDir -> Pixel -> Glyph
+blockedBlock tile dir col centre size =
+    tileGlyph tile col (shift <+> centre) size
+	where
+	    shift = SVec (x'-x) (y'-y)
+	    (x,y) = innerCorner centre size dir
+	    (x',y') = edge centre size dir
+
+blockedPush :: HexDir -> Pixel -> Glyph
+blockedPush dir col centre size surf = do
+{-
+    void $ rimmedPolygon surf verts (obscure col) (dim col)
+	where verts =
+		[ innerCorner centre size $ rotate 1 dir
+		, innerCorner centre size $ rotate (-1) dir
+		, innerCorner centre size dir ]
+-}
+    void $ aaLine surf `uncurry` base `uncurry` head $ col
+    --void $ aaLine surf `uncurry` from' `uncurry` to' $ col
+    void $ aaLine surf `uncurry` head `uncurry` (arms!!0) $ col
+    void $ aaLine surf `uncurry` head `uncurry` (arms!!1) $ col
+    where
+	--base@(bx,by) = innerCorner centre size dir
+	SVec bx' by' = centre
+	base@(bx,by) = (fromIntegral bx',fromIntegral by')
+	head@(hx,hy) = edge centre size dir
+	arms = [(bx + (hx-bx)`div`2 + dir*(hy-by)`div`4,
+	    by + (hy-by)`div`2 - dir*(hx-bx)`div`4) | dir <- [-1,1]]
+
+	--from' = corner centre size $ hextant dir
+	--to' = corner centre size $ (hextant dir) - 1
+	
+collisionMarker :: Glyph
+collisionMarker centre size surf =
+    rimmedCircle surf centre (size`div`3) (bright orange) $ bright orange
+
+hollowGlyph :: Pixel -> Glyph
+hollowGlyph col centre size surf =
+    aaPolygon' surf corners $ bright col
+    where corners = [ innerCorner centre size dir | dir <- hexDirs ]
+
+buttonGlyph :: Pixel -> Glyph
+buttonGlyph = tileGlyph (BlockTile [])
+
+useFiveColourButton :: Bool -> Glyph
+useFiveColourButton using centre@(SVec x y) size surf = do
+    mapM_ (\h -> tileGlyph (BlockTile [])
+	    (dim $ colourWheel (if using then h`div`2 else 0))
+	    (SVec `uncurry` corner centre (size`div`2) h) (size`div`2) surf)
+	[0,2,4]
+
+showBlocksButton :: Bool -> Glyph
+showBlocksButton showing centre size surf = do
+    tileGlyph (BlockTile []) (dim $ colourWheel 0) centre size surf
+    when showing $ blockedPush hu (bright orange) centre size surf
+
+whsButtonsButton :: WrHoSel -> Glyph
+whsButtonsButton whs centre size surf = do
+    when (whs /= WHSHook) $
+	tileGlyph (WrenchTile zero) col (miniCentre 0) miniSize surf
+    when (whs /= WHSWrench) $ do
+	tileGlyph HookTile col (miniCentre 4) miniSize surf
+	tileGlyph (ArmTile hv False) col (miniCentre 2) miniSize surf
+    where
+	miniSize = size `div` 2
+	miniCentre h = SVec `uncurry` corner centre miniSize h
+	col = dim white
+
+cursor :: Glyph
+cursor centre size surf =
+    aaPolygon' surf (map (corner centre size) [0..5]) $ bright white
+
+bright :: Pixel -> Pixel
+bright (Pixel v) = Pixel $ v `div` 0x100 * 0x100 + 0xff
+
+dim :: Pixel -> Pixel
+dim (Pixel v) = Pixel $ v `div` 0x100 * 0x100 + 0xa0
+
+obscure :: Pixel -> Pixel
+obscure (Pixel v) = Pixel $ v `div` 0x100 * 0x100 + 0x80
+
+faint :: Pixel -> Pixel
+faint (Pixel v) = Pixel $ v `div` 0x100 * 0x100 + 0x40
+
+black = Pixel 0x01000000
+white = Pixel 0xffffff00
+orange = Pixel 0xff7f0000
+
+colourWheel :: Int -> Pixel
+colourWheel n = Pixel $ (((((r * 0x100) + g) * 0x100) + b) * 0x100) + a
+    where [r,g,b] = map (\on -> if on then 0xff else 0) $ colourWheel' n
+	  a = 0x00
+	  colourWheel' 0 = [True, False, False]
+	  colourWheel' 1 = [True, True, False]
+	  colourWheel' n = let [a,b,c] = colourWheel' $ n-2 in [c,a,b]
+
+colourOf colouring idx = 
+    case Map.lookup idx colouring of
+	    Nothing -> white
+	    Just n -> colourWheel n
+
+ownedTileGlyph :: PieceColouring -> [PieceIdx] -> OwnedTile -> Glyph
+ownedTileGlyph colouring highlight (owner,t) =
+    let col = colourOf colouring owner
+    in tileGlyph t $ (if owner `elem` highlight then bright else dim) col
+
+data SVec = SVec { cx, cy :: Int }
+    deriving (Eq, Ord, Show)
+instance Monoid SVec where
+    mempty = SVec 0 0
+    mappend (SVec x y) (SVec x' y') = SVec (x+x') (y+y') 
+instance Grp SVec where
+    neg (SVec x y) = SVec (-x) (-y)
+type CCoord = PHS SVec
+
+hexVec2SVec :: Int -> HexVec -> SVec
+hexVec2SVec size (HexVec x y z) =
+    SVec ((x-z) * size) (floor $ -(fromIntegral $ y * size) * (sqrt 3))
+
+sVec2dHV :: Int -> SVec -> (Double,Double,Double)
+sVec2dHV size sv@(SVec x y) =
+    let size' = fromIntegral size
+	x' = fromIntegral x
+	y' = fromIntegral y
+	hy' = -y' / size' / (sqrt 3)
+	hx' = ((x' / size') - hy') / 2
+	hz' = -((x' / size') + hy') / 2
+    in (hx',hy',hz')
+
+sVec2HexVec :: Int -> SVec -> HexVec
+sVec2HexVec size sv =
+    let (hx',hy',hz') = sVec2dHV size sv
+	unrounded = Map.fromList [(1,hx'),(2,hy'),(3,hz')]
+	rounded = Map.map round unrounded
+	maxdiff = fst $ maximumBy (\x y -> compare (snd x) (snd y)) $
+	    [ (i, abs $ x'-x) | i <- [1..3],
+		let x' = unrounded Map.! i, let x = fromIntegral $ rounded Map.! i]
+	[hx,hy,hz] = map snd $ Map.toList $
+	    Map.adjust (\x -> x - (sum $ Map.elems rounded)) maxdiff rounded
+    in HexVec hx hy hz
+
+data RenderContext = RenderContext
+    { renderSurf :: Surface
+    , renderHCentre :: HexPos
+    , renderSCentre :: SVec
+    , renderSize :: Int
+    , renderFont :: Maybe TTF.Font
+    }
+type RenderM = ReaderT RenderContext IO
+
+
+erase :: RenderM ()
+erase = do
+    surf <- asks renderSurf
+    void $ liftIO $ fillRect surf Nothing black
+
+drawAt :: Glyph -> HexPos -> RenderM ()
+drawAt gl pos = do
+	centre <- asks renderHCentre
+	drawAtRel gl (pos <-> centre)
+drawAtRel gl v = do
+	(surf, scrCentre, size) <- asks $ liftM3 (,,) renderSurf renderSCentre renderSize
+	let cpos = scrCentre <+> (hexVec2SVec size v)
+	liftIO $ gl cpos size surf
+
+renderStrAt :: String -> HexDir -> RenderM ()
+renderStrAt str v = void $ runMaybeT $ do
+    font <- MaybeT $ asks renderFont
+    fsurf <- MaybeT $ liftIO $ TTF.tryRenderTextBlended font str (Color 0xff 0xff 0xff)
+    (surf, scrCentre, size, centre) <- lift $ asks $
+	liftM4 (,,,) renderSurf renderSCentre renderSize renderHCentre
+    let SVec x y = scrCentre <+> (hexVec2SVec size v)
+    let x' = x - (surfaceGetWidth fsurf)`div`2
+    let y' = y - (surfaceGetHeight fsurf)`div`2
+    void $ liftIO $ blitSurface fsurf Nothing surf (Just $ Rect x' y' 0 0)
+
+drawCursorAt :: Maybe HexPos -> RenderM ()
+drawCursorAt (Just pos) = drawAt cursor pos
+drawCursorAt _ = return ()
+
+drawBlocked :: GameState -> PieceColouring -> Bool -> Force -> RenderM ()
+drawBlocked st colouring blocking (Torque idx dir) = do
+    let (pos,arms) = case getpp st idx of
+	    PlacedPiece pos (Pivot arms) -> (pos,arms)
+	    PlacedPiece pos (Hook arm _) -> (pos,[arm])
+	col = if blocking then bright $ colourWheel 5 else dim $ colourOf colouring idx
+    sequence_ [ drawAt (blockedArm arm dir col) (arm <+> pos) |
+	arm <- arms ]
+drawBlocked st colouring blocking (Push idx dir) = do
+    let footprint = plPieceFootprint $ getpp st idx
+	fullfootprint = fullFootprint st idx
+	col = if blocking then bright $ colourWheel 5 else bright orange
+    sequence_ [ drawAt (blockedPush dir $ col) pos
+	| pos <- footprint
+	, not $ (dir<+>pos) `elem` fullfootprint ]
+    -- drawAt (blockedPush dir $ bright orange) $ placedPos $ getpp st idx
+
