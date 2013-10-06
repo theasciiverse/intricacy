@@ -10,9 +10,11 @@ data Command = CmdDir WrHoSel HexDir | CmdRotate TorqueDir | CmdWait
 	| CmdSelect | CmdUnselect | CmdDelete
 	| CmdEdit | CmdPlay | CmdResetTools
 	| CmdUndo | CmdRedo
-	| CmdInputChar Char | CmdCancelInput
+	| CmdInputChar Char
+	| CmdWriteState
+	| CmdSelCodename
 	| CmdRedraw
-	| CmdQuit | CmdWriteState
+	| CmdQuit 
     deriving (Eq, Ord, Show, Read)
 data WrHoSel = WHSWrench | WHSHook | WHSSelected
     deriving (Eq, Ord, Show, Read)

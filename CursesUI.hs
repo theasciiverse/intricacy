@@ -156,7 +156,7 @@ say str = do
 
 instance UIMonad (StateT UIState IO) where
     runUI m = evalStateT m nullUIState
-    drawPlayState (PlayState st alerts wsel solved _ _ _) = do
+    drawMainState (PlayState st _ alerts wsel solved _ _) = do
 	do
 	    drawState [] False alerts st
 	    when solved $ say "Unlocked!"
@@ -164,7 +164,7 @@ instance UIMonad (StateT UIState IO) where
 		(_, PlacedPiece pos p) <- enumVec $ placedPieces st
 		, or [wsel && isWrench p, not wsel && isHook p] ]
 
-    drawEditState (EditState (st:_) _ selPiece selPos _ _) =
+    drawMainState (EditState (st:_) _ _ _ selPiece selPos _) =
 	do
 	    drawState (maybeToList selPiece) True [] st
 	    drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
@@ -192,6 +192,12 @@ instance UIMonad (StateT UIState IO) where
     endUI = liftIO CursesH.end
 
     getInput mode = do
-	Curses.KeyChar ch <- liftIO $ CursesH.getKey Curses.refresh
-	uibdgs <- Map.findWithDefault [] mode `liftM` gets uiKeyBindings
-	return $ maybeToList $ lookup ch $ uibdgs ++ bindings mode
+	key <- liftIO $ CursesH.getKey Curses.refresh
+	case key of
+	    Curses.KeyChar ch ->
+		if mode == IMTextInput
+		then return [CmdInputChar ch]
+		else do
+		    uibdgs <- Map.findWithDefault [] mode `liftM` gets uiKeyBindings
+		    return $ maybeToList $ lookup ch $ uibdgs ++ bindings mode
+	    _ -> return []

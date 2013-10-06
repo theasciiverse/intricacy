@@ -45,6 +45,15 @@ rcOfServerResp (ServedServerInfo x) = RCServerInfo x
 rcOfServerResp (ServedLock x) = RCLock x
 rcOfServerResp (ServedSolution x) = RCSolution x
 rcOfServerResp (ServedUserInfo x) = RCUserInfo x
+
+invariantRecord (RecUserInfo _) = False
+invariantRecord (RecPassword _) = False
+invariantRecord _ = True
+
+askForRecord RecServerInfo = GetServerInfo
+askForRecord (RecUserInfo name) = GetUserInfo name
+askForRecord (RecLock ls) = GetLock ls
+--askForRecord (RecNote note) = TODO
 	    
 recordExists :: Record -> IO Bool
 recordExists = doesFileExist . recordPath

@@ -2,6 +2,7 @@ module Init where
 
 
 import Control.Monad
+import Control.Monad.Trans.Maybe
 import Data.Maybe
 import Control.Exception
 import System.IO.Error
@@ -31,15 +32,11 @@ readLockFile :: String -> IO (Maybe Lock)
 readLockFile fname = readReadFile fname
     -- Just `liftM` decodeFile fname
 
-init :: IO (Lock,[Opt],Maybe String)
+init :: IO (Maybe Lock,[Opt],Maybe String)
 init = do
     argv <- getArgs
     (opts,args) <- parseArgs argv
     let frameSize = fromMaybe 8 $ listToMaybe [ size | LockSize size <- opts ]
-    let initFrame = BasicFrame frameSize
     let fname = listToMaybe args
-    mlock <- case fname of
-		Nothing -> return Nothing
-		Just fname -> readLockFile fname
-    let lock = fromMaybe (initFrame, baseState initFrame) $ liftM reframe mlock
-    return (lock,opts,fname)
+    mlock <- runMaybeT $ (MaybeT . return) fname >>= MaybeT . readLockFile
+    return (liftM reframe mlock,opts,fname)

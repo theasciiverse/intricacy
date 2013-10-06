@@ -22,9 +22,6 @@ data GameState = GameState { placedPieces :: Vector PlacedPiece,
 	connections :: [Connection] }
     deriving (Eq, Ord, Show, Read)
 
-data GameMode = GMEdit | GMPlay | GMQuit
-    deriving (Eq, Ord, Show, Read)
-
 data PlacedPiece = PlacedPiece { placedPos :: HexPos, placedPiece :: Piece }
     deriving (Eq, Ord, Show, Read)
 

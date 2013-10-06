@@ -238,13 +238,13 @@ getGeom = do
 data DrawArgs = DrawArgs [PieceIdx] Bool [Alert] GameState UIOptions
     deriving (Eq, Ord, Show)
 
-drawMainState :: [PieceIdx] -> Bool -> [Alert] -> GameState -> UIM ()
-drawMainState highlight colourFixed alerts st = do
+drawMainGameState :: [PieceIdx] -> Bool -> [Alert] -> GameState -> UIM ()
+drawMainGameState highlight colourFixed alerts st = do
     uiopts <- gets uiOptions
-    drawMainState' $ DrawArgs highlight colourFixed alerts st uiopts
+    drawMainGameState' $ DrawArgs highlight colourFixed alerts st uiopts
 
-drawMainState' :: DrawArgs -> UIM ()
-drawMainState' args@(DrawArgs highlight colourFixed alerts st uiopts) = do
+drawMainGameState' :: DrawArgs -> UIM ()
+drawMainGameState' args@(DrawArgs highlight colourFixed alerts st uiopts) = do
     lastArgs <- gets lastDrawArgs
     void $ if lastArgs == Just args
 	then do
@@ -313,26 +313,28 @@ say str = renderToMain $ renderStrAt str $ messageLineStart
 
 instance UIMonad (StateT UIState IO) where
     runUI m = evalStateT m nullUIState
-    drawPlayState (PlayState st alerts wsel solved _ _ _) = do
+    drawMainState (PlayState st _ alerts wsel solved _ _) = do
 	waitFrame
 	let selTools = [ idx |
 		(idx, PlacedPiece pos p) <- enumVec $ placedPieces st
 		, or [wsel && isWrench p, not wsel && isHook p] ]
-	drawMainState selTools False alerts st
+	drawMainGameState selTools False alerts st
 	drawButtons IMPlay
 	drawUIOptionButtons IMPlay
 	when solved $ say "Unlocked!"
 	refresh
 
-    drawEditState (EditState (st:_) _ selPiece selPos _ _) = do
+    drawMainState (EditState (st:_) _ _ _ selPiece selPos _) = do
 	waitFrame
-	drawMainState (maybeToList selPiece) True [] st
+	drawMainGameState (maybeToList selPiece) True [] st
 	renderToMain $ drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
 	-- drawPaintSel
 	drawButtons IMEdit
 	drawPaintButtons
 	drawUIOptionButtons IMEdit
 	refresh
+
+    drawMainState _ = return ()
 
     drawMessage prompt = do
 	say prompt
@@ -376,11 +378,7 @@ instance UIMonad (StateT UIState IO) where
 	concat `liftM` (sequence $ map processEvent events)
 	where
 	    processEvent (KeyDown (Keysym _ _ ch)) = case mode of
-		IMTextInput -> do
-		    case ch of
-			'\0' -> return []
-			'\ESC' -> return [CmdCancelInput]
-			_ -> return [CmdInputChar ch]
+		IMTextInput -> return [CmdInputChar ch]
 		_ -> do
 		    setting <- gets settingBinding
 		    if isJust setting && ch /= '\0'

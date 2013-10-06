@@ -1,43 +1,59 @@
 module Cache where
 
+import Network.Fancy
 import Control.Concurrent.STM
 import System.Directory
+import System.IO.Error
+import Control.Monad
+import Data.Maybe
+import qualified Data.ByteString.Lazy as L
+import Data.Binary
+import System.IO
+import System.FilePath
 
-newtype ServerAddr = ServerAddr {hostname::String, port::Int}
+import Database
+import Protocol
+import Mundanities
+
+data ServerAddr = ServerAddr {hostname::String, port::Int}
+    deriving (Eq, Ord, Show)
+
+data FetchedRecord = FetchedRecord {fresh :: Bool, fetchError :: Maybe String, fetchedRC :: Maybe RecordContents}
+    deriving (Eq, Ord, Show)
 
 defaultPort=27001 -- == ('i'<<8) + 'y'
 saddrStr (ServerAddr hostname port) = hostname ++ if port==defaultPort then "" else ':':show port
 
-getRecordCached :: ServerAddr -> Auth -> Record -> TVar (Either String RecordContents) -> IO ()
+getRecordCached :: ServerAddr -> Auth -> Record -> TVar FetchedRecord -> IO ()
 getRecordCached saddr auth rec tvar = do
     cdToCacheDir saddr
-    gotCache <- (getRecord rec >>= (callBack . Right) >> return True)
-	    `catchIOError` (\_ -> return False)
-    unless (gotCache && invariantRecord rec) $ do
-    resp <- makeRequest saddr (ClientRequest protocolVersion (Just auth) action)
+
+    fromCache <- (liftM Just $ getRecord rec) `catchIOError` (\_ -> return Nothing)
+    when (isJust fromCache) $ callback $ FetchedRecord (invariantRecord rec) Nothing fromCache
+    unless (isJust fromCache && invariantRecord rec) $ do
+    resp <- makeRequest saddr (ClientRequest protocolVersion (Just auth) (askForRecord rec))
     case resp of
-	ServerError err -> callback $ Left err
+	ServerError err -> callback $ FetchedRecord False (Just err) fromCache
 	_ -> do
-	    let rc = rcOfServerResp 
+	    let rc = rcOfServerResp resp
 	    putRecord rec rc
-	    callback $ Right rc
+	    callback $ FetchedRecord True Nothing (Just rc)
     where
-	handleResponse (ServerError err) = Left err
-	handleResponse (ServedServerInfo sinfo) = Right $ RC
 	callback = atomically . writeTVar tvar
 
 
 makeRequest :: ServerAddr -> ClientRequest -> IO ServerResponse
 makeRequest (ServerAddr host port) request = withStream (IP host port) makeRequest'
-    where makeRequest' handle =
-	L.hPut handle $ encode request 
-	hFlush handle
-	return $ decode `liftM` L.hGetContents handle
+    where
+	makeRequest' handle = do
+	    L.hPut handle $ encode request 
+	    hFlush handle
+	    decode `liftM` L.hGetContents handle
 
 
 -- | cheap way to get around having to pass the server address to the database
 -- functions - we just cd to the right place before using them.
 cdToCacheDir saddr = do
-    confdir <- (++pathSeparator++saddrStr saddr) `liftM` confFilePath "cache"
+    confdir <- (++[pathSeparator]++saddrStr saddr) `liftM` confFilePath "cache"
     mkdirhier confdir
     setCurrentDirectory confdir

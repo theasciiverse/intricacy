@@ -2,6 +2,7 @@ module Main where
 
 import Control.Monad
 import System.Exit
+import Control.Monad.Trans.State
 
 import Init
 import UI
@@ -9,8 +10,11 @@ import qualified SDLUI
 import qualified CursesUI
 
 main = do
-    (lock,opts,fname) <- Init.init
+    (mlock,opts,mpath) <- Init.init
+    let initMState = case mlock of
+	    Nothing -> initMetaState
+	    Just lock -> newEditState lock mpath
     ok <- if ForceCurses `elem` opts
-	then runUI $ ((test lock fname)::CursesUI.UIM Bool)
-	else runUI $ ((test lock fname)::SDLUI.UIM Bool)
+	then (doUI::SDLUI.UIM () -> IO Bool) $ void $ interactUI `runStateT` initMState
+	else (doUI::CursesUI.UIM () -> IO Bool) $ void $ interactUI `runStateT` initMState
     if ok then exitSuccess else exitFailure
