@@ -190,6 +190,7 @@ instance UIMonad (StateT UIState IO) where
 	   return True
 
     endUI = liftIO CursesH.end
+    unblockInput = return $ Curses.ungetCh 0
 
     getInput mode = do
 	key <- liftIO $ CursesH.getKey Curses.refresh

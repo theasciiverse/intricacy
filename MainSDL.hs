@@ -11,9 +11,9 @@ import qualified CursesUI
 
 main = do
     (mlock,opts,mpath) <- Init.init
-    let initMState = case mlock of
+    initMState <- case mlock of
 	    Nothing -> initMetaState
-	    Just lock -> newEditState lock mpath
+	    Just lock -> return $ newEditState lock mpath
     ok <- if ForceCurses `elem` opts
 	then (doUI::SDLUI.UIM () -> IO Bool) $ void $ interactUI `runStateT` initMState
 	else (doUI::CursesUI.UIM () -> IO Bool) $ void $ interactUI `runStateT` initMState

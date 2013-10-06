@@ -373,6 +373,8 @@ instance UIMonad (StateT UIState IO) where
 	writeBindings
 	liftIO $ quit
 
+    unblockInput = return $ pushEvent VideoExpose
+
     getInput mode = do
 	events <- liftIO $ getEvents
 	concat `liftM` (sequence $ map processEvent events)
@@ -478,6 +480,7 @@ instance UIMonad (StateT UIState IO) where
 		    else do
 			initVideo w h
 			return [ CmdRedraw ]
+	    processEvent VideoExpose = return [ CmdRedraw ]
 		
 	    processEvent _ = return []
 

@@ -13,7 +13,9 @@ import Data.Char (ord, isPrint)
 import qualified Data.Binary as Bin
 import qualified Data.ByteString.Lazy as B
 import Control.Concurrent.STM
+import Control.Concurrent
 import System.Directory
+import Data.Array
 
 import Hex
 import Command
@@ -25,6 +27,7 @@ import Frame
 import BinaryInstances
 import Lock
 import Cache
+import Database
 import Protocol
 import Metagame
 
@@ -36,6 +39,7 @@ class (Functor m, MonadIO m) => UIMonad m where
     drawAlerts :: [Alert] -> m ()
     drawMessage :: String -> m ()
     getInput :: InputMode -> m [ Command ]
+    unblockInput :: m (IO ())
 
     doUI :: m () -> IO Bool
     doUI m = runUI $ do
@@ -63,18 +67,21 @@ data MainState
 	, lastModPos::HexPos
 	}
     | MetaState
-	{ server :: ServerAddr
+	{ curServer :: ServerAddr
 	, cacheOnly :: Bool
 	, auth :: Maybe Auth
 	, codenameStack :: [Codename]
-	, currentUInfo :: Maybe (TVar FetchedRecord)
-	, currentLockPath :: Maybe FilePath
-	, currentLock :: Maybe Lock
+	, newAsync :: TVar Bool
+	, curUInfo :: Maybe (TVar FetchedRecord, Array LockIndex (TVar (Maybe Lock)))
+	, curLockPath :: Maybe FilePath
+	, curLock :: Maybe Lock
 	}
 
 newPlayState (frame,st) = PlayState st frame [] False False [] []
 newEditState (frame,st) mpath = EditState [st] [] frame mpath Nothing (PHS zero) (PHS zero) 
-initMetaState = MetaState (ServerAddr "" 0) False Nothing [] Nothing Nothing Nothing
+initMetaState = do
+    tvar <- atomically $ newTVar False
+    return $ MetaState (ServerAddr "" 0) False Nothing [] tvar Nothing Nothing Nothing
 
 data InputMode = IMEdit | IMPlay | IMMeta | IMTextInput
     deriving (Eq, Ord, Show, Read)
@@ -83,22 +90,64 @@ ms2im :: MainState -> InputMode
 ms2im mainSt = case mainSt of
     PlayState _ _ _ _ _ _ _ -> IMPlay
     EditState _ _ _ _ _ _ _ -> IMEdit
-    MetaState _ _ _ _ _ _ _ -> IMMeta
+    MetaState _ _ _ _ _ _ _ _ -> IMMeta
 
 instance Error () where noMsg = ()
 
+setCurrCodename :: UIMonad uiM => Codename -> StateT MainState uiM ()
+setCurrCodename name = do
+    server <- gets curServer
+    flag <- gets newAsync
+    uiTVar <- liftIO $ getRecordCached server Nothing (Just flag) $ RecUserInfo name
+    lockTVars <- liftM (listArray (0,maxLocks-1)) $ liftIO $ sequence $
+	flip map [0..maxLocks-1] $ getLockTVar server uiTVar flag
+    modify $ \ms -> ms { codenameStack = (name:codenameStack ms)
+	, curUInfo = Just (uiTVar, lockTVars)}
+    where
+	getLockTVar server uiTVar flag n = do
+	    tvar <- atomically $ newTVar Nothing
+	    forkIO $ do
+		mlockinfo <- atomically $ do
+		    uinforc <- readTVar uiTVar
+		    case uinforc of
+			FetchedRecord _ _ (Just (RCUserInfo uinfo)) ->
+			    return $ userLocks uinfo ! n
+			_ -> retry
+		case mlockinfo of
+		    Nothing -> return ()
+		    Just lockinfo -> do
+			ltvar <- getRecordCached server Nothing Nothing $ RecLock $ lockSpec lockinfo
+			atomically $ do
+			    lockrc <- readTVar ltvar
+			    case lockrc of
+				FetchedRecord _ (Just err) _ -> return ()
+				FetchedRecord _ _ (Just (RCLock lock)) -> do
+				    writeTVar tvar $ Just lock
+				    writeTVar flag True
+				_ -> retry
+	    return tvar
+
+
 interactUI :: UIMonad uiM => StateT MainState uiM ()
 interactUI = do
-    mainSt <- get
-    let im = ms2im mainSt
-    when (im == IMPlay) checkWon
-    lift $ drawMainState mainSt
-    cmds <- lift $ getInput im
-    quit <- liftM (\e -> case e of Left _ -> True; _ -> False) $
-	runErrorT $ sequence_ $ map (processCommand im) cmds
-    if quit then return () else interactUI
+    flag <- gets newAsync
+    unblock <- lift unblockInput
+    liftIO $ forkIO $ forever $ do
+	atomically $ readTVar flag >>= check >> writeTVar flag False
+	unblock
+    loop
 
     where
+	loop = do
+	    mainSt <- get
+	    let im = ms2im mainSt
+	    when (im == IMPlay) checkWon
+	    lift $ drawMainState mainSt
+	    cmds <- lift $ getInput im
+	    quit <- liftM (\e -> case e of Left _ -> True; _ -> False) $
+		runErrorT $ sequence_ $ map (processCommand im) cmds
+	    if quit then return () else loop
+
 	processCommand :: UIMonad uiM => InputMode -> Command -> ErrorT () (StateT MainState uiM) ()
 	processCommand _ CmdQuit = do
 	    really <- lift $ lift $ confirm "Really quit?"
@@ -107,8 +156,7 @@ interactUI = do
 	processCommand' :: UIMonad uiM => InputMode -> Command -> StateT MainState uiM ()
 	processCommand' IMMeta CmdSelCodename = void $ runMaybeT $ do
 	    newCodename <- MaybeT $ lift $ textInput "Codename:" 3 True
-	    lift $ modify $ \ms -> ms { codenameStack = (newCodename:codenameStack ms)
-		    , currentUInfo = Nothing}
+	    lift $ setCurrCodename newCodename
 	    
 	processCommand' IMPlay CmdUndo = do
 	    st <- gets psCurrentState
