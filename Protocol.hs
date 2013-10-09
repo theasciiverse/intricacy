@@ -25,7 +25,7 @@ data Action
     | SetLock Lock LockIndex Solution
     deriving (Eq, Ord, Show, Read)
 
-data Auth = Auth Codename Password
+data Auth = Auth {authUser :: Codename, authPasswd :: Password}
     deriving (Eq, Ord, Show, Read)
 type Password = String
 

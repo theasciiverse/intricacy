@@ -3,6 +3,7 @@ module CursesUI ( UIM ) where
 
 import qualified UI.HSCurses.Curses as Curses
 import qualified UI.HSCurses.CursesHelper as CursesH
+import Control.Concurrent.STM
 import Data.Char (ord)
 import Data.Monoid
 import qualified Data.Map as Map
@@ -17,6 +18,8 @@ import Physics
 import Command
 import KeyBindings
 import Mundanities
+import ServerAddr
+import Cache
 import UI
 
 type AttrChar = (Char, Curses.Attr)
@@ -69,11 +72,15 @@ addCh :: Char ->  IO ()
 addCh c = Curses.wAddStr Curses.stdScr [c]
 mvAddCh :: CVec -> Char ->  IO ()
 mvAddCh (CVec y x) c = Curses.mvAddCh y x $ fromIntegral $ ord c
+mvAddStr :: CVec -> String -> IO ()
+mvAddStr (CVec y x) str = Curses.mvWAddStr Curses.stdScr y x str
 mvAddGlyph :: [Curses.Pair] -> CVec -> Glyph -> IO ()
 mvAddGlyph cpairs v (Glyph ch col attr) =
     Curses.attrSet attr (cpairs!!col) >> mvAddCh v ch
 move :: CVec -> IO ()
 move (CVec y x) = Curses.move y x
+clearLine :: Int -> IO ()
+clearLine y = Curses.move y 0 >> Curses.clrToEol
 
 data UIState = UIState { dispCPairs::[Curses.Pair], dispCentre::HexPos
     , dispLastCol::PieceColouring, uiKeyBindings :: Map InputMode KeyBindings }
@@ -100,6 +107,17 @@ drawAt gl pos = do
 	centre <- gets dispCentre
 	let cpos = scrCentre <+> (hexVec2CVec $ pos <-> centre)
 	liftIO $ mvAddGlyph cpairs cpos gl
+drawAtCVec :: Glyph -> CVec -> UIM ()
+drawAtCVec gl cpos = do
+    cpairs <- gets dispCPairs
+    liftIO $ mvAddGlyph cpairs cpos gl
+
+drawStr :: Curses.Attr -> ColPair -> CVec -> String -> UIM ()
+drawStr attr col v str = do
+    cpairs <- gets dispCPairs
+    liftIO $ Curses.attrSet attr (cpairs!!col) >> mvAddStr v str
+drawStrGrey :: CVec -> String -> UIM ()
+drawStrGrey = drawStr a0 0
 
 drawCursorAt :: Maybe HexPos -> UIM ()
 drawCursorAt Nothing =
@@ -149,25 +167,43 @@ colorsToPairs cs =
                in do Curses.initPair p fg bg
                      return p
 
-say str = do
+red = 1
+
+drawMsgLine attr col str = do
     (h,w) <- liftIO Curses.scrSize
-    liftIO $ Curses.mvWAddStr Curses.stdScr (h-1) 0 str
+    liftIO $ clearLine $ h-1
+    drawStr attr col (CVec (h-1) 0) str
     refresh
+say = drawMsgLine bold 0
+sayError = drawMsgLine bold 1
 
 instance UIMonad (StateT UIState IO) where
     runUI m = evalStateT m nullUIState
     drawMainState (PlayState st _ alerts wsel solved _ _) = do
-	do
-	    drawState [] False alerts st
-	    when solved $ say "Unlocked!"
-	    drawCursorAt $ listToMaybe [ pos |
-		(_, PlacedPiece pos p) <- enumVec $ placedPieces st
-		, or [wsel && isWrench p, not wsel && isHook p] ]
+	drawState [] False alerts st
+	when solved $ say "Unlocked!"
+	drawCursorAt $ listToMaybe [ pos |
+	    (_, PlacedPiece pos p) <- enumVec $ placedPieces st
+	    , or [wsel && isWrench p, not wsel && isHook p] ]
 
-    drawMainState (EditState (st:_) _ _ _ selPiece selPos _) =
-	do
-	    drawState (maybeToList selPiece) True [] st
-	    drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
+    drawMainState (EditState (st:_) _ _ _ selPiece selPos _) = do
+	drawState (maybeToList selPiece) True [] st
+	drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
+
+    drawMainState (MetaState saddr cOnly auth names _ uinfo path lock) = do
+	(h,w) <- liftIO Curses.scrSize
+	let name = liftM authUser auth
+	erase
+	drawStrGrey (CVec 0 0) $ "Server: " ++ saddrStr saddr 
+	drawStrGrey (CVec 1 0) $ "Lock: " ++ fromMaybe "" path
+	drawStrGrey (CVec 2 (w`div`2-1)) $ fromMaybe "" $ listToMaybe names
+	case uinfo of
+	    Nothing -> return ()
+	    Just (uiTVar, lockTVars) -> do
+		FetchedRecord fresh err muirc <- liftIO $ atomically $ readTVar uiTVar
+		when (not fresh) $ drawAtCVec (Glyph '*' red bold) $ CVec 2 (w`div`2+4)
+		maybe (return ()) sayError err
+	refresh
 
     drawAlerts alerts =
 	do mapM_ drawAlert alerts

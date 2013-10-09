@@ -15,6 +15,6 @@ main = do
 	    Nothing -> initMetaState
 	    Just lock -> return $ newEditState lock mpath
     ok <- if ForceCurses `elem` opts
-	then (doUI::SDLUI.UIM () -> IO Bool) $ void $ interactUI `runStateT` initMState
-	else (doUI::CursesUI.UIM () -> IO Bool) $ void $ interactUI `runStateT` initMState
+	then (doUI::CursesUI.UIM () -> IO Bool) $ void $ interactUI `runStateT` initMState
+	else (doUI::SDLUI.UIM () -> IO Bool) $ void $ interactUI `runStateT` initMState
     if ok then exitSuccess else exitFailure

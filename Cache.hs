@@ -7,7 +7,8 @@ import System.Directory
 import System.IO.Error
 import Control.Monad
 import Data.Maybe
-import qualified Data.ByteString.Lazy as L
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Lazy as BL
 import Data.Binary
 import System.IO
 import System.FilePath
@@ -15,19 +16,14 @@ import System.FilePath
 import Database
 import Protocol
 import Mundanities
-
-data ServerAddr = ServerAddr {hostname::String, port::Int}
-    deriving (Eq, Ord, Show)
+import ServerAddr
 
 data FetchedRecord = FetchedRecord {fresh :: Bool, fetchError :: Maybe String, fetchedRC :: Maybe RecordContents}
     deriving (Eq, Ord, Show)
 
 
-defaultPort=27001 -- == ('i'<<8) + 'y'
-saddrStr (ServerAddr hostname port) = hostname ++ if port==defaultPort then "" else ':':show port
-
-getRecordCached :: ServerAddr -> Maybe Auth -> Maybe (TVar Bool) -> Record -> IO (TVar FetchedRecord)
-getRecordCached saddr auth mflag rec = do
+getRecordCached :: ServerAddr -> Maybe Auth -> Maybe (TVar Bool) -> Bool -> Record -> IO (TVar FetchedRecord)
+getRecordCached saddr auth mflag cOnly rec = do
     tvar <- atomically $ newTVar $ FetchedRecord False Nothing Nothing
     forkIO $ getRecordCached' tvar
     return tvar
@@ -36,8 +32,9 @@ getRecordCached saddr auth mflag rec = do
 	    cdToCacheDir saddr
 	    fromCache <- (liftM Just $ getRecord rec) `catchIOError` (\_ -> return Nothing)
 	    when (isJust fromCache) $ tellRec $ FetchedRecord (invariantRecord rec) Nothing fromCache
-	    unless (isJust fromCache && invariantRecord rec) $ do
-	    resp <- makeRequest saddr (ClientRequest protocolVersion auth (askForRecord rec))
+	    unless (cOnly || (isJust fromCache && invariantRecord rec)) $ do
+	    resp <- makeRequest saddr (ClientRequest protocolVersion auth (askForRecord rec)) `catchIOError`
+		(const $ return $ ServerError $ "Can not connect to "++saddrStr saddr++"!")
 	    case resp of
 		ServerError err -> tellRec $ FetchedRecord False (Just err) fromCache
 		_ -> do
@@ -54,9 +51,9 @@ makeRequest :: ServerAddr -> ClientRequest -> IO ServerResponse
 makeRequest (ServerAddr host port) request = withStream (IP host port) makeRequest'
     where
 	makeRequest' handle = do
-	    L.hPut handle $ encode request 
+	    BS.hPut handle $ BL.toStrict $ encode request 
 	    hFlush handle
-	    decode `liftM` L.hGetContents handle
+	    (decode . BL.fromStrict) `liftM` BS.hGetContents handle
 
 
 -- | cheap way to get around having to pass the server address to the database

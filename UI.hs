@@ -9,7 +9,7 @@ import Control.Monad.Writer
 import Control.Monad.Trans.Error
 import Control.Monad.Trans.Maybe
 import Data.Maybe
-import Data.Char (ord, isPrint)
+import Data.Char
 import qualified Data.Binary as Bin
 import qualified Data.ByteString.Lazy as B
 import Control.Concurrent.STM
@@ -30,6 +30,7 @@ import Cache
 import Database
 import Protocol
 import Metagame
+import ServerAddr
 
 class (Functor m, MonadIO m) => UIMonad m where
     runUI :: m a -> IO a
@@ -69,7 +70,7 @@ data MainState
     | MetaState
 	{ curServer :: ServerAddr
 	, cacheOnly :: Bool
-	, auth :: Maybe Auth
+	, curAuth :: Maybe Auth
 	, codenameStack :: [Codename]
 	, newAsync :: TVar Bool
 	, curUInfo :: Maybe (TVar FetchedRecord, Array LockIndex (TVar (Maybe Lock)))
@@ -81,7 +82,9 @@ newPlayState (frame,st) = PlayState st frame [] False False [] []
 newEditState (frame,st) mpath = EditState [st] [] frame mpath Nothing (PHS zero) (PHS zero) 
 initMetaState = do
     tvar <- atomically $ newTVar False
-    return $ MetaState (ServerAddr "" 0) False Nothing [] tvar Nothing Nothing Nothing
+    (saddr, auth) <- confFilePath "metagame.conf" >>=
+	liftM (fromMaybe (defaultServerAddr, Nothing::Maybe Auth)) . readReadFile
+    return $ MetaState saddr False auth [] tvar Nothing Nothing Nothing
 
 data InputMode = IMEdit | IMPlay | IMMeta | IMTextInput
     deriving (Eq, Ord, Show, Read)
@@ -98,13 +101,13 @@ setCurrCodename :: UIMonad uiM => Codename -> StateT MainState uiM ()
 setCurrCodename name = do
     server <- gets curServer
     flag <- gets newAsync
-    uiTVar <- liftIO $ getRecordCached server Nothing (Just flag) $ RecUserInfo name
+    cOnly <- gets cacheOnly
+    uiTVar <- liftIO $ getRecordCached server Nothing (Just flag) cOnly $ RecUserInfo name
     lockTVars <- liftM (listArray (0,maxLocks-1)) $ liftIO $ sequence $
-	flip map [0..maxLocks-1] $ getLockTVar server uiTVar flag
-    modify $ \ms -> ms { codenameStack = (name:codenameStack ms)
-	, curUInfo = Just (uiTVar, lockTVars)}
+	flip map [0..maxLocks-1] $ getLockTVar server uiTVar flag cOnly
+    modify $ \ms -> ms { curUInfo = Just (uiTVar, lockTVars)}
     where
-	getLockTVar server uiTVar flag n = do
+	getLockTVar server uiTVar flag cOnly n = do
 	    tvar <- atomically $ newTVar Nothing
 	    forkIO $ do
 		mlockinfo <- atomically $ do
@@ -116,7 +119,7 @@ setCurrCodename name = do
 		case mlockinfo of
 		    Nothing -> return ()
 		    Just lockinfo -> do
-			ltvar <- getRecordCached server Nothing Nothing $ RecLock $ lockSpec lockinfo
+			ltvar <- getRecordCached server Nothing Nothing cOnly $ RecLock $ lockSpec lockinfo
 			atomically $ do
 			    lockrc <- readTVar ltvar
 			    case lockrc of
@@ -153,10 +156,13 @@ interactUI = do
 	    really <- lift $ lift $ confirm "Really quit?"
 	    when really $ throwError ()
 	processCommand im cmd = lift $ processCommand' im cmd
+
 	processCommand' :: UIMonad uiM => InputMode -> Command -> StateT MainState uiM ()
 	processCommand' IMMeta CmdSelCodename = void $ runMaybeT $ do
-	    newCodename <- MaybeT $ lift $ textInput "Codename:" 3 True
-	    lift $ setCurrCodename newCodename
+	    newCodename <- liftM (map toUpper) $ MaybeT $ lift $ textInput "Codename:" 3 True
+	    when (length newCodename == 3) $ lift $ do
+		modify $ \ms -> ms { codenameStack = (newCodename:codenameStack ms) }
+		setCurrCodename newCodename
 	    
 	processCommand' IMPlay CmdUndo = do
 	    st <- gets psCurrentState
@@ -357,7 +363,7 @@ interactUI = do
 	    getText ""
 	    where
 		getText s = do
-		    drawMessage $ prompt ++ " " ++ s ++ (replicate (maxlen-length s) ' ')
+		    drawMessage $ prompt ++ " " ++ s
 		    if endOnMax && maxlen == length s
 		    then return $ Just s
 		    else do

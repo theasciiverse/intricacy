@@ -80,7 +80,7 @@ hGetStrict h = CS.unpack `liftM` concatMWhileNonempty (repeat $ CS.hGet h 1024)
 putRecord :: Record -> RecordContents -> IO ()
 putRecord rec rc = do
     let path = recordPath rec
-    mkdirhier path 
+    mkdirhierto path 
     h <- openFile path WriteMode 
     putRecordh rc h
     hClose h

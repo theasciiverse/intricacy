@@ -25,7 +25,8 @@ confFilePath str = do
 makeConfDir :: IO ()
 makeConfDir = confFilePath "" >>= createDirectoryIfMissing False
 
-mkdirhier path = let dir = takeDirectory path in do
-    exists <- doesDirectoryExist dir
-    when (not exists) $ mkdirhier dir >> createDirectory dir
+mkdirhierto = mkdirhier . takeDirectory
+mkdirhier path = do
+    exists <- doesDirectoryExist path
+    when (not exists) $ mkdirhierto path >> createDirectory path
 

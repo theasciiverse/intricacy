@@ -86,11 +86,16 @@ ctrl c = toEnum $ fromEnum c - 64
 
 playBindings :: KeyBindings
 playBindings = globalBindings ++ playOnlyBindings
-editBindings :: KeyBindings
 editBindings = globalBindings ++ editOnlyBindings
+metaBindings =
+    [ ('c', CmdSelCodename)
+    , ('q', CmdQuit)
+    , ('Q', CmdQuit)
+    ]
 
 bindings IMEdit = editBindings
 bindings IMPlay = playBindings
+bindings IMMeta = metaBindings
 
 findBinding :: KeyBindings -> Command -> String
 findBinding bdgs cmd =
