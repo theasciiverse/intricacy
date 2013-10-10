@@ -37,6 +37,7 @@ getRecordCached saddr auth mflag cOnly rec = do
 		(const $ return $ ServerError $ "Can not connect to "++saddrStr saddr++"!")
 	    case resp of
 		ServerError err -> tellRec $ FetchedRecord False (Just err) fromCache
+		ServerCodenameFree -> tellRec $ FetchedRecord True Nothing Nothing
 		_ -> do
 		    let rc = rcOfServerResp resp
 		    putRecord rec rc

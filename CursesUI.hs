@@ -20,6 +20,7 @@ import KeyBindings
 import Mundanities
 import ServerAddr
 import Cache
+import Protocol
 import UI
 
 type AttrChar = (Char, Curses.Attr)
@@ -203,6 +204,8 @@ instance UIMonad (StateT UIState IO) where
 		FetchedRecord fresh err muirc <- liftIO $ atomically $ readTVar uiTVar
 		when (not fresh) $ drawAtCVec (Glyph '*' red bold) $ CVec 2 (w`div`2+4)
 		maybe (return ()) sayError err
+		when (fresh && isNothing name) $
+		    drawStrGrey (CVec 2 (w`div`2+1+6)) (if isNothing muirc then "(R)" else "(A)")
 	refresh
 
     drawAlerts alerts =

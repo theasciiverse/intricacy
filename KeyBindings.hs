@@ -89,6 +89,8 @@ playBindings = globalBindings ++ playOnlyBindings
 editBindings = globalBindings ++ editOnlyBindings
 metaBindings =
     [ ('c', CmdSelCodename)
+    , ('R', CmdRegister)
+    , ('A', CmdAuth)
     , ('q', CmdQuit)
     , ('Q', CmdQuit)
     ]

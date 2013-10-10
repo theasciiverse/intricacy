@@ -85,7 +85,8 @@ handleRequest req@(ClientRequest pv auth action) = do
 		Register -> newUser auth >> return ServerAck
 		GetServerInfo -> liftM ServedServerInfo $ getServerInfo
 		GetLock ls -> liftM ServedLock $ getLock ls
-		GetUserInfo name -> liftM ServedUserInfo $ getUserInfo name
+		GetUserInfo name -> liftM ServedUserInfo (getUserInfo name)
+		    `catchError` \_ -> return ServerCodenameFree
 		DeclareSolution soln ls target idx -> do
 		    info <- getUserInfoOfAuth auth
 		    lock <- getLock ls

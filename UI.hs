@@ -2,6 +2,7 @@ module UI where
 
 import Control.Monad.Trans
 import Control.Monad.State
+import Control.Applicative
 import qualified Data.Vector as Vector
 import qualified Data.Map as Map
 import Data.Map (Map)
@@ -130,7 +131,6 @@ setCurrCodename name = do
 				_ -> retry
 	    return tvar
 
-
 interactUI :: UIMonad uiM => StateT MainState uiM ()
 interactUI = do
     flag <- gets newAsync
@@ -158,11 +158,39 @@ interactUI = do
 	processCommand im cmd = lift $ processCommand' im cmd
 
 	processCommand' :: UIMonad uiM => InputMode -> Command -> StateT MainState uiM ()
-	processCommand' IMMeta CmdSelCodename = void $ runMaybeT $ do
+	processCommand' IMMeta CmdSelCodename = void.runMaybeT $ do
 	    newCodename <- liftM (map toUpper) $ MaybeT $ lift $ textInput "Codename:" 3 True
-	    when (length newCodename == 3) $ lift $ do
+	    guard $ length newCodename == 3
+	    lift $ do
 		modify $ \ms -> ms { codenameStack = (newCodename:codenameStack ms) }
 		setCurrCodename newCodename
+	processCommand' IMMeta CmdRegister = void.runMaybeT $ do
+	    guard =<< isNothing <$> lift (gets curAuth)
+	    newName <- MaybeT $ listToMaybe <$> gets codenameStack
+	    (guard =<<) $ lift.lift $ confirm $ "Register codename "++newName++"?"
+	    passwd <- MaybeT $ lift $ textInput "Enter new password:" 64 False
+	    lift $ do
+		modify $ \ms -> ms {curAuth = Just $ Auth newName passwd}
+		resp <- curServerAction $ Register
+		case resp of
+		    ServerAck -> (lift $ drawMessage "Registered!") >> setCurrCodename newName
+		    ServerError err -> do
+			lift $ drawMessage err
+			modify $ \ms -> ms {curAuth = Nothing}
+		    _ -> lift $ drawMessage "BUG"
+	processCommand' IMMeta CmdAuth = void.runMaybeT $ do
+	    auth <- lift $ gets curAuth
+	    name <- MaybeT $ listToMaybe <$> gets codenameStack
+	    passwd <- MaybeT $ lift $ textInput ("Enter password for "++name++":") 64 False
+	    lift $ do
+		modify $ \ms -> ms {curAuth = Just $ Auth name passwd}
+		resp <- curServerAction $ Authenticate
+		case resp of
+		    ServerAck -> (lift $ drawMessage "Authenticated.") >> setCurrCodename name
+		    ServerError err -> do
+			lift $ drawMessage err
+			modify $ \ms -> ms {curAuth = auth}
+		    _ -> lift $ drawMessage "BUG"
 	    
 	processCommand' IMPlay CmdUndo = do
 	    st <- gets psCurrentState
@@ -383,3 +411,7 @@ interactUI = do
 				then Right $ (if length s >= maxlen then id else (++[c])) s
 				else Right s
 			applyCmd s _ = Left False
+	curServerAction act = do
+	    saddr <- gets curServer
+	    auth <- gets curAuth
+	    liftIO $ makeRequest saddr $ ClientRequest protocolVersion auth act

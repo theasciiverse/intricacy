@@ -13,6 +13,7 @@ data Command = CmdDir WrHoSel HexDir | CmdRotate TorqueDir | CmdWait
 	| CmdInputChar Char
 	| CmdWriteState
 	| CmdSelCodename
+	| CmdRegister | CmdAuth
 	| CmdRedraw
 	| CmdQuit 
     deriving (Eq, Ord, Show, Read)
