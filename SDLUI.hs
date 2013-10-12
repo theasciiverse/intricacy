@@ -313,28 +313,29 @@ say str = renderToMain $ renderStrAt str $ messageLineStart
 
 instance UIMonad (StateT UIState IO) where
     runUI m = evalStateT m nullUIState
-    drawMainState (PlayState st _ alerts wsel solved _ _) = do
-	waitFrame
-	let selTools = [ idx |
-		(idx, PlacedPiece pos p) <- enumVec $ placedPieces st
-		, or [wsel && isWrench p, not wsel && isHook p] ]
-	drawMainGameState selTools False alerts st
-	drawButtons IMPlay
-	drawUIOptionButtons IMPlay
-	when solved $ say "Unlocked!"
-	refresh
+    drawMainState = get >>= \s -> case s of
+	PlayState st _ alerts wsel solved _ _ -> lift $ do
+	    waitFrame
+	    let selTools = [ idx |
+		    (idx, PlacedPiece pos p) <- enumVec $ placedPieces st
+		    , or [wsel && isWrench p, not wsel && isHook p] ]
+	    drawMainGameState selTools False alerts st
+	    drawButtons IMPlay
+	    drawUIOptionButtons IMPlay
+	    when solved $ say "Unlocked!"
+	    refresh
 
-    drawMainState (EditState (st:_) _ _ _ selPiece selPos _) = do
-	waitFrame
-	drawMainGameState (maybeToList selPiece) True [] st
-	renderToMain $ drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
-	-- drawPaintSel
-	drawButtons IMEdit
-	drawPaintButtons
-	drawUIOptionButtons IMEdit
-	refresh
+	EditState (st:_) _ _ _ selPiece selPos _ -> lift $ do
+	    waitFrame
+	    drawMainGameState (maybeToList selPiece) True [] st
+	    renderToMain $ drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
+	    -- drawPaintSel
+	    drawButtons IMEdit
+	    drawPaintButtons
+	    drawUIOptionButtons IMEdit
+	    refresh
 
-    drawMainState _ = return ()
+	_ -> return ()
 
     drawMessage prompt = do
 	say prompt

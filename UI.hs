@@ -16,6 +16,7 @@ import qualified Data.ByteString.Lazy as B
 import Control.Concurrent.STM
 import Control.Concurrent
 import System.Directory
+import System.Time
 import Data.Array
 
 import Hex
@@ -37,7 +38,7 @@ class (Functor m, MonadIO m) => UIMonad m where
     runUI :: m a -> IO a
     initUI :: m Bool
     endUI :: m ()
-    drawMainState :: MainState -> m ()
+    drawMainState :: StateT MainState m ()
     drawAlerts :: [Alert] -> m ()
     drawMessage :: String -> m ()
     getInput :: InputMode -> m [ Command ]
@@ -74,7 +75,7 @@ data MainState
 	, curAuth :: Maybe Auth
 	, codenameStack :: [Codename]
 	, newAsync :: TVar Bool
-	, curUInfo :: Maybe (TVar FetchedRecord, Array LockIndex (TVar (Maybe Lock)))
+	, userInfos :: Map Codename (TVar FetchedRecord, Integer)
 	, curLockPath :: Maybe FilePath
 	, curLock :: Maybe Lock
 	}
@@ -85,7 +86,7 @@ initMetaState = do
     tvar <- atomically $ newTVar False
     (saddr, auth) <- confFilePath "metagame.conf" >>=
 	liftM (fromMaybe (defaultServerAddr, Nothing::Maybe Auth)) . readReadFile
-    return $ MetaState saddr False auth [] tvar Nothing Nothing Nothing
+    return $ MetaState saddr False auth [] tvar Map.empty Nothing Nothing
 
 data InputMode = IMEdit | IMPlay | IMMeta | IMTextInput
     deriving (Eq, Ord, Show, Read)
@@ -98,38 +99,55 @@ ms2im mainSt = case mainSt of
 
 instance Error () where noMsg = ()
 
-setCurrCodename :: UIMonad uiM => Codename -> StateT MainState uiM ()
-setCurrCodename name = do
-    server <- gets curServer
-    flag <- gets newAsync
+getTime = do 
+    TOD secs msecs <- getClockTime
+    return secs
+
+getUInfoFetched :: UIMonad uiM => Integer -> Codename -> StateT MainState uiM FetchedRecord
+getUInfoFetched staleTime name = do
+    gets ((Map.lookup name) . userInfos) >>=
+	\x -> case x of
+	    Nothing -> set
+	    Just (tvar, time) -> do
+		now <- liftIO getTime
+		if now - time > staleTime
+		    then set
+		    else liftIO $ atomically $ readTVar tvar
+    where set = do
+	    now <- liftIO getTime
+	    tvar <- getRecordCachedFromCur True $ RecUserInfo name
+	    modify $ \ms -> ms {userInfos = Map.insert name (tvar, now) $ userInfos ms}
+	    liftIO $ atomically $ readTVar tvar
+
+curServerAction act = do
+    saddr <- gets curServer
+    auth <- gets curAuth
+    liftIO $ makeRequest saddr $ ClientRequest protocolVersion auth act
+
+getRecordCachedFromCur flagIt rec = do
+    saddr <- gets curServer
+    auth <- gets curAuth
     cOnly <- gets cacheOnly
-    uiTVar <- liftIO $ getRecordCached server Nothing (Just flag) cOnly $ RecUserInfo name
-    lockTVars <- liftM (listArray (0,maxLocks-1)) $ liftIO $ sequence $
-	flip map [0..maxLocks-1] $ getLockTVar server uiTVar flag cOnly
-    modify $ \ms -> ms { curUInfo = Just (uiTVar, lockTVars)}
+    flag <- gets newAsync
+    liftIO $ getRecordCached saddr auth
+	(if flagIt then Just flag else Nothing) cOnly rec
+
+getRelScore :: (UIMonad uiM) => Codename -> StateT MainState uiM (Maybe Int)
+getRelScore name = runMaybeT $ do
+    ourName <- MaybeT $ (authUser <$>) <$> gets curAuth
+    RCUserInfo uinfo <- MaybeT $ fetchedRC <$> getUInfoFetched 300 name
+    RCUserInfo ourUInfo <- MaybeT $ fetchedRC <$> getUInfoFetched 300 ourName
+    return $ countUnaccessedBy ourUInfo name - countUnaccessedBy uinfo ourName
     where
-	getLockTVar server uiTVar flag cOnly n = do
-	    tvar <- atomically $ newTVar Nothing
-	    forkIO $ do
-		mlockinfo <- atomically $ do
-		    uinforc <- readTVar uiTVar
-		    case uinforc of
-			FetchedRecord _ _ (Just (RCUserInfo uinfo)) ->
-			    return $ userLocks uinfo ! n
-			_ -> retry
-		case mlockinfo of
-		    Nothing -> return ()
-		    Just lockinfo -> do
-			ltvar <- getRecordCached server Nothing Nothing cOnly $ RecLock $ lockSpec lockinfo
-			atomically $ do
-			    lockrc <- readTVar ltvar
-			    case lockrc of
-				FetchedRecord _ (Just err) _ -> return ()
-				FetchedRecord _ _ (Just (RCLock lock)) -> do
-				    writeTVar tvar $ Just lock
-				    writeTVar flag True
-				_ -> retry
-	    return tvar
+	countUnaccessedBy (UserInfo _ locks _) name =
+	    length $ filter (unaccessedBy name) $ elems locks
+	unaccessedBy name Nothing = False
+	unaccessedBy name (Just linfo) = not $ public linfo || name `elem` accessedBy linfo 
+
+getNotesReadOn al = (maybe [] id <$>) $ runMaybeT $ do
+    ourName <- MaybeT $ (authUser <$>) <$> gets curAuth
+    RCUserInfo ourUInfo <- MaybeT $ fetchedRC <$> getUInfoFetched 300 ourName
+    return [ note | note <- notesRead ourUInfo, noteOn note == al ]
 
 interactUI :: UIMonad uiM => StateT MainState uiM ()
 interactUI = do
@@ -145,7 +163,7 @@ interactUI = do
 	    mainSt <- get
 	    let im = ms2im mainSt
 	    when (im == IMPlay) checkWon
-	    lift $ drawMainState mainSt
+	    drawMainState
 	    cmds <- lift $ getInput im
 	    quit <- liftM (\e -> case e of Left _ -> True; _ -> False) $
 		runErrorT $ sequence_ $ map (processCommand im) cmds
@@ -163,7 +181,6 @@ interactUI = do
 	    guard $ length newCodename == 3
 	    lift $ do
 		modify $ \ms -> ms { codenameStack = (newCodename:codenameStack ms) }
-		setCurrCodename newCodename
 	processCommand' IMMeta CmdRegister = void.runMaybeT $ do
 	    guard =<< isNothing <$> lift (gets curAuth)
 	    newName <- MaybeT $ listToMaybe <$> gets codenameStack
@@ -173,7 +190,7 @@ interactUI = do
 		modify $ \ms -> ms {curAuth = Just $ Auth newName passwd}
 		resp <- curServerAction $ Register
 		case resp of
-		    ServerAck -> (lift $ drawMessage "Registered!") >> setCurrCodename newName
+		    ServerAck -> (lift $ drawMessage "Registered!")
 		    ServerError err -> do
 			lift $ drawMessage err
 			modify $ \ms -> ms {curAuth = Nothing}
@@ -186,7 +203,7 @@ interactUI = do
 		modify $ \ms -> ms {curAuth = Just $ Auth name passwd}
 		resp <- curServerAction $ Authenticate
 		case resp of
-		    ServerAck -> (lift $ drawMessage "Authenticated.") >> setCurrCodename name
+		    ServerAck -> (lift $ drawMessage "Authenticated.")
 		    ServerError err -> do
 			lift $ drawMessage err
 			modify $ \ms -> ms {curAuth = auth}
@@ -386,6 +403,7 @@ interactUI = do
 		ansOfCmd (CmdInputChar '\ESC') = Just False
 		ansOfCmd _ = Nothing
 
+	-- | TODO: draw cursor
 	textInput :: UIMonad uiM => String -> Int -> Bool -> uiM (Maybe String)
 	textInput prompt maxlen endOnMax = do
 	    getText ""
@@ -411,7 +429,3 @@ interactUI = do
 				then Right $ (if length s >= maxlen then id else (++[c])) s
 				else Right s
 			applyCmd s _ = Left False
-	curServerAction act = do
-	    saddr <- gets curServer
-	    auth <- gets curAuth
-	    liftIO $ makeRequest saddr $ ClientRequest protocolVersion auth act

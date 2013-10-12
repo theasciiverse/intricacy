@@ -24,17 +24,15 @@ data FetchedRecord = FetchedRecord {fresh :: Bool, fetchError :: Maybe String, f
 
 getRecordCached :: ServerAddr -> Maybe Auth -> Maybe (TVar Bool) -> Bool -> Record -> IO (TVar FetchedRecord)
 getRecordCached saddr auth mflag cOnly rec = do
-    tvar <- atomically $ newTVar $ FetchedRecord False Nothing Nothing
-    forkIO $ getRecordCached' tvar
+    cdToCacheDir saddr
+    fromCache <- (liftM Just $ getRecord rec) `catchIOError` (\_ -> return Nothing)
+    let fresh = isJust fromCache && invariantRecord rec
+    tvar <- atomically $ newTVar $ FetchedRecord fresh Nothing fromCache
+    unless (cOnly || fresh) $ void $ forkIO $ getRecordFromServer fromCache tvar
     return tvar
     where
-	getRecordCached' tvar = do
-	    cdToCacheDir saddr
-	    fromCache <- (liftM Just $ getRecord rec) `catchIOError` (\_ -> return Nothing)
-	    when (isJust fromCache) $ tellRec $ FetchedRecord (invariantRecord rec) Nothing fromCache
-	    unless (cOnly || (isJust fromCache && invariantRecord rec)) $ do
-	    resp <- makeRequest saddr (ClientRequest protocolVersion auth (askForRecord rec)) `catchIOError`
-		(const $ return $ ServerError $ "Can not connect to "++saddrStr saddr++"!")
+	getRecordFromServer fromCache tvar = do
+	    resp <- makeRequest saddr (ClientRequest protocolVersion auth (askForRecord rec))
 	    case resp of
 		ServerError err -> tellRec $ FetchedRecord False (Just err) fromCache
 		ServerCodenameFree -> tellRec $ FetchedRecord True Nothing Nothing
@@ -44,12 +42,12 @@ getRecordCached saddr auth mflag cOnly rec = do
 		    tellRec $ FetchedRecord True Nothing (Just rc)
 	    where
 		tellRec fr = atomically $ do
-		    writeTVar tvar fr 
+		    writeTVar tvar fr
 		    case mflag of {Just flag -> writeTVar flag True; _ -> return ()}
 
-
 makeRequest :: ServerAddr -> ClientRequest -> IO ServerResponse
-makeRequest (ServerAddr host port) request = withStream (IP host port) makeRequest'
+makeRequest saddr@(ServerAddr host port) request = withStream (IP host port) makeRequest'
+	`catchIOError` (const $ return $ ServerError $ "Cannot connect to "++saddrStr saddr++"!")
     where
 	makeRequest' handle = do
 	    BS.hPut handle $ BL.toStrict $ encode request 

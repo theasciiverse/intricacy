@@ -770,7 +770,26 @@ Neato.
 The cache can use the Database module, first cding to a dir named after the
 server (hostname[:port]).
 
-Implemented
+Implemented.
+
+But to know what colour to draw a codename, we need to calculate the relative
+score, which involves having the userinfos of both players.
+
+So:
+    * we should put any cached info in the tvar right from the start, so we
+	don't redraw the screen after each file is read from the disk;
+    * we really need a versioning mechanism for userinfo, with the server
+	only sending over the userinfo when the cache is stale (and preferably
+	only sending diffs)
+    * we need some nice abstract mechanism for handling stuff calculated from
+	tvar-held information
+    * arguably we should cache the calculated scores in memory, recalculating
+	only if we get new pertinent information from the server
+    * to minimise server-hammering, we should have a timeout before which a
+	uinfo won't be checked for freshness when it's being used only for
+	score calculation.
+	(System.Time.TOD secsSinceEpoch _ <- System.Time.getClockTime)
+
 
 -----
 Metagame UI architecture
@@ -814,3 +833,9 @@ interpreted as relative to the default lock dir and with mkdirhier applied as
 appropriate. All locks stored with ppshow, so revision control systems etc
 won't be useless. Locks shown in order of modification. Tab completion up to
 longest unique stem.
+
+
+Terminology:
+    Locks are solved, then accessed.
+    Notes are taken on a lock; declared; secured behind a lock; read.
+
