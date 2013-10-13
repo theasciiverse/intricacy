@@ -80,8 +80,7 @@ data MainState
 	, codenameStack :: [Codename]
 	, newAsync :: TVar Bool
 	, userInfos :: Map Codename (TVar FetchedRecord, Integer)
-	, lockPath :: FilePath
-	, lockCompletion :: FilePath
+	, curLockPath :: FilePath
 	, curLock :: Maybe Lock
 	}
 
@@ -97,7 +96,7 @@ initMetaState = do
     undecls <- confFilePath ("undeclared" ++ [pathSeparator] ++ saddrStr saddr) >>=
 	liftM (fromMaybe []) . readReadFile
     lock <- readLock path
-    return $ MetaState saddr undecls False auth names tvar Map.empty "" "" lock
+    return $ MetaState saddr undecls False auth names tvar Map.empty path lock
 
 readLock :: FilePath -> IO (Maybe Lock)
 readLock path = do
@@ -105,7 +104,7 @@ readLock path = do
 	    (++(pathSeparator:path)) <$> confFilePath "locks"
     readReadFile fullPath
 
-writeMetaState (MetaState saddr undecls _ auth _ _ _ path _ _) = do
+writeMetaState (MetaState saddr undecls _ auth _ _ _ path _) = do
     confFilePath "metagame.conf" >>= flip writeFile (show (saddr, auth, path))
     confFilePath ("undeclared" ++ [pathSeparator] ++ saddrStr saddr) >>= flip writeFile (show undecls)
 
@@ -116,7 +115,7 @@ ms2im :: MainState -> InputMode
 ms2im mainSt = case mainSt of
     PlayState _ _ _ _ _ _ _ -> IMPlay
     EditState _ _ _ _ _ _ _ -> IMEdit
-    MetaState _ _ _ _ _ _ _ _ _ _ -> IMMeta
+    MetaState _ _ _ _ _ _ _ _ _ -> IMMeta
 
 instance Error () where noMsg = ()
 
@@ -202,7 +201,7 @@ interactUI = do
 
 	processCommand' :: UIMonad uiM => InputMode -> Command -> StateT MainState uiM ()
 	processCommand' IMMeta CmdSelCodename = void.runMaybeT $ do
-	    newCodename <- liftM (map toUpper) $ MaybeT $ lift $ textInput "Codename:" 3 True
+	    newCodename <- liftM (map toUpper) $ MaybeT $ lift $ textInput "Codename:" 3 True Nothing
 	    guard $ length newCodename == 3
 	    lift $ do
 		modify $ \ms -> ms { codenameStack = (newCodename:codenameStack ms) }
@@ -210,7 +209,7 @@ interactUI = do
 	    guard =<< isNothing <$> lift (gets curAuth)
 	    newName <- MaybeT $ listToMaybe <$> gets codenameStack
 	    (guard =<<) $ lift.lift $ confirm $ "Register codename "++newName++"?"
-	    passwd <- MaybeT $ lift $ textInput "Enter new password:" 64 False
+	    passwd <- MaybeT $ lift $ textInput "Enter new password:" 64 False Nothing
 	    lift $ do
 		modify $ \ms -> ms {curAuth = Just $ Auth newName passwd}
 		resp <- curServerAction $ Register
@@ -223,7 +222,7 @@ interactUI = do
 	processCommand' IMMeta CmdAuth = void.runMaybeT $ do
 	    auth <- lift $ gets curAuth
 	    name <- MaybeT $ listToMaybe <$> gets codenameStack
-	    passwd <- MaybeT $ lift $ textInput ("Enter password for "++name++":") 64 False
+	    passwd <- MaybeT $ lift $ textInput ("Enter password for "++name++":") 64 False Nothing
 	    lift $ do
 		modify $ \ms -> ms {curAuth = Just $ Auth name passwd}
 		resp <- curServerAction $ Authenticate
@@ -237,7 +236,7 @@ interactUI = do
 	    name <- MaybeT $ listToMaybe <$> gets codenameStack
 	    RCUserInfo uinfo <- MaybeT $ fetchedRC <$> getUInfoFetched 300 name
 	    index <- MaybeT $ lift $ (charLockIndex.head <$>) <$>
-		textInput "Solve which lock [A-C]?" 1 True
+		textInput "Solve which lock [A-C]?" 1 True Nothing
 	    guard $ 0 <= index && index <= 2
 	    ls <- MaybeT $ return $ lockSpec <$> userLocks uinfo ! index
 	    tvar <- lift $ getRecordCachedFromCur False $ RecLock ls
@@ -267,7 +266,7 @@ interactUI = do
 		    which <- MaybeT $ lift $ textInput
 			--("Declare which solution [1-" ++ show (length undecls) ++ "?")
 			("Declare which solution?")
-			5 False
+			5 False Nothing
 		    MaybeT $ return $ msum
 			[ do
 			    i <- fst <$> (listToMaybe $ (reads :: ReadS Int) which)
@@ -282,7 +281,7 @@ interactUI = do
 				    ] ]
 			]
 	    index <- MaybeT $ lift $ (charLockIndex.head <$>) <$>
-		textInput "Secure behind which lock [A-C]?" 1 True
+		textInput "Secure behind which lock [A-C]?" 1 True Nothing
 	    guard $ 0 <= index && index <= 2
 	    guard $ isJust $ userLocks ourUInfo ! index
 	    lift $ do
@@ -291,6 +290,13 @@ interactUI = do
 		    ServerAck -> modify $ \ms -> ms {undeclareds = delete undecl $ undeclareds ms}
 		    ServerError err -> lift $ drawError err
 		    _ -> return ()
+	processCommand' IMMeta CmdSelectLock = void.runMaybeT $ do
+	    lockdir <- liftIO $ confFilePath "locks"
+	    paths <- liftIO $ map (drop (length lockdir + 1)) <$> getDirContentsRec lockdir
+	    path <- MaybeT $ lift $ textInput "Select lock: " 1024 False (Just paths)
+	    lift $ do
+		lock <- liftIO $ readLock path
+		modify $ \ms -> ms {curLockPath = path, curLock = lock}
 	    
 	processCommand' IMPlay CmdUndo = do
 	    st <- gets psCurrentState
@@ -411,7 +417,7 @@ interactUI = do
 		    path <- gets esPath
 		    case path of
 			Nothing -> do
-			    newPath <- lift $ textInput "Save lock as:" 16 False
+			    newPath <- lift $ textInput "Save lock as:" 16 False Nothing
 			    modify $ \es -> es {esPath = newPath}
 			    when (isJust newPath) writeState
 			Just path -> do
@@ -489,28 +495,46 @@ interactUI = do
 		ansOfCmd _ = Nothing
 
 	-- | TODO: draw cursor
-	textInput :: UIMonad uiM => String -> Int -> Bool -> uiM (Maybe String)
-	textInput prompt maxlen endOnMax = do
-	    getText "" <* drawMessage ""
+	textInput :: UIMonad uiM => String -> Int -> Bool -> Maybe [String] -> uiM (Maybe String)
+	textInput prompt maxlen endOnMax mposss = do
+	    getText ("","") <* drawMessage ""
 	    where
-		getText s = do
+		getText (s,stem) = do
 		    drawMessage $ prompt ++ " " ++ s
 		    if endOnMax && maxlen == length s
 		    then return $ Just s
 		    else do
 			cmds <- getInput IMTextInput
-			case foldM applyCmd s cmds of
+			case foldM applyCmd (s,stem) cmds of
 			    Left False -> return Nothing
 			    Left True -> return $ Just s
-			    Right s' -> getText s'
+			    Right (s',stem') -> getText (s',stem')
 		    where
-			applyCmd s (CmdInputChar c) = case c of
+			applyCmd (s,stem) (CmdInputChar c) = case c of
 			    '\ESC' -> Left False
 			    '\n' -> Left True
 			    '\r' -> Left True
-			    '\NAK' -> Right []  -- ^U
-			    '\b' -> Right $ take (length s - 1) s
+			    '\NAK' -> Right ("","")  -- ^U
+			    '\b' -> Right $ (take (length s - 1) s, "")
+			    '\t' -> case mposss of
+				Nothing -> Right (s,stem)
+				Just possibilities -> if null stem
+				    then let
+					completions = filter (completes s) possibilities
+					pref = if null completions then s else
+					    let c = head completions
+					    in head [ c' | n <- reverse [0..length c],
+						let c'=take n c, all (completes c') completions ]
+					in Right (pref,pref)
+				    else let
+					completions = filter (completes stem) possibilities
+					later = filter (>s) completions
+					s' = if null completions then s
+					    else if null later then head completions
+					    else minimum later
+					in Right (s',stem)
 			    _ -> if isPrint c
-				then Right $ (if length s >= maxlen then id else (++[c])) s
-				else Right s
-			applyCmd s _ = Left False
+				then Right $ ((if length s >= maxlen then id else (++[c])) s, "")
+				else Right (s,stem)
+			applyCmd _ _ = Left False
+		completes s s' = take (length s) s' == s

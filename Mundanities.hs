@@ -8,6 +8,7 @@ import System.Directory
 import System.FilePath
 import System.Environment
 import Data.Maybe
+import Data.List
 
 readReadFile :: (Read a) => FilePath -> IO (Maybe a)
 readReadFile file = do
@@ -29,3 +30,9 @@ mkdirhier path = do
     exists <- doesDirectoryExist path
     when (not exists) $ mkdirhierto path >> createDirectory path
 
+getDirContentsRec :: FilePath -> IO [FilePath]
+getDirContentsRec path = flip catchIOError (const $ return []) $ do
+    contents <- map ((path++[pathSeparator])++) <$> filter ((/='.').head) <$> getDirectoryContents path
+    annotated <- (\p -> (,) p <$> doesDirectoryExist p) `mapM` contents
+    let (dirs,files) = (\(x,y) -> (map fst x, map fst y)) $ partition snd $ annotated
+    (files++) . concat <$> getDirContentsRec `mapM` dirs

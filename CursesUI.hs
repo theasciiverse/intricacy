@@ -281,7 +281,7 @@ instance UIMonad (StateT UIState IO) where
 		erase
 		drawCursorAt Nothing
 		drawStrGrey (CVec 0 0) $ "Server: " ++ saddrStr saddr 
-		drawStrGrey (CVec 1 0) $ "Lock: " ++ fromMaybe "" path
+		drawStrGrey (CVec 1 0) $ "Lock: " ++ path
 	    maybe (return ()) (drawName (CVec 2 (w`div`2))) selName
 	    runMaybeT $ MaybeT (return selName) >>= lift . getUInfoFetched 30 >>=
 		\(FetchedRecord fresh err muirc) -> lift $ do
