@@ -832,10 +832,12 @@ be able to enter any path, relative or absolute, with relative paths
 interpreted as relative to the default lock dir and with mkdirhier applied as
 appropriate. All locks stored with ppshow, so revision control systems etc
 won't be useless. Locks shown in order of modification. Tab completion up to
-longest unique stem.
+longest unique stem, and then cycling through completions.
+
+Undeclared notes: need to clear out notes when they become undeclarable
 
 
 Terminology:
-    Locks are solved, then accessed.
+    Locks are placed, then solved, then accessed.
     Notes are taken on a lock; declared; secured behind a lock; read.
 

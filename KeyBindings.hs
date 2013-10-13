@@ -88,11 +88,30 @@ playBindings :: KeyBindings
 playBindings = globalBindings ++ playOnlyBindings
 editBindings = globalBindings ++ editOnlyBindings
 metaBindings =
-    [ ('c', CmdSelCodename)
+    [ ('C', CmdSelCodename)
+    , ('c', CmdSelCodename)
+    , ('S', CmdSolve)
+    , ('s', CmdSolve)
+    , ('D', CmdDeclare)
+    , ('d', CmdDeclare)
     , ('R', CmdRegister)
+    , ('r', CmdRegister)
+    , ('P', CmdPlaceLock)
+    , ('p', CmdPlaceLock)
+    , ('E', CmdEdit)
+    , ('e', CmdEdit)
+    , ('L', CmdSelectLock)
+    , ('l', CmdSelectLock)
+    , ('B', CmdPrevLock)
+    , ('b', CmdPrevLock)
+    , ('F', CmdNextLock)
+    , ('f', CmdNextLock)
     , ('A', CmdAuth)
-    , ('q', CmdQuit)
+    , ('a', CmdAuth)
+    , ('T', CmdTutorials)
+    , ('t', CmdTutorials)
     , ('Q', CmdQuit)
+    , ('q', CmdQuit)
     ]
 
 bindings IMEdit = editBindings

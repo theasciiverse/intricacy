@@ -8,11 +8,15 @@ data Command = CmdDir WrHoSel HexDir | CmdRotate TorqueDir | CmdWait
 	| CmdToggle
 	| CmdTile Tile | CmdPaint Tile | CmdMerge
 	| CmdSelect | CmdUnselect | CmdDelete
-	| CmdEdit | CmdPlay | CmdResetTools
+	| CmdPlay | CmdResetTools
 	| CmdUndo | CmdRedo
 	| CmdInputChar Char
 	| CmdWriteState
-	| CmdSelCodename
+	| CmdTutorials
+	| CmdSelCodename | CmdBackCodename
+	| CmdSolve | CmdDeclare 
+	| CmdSelectLock | CmdNextLock | CmdPrevLock
+	| CmdEdit | CmdPlaceLock
 	| CmdRegister | CmdAuth
 	| CmdRedraw
 	| CmdQuit 

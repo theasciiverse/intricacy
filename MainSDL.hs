@@ -14,7 +14,11 @@ main = do
     initMState <- case mlock of
 	    Nothing -> initMetaState
 	    Just lock -> return $ newEditState lock mpath
-    ok <- if ForceCurses `elem` opts
-	then (doUI::CursesUI.UIM () -> IO Bool) $ void $ interactUI `runStateT` initMState
-	else (doUI::SDLUI.UIM () -> IO Bool) $ void $ interactUI `runStateT` initMState
-    if ok then exitSuccess else exitFailure
+    mFinalState <- if ForceCurses `elem` opts
+	then (doUI::CursesUI.UIM a -> IO (Maybe a)) $ interactUI `execStateT` initMState
+	else (doUI::SDLUI.UIM a -> IO (Maybe a)) $ interactUI `execStateT` initMState
+    case mFinalState of
+	Nothing -> exitFailure
+	Just finalState -> do
+	    when (mlock == Nothing) $ writeMetaState finalState
+	    exitSuccess

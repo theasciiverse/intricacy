@@ -11,11 +11,13 @@ import Control.Monad.Trans.Error
 import Control.Monad.Trans.Maybe
 import Data.Maybe
 import Data.Char
+import Data.List
 import qualified Data.Binary as Bin
 import qualified Data.ByteString.Lazy as B
 import Control.Concurrent.STM
 import Control.Concurrent
 import System.Directory
+import System.FilePath
 import System.Time
 import Data.Array
 
@@ -34,20 +36,21 @@ import Protocol
 import Metagame
 import ServerAddr
 
-class (Functor m, MonadIO m) => UIMonad m where
+class (Applicative m, MonadIO m) => UIMonad m where
     runUI :: m a -> IO a
     initUI :: m Bool
     endUI :: m ()
     drawMainState :: StateT MainState m ()
     drawAlerts :: [Alert] -> m ()
     drawMessage :: String -> m ()
+    drawError :: String -> m ()
     getInput :: InputMode -> m [ Command ]
     unblockInput :: m (IO ())
 
-    doUI :: m () -> IO Bool
+    doUI :: m a -> IO (Maybe a)
     doUI m = runUI $ do
 	ok <- initUI
-	if ok then m >> endUI >> return True else return False
+	if ok then m >>= (endUI >>).return.Just else return Nothing
 
 -- | this could be neatened using GADTs
 data MainState 
@@ -71,12 +74,14 @@ data MainState
 	}
     | MetaState
 	{ curServer :: ServerAddr
+	, undeclareds :: [Undeclared]
 	, cacheOnly :: Bool
 	, curAuth :: Maybe Auth
 	, codenameStack :: [Codename]
 	, newAsync :: TVar Bool
 	, userInfos :: Map Codename (TVar FetchedRecord, Integer)
-	, curLockPath :: Maybe FilePath
+	, lockPath :: FilePath
+	, lockCompletion :: FilePath
 	, curLock :: Maybe Lock
 	}
 
@@ -84,9 +89,25 @@ newPlayState (frame,st) = PlayState st frame [] False False [] []
 newEditState (frame,st) mpath = EditState [st] [] frame mpath Nothing (PHS zero) (PHS zero) 
 initMetaState = do
     tvar <- atomically $ newTVar False
-    (saddr, auth) <- confFilePath "metagame.conf" >>=
-	liftM (fromMaybe (defaultServerAddr, Nothing::Maybe Auth)) . readReadFile
-    return $ MetaState saddr False auth [] tvar Map.empty Nothing Nothing
+    (saddr, auth, path) <- confFilePath "metagame.conf" >>=
+	liftM (fromMaybe (defaultServerAddr, Nothing, "")) . readReadFile
+    let names = case auth of
+	    Nothing -> []
+	    Just (Auth name _) -> [name]
+    undecls <- confFilePath ("undeclared" ++ [pathSeparator] ++ saddrStr saddr) >>=
+	liftM (fromMaybe []) . readReadFile
+    lock <- readLock path
+    return $ MetaState saddr undecls False auth names tvar Map.empty "" "" lock
+
+readLock :: FilePath -> IO (Maybe Lock)
+readLock path = do
+    fullPath <- if isAbsolute path then return path else
+	    (++(pathSeparator:path)) <$> confFilePath "locks"
+    readReadFile fullPath
+
+writeMetaState (MetaState saddr undecls _ auth _ _ _ path _ _) = do
+    confFilePath "metagame.conf" >>= flip writeFile (show (saddr, auth, path))
+    confFilePath ("undeclared" ++ [pathSeparator] ++ saddrStr saddr) >>= flip writeFile (show undecls)
 
 data InputMode = IMEdit | IMPlay | IMMeta | IMTextInput
     deriving (Eq, Ord, Show, Read)
@@ -95,7 +116,7 @@ ms2im :: MainState -> InputMode
 ms2im mainSt = case mainSt of
     PlayState _ _ _ _ _ _ _ -> IMPlay
     EditState _ _ _ _ _ _ _ -> IMEdit
-    MetaState _ _ _ _ _ _ _ _ -> IMMeta
+    MetaState _ _ _ _ _ _ _ _ _ _ -> IMMeta
 
 instance Error () where noMsg = ()
 
@@ -151,11 +172,13 @@ getNotesReadOn al = (maybe [] id <$>) $ runMaybeT $ do
 
 interactUI :: UIMonad uiM => StateT MainState uiM ()
 interactUI = do
-    flag <- gets newAsync
-    unblock <- lift unblockInput
-    liftIO $ forkIO $ forever $ do
-	atomically $ readTVar flag >>= check >> writeTVar flag False
-	unblock
+    (IMMeta==) . ms2im <$> get >>= flip when (void $ do
+	flag <- gets newAsync
+	unblock <- lift unblockInput
+	liftIO $ forkIO $ forever $ do
+	    atomically $ readTVar flag >>= check >> writeTVar flag False
+	    unblock
+	)
     loop
 
     where
@@ -170,7 +193,9 @@ interactUI = do
 	    if quit then return () else loop
 
 	processCommand :: UIMonad uiM => InputMode -> Command -> ErrorT () (StateT MainState uiM) ()
-	processCommand _ CmdQuit = do
+	processCommand im CmdQuit = do
+	    when (im == IMPlay) $
+		lift (gets psSolved) >>= flip when (throwError ())
 	    really <- lift $ lift $ confirm "Really quit?"
 	    when really $ throwError ()
 	processCommand im cmd = lift $ processCommand' im cmd
@@ -208,12 +233,73 @@ interactUI = do
 			lift $ drawMessage err
 			modify $ \ms -> ms {curAuth = auth}
 		    _ -> lift $ drawMessage "BUG"
+	processCommand' IMMeta CmdSolve = void.runMaybeT $ do
+	    name <- MaybeT $ listToMaybe <$> gets codenameStack
+	    RCUserInfo uinfo <- MaybeT $ fetchedRC <$> getUInfoFetched 300 name
+	    index <- MaybeT $ lift $ (charLockIndex.head <$>) <$>
+		textInput "Solve which lock [A-C]?" 1 True
+	    guard $ 0 <= index && index <= 2
+	    ls <- MaybeT $ return $ lockSpec <$> userLocks uinfo ! index
+	    tvar <- lift $ getRecordCachedFromCur False $ RecLock ls
+	    RCLock lock <- MaybeT $ liftIO $ atomically $ do
+		FetchedRecord fresh err rc <- readTVar tvar
+		check fresh
+		return rc
+	    (solved,stack) <- (liftA2 (,) psSolved psGameStateMoveStack) <$>
+		(lift.lift $ execStateT interactUI $ newPlayState $ reframe lock)
+	    when solved $ do
+		lift (gets undeclareds) >>= guard.not.or.map (\(Undeclared _ ls' _) -> ls == ls')
+		modify $ \ms -> ms { undeclareds = 
+		    (Undeclared (map snd stack) ls (ActiveLock name index) : undeclareds ms) }
+		lift $ lift (confirm "Declare solution?") >>= flip when (processCommand' IMMeta CmdDeclare)
+	processCommand' IMMeta CmdDeclare = void.runMaybeT $ do
+	    name <- MaybeT $ listToMaybe <$> gets codenameStack
+	    ourName <- MaybeT $ (authUser <$>) <$> gets curAuth
+	    RCUserInfo ourUInfo <- MaybeT $ fetchedRC <$> getUInfoFetched 300 ourName
+	    let pertinent = if name == ourName then
+		    const True
+		    else \(Undeclared _ _ (ActiveLock name' _)) -> name==name'
+	    undecls <- lift $ filter pertinent <$> gets undeclareds
+	    guard $ not $ null undecls
+	    undecl@(Undeclared soln ls al) <- if length undecls == 1
+		then return $ head undecls
+		else do
+		    which <- MaybeT $ lift $ textInput
+			--("Declare which solution [1-" ++ show (length undecls) ++ "?")
+			("Declare which solution?")
+			5 False
+		    MaybeT $ return $ msum
+			[ do
+			    i <- fst <$> (listToMaybe $ (reads :: ReadS Int) which)
+			    guard $ 0 < i && i <= length undecls
+			    return $ undecls !! i
+			, do
+			    listToMaybe $ [ undecl
+				| undecl@(Undeclared _ _ (ActiveLock name' i)) <- undecls
+				, or [ take (length which) (name' ++ ":" ++ [lockIndexChar i]) ==
+					map toUpper which 
+				    , name'==name && [lockIndexChar i] == which
+				    ] ]
+			]
+	    index <- MaybeT $ lift $ (charLockIndex.head <$>) <$>
+		textInput "Secure behind which lock [A-C]?" 1 True
+	    guard $ 0 <= index && index <= 2
+	    guard $ isJust $ userLocks ourUInfo ! index
+	    lift $ do
+		resp <- curServerAction $ DeclareSolution soln ls al index
+		case resp of
+		    ServerAck -> modify $ \ms -> ms {undeclareds = delete undecl $ undeclareds ms}
+		    ServerError err -> lift $ drawError err
+		    _ -> return ()
 	    
 	processCommand' IMPlay CmdUndo = do
 	    st <- gets psCurrentState
-	    (st',pm):stms <- gets psGameStateMoveStack
+	    stack <- gets psGameStateMoveStack
 	    ustms <- gets psUndoneStack
-	    when (not $ null stms) $ modify $ \ps -> ps {psCurrentState=st', psGameStateMoveStack = stms, psLastAlerts = [], psUndoneStack = (st,pm):ustms}
+	    when (not $ null stack) $ do
+		let (st',pm) = head stack
+		modify $ \ps -> ps {psCurrentState=st', psGameStateMoveStack = tail stack,
+		    psLastAlerts = [], psUndoneStack = (st,pm):ustms}
 	processCommand' IMPlay CmdRedo = do
 	    ustms <- gets psUndoneStack
 	    case ustms of 
@@ -363,9 +449,8 @@ interactUI = do
 	    modifyEState $ modTile (Just tile) selPos last painting
 	    modify $ \es -> es {lastModPos = selPos}
 	subPlay :: UIMonad uiM => Lock -> StateT MainState uiM ()
-	subPlay lock = do
-	    st' <- (psCurrentState.snd) `liftM` (lift $ runStateT interactUI $ newPlayState lock)
-	    pushEState st'
+	subPlay lock =
+	    pushEState =<< psCurrentState <$> (lift $ execStateT interactUI $ newPlayState lock)
 
 	pushEState :: UIMonad uiM => GameState -> StateT MainState uiM ()
 	pushEState st = do
@@ -389,7 +474,7 @@ interactUI = do
 	confirm :: UIMonad uiM => String -> uiM Bool
 	confirm prompt = do
 	    drawMessage prompt
-	    waitConfirm
+	    waitConfirm <* drawMessage ""
 	    where
 		waitConfirm = do
 		    cmds <- getInput IMTextInput
@@ -406,7 +491,7 @@ interactUI = do
 	-- | TODO: draw cursor
 	textInput :: UIMonad uiM => String -> Int -> Bool -> uiM (Maybe String)
 	textInput prompt maxlen endOnMax = do
-	    getText ""
+	    getText "" <* drawMessage ""
 	    where
 		getText s = do
 		    drawMessage $ prompt ++ " " ++ s

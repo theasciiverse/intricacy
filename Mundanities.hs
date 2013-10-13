@@ -1,4 +1,5 @@
 module Mundanities where
+import Control.Applicative
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Exception
@@ -17,10 +18,8 @@ readReadFile file = do
 	(liftM fst $ listToMaybe $ reads str)
 
 confFilePath :: String -> IO FilePath
-confFilePath str = do
-    home <- getEnv "HOME"
-    return $ home ++ "/.intricacy/"++str
-    -- TODO: handle non-unix
+confFilePath str =
+    (++(pathSeparator:str)) <$> getAppUserDataDirectory "intricacy"
 
 makeConfDir :: IO ()
 makeConfDir = confFilePath "" >>= createDirectoryIfMissing False

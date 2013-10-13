@@ -340,6 +340,10 @@ instance UIMonad (StateT UIState IO) where
     drawMessage prompt = do
 	say prompt
 	refresh
+    drawError prompt = do
+	-- TODO
+	say prompt
+	refresh
 
     drawAlerts alerts =
 	do mapM_ drawAlert alerts

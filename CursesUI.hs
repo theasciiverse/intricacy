@@ -89,9 +89,10 @@ clearLine :: Int -> IO ()
 clearLine y = Curses.move y 0 >> Curses.clrToEol
 
 data UIState = UIState { dispCPairs::[Curses.Pair], dispCentre::HexPos
-    , dispLastCol::PieceColouring, uiKeyBindings :: Map InputMode KeyBindings }
+    , dispLastCol::PieceColouring, uiKeyBindings :: Map InputMode KeyBindings
+    , message::Maybe (Curses.Attr, ColPair, String)}
 type UIM = StateT UIState IO
-nullUIState = UIState [] (PHS zero) Map.empty Map.empty
+nullUIState = UIState [] (PHS zero) Map.empty Map.empty Nothing
 
 readBindings :: UIM ()
 readBindings = do 
@@ -175,13 +176,19 @@ colorsToPairs cs =
                in do Curses.initPair p fg bg
                      return p
 
-drawMsgLine attr col str = do
-    (h,w) <- liftIO Curses.scrSize
-    liftIO $ clearLine $ h-1
-    drawStr attr col (CVec (h-1) 0) str
-    refresh
-say = drawMsgLine bold 0
-sayError = drawMsgLine bold 1
+drawMsgLine = void.runMaybeT $ do
+    (attr,col,str) <- MaybeT $ gets message
+    lift $ do
+	(h,w) <- liftIO Curses.scrSize
+	liftIO $ clearLine $ h-1
+	drawStr attr col (CVec (h-1) 0) str
+	refresh
+setMsgLine attr col str = do
+    modify $ \s -> s { message = Just (attr,col,str) }
+    drawMsgLine
+    
+say = setMsgLine bold white
+sayError = setMsgLine bold red
 
 drawName :: CVec -> Codename -> StateT MainState UIM ()
 drawName pos name = do
@@ -266,7 +273,7 @@ instance UIMonad (StateT UIState IO) where
 	EditState (st:_) _ _ _ selPiece selPos _ -> lift $ do
 	    drawState (maybeToList selPiece) True [] st
 	    drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
-	MetaState saddr cOnly auth names _ _ path lock -> do
+	MetaState saddr undecls cOnly auth names _ _ path lock -> do
 	    let ourName = liftM authUser auth
 	    let selName = listToMaybe names
 	    (h,w) <- liftIO Curses.scrSize
@@ -288,8 +295,15 @@ instance UIMonad (StateT UIState IO) where
 			Just (RCUserInfo uinfo) -> do
 			    sequence_ [ drawLockInfo (ActiveLock (codename uinfo) i) lockinfo |
 				(i,Just lockinfo) <- Array.assocs $ userLocks uinfo ]
-
+	    when (isJust ourName && ourName == selName) $ do
+		when (not $ null undecls) $ do
+		    let str = "Undeclared solutions: "
+		    let line = h-5
+		    lift $ drawStr bold white (CVec line 1) str
+		    fillBox (CVec line (1+length str)) (CVec line (w-1)) 5 $
+			[ \pos -> drawActiveLock pos al | Undeclared _ _ al <- undecls ]
 	    lift $ refresh
+	>> lift drawMsgLine
 
     drawAlerts alerts =
 	do mapM_ drawAlert alerts
@@ -301,7 +315,8 @@ instance UIMonad (StateT UIState IO) where
 	    drawAlert _ = return ()
 	    cGlyph = Glyph '!' 0 a0
 
-    drawMessage prompt = say prompt
+    drawMessage str = say str
+    drawError str = sayError str
 
     initUI = 
 	do liftIO $ CursesH.start 

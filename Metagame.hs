@@ -4,6 +4,7 @@ import Data.Array
 import Data.Binary
 import Control.Monad
 import Data.List (delete)
+import Data.Char
 
 import GameState
 import Lock
@@ -45,6 +46,9 @@ data NoteInfo = NoteInfo {noteAuthor::Codename, noteBehind::Maybe ActiveLock, no
 data ActiveLock = ActiveLock {lockOwner::Codename, lockIndex :: LockIndex}
     deriving (Eq, Ord, Show, Read)
 
+data Undeclared = Undeclared Solution LockSpec ActiveLock
+    deriving (Eq, Ord, Show, Read)
+
 -- | permanent serial number of a lock
 type LockSpec = Int
 
@@ -53,6 +57,10 @@ type LockIndex = Int
 
 -- | solved state
 type Hint = GameState
+
+lockIndexChar :: LockIndex -> Char
+lockIndexChar i = toEnum $ i + fromEnum 'A' 
+charLockIndex c = fromEnum (toUpper c) - fromEnum 'A'
 
 applyDelta :: UserInfoDelta -> UserInfo -> UserInfo
 applyDelta (AddRead n) info = info { notesRead = n:(notesRead info) }

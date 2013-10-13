@@ -34,7 +34,7 @@ getRecordCached saddr auth mflag cOnly rec = do
 	getRecordFromServer fromCache tvar = do
 	    resp <- makeRequest saddr (ClientRequest protocolVersion auth (askForRecord rec))
 	    case resp of
-		ServerError err -> tellRec $ FetchedRecord False (Just err) fromCache
+		ServerError err -> tellRec $ FetchedRecord True (Just err) fromCache
 		ServerCodenameFree -> tellRec $ FetchedRecord True Nothing Nothing
 		_ -> do
 		    let rc = rcOfServerResp resp
