@@ -1,5 +1,6 @@
 module Mundanities where
 import Control.Applicative
+import Control.Arrow
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Exception
@@ -9,14 +10,17 @@ import System.FilePath
 import System.Environment
 import Data.Maybe
 import Data.List
+import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as BSC
 
 readReadFile :: (Read a) => FilePath -> IO (Maybe a)
-readReadFile file = do
-    str <- liftIO $ catchJust (guard . isDoesNotExistError)
-		  (readFile file)
-		  (\_ -> return "")
-    return $ length str `seq` -- XXX: forces file to be read and closed
-	(liftM fst $ listToMaybe $ reads str)
+readReadFile file =
+    ((fst <$>) . listToMaybe . reads . BSC.unpack <$> BS.readFile file)
+	`catchIOError` (const $ return Nothing)
+
+writeReadFile :: (Show a) => FilePath -> a -> IO ()
+writeReadFile file x = 
+    BS.writeFile file $ BSC.pack $ show x
 
 confFilePath :: String -> IO FilePath
 confFilePath str =
@@ -34,5 +38,5 @@ getDirContentsRec :: FilePath -> IO [FilePath]
 getDirContentsRec path = flip catchIOError (const $ return []) $ do
     contents <- map ((path++[pathSeparator])++) <$> filter ((/='.').head) <$> getDirectoryContents path
     annotated <- (\p -> (,) p <$> doesDirectoryExist p) `mapM` contents
-    let (dirs,files) = (\(x,y) -> (map fst x, map fst y)) $ partition snd $ annotated
+    let (dirs,files) = join (***) (map fst) $ partition snd $ annotated
     (files++) . concat <$> getDirContentsRec `mapM` dirs

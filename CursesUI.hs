@@ -267,11 +267,13 @@ instance UIMonad (StateT UIState IO) where
 	PlayState st _ alerts wsel solved _ _ -> lift $ do
 	    drawState [] False alerts st
 	    when solved $ say "Unlocked!"
+	    drawMsgLine
 	    drawCursorAt $ listToMaybe [ pos |
 		(_, PlacedPiece pos p) <- enumVec $ placedPieces st
 		, or [wsel && isWrench p, not wsel && isHook p] ]
 	EditState (st:_) _ _ _ selPiece selPos _ -> lift $ do
 	    drawState (maybeToList selPiece) True [] st
+	    drawMsgLine
 	    drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
 	MetaState saddr undecls cOnly auth names _ _ path lock -> do
 	    let ourName = liftM authUser auth
@@ -302,8 +304,8 @@ instance UIMonad (StateT UIState IO) where
 		    lift $ drawStr bold white (CVec line 1) str
 		    fillBox (CVec line (1+length str)) (CVec line (w-1)) 5 $
 			[ \pos -> drawActiveLock pos al | Undeclared _ _ al <- undecls ]
+	    lift $ drawMsgLine
 	    lift $ refresh
-	>> lift drawMsgLine
 
     drawAlerts alerts =
 	do mapM_ drawAlert alerts

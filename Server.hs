@@ -38,6 +38,7 @@ logit = putStrLn
 
 handler :: Handle -> Address -> IO ()
 handler handle addr = do
+    -- FIXME: malformed requests crash server!
     request <- B.decode `liftM` L.hGetContents handle
 
     let hostname = case addr of

@@ -18,6 +18,7 @@ import Control.Concurrent.STM
 import Control.Concurrent
 import System.Directory
 import System.FilePath
+import System.IO.Error
 import System.Time
 import Data.Array
 
@@ -99,14 +100,15 @@ initMetaState = do
     return $ MetaState saddr undecls False auth names tvar Map.empty path lock
 
 readLock :: FilePath -> IO (Maybe Lock)
-readLock path = do
-    fullPath <- if isAbsolute path then return path else
-	    (++(pathSeparator:path)) <$> confFilePath "locks"
-    readReadFile fullPath
+readLock path = fullLockPath path >>= readReadFile
+writeLock path lock = fullLockPath path >>= flip writeReadFile lock
+fullLockPath path = if isAbsolute path
+    then return path
+    else (++(pathSeparator:path)) <$> confFilePath "locks"
 
 writeMetaState (MetaState saddr undecls _ auth _ _ _ path _) = do
-    confFilePath "metagame.conf" >>= flip writeFile (show (saddr, auth, path))
-    confFilePath ("undeclared" ++ [pathSeparator] ++ saddrStr saddr) >>= flip writeFile (show undecls)
+    confFilePath "metagame.conf" >>= flip writeReadFile (saddr, auth, path)
+    confFilePath ("undeclared" ++ [pathSeparator] ++ saddrStr saddr) >>= flip writeReadFile undecls
 
 data InputMode = IMEdit | IMPlay | IMMeta | IMTextInput
     deriving (Eq, Ord, Show, Read)
@@ -138,6 +140,10 @@ getUInfoFetched staleTime name = do
 	    tvar <- getRecordCachedFromCur True $ RecUserInfo name
 	    modify $ \ms -> ms {userInfos = Map.insert name (tvar, now) $ userInfos ms}
 	    liftIO $ atomically $ readTVar tvar
+
+invalidateUInfo :: UIMonad uiM => Codename -> StateT MainState uiM ()
+invalidateUInfo name = 
+    modify $ \ms -> ms {userInfos = Map.delete name $ userInfos ms}
 
 curServerAction act = do
     saddr <- gets curServer
@@ -201,15 +207,15 @@ interactUI = do
 
 	processCommand' :: UIMonad uiM => InputMode -> Command -> StateT MainState uiM ()
 	processCommand' IMMeta CmdSelCodename = void.runMaybeT $ do
-	    newCodename <- liftM (map toUpper) $ MaybeT $ lift $ textInput "Codename:" 3 True Nothing
+	    newCodename <- liftM (map toUpper) $ MaybeT $ lift $ textInput "Codename:" 3 True Nothing Nothing
 	    guard $ length newCodename == 3
 	    lift $ do
 		modify $ \ms -> ms { codenameStack = (newCodename:codenameStack ms) }
 	processCommand' IMMeta CmdRegister = void.runMaybeT $ do
-	    guard =<< isNothing <$> lift (gets curAuth)
+	    -- guard =<< isNothing <$> lift (gets curAuth)
 	    newName <- MaybeT $ listToMaybe <$> gets codenameStack
 	    (guard =<<) $ lift.lift $ confirm $ "Register codename "++newName++"?"
-	    passwd <- MaybeT $ lift $ textInput "Enter new password:" 64 False Nothing
+	    passwd <- MaybeT $ lift $ textInput "Enter new password:" 64 False Nothing Nothing
 	    lift $ do
 		modify $ \ms -> ms {curAuth = Just $ Auth newName passwd}
 		resp <- curServerAction $ Register
@@ -222,7 +228,7 @@ interactUI = do
 	processCommand' IMMeta CmdAuth = void.runMaybeT $ do
 	    auth <- lift $ gets curAuth
 	    name <- MaybeT $ listToMaybe <$> gets codenameStack
-	    passwd <- MaybeT $ lift $ textInput ("Enter password for "++name++":") 64 False Nothing
+	    passwd <- MaybeT $ lift $ textInput ("Enter password for "++name++":") 64 False Nothing Nothing
 	    lift $ do
 		modify $ \ms -> ms {curAuth = Just $ Auth name passwd}
 		resp <- curServerAction $ Authenticate
@@ -234,23 +240,21 @@ interactUI = do
 		    _ -> lift $ drawMessage "BUG"
 	processCommand' IMMeta CmdSolve = void.runMaybeT $ do
 	    name <- MaybeT $ listToMaybe <$> gets codenameStack
+	    --ourName <- lift $ (authUser <$>) <$> gets curAuth
+	    --guard $ ourName /= Just name
 	    RCUserInfo uinfo <- MaybeT $ fetchedRC <$> getUInfoFetched 300 name
-	    index <- MaybeT $ lift $ (charLockIndex.head <$>) <$>
-		textInput "Solve which lock [A-C]?" 1 True Nothing
-	    guard $ 0 <= index && index <= 2
+	    index <- askLockIndex "Solve which lock [A-C]?"
 	    ls <- MaybeT $ return $ lockSpec <$> userLocks uinfo ! index
 	    tvar <- lift $ getRecordCachedFromCur False $ RecLock ls
 	    RCLock lock <- MaybeT $ liftIO $ atomically $ do
 		FetchedRecord fresh err rc <- readTVar tvar
 		check fresh
 		return rc
-	    (solved,stack) <- (liftA2 (,) psSolved psGameStateMoveStack) <$>
-		(lift.lift $ execStateT interactUI $ newPlayState $ reframe lock)
-	    when solved $ do
-		lift (gets undeclareds) >>= guard.not.or.map (\(Undeclared _ ls' _) -> ls == ls')
-		modify $ \ms -> ms { undeclareds = 
-		    (Undeclared (map snd stack) ls (ActiveLock name index) : undeclareds ms) }
-		lift $ lift (confirm "Declare solution?") >>= flip when (processCommand' IMMeta CmdDeclare)
+	    soln <- MaybeT $ solveLock lock
+	    lift (gets undeclareds) >>= guard.not.or.map (\(Undeclared _ ls' _) -> ls == ls')
+	    modify $ \ms -> ms { undeclareds = 
+		(Undeclared soln ls (ActiveLock name index) : undeclareds ms) }
+	    lift $ lift (confirm "Declare solution?") >>= flip when (processCommand' IMMeta CmdDeclare)
 	processCommand' IMMeta CmdDeclare = void.runMaybeT $ do
 	    name <- MaybeT $ listToMaybe <$> gets codenameStack
 	    ourName <- MaybeT $ (authUser <$>) <$> gets curAuth
@@ -266,7 +270,7 @@ interactUI = do
 		    which <- MaybeT $ lift $ textInput
 			--("Declare which solution [1-" ++ show (length undecls) ++ "?")
 			("Declare which solution?")
-			5 False Nothing
+			5 False Nothing Nothing
 		    MaybeT $ return $ msum
 			[ do
 			    i <- fst <$> (listToMaybe $ (reads :: ReadS Int) which)
@@ -280,23 +284,61 @@ interactUI = do
 				    , name'==name && [lockIndexChar i] == which
 				    ] ]
 			]
-	    index <- MaybeT $ lift $ (charLockIndex.head <$>) <$>
-		textInput "Secure behind which lock [A-C]?" 1 True Nothing
-	    guard $ 0 <= index && index <= 2
+	    index <- askLockIndex "Secure behind which lock [A-C]?"
 	    guard $ isJust $ userLocks ourUInfo ! index
 	    lift $ do
 		resp <- curServerAction $ DeclareSolution soln ls al index
 		case resp of
-		    ServerAck -> modify $ \ms -> ms {undeclareds = delete undecl $ undeclareds ms}
+		    ServerAck -> do
+			modify $ \ms -> ms {undeclareds = delete undecl $ undeclareds ms}
+			map invalidateUInfo [name, ourName]
 		    ServerError err -> lift $ drawError err
 		    _ -> return ()
+	processCommand' IMMeta CmdPlaceLock = void.runMaybeT $ do
+	    lock <- MaybeT $ gets curLock
+	    ourName <- MaybeT $ (authUser <$>) <$> gets curAuth
+	    RCUserInfo ourUInfo <- MaybeT $ fetchedRC <$> getUInfoFetched 300 ourName
+	    index <- askLockIndex "Place where [A-C]?"
+	    when (isJust $ userLocks ourUInfo ! index) $
+		guard =<< (lift.lift) (confirm "Really retire existing lock?")
+	    soln <- MaybeT $ solveLock lock
+	    lift $ do
+		resp <- curServerAction $ SetLock lock index soln
+		case resp of
+		    ServerError err -> lift $ drawError err
+		    _ -> invalidateUInfo ourName
+
 	processCommand' IMMeta CmdSelectLock = void.runMaybeT $ do
 	    lockdir <- liftIO $ confFilePath "locks"
 	    paths <- liftIO $ map (drop (length lockdir + 1)) <$> getDirContentsRec lockdir
-	    path <- MaybeT $ lift $ textInput "Select lock: " 1024 False (Just paths)
-	    lift $ do
-		lock <- liftIO $ readLock path
-		modify $ \ms -> ms {curLockPath = path, curLock = lock}
+	    path <- MaybeT $ lift $ textInput "Select lock:" 1024 False (Just paths) Nothing
+	    lift $ setLockPath path
+	processCommand' IMMeta CmdNextLock = do
+	    gets curLockPath >>= liftIO . nextLock True >>= setLockPath
+	processCommand' IMMeta CmdPrevLock = do
+	    gets curLockPath >>= liftIO . nextLock False >>= setLockPath
+	processCommand' IMMeta CmdEdit = void.runMaybeT $ do
+	    lock <- msum [ MaybeT $ gets curLock
+		, do
+		    frame <- BasicFrame <$> msum [ do
+			    saddr <- gets curServer
+			    tvar <- lift $ getRecordCachedFromCur False RecServerInfo
+			    RCServerInfo (ServerInfo size _) <- MaybeT $ liftIO $ atomically $ do
+				FetchedRecord fresh _ rc <- readTVar tvar
+				check fresh
+				return rc
+			    return size
+			, do
+			    sizet <- MaybeT $ lift $ textInput "Lock size: [3-12]" 2 False Nothing Nothing
+			    size <- MaybeT $ return $ fst <$> (listToMaybe $ (reads :: ReadS Int) sizet)
+			    guard $ 3 <= size && size <= 12
+			    return size
+			]
+		    return (frame, baseState frame)
+		]
+	    path <- lift $ gets curLockPath
+	    newPath <- MaybeT $ lift $ (esPath <$>) $ execStateT interactUI $ newEditState (reframe lock) $ Just path
+	    lift $ setLockPath newPath
 	    
 	processCommand' IMPlay CmdUndo = do
 	    st <- gets psCurrentState
@@ -412,23 +454,28 @@ interactUI = do
 		Nothing -> return ()
 		Just p -> do modify $ \es -> es {selectedPiece = Nothing}
 			     modifyEState $ delPiece p
-	processCommand' IMEdit CmdWriteState = writeState
-	    where writeState = do
-		    path <- gets esPath
-		    case path of
-			Nothing -> do
-			    newPath <- lift $ textInput "Save lock as:" 16 False Nothing
-			    modify $ \es -> es {esPath = newPath}
-			    when (isJust newPath) writeState
-			Just path -> do
-			    alreadyExists <- liftIO $ doesFileExist path
-			    really <- if alreadyExists
-				then lift $ confirm $ "Really overwrite '"++path++"'?"
-				else return True
-			    when really $ do
-			    st <- gets $ head.esGameStateStack
-			    frame <- gets esFrame
-			    liftIO $ writeFile path $ show $ deframe $ canonify (frame, st)
+	processCommand' IMEdit CmdWriteState = void.runMaybeT $ do
+	    path <- lift $ gets esPath
+	    newPath <- MaybeT $ lift $ textInput "Save lock as:" 16 False Nothing path
+	    {-
+	    ok <- liftIO $ liftM2 (&&)
+		    (liftM2 (||) (not <$> doesFileExist newPath) (writable <$> getPermissions newPath))
+		    (not <$> doesDirectoryExist newPath)
+		`catchIOError` const (return False)
+	    when (not ok) $
+		(lift.lift) (drawError "Can't write there.") >> mzero
+	    -}
+	    fullPath <- liftIO $ fullLockPath newPath
+	    (liftIO (doesFileExist fullPath `catchIOError` const (return True)) >>=) $ flip when $
+		guard =<< (lift.lift $ confirm $ "Really overwrite '"++fullPath++"'?")
+	    lift $ do
+		st <- gets $ head.esGameStateStack
+		frame <- gets esFrame
+		merr <- liftIO $ ((writeReadFile fullPath $ deframe $ canonify (frame, st)) >> return Nothing)
+		    `catchIOError` (return . Just . show)
+		case merr of
+		    Nothing -> modify $ \es -> es {esPath = Just newPath}
+		    Just err -> lift $ drawError $ "Write failed: "++err
 	processCommand' _ _ = return ()
 
 	checkWon = do
@@ -457,6 +504,10 @@ interactUI = do
 	subPlay :: UIMonad uiM => Lock -> StateT MainState uiM ()
 	subPlay lock =
 	    pushEState =<< psCurrentState <$> (lift $ execStateT interactUI $ newPlayState lock)
+	solveLock lock = do
+	    (solved,soln) <- (liftA2 (,) psSolved (reverse . (map snd) . psGameStateMoveStack)) <$>
+		(lift $ execStateT interactUI $ newPlayState $ reframe lock)
+	    return $ guard solved >> return soln
 
 	pushEState :: UIMonad uiM => GameState -> StateT MainState uiM ()
 	pushEState st = do
@@ -477,6 +528,26 @@ interactUI = do
 	    let r@(st',alerts) = runWriter $ physicsTick pm st in
 	    drawAlerts alerts >> return r
 
+	nextLock :: Bool -> FilePath -> IO FilePath
+	nextLock newer path = do
+	    lockdir <- confFilePath "locks"
+	    time <- (Just <$> (fullLockPath path >>= getModificationTime)) `catchIOError` const (return Nothing)
+	    paths <- getDirContentsRec lockdir
+	    maybe path (drop (length lockdir + 1) . fst) . listToMaybe .
+		(if newer then id else reverse) . sortBy (\x y -> compare (snd x) (snd y)) .
+		filter (maybe (const True)
+		    (\x y -> (if newer then (<) else (>)) x (snd y)) time) <$>
+		(\p -> (,) p <$> getModificationTime p) `mapM` paths
+
+	setLockPath path = do
+	    lock <- liftIO $ readLock path
+	    modify $ \ms -> ms {curLockPath = path, curLock = lock}
+
+	askLockIndex prompt = do
+	    index <- MaybeT $ lift $ join . (((charLockIndex<$>).listToMaybe)<$>) <$>
+		textInput prompt 1 True Nothing Nothing
+	    guard $ 0 <= index && index <= 2
+	    return index
 	confirm :: UIMonad uiM => String -> uiM Bool
 	confirm prompt = do
 	    drawMessage prompt
@@ -495,9 +566,9 @@ interactUI = do
 		ansOfCmd _ = Nothing
 
 	-- | TODO: draw cursor
-	textInput :: UIMonad uiM => String -> Int -> Bool -> Maybe [String] -> uiM (Maybe String)
-	textInput prompt maxlen endOnMax mposss = do
-	    getText ("","") <* drawMessage ""
+	textInput :: UIMonad uiM => String -> Int -> Bool -> Maybe [String] -> Maybe String -> uiM (Maybe String)
+	textInput prompt maxlen endOnMax mposss init = do
+	    getText (fromMaybe "" init,"") <* drawMessage ""
 	    where
 		getText (s,stem) = do
 		    drawMessage $ prompt ++ " " ++ s
