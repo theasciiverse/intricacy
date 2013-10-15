@@ -90,6 +90,8 @@ editBindings = globalBindings ++ editOnlyBindings
 metaBindings =
     [ ('C', CmdSelCodename)
     , ('c', CmdSelCodename)
+    , ('H', CmdHome)
+    , ('h', CmdHome)
     , ('B', CmdBackCodename)
     , ('b', CmdBackCodename)
     , ('S', CmdSolve)

@@ -73,7 +73,7 @@ applyLockDelta (SetPubNote n) lockinfo = lockinfo { lockSolutions = map
 applyLockDelta (AddSecured n) lockinfo = lockinfo { notesSecured = n:(notesSecured lockinfo) }
 applyLockDelta (DelSecured n) lockinfo = lockinfo { notesSecured = delete n $ notesSecured lockinfo }
 applyLockDelta (AddSolution n) lockinfo = lockinfo { lockSolutions = n:(lockSolutions lockinfo) }
-applyLockDelta (AddAccessed n) lockinfo = lockinfo { accessedBy = n:(accessedBy lockinfo) }
+applyLockDelta (AddAccessed name) lockinfo = lockinfo { accessedBy = name:(delete name $ accessedBy lockinfo) }
 applyLockDelta SetPublic lockinfo = lockinfo { public = True, lockSolutions = [], accessedBy = []}
 
 instance Binary UserInfo where

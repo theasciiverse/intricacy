@@ -13,7 +13,7 @@ data Command = CmdDir WrHoSel HexDir | CmdRotate TorqueDir | CmdWait
 	| CmdInputChar Char
 	| CmdWriteState
 	| CmdTutorials
-	| CmdSelCodename | CmdBackCodename
+	| CmdSelCodename | CmdBackCodename | CmdHome
 	| CmdSolve | CmdDeclare 
 	| CmdSelectLock | CmdNextLock | CmdPrevLock
 	| CmdEdit | CmdPlaceLock

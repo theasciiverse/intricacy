@@ -9,8 +9,9 @@ import Data.Char (ord)
 import Data.Monoid
 import qualified Data.Map as Map
 import Data.Map (Map)
-import qualified Data.Array as Array
+import Data.Array
 import Data.Maybe
+import Data.List
 import Control.Monad.Trans.Maybe
 import Control.Concurrent (threadDelay)
 import Control.Monad.State
@@ -18,6 +19,7 @@ import Control.Monad.State
 import Hex
 import GameState
 import Physics
+import Frame
 import Command
 import KeyBindings
 import Mundanities
@@ -107,13 +109,18 @@ erase = liftIO Curses.erase
 refresh :: UIM ()
 refresh = liftIO Curses.refresh
 
+type Geom = (CVec, HexPos)
+getGeom :: UIM Geom
+getGeom = do 
+    (h,w) <- liftIO Curses.scrSize
+    centre <- gets dispCentre
+    return $ (CVec (h`div`2) (w`div`2), centre)
+
 drawAt :: Glyph -> HexPos -> UIM ()
-drawAt gl pos = do
-	scrCentre <- getScrCentre
-	cpairs <- gets dispCPairs
-	centre <- gets dispCentre
-	let cpos = scrCentre <+> (hexVec2CVec $ pos <-> centre)
-	liftIO $ mvAddGlyph cpairs cpos gl
+drawAt gl pos =
+    drawAtWithGeom gl pos =<< getGeom
+drawAtWithGeom gl pos geom@(scrCentre,centre) = do
+    drawAtCVec gl $ scrCentre <+> (hexVec2CVec $ pos <-> centre)
 drawAtCVec :: Glyph -> CVec -> UIM ()
 drawAtCVec gl cpos = do
     cpairs <- gets dispCPairs
@@ -132,30 +139,26 @@ drawCursorAt :: Maybe HexPos -> UIM ()
 drawCursorAt Nothing =
     liftIO $ Curses.cursSet Curses.CursorInvisible >> return ()
 drawCursorAt (Just pos) = do 
-    scrCentre <- getScrCentre
-    centre <- gets dispCentre
+    geom@(scrCentre,centre) <- getGeom
     liftIO $ Curses.cursSet Curses.CursorVisible
     liftIO $ move $ scrCentre <+> (hexVec2CVec $ pos <-> centre)
     refresh
 
-getScrCentre :: UIM CVec
-getScrCentre = do 
-    (h,w) <- liftIO Curses.scrSize
-    return $ CVec (h`div`2) (w`div`2)
+drawState :: [PieceIdx] -> Bool -> [Alert] -> GameState -> UIM ()
+drawState reversed colourFixed alerts st = do
+    lastCol <- gets dispLastCol
+    erase
+    colouring <- drawStateWithGeom reversed colourFixed st =<< getGeom
+    modify $ \ds -> ds { dispLastCol = colouring }
+    refresh
 
 -- TODO: monochrome mode
-drawState :: [PieceIdx] -> Bool -> [Alert] -> GameState -> UIM ()
-drawState reversed colourFixed alerts st =
-    let board = stateBoard st
-    in do
-	lastCol <- gets dispLastCol
-	let colouring = boardColouring st (colouredPieces colourFixed st) lastCol
-	modify $ \ds -> ds { dispLastCol = colouring }
-	erase
-	sequence_ [ drawAt glyph pos | 
-	    (pos,glyph) <- Map.toList $ fmap (ownedTileGlyph colouring reversed) board
-	    ]
-	refresh
+drawStateWithGeom reversed colourFixed st geom = do
+    let colouring = boardColouring st (colouredPieces colourFixed st) Map.empty
+    sequence_ [ drawAtWithGeom glyph pos geom | 
+	(pos,glyph) <- Map.toList $ fmap (ownedTileGlyph colouring reversed) $ stateBoard st
+	]
+    return colouring
 
 -- From Curses.CursesHelper:
 -- | Converts a list of 'Curses.Color' pairs (foreground color and
@@ -190,73 +193,105 @@ setMsgLine attr col str = do
 say = setMsgLine bold white
 sayError = setMsgLine bold red
 
-drawName :: CVec -> Codename -> StateT MainState UIM ()
-drawName pos name = do
+drawName :: Bool -> CVec -> Codename -> StateT MainState UIM ()
+drawName showScore pos name = do
     ourName <- (authUser <$>) <$> gets curAuth
     relScore <- getRelScore name
-    let (attr,col) = if ourName == Just name
-	    then (bold,white)
-	    else case relScore of
-		Nothing -> (a0,white)
-		Just 0 -> (a0,yellow)
-		Just 1 -> (a0,green) 
-		Just 2 -> (bold,green) 
-		Just 3 -> (bold,cyan) 
-		Just (-1) -> (a0,red)
-		Just (-2) -> (bold,red)
-		Just (-3) -> (bold,magenta)
-    lift $ drawStr attr col (pos <+> CVec 0 (-1)) name
+    let (attr,col) = case relScore of
+	    Nothing -> if ourName == Just name then (bold,white) else (a0,white)
+	    Just 0 -> (a0,yellow)
+	    Just 1 -> (bold,cyan) 
+	    Just 2 -> (a0,green) 
+	    Just 3 -> (bold,green) 
+	    Just (-1) -> (bold,magenta)
+	    Just (-2) -> (a0,red)
+	    Just (-3) -> (bold,red)
+    lift $ drawStrCentred attr col pos
+	(name ++ if showScore then " " ++ maybe "" show relScore else "")
 
 drawActiveLock :: CVec -> ActiveLock -> StateT MainState UIM ()
 drawActiveLock pos (ActiveLock name i) = do
-    drawName (pos <+> CVec 0 (-1)) name
-    lift $ drawStrGrey (pos <+> CVec 0 1) ":"
-    lift $ drawStr bold white (pos <+> CVec 0 2) [lockLetter i]
+    drawName False (pos <+> CVec 0 (-1)) name
+    lift $ drawStr bold white (pos <+> CVec 0 1) [':',lockLetter i]
 
-fillBox :: CVec -> CVec -> Int -> [CVec -> StateT MainState UIM ()] -> StateT MainState UIM ()
-fillBox (CVec t l) (CVec b r) width draws =
+data Gravity = GravUp | GravLeft | GravRight | GravDown | GravCentre
+    deriving (Eq, Ord, Show, Enum)
+fillBox :: CVec -> CVec -> Int -> Gravity -> [CVec -> StateT MainState UIM ()] -> StateT MainState UIM Int
+fillBox (CVec t l) (CVec b r) width grav draws = do
     let half = width`div`2
-	locs = concat
-	    [ map (CVec j) [ l+half + (width+1)*i | i <- [0..(r-l-(2*half))`div`(width+1)] ]
-	    | j <- [t..b] ]
-    in sequence_ [draw pos | (pos,draw) <- zip locs draws]
+	starty = (if grav == GravDown then b else t)
+	cv = (b+t)`div`2
+	ch = (l+r)`div`2
+	gravCentre = case grav of
+	    GravDown   -> CVec b ch
+	    GravUp     -> CVec t ch
+	    GravLeft   -> CVec cv l
+	    GravRight  -> CVec cv r
+	    GravCentre -> CVec cv ch
+	locs = sortBy (\v v' -> dist v `compare` dist v') $ concat
+	    [ map (CVec j) [ l+margin + (width+1)*i | i <- [0..(r-l-(2*margin))`div`(width+1)] ]
+	    | j <- [t..b]
+	    , let margin = if (j-starty)`mod`2 == 0 then half else width ]
+	dist v = sqlen $ v <-> gravCentre
+	sqlen (CVec y x) = (y*(width+1))^2+x^2
+	zipped = zip locs draws
+    sequence_ [draw pos | (pos,draw) <- zipped]
+    return $ (if grav==GravDown then minimum else maximum) [ y | (CVec y x,_) <- zipped ]
 
 lockLetter i = toEnum . (+i) . fromEnum $ 'A'
 
-drawLockInfo al@(ActiveLock name i) lockinfo = do
+drawLockInfo al@(ActiveLock name i) lockinfo mtvar = do
     (h,w) <- liftIO Curses.scrSize
     let [left,vcentre,right] = [ (k+2*i)*w`div`6 + (1-k) | k <- [0,1,2] ]
-    let [top,bottom] = [4, h-7]
+    let [top,bottom] = [6, h-1]
     let hcentre = (top+bottom)`div`2 - 1
     ourName <- (authUser <$>) <$> gets curAuth
 
-    drawActiveLock (CVec hcentre vcentre) al
+    (lockTop, lockBottom) <- (fromJust<$>)$ runMaybeT $ msum
+	[ do
+	    tvar <- MaybeT $ return mtvar
+	    lock <- MaybeT $ liftIO.atomically.readTVar $ tvar
+	    let size = frameSize $ fst lock
+	    guard $ bottom - top >= 5 + 2*size+1 + 1 + 5 && right-left >= 4*size+1
+	    lift.lift $ drawStateWithGeom [] False (snd lock) ((CVec hcentre vcentre),origin)
+	    return (hcentre - size - 1, hcentre + size + 1)
+	, lift $ do
+	    drawActiveLock (CVec hcentre vcentre) al
+	    return (hcentre - 1, hcentre + 1)
+	]
 
-    lift $ drawStrCentred a0 white (CVec top vcentre) "Accessed by:"
-    if (public lockinfo) 
-	then lift $ drawStr bold white (CVec (top+1) (left+2)) "Everyone!"
+    startOn <-
+	if (public lockinfo) 
+	then lift $ drawStrCentred bold white (CVec (lockTop-1) vcentre) "Everyone!"
+	    >> return (lockTop-1)
 	else if null $ accessedBy lockinfo
-	    then lift $
-		drawStr a0 white (CVec (top+1) (left+2)) "No-one"
+	    then lift $ drawStrCentred a0 white (CVec (lockTop-1) vcentre) "No-one"
+		>> return (lockTop-1)
 	    else
-		fillBox (CVec (top+1) (left+1)) (CVec (hcentre-1) (right-1)) 3 $
-		    [ \pos -> drawName pos name | name <- accessedBy lockinfo ]
+		fillBox (CVec (top+1) (left+1)) (CVec (lockTop-1) (right-1)) 3 GravDown $
+		    [ \pos -> drawName False pos name | name <- accessedBy lockinfo ]
+    lift $ drawStrCentred a0 white (CVec (startOn-1) vcentre) "Accessed by:"
     
-    if isJust $ guard . (`elem` accessedBy lockinfo) =<< ourName
-	then lift $ drawStrCentred a0 green (CVec (hcentre+2) vcentre) "Accessed!"
-	else do
-	    read <- getNotesReadOn al
-	    when (not $ null read) $ do
-		lift $ drawStr a0 white (CVec (hcentre+2) left) "Read notes: "
-		fillBox (CVec (hcentre+2) (left+12)) (CVec (hcentre+2) right) 3 $
-		    [ \pos -> drawName pos name | name <- map noteAuthor read ]
+    undecls <- gets undeclareds
+    if isJust $ guard . (|| public lockinfo) . (`elem` accessedBy lockinfo) =<< ourName
+    then lift $ drawStrCentred a0 green (CVec (lockBottom+1) vcentre) "Accessed!"
+    else if any (\(Undeclared _ ls _) -> ls == lockSpec lockinfo) undecls
+    then lift $ drawStrCentred a0 yellow (CVec (lockBottom+1) vcentre) "Undeclared solution!"
+    else do
+	read <- getNotesReadOn lockinfo
+	when (not $ null read || ourName == Just name) $ do
+	    let rntext = if right-left > 30 then "Read notes by:" else "Notes:"
+		s = (vcentre - (length rntext+(3+1)*3)`div`2)
+	    lift $ drawStr a0 white (CVec (lockBottom+1) s) rntext
+	    void $ fillBox (CVec (lockBottom+1) (s+length rntext+1)) (CVec (lockBottom+1) right) 3 GravLeft $
+		[ \pos -> drawName False pos name | name <- map noteAuthor read ]
 
-    lift $ drawStrCentred a0 white (CVec (hcentre+3) vcentre) "Notes held:"
+    lift $ drawStrCentred a0 white (CVec (lockBottom+2) vcentre) "Notes held:"
     if null $ notesSecured lockinfo
 	then lift $
-	    drawStr a0 white (CVec (hcentre+4) (left+2)) "None"
+	    drawStrCentred a0 white (CVec (lockBottom+3) vcentre) "None"
 	else
-	    fillBox (CVec (hcentre+4) (left+1)) (CVec (bottom) (right-1)) 5 $
+	    void $ fillBox (CVec (lockBottom+3) (left+1)) (CVec (bottom) (right-1)) 5 GravUp $
 		[ \pos -> drawActiveLock pos al | al <- map noteOn $ notesSecured lockinfo ]
 
 
@@ -275,7 +310,7 @@ instance UIMonad (StateT UIState IO) where
 	    drawState (maybeToList selPiece) True [] st
 	    drawMsgLine
 	    drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
-	MetaState saddr undecls cOnly auth names _ _ path lock -> do
+	MetaState saddr undecls cOnly auth names _ _ lockTVs path lock -> do
 	    let ourName = liftM authUser auth
 	    let selName = listToMaybe names
 	    (h,w) <- liftIO Curses.scrSize
@@ -284,26 +319,44 @@ instance UIMonad (StateT UIState IO) where
 		drawCursorAt Nothing
 		drawStrGrey (CVec 0 0) $ "Server: " ++ saddrStr saddr 
 		drawStrGrey (CVec 1 0) $ "Lock: " ++ path
-	    maybe (return ()) (drawName (CVec 2 (w`div`2))) selName
-	    runMaybeT $ MaybeT (return selName) >>= lift . getUInfoFetched 30 >>=
+	    maybe (return ()) (drawName True (CVec 2 (w`div`2))) selName
+	    runMaybeT $ MaybeT (return selName) >>= lift . getUInfoFetched 300 >>=
 		\(FetchedRecord fresh err muirc) -> lift $ do
 		    lift $ do
-			when (not fresh) $ drawAtCVec (Glyph '*' red bold) $ CVec 2 (w`div`2+4)
+			when (not fresh) $ drawAtCVec (Glyph '*' red bold) $ CVec 2 (w`div`2+7)
 			maybe (return ()) sayError err
 			when (fresh && isNothing ourName) $
-			    drawStrGrey (CVec 2 (w`div`2+1+6)) (if isNothing muirc then "(R)" else "(A)")
+			    drawStrGrey (CVec 2 (w`div`2+1+9)) (if isNothing muirc then "(R)" else "(A)")
 		    case muirc of
 			Nothing -> return ()
 			Just (RCUserInfo uinfo) -> do
-			    sequence_ [ drawLockInfo (ActiveLock (codename uinfo) i) lockinfo |
-				(i,Just lockinfo) <- Array.assocs $ userLocks uinfo ]
+			    sequence_ [ drawLockInfo (ActiveLock (codename uinfo) i) lockinfo ((!i)<$>lockTVs) |
+				(i,Just lockinfo) <- assocs $ userLocks uinfo ]
 	    when (isJust ourName && ourName == selName) $ do
 		when (not $ null undecls) $ do
-		    let str = "Undeclared solutions: "
-		    let line = h-5
-		    lift $ drawStr bold white (CVec line 1) str
-		    fillBox (CVec line (1+length str)) (CVec line (w-1)) 5 $
+		    let str = "Undeclared solutions:"
+		    let s = max 1 $ (w-(length str + 6*(length undecls)))`div`2
+		    let y = 4
+		    lift $ drawStr bold white (CVec y s) str
+		    void $ fillBox (CVec y (s+length str+1)) (CVec y (w-1)) 5 GravLeft $
 			[ \pos -> drawActiveLock pos al | Undeclared _ _ al <- undecls ]
+	    when (ourName /= selName) $ void $ runMaybeT $ do
+		sel <- MaybeT $ return $ selName
+		us <- MaybeT $ return $ ourName
+		RCUserInfo ourUInfo <- MaybeT $ fetchedRC <$> getUInfoFetched 300 us
+		let accessed = [ ActiveLock us i 
+			| i<-[0..2]
+			, Just lock <- [ userLocks ourUInfo ! i ]
+			, public lock || selName `elem` map Just (accessedBy lock) ]
+		guard $ not $ null accessed
+		let str = "has accessed:"
+		let s = (w-(4 + length str + 6*(length accessed)))`div`2
+		let y = 4
+		lift $ do
+		    drawName False (CVec y (s+1)) sel
+		    lift $ drawStrGrey (CVec y $ s+4) str
+		    void $ fillBox (CVec y (s+4+length str+1)) (CVec y (w-1)) 5 GravLeft $
+			[ \pos -> drawActiveLock pos al | al <- accessed]
 	    lift $ drawMsgLine
 	    lift $ refresh
 

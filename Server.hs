@@ -50,6 +50,7 @@ handler handle addr = do
     hashedHostname <- hash hostname
     logit $ hashedHostname ++ " >>> " ++ show request
     response <- handleRequest request
+    -- threadDelay $ 10^6
     logit $ hashedHostname ++ " <<< " ++ show response
 
     L.hPut handle $ B.encode response
@@ -63,7 +64,7 @@ withDBLock lockMode m = do
     hClose h
     return ret
     where getDBLock lockMode =
-	    catchIOError (openFile lockFilePath lockMode) (\_ -> threadDelay 50 >> getDBLock lockMode)
+	    catchIOError (openFile lockFilePath lockMode) (\_ -> threadDelay (50*10^3) >> getDBLock lockMode)
 lockFilePath = dbpath ++ "lockfile"
 
 handleRequest :: ClientRequest -> IO ServerResponse
@@ -97,13 +98,15 @@ handleRequest req@(ClientRequest pv auth action) = do
 		    let name = codename info
 		    let behind = ActiveLock name idx
 		    let note = NoteInfo name (Just behind) target
-		    when (name `elem` map (noteAuthor) (lockSolutions tinfo)) $
+		    when (name `elem` map noteAuthor (lockSolutions tinfo)) $
 			throwError "Note already taken on that lock!"
+		    when (name == lockOwner target) $
+			throwError "That's your lock!"
 		    behindLock <- getALock behind
 		    when (public behindLock) $ throwError "Your lock is cracked!"
 		    when (not $ checkSolution lock soln) $ throwError "Bad solution"
 		    erroredIO $ putRecord (RecNote note) (RCSolution soln)
-		    execStateT (stowNote note behind) [] >>= applyDeltasToRecords
+		    execStateT (declareNote note behind) [] >>= applyDeltasToRecords
 		    return ServerAck
 		SetLock lock@(frame,_) idx soln -> do
 		    info <- getUserInfoOfAuth auth
@@ -113,6 +116,7 @@ handleRequest req@(ClientRequest pv auth action) = do
 		    when (frame /= BasicFrame serverSize) $ throwError $
 			"Server only accepts size "++show serverSize++" locks."
 		    when (not $ checkSolution lock soln) $ throwError "Bad solution"
+		    -- TODO: check doesn't hash to existing lock
 		    ls <- erroredIO $ newLockRecord lock
 		    execStateT (do
 			    when (isJust $ userLocks info ! idx) $
@@ -174,9 +178,10 @@ handleRequest req@(ClientRequest pv auth action) = do
 	applyDeltaToRecords (name,delta) =
 	    erroredIO $ modifyRecord (RecUserInfo name) $
 		\(RCUserInfo info) -> RCUserInfo $ applyDelta delta info
-	stowNote note behind@(ActiveLock name idx) = do
+	declareNote note@(NoteInfo _ _ target) behind@(ActiveLock name idx) = do
+	    accessLock name target =<< getCurrALock target
+	    addDelta (lockOwner target) $ LockDelta (lockIndex target) $ AddSolution note
 	    addDelta name $ LockDelta idx $ AddSecured note
-	    addDelta (lockOwner $ noteOn note) $ LockDelta idx $ AddSolution note
 	    accessed <- accessedBy `liftM` getCurrALock behind
 	    mapM_ (addReadNote note) (name:accessed)
 	addReadNote note@(NoteInfo _ _ target) name = do
@@ -184,7 +189,7 @@ handleRequest req@(ClientRequest pv auth action) = do
 	    tlock <- getCurrALock target
 	    when (not $ name `elem` accessedBy tlock || note `elem` notesRead info) $ do
 		addDelta name $ AddRead note
-		checkSuffReadNotes name info target
+		checkSuffReadNotes target name
 	accessLock name target@(ActiveLock tname ti) tlock = do
 	    addDelta tname $ LockDelta ti $ AddAccessed name
 	    mapM_ (flip addReadNote name) $ notesSecured tlock
@@ -210,12 +215,10 @@ handleRequest req@(ClientRequest pv auth action) = do
 	    accessorsOfNotesOnLock <- ((++ map noteAuthor (lockSolutions lock)).concat)
 		`liftM` (sequence 
 		    [ accessedBy `liftM` getCurrALock behind | NoteInfo _ (Just behind) _ <- lockSolutions lock ] )
-	    flip mapM_ accessorsOfNotesOnLock (\name' -> do
-		info' <- getCurrUserInfo name'
-		checkSuffReadNotes name' info' al)
-	checkSuffReadNotes name info target = do
-	    tinfo <- getCurrUserInfo (lockOwner target)
-	    let Just tlock = userLocks tinfo ! lockIndex target
+	    flip mapM_ accessorsOfNotesOnLock $ checkSuffReadNotes al
+	checkSuffReadNotes target name = do
+	    info <- getCurrUserInfo name
+	    tlock <- getCurrALock target
 	    let countRead = fromIntegral $ length $
 		    filter (\n -> isNothing (noteBehind n) || n `elem` notesRead info) $ lockSolutions tlock
 	    when (not (public tlock) && countRead == notesNeeded) $

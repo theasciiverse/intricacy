@@ -44,8 +44,8 @@ clearToolArea :: Frame -> GameState -> GameState
 clearToolArea (BasicFrame size) st = foldr delPieceIn st [entrance size <+> v <+> origin
 	    | v <- [ neg hu, hw, zero ] ]
 
-lockBodySize :: Frame -> Int
-lockBodySize (BasicFrame size) = size
+frameSize :: Frame -> Int
+frameSize (BasicFrame size) = size
 
 boltArea :: Frame -> [HexPos]
 boltArea (BasicFrame size) = map PHS
@@ -53,11 +53,11 @@ boltArea (BasicFrame size) = map PHS
     where bw = (size`div`4+1)
 
 inBounds :: Frame -> HexPos -> Bool
-inBounds f pos = hexLen (pos <-> origin) < lockBodySize f
+inBounds f pos = hexLen (pos <-> origin) < frameSize f
 checkBounds :: Frame -> HexPos -> HexPos -> HexPos
 checkBounds f def pos = if inBounds f pos then pos else def
 truncateToBounds :: Frame -> HexPos -> HexPos
 truncateToBounds f pos@(PHS v) =
     if inBounds f pos
 	then pos
-	else PHS $ scaleToLength ((lockBodySize f)-1) v
+	else PHS $ scaleToLength ((frameSize f)-1) v

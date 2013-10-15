@@ -81,6 +81,7 @@ data MainState
 	, codenameStack :: [Codename]
 	, newAsync :: TVar Bool
 	, userInfos :: Map Codename (TVar FetchedRecord, Integer)
+	, curLockTVars :: Maybe (Array LockIndex (TVar (Maybe Lock)))
 	, curLockPath :: FilePath
 	, curLock :: Maybe Lock
 	}
@@ -97,7 +98,7 @@ initMetaState = do
     undecls <- confFilePath ("undeclared" ++ [pathSeparator] ++ saddrStr saddr) >>=
 	liftM (fromMaybe []) . readReadFile
     lock <- readLock path
-    return $ MetaState saddr undecls False auth names tvar Map.empty path lock
+    return $ MetaState saddr undecls False auth names tvar Map.empty Nothing path lock
 
 readLock :: FilePath -> IO (Maybe Lock)
 readLock path = fullLockPath path >>= readReadFile
@@ -106,7 +107,7 @@ fullLockPath path = if isAbsolute path
     then return path
     else (++(pathSeparator:path)) <$> confFilePath "locks"
 
-writeMetaState (MetaState saddr undecls _ auth _ _ _ path _) = do
+writeMetaState (MetaState saddr undecls _ auth _ _ _ _ path _) = do
     confFilePath "metagame.conf" >>= flip writeReadFile (saddr, auth, path)
     confFilePath ("undeclared" ++ [pathSeparator] ++ saddrStr saddr) >>= flip writeReadFile undecls
 
@@ -117,7 +118,7 @@ ms2im :: MainState -> InputMode
 ms2im mainSt = case mainSt of
     PlayState _ _ _ _ _ _ _ -> IMPlay
     EditState _ _ _ _ _ _ _ -> IMEdit
-    MetaState _ _ _ _ _ _ _ _ _ -> IMMeta
+    MetaState _ _ _ _ _ _ _ _ _ _ -> IMMeta
 
 instance Error () where noMsg = ()
 
@@ -136,14 +137,53 @@ getUInfoFetched staleTime name = do
 		    then set
 		    else liftIO $ atomically $ readTVar tvar
     where set = do
-	    now <- liftIO getTime
-	    tvar <- getRecordCachedFromCur True $ RecUserInfo name
-	    modify $ \ms -> ms {userInfos = Map.insert name (tvar, now) $ userInfos ms}
+	    tvar <- setUInfoTVar name
 	    liftIO $ atomically $ readTVar tvar
+setUInfoTVar name = do
+    now <- liftIO getTime
+    tvar <- getRecordCachedFromCur True $ RecUserInfo name
+    modify $ \ms -> ms {userInfos = Map.insert name (tvar, now) $ userInfos ms}
+    return tvar
 
 invalidateUInfo :: UIMonad uiM => Codename -> StateT MainState uiM ()
 invalidateUInfo name = 
     modify $ \ms -> ms {userInfos = Map.delete name $ userInfos ms}
+
+setLockTVars name = do
+    uiTVar <- setUInfoTVar name
+    saddr <- gets curServer
+    cOnly <- gets cacheOnly
+    flag <- gets newAsync
+    lockTVars <- liftM (listArray (0,maxLocks-1)) $ liftIO $ sequence $
+	flip map [0..maxLocks-1] $ getLockTVar saddr uiTVar flag cOnly
+    modify $ \ms -> ms { curLockTVars = Just lockTVars }
+    where
+	getLockTVar saddr uiTVar flag cOnly n = do
+	    tvar <- atomically $ newTVar Nothing
+	    forkIO $ do
+		mlockinfo <- atomically $ do
+		    uinforc <- readTVar uiTVar
+		    case uinforc of
+			FetchedRecord _ _ (Just (RCUserInfo uinfo)) ->
+			    return $ userLocks uinfo ! n
+			_ -> retry
+		case mlockinfo of
+		    Nothing -> return ()
+		    Just lockinfo -> do
+			ltvar <- getRecordCached saddr Nothing Nothing cOnly $ RecLock $ lockSpec lockinfo
+			atomically $ do
+			    lockrc <- readTVar ltvar
+			    case lockrc of
+				FetchedRecord _ (Just err) _ -> return ()
+				FetchedRecord _ _ (Just (RCLock lock)) -> do
+				    writeTVar tvar $ Just $ reframe lock
+				    writeTVar flag True
+				_ -> retry
+	    return tvar
+
+refreshUInfoUI :: (UIMonad uiM) => StateT MainState uiM ()
+refreshUInfoUI = void.runMaybeT $ do
+    MaybeT (listToMaybe <$> gets codenameStack) >>= lift.setLockTVars
 
 curServerAction act = do
     saddr <- gets curServer
@@ -161,6 +201,7 @@ getRecordCachedFromCur flagIt rec = do
 getRelScore :: (UIMonad uiM) => Codename -> StateT MainState uiM (Maybe Int)
 getRelScore name = runMaybeT $ do
     ourName <- MaybeT $ (authUser <$>) <$> gets curAuth
+    guard $ ourName /= name
     RCUserInfo uinfo <- MaybeT $ fetchedRC <$> getUInfoFetched 300 name
     RCUserInfo ourUInfo <- MaybeT $ fetchedRC <$> getUInfoFetched 300 ourName
     return $ countUnaccessedBy ourUInfo name - countUnaccessedBy uinfo ourName
@@ -170,10 +211,10 @@ getRelScore name = runMaybeT $ do
 	unaccessedBy name Nothing = False
 	unaccessedBy name (Just linfo) = not $ public linfo || name `elem` accessedBy linfo 
 
-getNotesReadOn al = (maybe [] id <$>) $ runMaybeT $ do
+getNotesReadOn lockinfo = (maybe [] id <$>) $ runMaybeT $ do
     ourName <- MaybeT $ (authUser <$>) <$> gets curAuth
     RCUserInfo ourUInfo <- MaybeT $ fetchedRC <$> getUInfoFetched 300 ourName
-    return [ note | note <- notesRead ourUInfo, noteOn note == al ]
+    return $ filter (\n -> isNothing (noteBehind n) || n `elem` notesRead ourUInfo) $ lockSolutions lockinfo
 
 interactUI :: UIMonad uiM => StateT MainState uiM ()
 interactUI = do
@@ -183,6 +224,8 @@ interactUI = do
 	liftIO $ forkIO $ forever $ do
 	    atomically $ readTVar flag >>= check >> writeTVar flag False
 	    unblock
+	ourName <- (authUser <$>) <$> gets curAuth
+	maybe (return ()) setLockTVars ourName
 	)
     loop
 
@@ -211,16 +254,29 @@ interactUI = do
 	    guard $ length newCodename == 3
 	    lift $ do
 		modify $ \ms -> ms { codenameStack = (newCodename:codenameStack ms) }
+		refreshUInfoUI
+	processCommand' IMMeta CmdHome = void.runMaybeT $ do
+	    ourName <- MaybeT $ (authUser <$>) <$> gets curAuth
+	    lift $ do
+		modify $ \ms -> ms { codenameStack = (ourName:codenameStack ms) }
+		refreshUInfoUI
+	processCommand' IMMeta CmdBackCodename = do
+	    stack <- gets codenameStack
+	    when (length stack > 1) $ do
+		modify $ \ms -> ms { codenameStack = tail stack }
+		refreshUInfoUI
 	processCommand' IMMeta CmdRegister = void.runMaybeT $ do
 	    -- guard =<< isNothing <$> lift (gets curAuth)
 	    newName <- MaybeT $ listToMaybe <$> gets codenameStack
-	    (guard =<<) $ lift.lift $ confirm $ "Register codename "++newName++"?"
+	    confirmOrBail $ "Register codename "++newName++"?"
 	    passwd <- MaybeT $ lift $ textInput "Enter new password:" 64 False Nothing Nothing
 	    lift $ do
 		modify $ \ms -> ms {curAuth = Just $ Auth newName passwd}
 		resp <- curServerAction $ Register
 		case resp of
-		    ServerAck -> (lift $ drawMessage "Registered!")
+		    ServerAck -> do
+			lift $ drawMessage "Registered!"
+			invalidateUInfo newName
 		    ServerError err -> do
 			lift $ drawMessage err
 			modify $ \ms -> ms {curAuth = Nothing}
@@ -240,31 +296,47 @@ interactUI = do
 		    _ -> lift $ drawMessage "BUG"
 	processCommand' IMMeta CmdSolve = void.runMaybeT $ do
 	    name <- MaybeT $ listToMaybe <$> gets codenameStack
-	    --ourName <- lift $ (authUser <$>) <$> gets curAuth
-	    --guard $ ourName /= Just name
 	    RCUserInfo uinfo <- MaybeT $ fetchedRC <$> getUInfoFetched 300 name
-	    index <- askLockIndex "Solve which lock [A-C]?"
+	    index <- askLockIndex "Solve which lock?" (\i -> isJust $ userLocks uinfo ! i)
 	    ls <- MaybeT $ return $ lockSpec <$> userLocks uinfo ! index
-	    tvar <- lift $ getRecordCachedFromCur False $ RecLock ls
-	    RCLock lock <- MaybeT $ liftIO $ atomically $ do
-		FetchedRecord fresh err rc <- readTVar tvar
-		check fresh
-		return rc
-	    soln <- MaybeT $ solveLock lock
-	    lift (gets undeclareds) >>= guard.not.or.map (\(Undeclared _ ls' _) -> ls == ls')
-	    modify $ \ms -> ms { undeclareds = 
-		(Undeclared soln ls (ActiveLock name index) : undeclareds ms) }
-	    lift $ lift (confirm "Declare solution?") >>= flip when (processCommand' IMMeta CmdDeclare)
+	    undecls <- lift (gets undeclareds)
+	    msum [ do
+		    undecl <- MaybeT $ return $ find (\(Undeclared _ ls' _) -> ls == ls') undecls
+		    MaybeT $ gets curAuth
+		    confirmOrBail "Declare existing solution?"
+		    void.lift.runMaybeT $ do -- ignores failures
+			declare undecl
+		, do
+		    tvar <- lift $ getRecordCachedFromCur False $ RecLock ls
+		    RCLock lock <- MaybeT $ liftIO $ atomically $ do
+			FetchedRecord fresh err rc <- readTVar tvar
+			check fresh
+			return rc
+		    soln <- solveLock lock
+		    mourName <- lift $ (authUser <$>) <$> gets curAuth
+		    guard $ mourName /= Just name
+		    let undecl = Undeclared soln ls (ActiveLock name index) 
+		    msum [ do
+			    MaybeT $ gets curAuth
+			    confirmOrBail "Declare solution?"
+			    declare undecl
+			, unless (any (\(Undeclared _ ls' _) -> ls == ls') undecls) $
+			    modify $ \ms -> ms { undeclareds = (undecl : undeclareds ms) }
+			]
+		]
 	processCommand' IMMeta CmdDeclare = void.runMaybeT $ do
 	    name <- MaybeT $ listToMaybe <$> gets codenameStack
 	    ourName <- MaybeT $ (authUser <$>) <$> gets curAuth
-	    RCUserInfo ourUInfo <- MaybeT $ fetchedRC <$> getUInfoFetched 300 ourName
+	    {-
 	    let pertinent = if name == ourName then
 		    const True
 		    else \(Undeclared _ _ (ActiveLock name' _)) -> name==name'
 	    undecls <- lift $ filter pertinent <$> gets undeclareds
+	    -}
+	    guard $ name == ourName
+	    undecls <- lift $ gets undeclareds
 	    guard $ not $ null undecls
-	    undecl@(Undeclared soln ls al) <- if length undecls == 1
+	    declare =<< if length undecls == 1
 		then return $ head undecls
 		else do
 		    which <- MaybeT $ lift $ textInput
@@ -275,7 +347,7 @@ interactUI = do
 			[ do
 			    i <- fst <$> (listToMaybe $ (reads :: ReadS Int) which)
 			    guard $ 0 < i && i <= length undecls
-			    return $ undecls !! i
+			    return $ undecls !! (i-1)
 			, do
 			    listToMaybe $ [ undecl
 				| undecl@(Undeclared _ _ (ActiveLock name' i)) <- undecls
@@ -284,29 +356,19 @@ interactUI = do
 				    , name'==name && [lockIndexChar i] == which
 				    ] ]
 			]
-	    index <- askLockIndex "Secure behind which lock [A-C]?"
-	    guard $ isJust $ userLocks ourUInfo ! index
-	    lift $ do
-		resp <- curServerAction $ DeclareSolution soln ls al index
-		case resp of
-		    ServerAck -> do
-			modify $ \ms -> ms {undeclareds = delete undecl $ undeclareds ms}
-			map invalidateUInfo [name, ourName]
-		    ServerError err -> lift $ drawError err
-		    _ -> return ()
 	processCommand' IMMeta CmdPlaceLock = void.runMaybeT $ do
 	    lock <- MaybeT $ gets curLock
 	    ourName <- MaybeT $ (authUser <$>) <$> gets curAuth
 	    RCUserInfo ourUInfo <- MaybeT $ fetchedRC <$> getUInfoFetched 300 ourName
-	    index <- askLockIndex "Place where [A-C]?"
+	    index <- askLockIndex "Place where?" $ const True
 	    when (isJust $ userLocks ourUInfo ! index) $
-		guard =<< (lift.lift) (confirm "Really retire existing lock?")
-	    soln <- MaybeT $ solveLock lock
+		confirmOrBail "Really retire existing lock?"
+	    soln <- solveLock lock
 	    lift $ do
 		resp <- curServerAction $ SetLock lock index soln
 		case resp of
 		    ServerError err -> lift $ drawError err
-		    _ -> invalidateUInfo ourName
+		    _ -> setLockTVars ourName
 
 	processCommand' IMMeta CmdSelectLock = void.runMaybeT $ do
 	    lockdir <- liftIO $ confFilePath "locks"
@@ -467,7 +529,7 @@ interactUI = do
 	    -}
 	    fullPath <- liftIO $ fullLockPath newPath
 	    (liftIO (doesFileExist fullPath `catchIOError` const (return True)) >>=) $ flip when $
-		guard =<< (lift.lift $ confirm $ "Really overwrite '"++fullPath++"'?")
+		confirmOrBail $ "Really overwrite '"++fullPath++"'?"
 	    lift $ do
 		st <- gets $ head.esGameStateStack
 		frame <- gets esFrame
@@ -504,10 +566,6 @@ interactUI = do
 	subPlay :: UIMonad uiM => Lock -> StateT MainState uiM ()
 	subPlay lock =
 	    pushEState =<< psCurrentState <$> (lift $ execStateT interactUI $ newPlayState lock)
-	solveLock lock = do
-	    (solved,soln) <- (liftA2 (,) psSolved (reverse . (map snd) . psGameStateMoveStack)) <$>
-		(lift $ execStateT interactUI $ newPlayState $ reframe lock)
-	    return $ guard solved >> return soln
 
 	pushEState :: UIMonad uiM => GameState -> StateT MainState uiM ()
 	pushEState st = do
@@ -543,11 +601,40 @@ interactUI = do
 	    lock <- liftIO $ readLock path
 	    modify $ \ms -> ms {curLockPath = path, curLock = lock}
 
-	askLockIndex prompt = do
-	    index <- MaybeT $ lift $ join . (((charLockIndex<$>).listToMaybe)<$>) <$>
-		textInput prompt 1 True Nothing Nothing
-	    guard $ 0 <= index && index <= 2
-	    return index
+	solveLock :: UIMonad uiM => Lock -> MaybeT (StateT MainState uiM) Solution
+	solveLock lock = do
+	    ps <- lift.lift $ execStateT interactUI $ newPlayState $ reframe lock
+	    guard $ psSolved ps
+	    return $ reverse $ (map snd) $ psGameStateMoveStack ps
+
+	declare undecl@(Undeclared soln ls al) = do
+	    ourName <- MaybeT $ (authUser <$>) <$> gets curAuth
+	    RCUserInfo ourUInfo <- MaybeT $ fetchedRC <$> getUInfoFetched 300 ourName
+	    index <- askLockIndex "Secure behind which lock?" (\i -> isJust $ userLocks ourUInfo ! i)
+	    guard $ isJust $ userLocks ourUInfo ! index
+	    resp <- lift $ curServerAction $ DeclareSolution soln ls al index
+	    case resp of
+		ServerAck -> lift $ do
+		    modify $ \ms -> ms {undeclareds = delete undecl $ undeclareds ms}
+		    mapM_ invalidateUInfo [lockOwner al, ourName]
+		ServerError err -> do
+		    lift.lift $ drawError err
+		    mzero
+		_ -> return ()
+
+	askLockIndex prompt check = do
+	    let ok = filter check [0,1,2]
+	    case length ok of
+		0 -> mzero
+		1 -> return $ head ok
+		_ -> ask ok
+	    where
+		ask ok = do
+		    let prompt' = prompt ++ " [" ++ intersperse ',' (map lockIndexChar ok) ++ "]"
+		    index <- MaybeT $ lift $ join . (((charLockIndex<$>).listToMaybe)<$>) <$>
+			textInput prompt' 1 True Nothing Nothing
+		    if index `elem` ok then return index else ask ok
+	confirmOrBail prompt = (guard =<<) $ lift.lift $ confirm prompt
 	confirm :: UIMonad uiM => String -> uiM Bool
 	confirm prompt = do
 	    drawMessage prompt
@@ -587,6 +674,7 @@ interactUI = do
 			    '\r' -> Left True
 			    '\NAK' -> Right ("","")  -- ^U
 			    '\b' -> Right $ (take (length s - 1) s, "")
+			    '\DEL' -> Right $ (take (length s - 1) s, "")
 			    '\t' -> case mposss of
 				Nothing -> Right (s,stem)
 				Just possibilities -> if null stem

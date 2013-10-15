@@ -1,3 +1,4 @@
+all: intricacy intricacy-server
 intricacy: *.lhs *.hs
 	ghc -o intricacy --make -auto-all MainSDL.hs
 intricacy-curses: *.lhs *.hs
