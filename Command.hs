@@ -15,7 +15,7 @@ data Command = CmdDir WrHoSel HexDir | CmdRotate TorqueDir | CmdWait
 	| CmdWriteState
 	| CmdTutorials
 	| CmdSelCodename | CmdBackCodename | CmdHome
-	| CmdSolve | CmdDeclare 
+	| CmdSolve | CmdDeclare | CmdViewSolution
 	| CmdSelectLock | CmdNextLock | CmdPrevLock
 	| CmdEdit | CmdPlaceLock
 	| CmdRegister | CmdAuth

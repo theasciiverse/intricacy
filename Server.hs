@@ -89,6 +89,14 @@ handleRequest req@(ClientRequest pv auth action) = do
 		GetLock ls -> liftM ServedLock $ getLock ls
 		GetUserInfo name -> liftM ServedUserInfo (getUserInfo name)
 		    `catchError` \_ -> return ServerCodenameFree
+		GetSolution note -> do 
+		    uinfo <- getUserInfoOfAuth auth
+		    lockinfo <- getALock $ noteOn note
+		    if codename uinfo == lockOwner (noteOn note) || 
+			3 >= length (filter (\n -> isNothing (noteBehind n)
+			    || n `elem` notesRead uinfo) $ lockSolutions lockinfo)
+			then liftM ServedSolution $ getSolution note
+			else throwError "You are not permitted to read that note."
 		DeclareSolution soln ls target idx -> do
 		    info <- getUserInfoOfAuth auth
 		    lock <- getLock ls
@@ -134,6 +142,9 @@ handleRequest req@(ClientRequest pv auth action) = do
 	getLock ls = erroredIO $ do 
 	    RCLock lock <- getRecord $ RecLock ls
 	    return lock
+	getSolution note = erroredIO $ do 
+	    RCSolution soln <- getRecord $ RecNote note
+	    return soln
 	getServerInfo = erroredIO $ do
 	    RCServerInfo sinfo <- getRecord $ RecServerInfo
 	    return sinfo
@@ -153,7 +164,7 @@ handleRequest req@(ClientRequest pv auth action) = do
 	    let Just (Auth name _) = auth
 	    getUserInfo name
 	checkAuth :: Maybe Auth -> ErrorT String IO ()
-	checkAuth Nothing = throwError "Require authentication"
+	checkAuth Nothing = throwError "Authentication required"
 	checkAuth (Just (Auth name pw)) = do
 	    when (not $ validCodeName name) $ throwError "Invalid codename"
 	    let rec = RecPassword name

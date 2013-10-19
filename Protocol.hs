@@ -19,8 +19,8 @@ data Action
     | GetServerInfo
     | GetLock LockSpec
     | GetUserInfo Codename
-    | GetHint LockSpec
-    | GetSolution LockSpec
+    | GetHint NoteInfo
+    | GetSolution NoteInfo
     | DeclareSolution Solution LockSpec ActiveLock LockIndex
     | SetLock Lock LockIndex Solution
     deriving (Eq, Ord, Show, Read)

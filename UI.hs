@@ -92,7 +92,7 @@ data MainState
 	}
 
 newPlayState (frame,st) = PlayState st frame [] False False [] []
-newReplayState (st,soln) = ReplayState st soln []
+newReplayState st soln = ReplayState st soln []
 newEditState (frame,st) mpath = EditState [st] [] frame mpath Nothing (PHS zero) (PHS zero) 
 initMetaState = do
     tvar <- atomically $ newTVar False
@@ -146,6 +146,13 @@ getUInfoFetched staleTime name = do
     where set = do
 	    tvar <- setUInfoTVar name
 	    liftIO $ atomically $ readTVar tvar
+
+getUInfo :: UIMonad uiM => Codename -> MaybeT (StateT MainState uiM) UserInfo
+getUInfo name = do
+    RCUserInfo uinfo <- MaybeT $ (fetchedRC <$>) $ getUInfoFetched defaultStaleTime name
+    return uinfo
+    where defaultStaleTime = 300
+
 setUInfoTVar name = do
     now <- liftIO getTime
     tvar <- getRecordCachedFromCur True $ RecUserInfo name
@@ -205,12 +212,22 @@ getRecordCachedFromCur flagIt rec = do
     liftIO $ getRecordCached saddr auth
 	(if flagIt then Just flag else Nothing) cOnly rec
 
+getFreshRecBlocking rec = do
+    tvar <- getRecordCachedFromCur False $ rec
+    fetched <- liftIO $ atomically $ do
+	fetched@(FetchedRecord fresh _ _) <- readTVar tvar
+	check fresh
+	return fetched
+    case fetchError fetched of
+	Nothing -> return $ fetchedRC fetched
+	Just err -> lift (drawError err) >> return Nothing
+
 getRelScore :: (UIMonad uiM) => Codename -> StateT MainState uiM (Maybe Int)
 getRelScore name = runMaybeT $ do
     ourName <- MaybeT $ (authUser <$>) <$> gets curAuth
     guard $ ourName /= name
-    RCUserInfo uinfo <- MaybeT $ fetchedRC <$> getUInfoFetched 300 name
-    RCUserInfo ourUInfo <- MaybeT $ fetchedRC <$> getUInfoFetched 300 ourName
+    uinfo <- getUInfo name
+    ourUInfo <- getUInfo ourName
     return $ countUnaccessedBy ourUInfo name - countUnaccessedBy uinfo ourName
     where
 	countUnaccessedBy (UserInfo _ locks _) name =
@@ -220,7 +237,7 @@ getRelScore name = runMaybeT $ do
 
 getNotesReadOn lockinfo = (maybe [] id <$>) $ runMaybeT $ do
     ourName <- MaybeT $ (authUser <$>) <$> gets curAuth
-    RCUserInfo ourUInfo <- MaybeT $ fetchedRC <$> getUInfoFetched 300 ourName
+    ourUInfo <- getUInfo ourName
     return $ filter (\n -> isNothing (noteBehind n) || n `elem` notesRead ourUInfo) $ lockSolutions lockinfo
 
 interactUI :: UIMonad uiM => StateT MainState uiM ()
@@ -304,7 +321,7 @@ interactUI = do
 		    _ -> lift $ drawMessage "BUG"
 	processCommand' IMMeta CmdSolve = void.runMaybeT $ do
 	    name <- MaybeT $ listToMaybe <$> gets codenameStack
-	    RCUserInfo uinfo <- MaybeT $ fetchedRC <$> getUInfoFetched 300 name
+	    uinfo <- getUInfo name
 	    index <- askLockIndex "Solve which lock?" (\i -> isJust $ userLocks uinfo ! i)
 	    ls <- MaybeT $ return $ lockSpec <$> userLocks uinfo ! index
 	    undecls <- lift (gets undeclareds)
@@ -315,11 +332,7 @@ interactUI = do
 		    void.lift.runMaybeT $ do -- ignores failures
 			declare undecl
 		, do
-		    tvar <- lift $ getRecordCachedFromCur False $ RecLock ls
-		    RCLock lock <- MaybeT $ liftIO $ atomically $ do
-			FetchedRecord fresh err rc <- readTVar tvar
-			check fresh
-			return rc
+		    RCLock lock <- MaybeT $ getFreshRecBlocking $ RecLock ls
 		    soln <- solveLock lock
 		    mourName <- lift $ (authUser <$>) <$> gets curAuth
 		    guard $ mourName /= Just name
@@ -364,10 +377,40 @@ interactUI = do
 				    , name'==name && [lockIndexChar i] == which
 				    ] ]
 			]
+	processCommand' IMMeta CmdViewSolution = void.runMaybeT $ do
+	    ourName <- MaybeT $ (authUser <$>) <$> gets curAuth
+	    ourUInfo <- getUInfo ourName
+	    name <- MaybeT $ listToMaybe <$> gets codenameStack
+	    uinfo <- getUInfo name
+	    noteses <- lift $ sequence
+		[ case mlockinfo of
+		    Nothing -> return []
+		    Just lockinfo -> if ourName == name
+			then return $ lockSolutions lockinfo
+			else do
+			    ns <- getNotesReadOn lockinfo 
+			    return $ if length ns < 3 then [] else ns
+		| mlockinfo <- elems $ userLocks uinfo ]
+	    index <- askLockIndex "View solution to which lock?" $ not.null.(noteses!!)
+	    let notes = noteses!!index
+		authors = map noteAuthor notes
+	    author <- if length notes == 1
+		then return $ noteAuthor $ head notes 
+		else (map toUpper <$>) $ MaybeT $ lift $
+		    textInput ("View solution by which player? ["
+			++ concat (intersperse "," (take 3 authors))
+			++ if length authors > 3 then ",...]" else "]")
+		    3 False (Just $ authors) Nothing
+	    note <- MaybeT $ return $ find ((==author).noteAuthor) notes
+	    RCLock lock <- MaybeT $ getFreshRecBlocking $ RecLock $
+		lockSpec (fromJust $ userLocks uinfo ! index)
+	    RCSolution soln <- MaybeT $ getFreshRecBlocking $ RecNote note
+	    lift.lift $ execStateT interactUI $ newReplayState (snd.reframe$lock) soln
+
 	processCommand' IMMeta CmdPlaceLock = void.runMaybeT $ do
 	    lock <- MaybeT $ gets curLock
 	    ourName <- MaybeT $ (authUser <$>) <$> gets curAuth
-	    RCUserInfo ourUInfo <- MaybeT $ fetchedRC <$> getUInfoFetched 300 ourName
+	    ourUInfo <- getUInfo ourName
 	    index <- askLockIndex "Place where?" $ const True
 	    when (isJust $ userLocks ourUInfo ! index) $
 		confirmOrBail "Really retire existing lock?"
@@ -637,7 +680,7 @@ interactUI = do
 
 	declare undecl@(Undeclared soln ls al) = do
 	    ourName <- MaybeT $ (authUser <$>) <$> gets curAuth
-	    RCUserInfo ourUInfo <- MaybeT $ fetchedRC <$> getUInfoFetched 300 ourName
+	    ourUInfo <- getUInfo ourName
 	    index <- askLockIndex "Secure behind which lock?" (\i -> isJust $ userLocks ourUInfo ! i)
 	    guard $ isJust $ userLocks ourUInfo ! index
 	    resp <- lift $ curServerAction $ DeclareSolution soln ls al index

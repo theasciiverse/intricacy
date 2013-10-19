@@ -53,7 +53,7 @@ invariantRecord _ = True
 askForRecord RecServerInfo = GetServerInfo
 askForRecord (RecUserInfo name) = GetUserInfo name
 askForRecord (RecLock ls) = GetLock ls
---askForRecord (RecNote note) = TODO
+askForRecord (RecNote note) = GetSolution note
 	    
 recordExists :: Record -> IO Bool
 recordExists = doesFileExist . recordPath

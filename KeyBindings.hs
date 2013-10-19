@@ -79,16 +79,20 @@ playOnlyBindings =
 	[ ('s', CmdWait)
 	, ('S', CmdWait)
 	]
-replayOnlyBindings = []
+replayOnlyBindings =
+	[ (' ', CmdReplayForward 1)
+	, ('Q', CmdQuit)
+	, ('q', CmdQuit)
+	]
 editOnlyBindings = []
 
 ctrl :: Char -> Char
 ctrl c = toEnum $ fromEnum c - 64
 
 playBindings :: KeyBindings
-playBindings = globalBindings ++ playOnlyBindings
-replayBindings = globalBindings ++ playOnlyBindings
-editBindings = globalBindings ++ editOnlyBindings
+playBindings = playOnlyBindings ++ globalBindings
+replayBindings = replayOnlyBindings ++ globalBindings
+editBindings = editOnlyBindings ++ globalBindings
 metaBindings =
     [ ('C', CmdSelCodename)
     , ('c', CmdSelCodename)
@@ -100,6 +104,8 @@ metaBindings =
     , ('s', CmdSolve)
     , ('D', CmdDeclare)
     , ('d', CmdDeclare)
+    , ('V', CmdViewSolution)
+    , ('v', CmdViewSolution)
     , ('R', CmdRegister)
     , ('r', CmdRegister)
     , ('P', CmdPlaceLock)

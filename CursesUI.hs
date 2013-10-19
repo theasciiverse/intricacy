@@ -278,7 +278,7 @@ drawLockInfo al@(ActiveLock name i) lockinfo mtvar = do
     else if any (\(Undeclared _ ls _) -> ls == lockSpec lockinfo) undecls
     then lift $ drawStrCentred a0 yellow (CVec (lockBottom+1) vcentre) "Undeclared solution!"
     else do
-	read <- getNotesReadOn lockinfo
+	read <- take 3 <$> getNotesReadOn lockinfo
 	when (not $ null read || ourName == Just name) $ do
 	    let rntext = if right-left > 30 then "Read notes by:" else "Notes:"
 		s = (vcentre - (length rntext+(3+1)*3)`div`2)
