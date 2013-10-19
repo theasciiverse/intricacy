@@ -19,7 +19,8 @@ readReadFile file =
 	`catchIOError` (const $ return Nothing)
 
 writeReadFile :: (Show a) => FilePath -> a -> IO ()
-writeReadFile file x = 
+writeReadFile file x = do
+    mkdirhierto file
     BS.writeFile file $ BSC.pack $ show x
 
 confFilePath :: String -> IO FilePath

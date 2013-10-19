@@ -333,7 +333,7 @@ instance UIMonad (StateT UIState IO) where
 			    drawStrGrey (CVec 2 (w`div`2+1+9)) (if isNothing muirc then "(R)" else "(A)")
 		    case muirc of
 			Nothing -> return ()
-			Just (RCUserInfo uinfo) -> do
+			Just (RCUserInfo (_,uinfo)) -> do
 			    sequence_ [ drawLockInfo (ActiveLock (codename uinfo) i) lockinfo ((!i)<$>lockTVs) |
 				(i,Just lockinfo) <- assocs $ userLocks uinfo ]
 	    when (isJust ourName && ourName == selName) $ do
@@ -347,7 +347,7 @@ instance UIMonad (StateT UIState IO) where
 	    when (ourName /= selName) $ void $ runMaybeT $ do
 		sel <- MaybeT $ return $ selName
 		us <- MaybeT $ return $ ourName
-		RCUserInfo ourUInfo <- MaybeT $ fetchedRC <$> getUInfoFetched 300 us
+		ourUInfo <- mgetUInfo us
 		let accessed = [ ActiveLock us i 
 			| i<-[0..2]
 			, Just lock <- [ userLocks ourUInfo ! i ]
@@ -390,14 +390,24 @@ instance UIMonad (StateT UIState IO) where
 
     getInput mode = do
 	key <- liftIO $ CursesH.getKey Curses.refresh
-	case key of
-	    Curses.KeyChar ch ->
-		if mode == IMTextInput
-		then return [CmdInputChar ch]
-		else do
-		    uibdgs <- Map.findWithDefault [] mode `liftM` gets uiKeyBindings
-		    return $ maybeToList $ lookup ch $ uibdgs ++ bindings mode
-	    _ -> return []
+	let mch = case key of
+		Curses.KeyChar ch -> Just ch
+		Curses.KeyBackspace -> Just '\b'
+		Curses.KeyLeft -> Just '4'
+		Curses.KeyRight -> Just '6'
+		Curses.KeyDown -> Just '2'
+		Curses.KeyUp -> Just '8'
+		Curses.KeyHome -> Just '7'
+		Curses.KeyNPage -> Just '3'
+		Curses.KeyPPage -> Just '9'
+		Curses.KeyEnd -> Just '1'
+		_ -> Nothing
+	flip (maybe $ return []) mch $ \ch ->
+	    if mode == IMTextInput
+	    then return [CmdInputChar ch]
+	    else do
+		uibdgs <- Map.findWithDefault [] mode `liftM` gets uiKeyBindings
+		return $ maybeToList $ lookup ch $ uibdgs ++ bindings mode
 
 white = 0 :: ColPair
 red = 1

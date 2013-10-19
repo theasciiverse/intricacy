@@ -13,12 +13,14 @@ protocolVersion = 1 :: ProtocolVersion
 data ClientRequest = ClientRequest ProtocolVersion (Maybe Auth) Action
     deriving (Eq, Ord, Show, Read)
 
+type VersionedUInfo = (Int, UserInfo)
+
 data Action
     = Authenticate
     | Register
     | GetServerInfo
     | GetLock LockSpec
-    | GetUserInfo Codename
+    | GetUserInfo Codename (Maybe Int)
     | GetHint NoteInfo
     | GetSolution NoteInfo
     | DeclareSolution Solution LockSpec ActiveLock LockIndex
@@ -34,10 +36,11 @@ data ServerResponse
     | ServerError String
     | ServedServerInfo ServerInfo
     | ServedLock Lock
-    | ServedUserInfo UserInfo
+    | ServedUserInfo VersionedUInfo
     | ServedSolution Solution
     | ServedHint Hint
     | ServerCodenameFree
+    | ServerFresh
     deriving (Eq, Ord, Show, Read)
 
 data ServerInfo = ServerInfo {serverLockSize :: Int, serverInfoString::String}
@@ -53,7 +56,7 @@ instance Binary Action where
     put Register = put (1::Word8)
     put GetServerInfo = put (2::Word8)
     put (GetLock lspec) = put (3::Word8) >> put lspec
-    put (GetUserInfo name) = put (4::Word8) >> put name
+    put (GetUserInfo name version) = put (4::Word8) >> put name >> put version
     put (GetHint lspec) = put (5::Word8) >> put lspec
     put (GetSolution lspec) = put (6::Word8) >> put lspec
     put (DeclareSolution soln lspec alock idx) = put (7::Word8) >> put soln >> put lspec >> put alock >> put idx
@@ -65,7 +68,7 @@ instance Binary Action where
 	    1 -> return Register
 	    2 -> return GetServerInfo
 	    3 -> liftM GetLock get
-	    4 -> liftM GetUserInfo get
+	    4 -> liftM2 GetUserInfo get get
 	    5 -> liftM GetHint get
 	    6 -> liftM GetSolution get
 	    7 -> liftM4 DeclareSolution get get get get
@@ -84,6 +87,7 @@ instance Binary ServerResponse where
     put (ServedSolution soln) = put (5::Word8) >> put soln
     put (ServedHint hint) = put (6::Word8) >> put hint
     put (ServerCodenameFree) = put (7::Word8)
+    put (ServerFresh) = put (8::Word8)
     get = do
 	tag <- get :: Get Word8
 	case tag of
@@ -95,6 +99,7 @@ instance Binary ServerResponse where
 	    5 -> liftM ServedSolution get
 	    6 -> liftM ServedHint get
 	    7 -> return ServerCodenameFree
+	    8 -> return ServerFresh
 instance Binary ServerInfo where
     put (ServerInfo sz str) = put sz >> put str
     get = liftM2 ServerInfo get get

@@ -3,6 +3,7 @@ module Cache where
 import Network.Fancy
 import Control.Concurrent.STM
 import Control.Concurrent
+import Control.Applicative
 import System.Directory
 import System.IO.Error
 import Control.Monad
@@ -25,17 +26,23 @@ data FetchedRecord = FetchedRecord {fresh :: Bool, fetchError :: Maybe String, f
 getRecordCached :: ServerAddr -> Maybe Auth -> Maybe (TVar Bool) -> Bool -> Record -> IO (TVar FetchedRecord)
 getRecordCached saddr auth mflag cOnly rec = do
     cdToCacheDir saddr
-    fromCache <- (liftM Just $ getRecord rec) `catchIOError` (\_ -> return Nothing)
+    fromCache <- (Just <$> getRecord rec) `catchIOError` (\_ -> return Nothing)
     let fresh = isJust fromCache && invariantRecord rec
     tvar <- atomically $ newTVar $ FetchedRecord fresh Nothing fromCache
     unless (cOnly || fresh) $ void $ forkIO $ getRecordFromServer fromCache tvar
     return tvar
     where
 	getRecordFromServer fromCache tvar = do
-	    resp <- makeRequest saddr (ClientRequest protocolVersion auth (askForRecord rec))
+	    let action = case rec of
+		    RecUserInfo name ->
+			let curVersion = (\(RCUserInfo (v,_)) -> v) <$> fromCache
+			in GetUserInfo name curVersion 
+		    _ -> askForRecord rec
+	    resp <- makeRequest saddr (ClientRequest protocolVersion auth action)
 	    case resp of
 		ServerError err -> tellRec $ FetchedRecord True (Just err) fromCache
 		ServerCodenameFree -> tellRec $ FetchedRecord True Nothing Nothing
+		ServerFresh -> tellRec $ FetchedRecord True Nothing fromCache
 		_ -> do
 		    let rc = rcOfServerResp resp
 		    putRecord rec rc
@@ -44,6 +51,9 @@ getRecordCached saddr auth mflag cOnly rec = do
 		tellRec fr = atomically $ do
 		    writeTVar tvar fr
 		    case mflag of {Just flag -> writeTVar flag True; _ -> return ()}
+
+waitFetchedFresh :: TVar FetchedRecord -> IO ()
+waitFetchedFresh tvar = atomically $ readTVar tvar >>= check.fresh
 
 makeRequest :: ServerAddr -> ClientRequest -> IO ServerResponse
 makeRequest saddr@(ServerAddr host port) request = withStream (IP host port) makeRequest'

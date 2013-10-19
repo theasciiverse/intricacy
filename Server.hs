@@ -73,7 +73,7 @@ handleRequest req@(ClientRequest pv auth action) = do
 	    Authenticate -> ReadMode
 	    GetServerInfo -> ReadMode
 	    GetLock _ -> ReadMode
-	    GetUserInfo _ -> ReadMode
+	    GetUserInfo _ _ -> ReadMode
 	    _ -> ReadWriteMode
     eresp <- withDBLock lockMode $ runErrorT handleRequest'
     case eresp of
@@ -87,8 +87,12 @@ handleRequest req@(ClientRequest pv auth action) = do
 		Register -> newUser auth >> return ServerAck
 		GetServerInfo -> liftM ServedServerInfo $ getServerInfo
 		GetLock ls -> liftM ServedLock $ getLock ls
-		GetUserInfo name -> liftM ServedUserInfo (getUserInfo name)
-		    `catchError` \_ -> return ServerCodenameFree
+		GetUserInfo name version -> (do
+			RCUserInfo (curV,info) <- erroredIO $ getRecord $ RecUserInfo name
+			if version == Just curV
+			    then return ServerFresh
+			    else return $ ServedUserInfo (curV,info)
+		    ) `catchError` \_ -> return ServerCodenameFree
 		GetSolution note -> do 
 		    uinfo <- getUserInfoOfAuth auth
 		    lockinfo <- getALock $ noteOn note
@@ -157,7 +161,7 @@ handleRequest req@(ClientRequest pv auth action) = do
 	checkValidLockIndex idx =
 	    when (not $ 0<=idx && idx < maxLocks) $ throwError "Bad lock index"
 	getUserInfo name = erroredIO $ do 
-	    RCUserInfo info <- getRecord $ RecUserInfo name
+	    RCUserInfo (version,info) <- getRecord $ RecUserInfo name
 	    return info
 	getUserInfoOfAuth auth = do 
 	    checkAuth auth
@@ -182,13 +186,13 @@ handleRequest req@(ClientRequest pv auth action) = do
 	    exists <- liftIO $ recordExists rec
 	    when exists $ throwError "Codename taken"
 	    erroredIO $ putRecord rec (RCPassword hpw)
-	    erroredIO $ putRecord (RecUserInfo name) (RCUserInfo $ initUserInfo name)
+	    erroredIO $ putRecord (RecUserInfo name) (RCUserInfo $ (1,initUserInfo name))
 	--- | TODO: journalling so we can survive death during database writes?
 	applyDeltasToRecords :: [(Codename, UserInfoDelta)] -> ErrorT String IO ()
 	applyDeltasToRecords = (mapM_ applyDeltaToRecords) . reverse
 	applyDeltaToRecords (name,delta) =
 	    erroredIO $ modifyRecord (RecUserInfo name) $
-		\(RCUserInfo info) -> RCUserInfo $ applyDelta delta info
+		\(RCUserInfo (v,info)) -> RCUserInfo $ (v+1,applyDelta delta info)
 	declareNote note@(NoteInfo _ _ target) behind@(ActiveLock name idx) = do
 	    accessLock name target =<< getCurrALock target
 	    addDelta (lockOwner target) $ LockDelta (lockIndex target) $ AddSolution note

@@ -152,7 +152,7 @@ getUInfoFetched staleTime name = do
 
 mgetUInfo :: UIMonad uiM => Codename -> MaybeT (StateT MainState uiM) UserInfo
 mgetUInfo name = do
-    RCUserInfo uinfo <- MaybeT $ (fetchedRC <$>) $ getUInfoFetched defaultStaleTime name
+    RCUserInfo (_,uinfo) <- MaybeT $ (fetchedRC <$>) $ getUInfoFetched defaultStaleTime name
     return uinfo
     where defaultStaleTime = 300
 
@@ -168,6 +168,7 @@ invalidateUInfo name =
 
 setLockTVars name = do
     uiTVar <- setUInfoTVar name
+    liftIO $ waitFetchedFresh uiTVar
     saddr <- gets curServer
     cOnly <- gets cacheOnly
     flag <- gets newAsync
@@ -181,7 +182,7 @@ setLockTVars name = do
 		mlockinfo <- atomically $ do
 		    uinforc <- readTVar uiTVar
 		    case uinforc of
-			FetchedRecord _ _ (Just (RCUserInfo uinfo)) ->
+			FetchedRecord _ _ (Just (RCUserInfo (_,uinfo))) ->
 			    return $ userLocks uinfo ! n
 			_ -> retry
 		case mlockinfo of
@@ -264,6 +265,7 @@ getNotesReadOn lockinfo = (maybe [] id <$>) $ runMaybeT $ do
 
 interactUI :: UIMonad uiM => StateT MainState uiM ()
 interactUI = do
+    lift $ drawMessage ""
     (IMMeta==) . ms2im <$> get >>= flip when (void $ do
 	flag <- gets newAsync
 	unblock <- lift unblockInput
@@ -721,7 +723,7 @@ interactUI = do
 	askLockIndex prompt check = do
 	    let ok = filter check [0,1,2]
 	    case length ok of
-		0 -> mzero
+		0 -> (lift.lift) (drawError "No appropriate lock is available.") >> mzero
 		1 -> return $ head ok
 		_ -> ask ok
 	    where

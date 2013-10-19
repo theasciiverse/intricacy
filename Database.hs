@@ -35,7 +35,7 @@ data Record
     deriving (Eq, Ord, Show)
 data RecordContents
     = RCPassword Password
-    | RCUserInfo UserInfo
+    | RCUserInfo VersionedUInfo
     | RCLock Lock
     | RCSolution Solution
     | RCServerInfo ServerInfo
@@ -51,7 +51,7 @@ invariantRecord (RecPassword _) = False
 invariantRecord _ = True
 
 askForRecord RecServerInfo = GetServerInfo
-askForRecord (RecUserInfo name) = GetUserInfo name
+askForRecord (RecUserInfo name) = GetUserInfo name Nothing
 askForRecord (RecLock ls) = GetLock ls
 askForRecord (RecNote note) = GetSolution note
 	    
