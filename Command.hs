@@ -10,6 +10,7 @@ data Command = CmdDir WrHoSel HexDir | CmdRotate TorqueDir | CmdWait
 	| CmdSelect | CmdUnselect | CmdDelete
 	| CmdPlay | CmdResetTools
 	| CmdUndo | CmdRedo
+	| CmdReplayForward Int | CmdReplayBack Int
 	| CmdInputChar Char
 	| CmdWriteState
 	| CmdTutorials

@@ -64,6 +64,11 @@ data MainState
 	, psGameStateMoveStack::[(GameState, PlayerMove)]
 	, psUndoneStack::[(GameState, PlayerMove)]
 	}
+    | ReplayState
+	{ rsCurrentState::GameState
+	, rsMoveStack::[PlayerMove]
+	, rsGameStateMoveStack::[(GameState, PlayerMove)]
+	}
     | EditState
 	{ esGameStateStack::[GameState]
 	, esUndoneStack::[GameState]
@@ -87,6 +92,7 @@ data MainState
 	}
 
 newPlayState (frame,st) = PlayState st frame [] False False [] []
+newReplayState (st,soln) = ReplayState st soln []
 newEditState (frame,st) mpath = EditState [st] [] frame mpath Nothing (PHS zero) (PHS zero) 
 initMetaState = do
     tvar <- atomically $ newTVar False
@@ -111,12 +117,13 @@ writeMetaState (MetaState saddr undecls _ auth _ _ _ _ path _) = do
     confFilePath "metagame.conf" >>= flip writeReadFile (saddr, auth, path)
     confFilePath ("undeclared" ++ [pathSeparator] ++ saddrStr saddr) >>= flip writeReadFile undecls
 
-data InputMode = IMEdit | IMPlay | IMMeta | IMTextInput
+data InputMode = IMEdit | IMPlay | IMReplay | IMMeta | IMTextInput
     deriving (Eq, Ord, Show, Read)
 
 ms2im :: MainState -> InputMode
 ms2im mainSt = case mainSt of
     PlayState _ _ _ _ _ _ _ -> IMPlay
+    ReplayState _ _ _ -> IMReplay
     EditState _ _ _ _ _ _ _ -> IMEdit
     MetaState _ _ _ _ _ _ _ _ _ _ -> IMMeta
 
@@ -244,6 +251,7 @@ interactUI = do
 	processCommand im CmdQuit = do
 	    when (im == IMPlay) $
 		lift (gets psSolved) >>= flip when (throwError ())
+	    when (im == IMReplay) $ throwError ()
 	    really <- lift $ lift $ confirm "Really quit?"
 	    when really $ throwError ()
 	processCommand im cmd = lift $ processCommand' im cmd
@@ -443,6 +451,26 @@ interactUI = do
 		    (st',alerts) <- lift $ doPhysicsTick pm' st
 		    modify $ \ps -> ps {psLastAlerts = alerts}
 		    pushPState (st',pm')
+
+	processCommand' IMReplay (CmdReplayBack 1) = void.runMaybeT $ do
+	    (st',pm) <- MaybeT $ listToMaybe <$> gets rsGameStateMoveStack
+	    lift $ modify $ \rs -> rs {rsCurrentState=st'
+		, rsGameStateMoveStack = tail $ rsGameStateMoveStack rs
+		, rsMoveStack = pm:rsMoveStack rs}
+	processCommand' IMReplay (CmdReplayBack n) = replicateM_ n $
+	    processCommand' IMReplay (CmdReplayBack 1)
+	processCommand' IMReplay (CmdReplayForward 1) = void.runMaybeT $ do
+	    pm <- MaybeT $ listToMaybe <$> gets rsMoveStack
+	    lift $ do
+		st <- gets rsCurrentState
+		(st',_) <- lift $ doPhysicsTick pm st
+		modify $ \rs -> rs {rsCurrentState = st'
+		    , rsGameStateMoveStack = (st,pm):rsGameStateMoveStack rs
+		    , rsMoveStack = tail $ rsMoveStack rs}
+	processCommand' IMReplay (CmdReplayForward n) = replicateM_ n $
+	    processCommand' IMReplay (CmdReplayForward 1)
+	processCommand' IMReplay CmdUndo = processCommand' IMReplay (CmdReplayBack 1)
+	processCommand' IMReplay CmdRedo = processCommand' IMReplay (CmdReplayForward 1)
 
 	processCommand' IMEdit CmdPlay = do
 	    st <- gets $ head.esGameStateStack

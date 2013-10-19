@@ -79,6 +79,7 @@ playOnlyBindings =
 	[ ('s', CmdWait)
 	, ('S', CmdWait)
 	]
+replayOnlyBindings = []
 editOnlyBindings = []
 
 ctrl :: Char -> Char
@@ -86,6 +87,7 @@ ctrl c = toEnum $ fromEnum c - 64
 
 playBindings :: KeyBindings
 playBindings = globalBindings ++ playOnlyBindings
+replayBindings = globalBindings ++ playOnlyBindings
 editBindings = globalBindings ++ editOnlyBindings
 metaBindings =
     [ ('C', CmdSelCodename)
@@ -121,6 +123,7 @@ metaBindings =
 bindings IMEdit = editBindings
 bindings IMPlay = playBindings
 bindings IMMeta = metaBindings
+bindings IMReplay = replayBindings
 
 findBinding :: KeyBindings -> Command -> String
 findBinding bdgs cmd =

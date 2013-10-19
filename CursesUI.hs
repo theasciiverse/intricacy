@@ -306,6 +306,10 @@ instance UIMonad (StateT UIState IO) where
 	    drawCursorAt $ listToMaybe [ pos |
 		(_, PlacedPiece pos p) <- enumVec $ placedPieces st
 		, or [wsel && isWrench p, not wsel && isHook p] ]
+	ReplayState st _ _ -> lift $ do
+	    drawState [] False [] st
+	    drawMsgLine
+	    drawCursorAt Nothing
 	EditState (st:_) _ _ _ selPiece selPos _ -> lift $ do
 	    drawState (maybeToList selPiece) True [] st
 	    drawMsgLine
