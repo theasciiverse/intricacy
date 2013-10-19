@@ -98,9 +98,7 @@ initMetaState = do
     tvar <- atomically $ newTVar False
     (saddr, auth, path) <- confFilePath "metagame.conf" >>=
 	liftM (fromMaybe (defaultServerAddr, Nothing, "")) . readReadFile
-    let names = case auth of
-	    Nothing -> []
-	    Just (Auth name _) -> [name]
+    let names = maybeToList $ authUser <$> auth
     undecls <- confFilePath ("undeclared" ++ [pathSeparator] ++ saddrStr saddr) >>=
 	liftM (fromMaybe []) . readReadFile
     lock <- readLock path
@@ -129,6 +127,11 @@ ms2im mainSt = case mainSt of
 
 instance Error () where noMsg = ()
 
+mgetOurName :: (UIMonad uiM) => MaybeT (StateT MainState uiM) Codename
+mgetOurName = MaybeT $ (authUser <$>) <$> gets curAuth
+mgetCurName :: (UIMonad uiM) => MaybeT (StateT MainState uiM) Codename
+mgetCurName = MaybeT $ listToMaybe <$> gets codenameStack 
+
 getTime = do 
     TOD secs msecs <- getClockTime
     return secs
@@ -147,8 +150,8 @@ getUInfoFetched staleTime name = do
 	    tvar <- setUInfoTVar name
 	    liftIO $ atomically $ readTVar tvar
 
-getUInfo :: UIMonad uiM => Codename -> MaybeT (StateT MainState uiM) UserInfo
-getUInfo name = do
+mgetUInfo :: UIMonad uiM => Codename -> MaybeT (StateT MainState uiM) UserInfo
+mgetUInfo name = do
     RCUserInfo uinfo <- MaybeT $ (fetchedRC <$>) $ getUInfoFetched defaultStaleTime name
     return uinfo
     where defaultStaleTime = 300
@@ -197,7 +200,25 @@ setLockTVars name = do
 
 refreshUInfoUI :: (UIMonad uiM) => StateT MainState uiM ()
 refreshUInfoUI = void.runMaybeT $ do
-    MaybeT (listToMaybe <$> gets codenameStack) >>= lift.setLockTVars
+    name <- mgetCurName
+    lift $ setLockTVars name
+    ourName <- mgetOurName
+    when (ourName == name) $ lift purgeInvalidUndecls
+    where
+	purgeInvalidUndecls = do
+	    undecls' <- gets undeclareds >>= filterM ((not<$>).invalid)
+	    modify $ \ms -> ms { undeclareds = undecls' }
+	invalid undecl@(Undeclared _ ls (ActiveLock name index)) =
+	    (maybe False id <$>) $ runMaybeT $ do
+		uinfo <- mgetUInfo name
+		ourName <- mgetOurName
+		msum [ do
+			linfo <- MaybeT $ return $ userLocks uinfo ! index
+			return $ public linfo 
+			    || ourName `elem` accessedBy linfo 
+			    || lockSpec linfo /= ls
+		    , return True
+		    ]
 
 curServerAction act = do
     saddr <- gets curServer
@@ -224,10 +245,10 @@ getFreshRecBlocking rec = do
 
 getRelScore :: (UIMonad uiM) => Codename -> StateT MainState uiM (Maybe Int)
 getRelScore name = runMaybeT $ do
-    ourName <- MaybeT $ (authUser <$>) <$> gets curAuth
+    ourName <- mgetOurName
     guard $ ourName /= name
-    uinfo <- getUInfo name
-    ourUInfo <- getUInfo ourName
+    uinfo <- mgetUInfo name
+    ourUInfo <- mgetUInfo ourName
     return $ countUnaccessedBy ourUInfo name - countUnaccessedBy uinfo ourName
     where
 	countUnaccessedBy (UserInfo _ locks _) name =
@@ -236,9 +257,10 @@ getRelScore name = runMaybeT $ do
 	unaccessedBy name (Just linfo) = not $ public linfo || name `elem` accessedBy linfo 
 
 getNotesReadOn lockinfo = (maybe [] id <$>) $ runMaybeT $ do
-    ourName <- MaybeT $ (authUser <$>) <$> gets curAuth
-    ourUInfo <- getUInfo ourName
-    return $ filter (\n -> isNothing (noteBehind n) || n `elem` notesRead ourUInfo) $ lockSolutions lockinfo
+    ourName <- mgetOurName
+    ourUInfo <- mgetUInfo ourName
+    return $ filter (\n -> isNothing (noteBehind n)
+	    || n `elem` notesRead ourUInfo) $ lockSolutions lockinfo
 
 interactUI :: UIMonad uiM => StateT MainState uiM ()
 interactUI = do
@@ -248,8 +270,7 @@ interactUI = do
 	liftIO $ forkIO $ forever $ do
 	    atomically $ readTVar flag >>= check >> writeTVar flag False
 	    unblock
-	ourName <- (authUser <$>) <$> gets curAuth
-	maybe (return ()) setLockTVars ourName
+	refreshUInfoUI
 	)
     loop
 
@@ -281,7 +302,7 @@ interactUI = do
 		modify $ \ms -> ms { codenameStack = (newCodename:codenameStack ms) }
 		refreshUInfoUI
 	processCommand' IMMeta CmdHome = void.runMaybeT $ do
-	    ourName <- MaybeT $ (authUser <$>) <$> gets curAuth
+	    ourName <- mgetOurName
 	    lift $ do
 		modify $ \ms -> ms { codenameStack = (ourName:codenameStack ms) }
 		refreshUInfoUI
@@ -292,7 +313,7 @@ interactUI = do
 		refreshUInfoUI
 	processCommand' IMMeta CmdRegister = void.runMaybeT $ do
 	    -- guard =<< isNothing <$> lift (gets curAuth)
-	    newName <- MaybeT $ listToMaybe <$> gets codenameStack
+	    newName <- mgetCurName
 	    confirmOrBail $ "Register codename "++newName++"?"
 	    passwd <- MaybeT $ lift $ textInput "Enter new password:" 64 False Nothing Nothing
 	    lift $ do
@@ -308,7 +329,7 @@ interactUI = do
 		    _ -> lift $ drawMessage "BUG"
 	processCommand' IMMeta CmdAuth = void.runMaybeT $ do
 	    auth <- lift $ gets curAuth
-	    name <- MaybeT $ listToMaybe <$> gets codenameStack
+	    name <- mgetCurName
 	    passwd <- MaybeT $ lift $ textInput ("Enter password for "++name++":") 64 False Nothing Nothing
 	    lift $ do
 		modify $ \ms -> ms {curAuth = Just $ Auth name passwd}
@@ -320,8 +341,8 @@ interactUI = do
 			modify $ \ms -> ms {curAuth = auth}
 		    _ -> lift $ drawMessage "BUG"
 	processCommand' IMMeta CmdSolve = void.runMaybeT $ do
-	    name <- MaybeT $ listToMaybe <$> gets codenameStack
-	    uinfo <- getUInfo name
+	    name <- mgetCurName
+	    uinfo <- mgetUInfo name
 	    index <- askLockIndex "Solve which lock?" (\i -> isJust $ userLocks uinfo ! i)
 	    ls <- MaybeT $ return $ lockSpec <$> userLocks uinfo ! index
 	    undecls <- lift (gets undeclareds)
@@ -329,7 +350,7 @@ interactUI = do
 		    undecl <- MaybeT $ return $ find (\(Undeclared _ ls' _) -> ls == ls') undecls
 		    MaybeT $ gets curAuth
 		    confirmOrBail "Declare existing solution?"
-		    void.lift.runMaybeT $ do -- ignores failures
+		    void.lift.runMaybeT $ do -- ignores MaybeT failures
 			declare undecl
 		, do
 		    RCLock lock <- MaybeT $ getFreshRecBlocking $ RecLock ls
@@ -346,8 +367,8 @@ interactUI = do
 			]
 		]
 	processCommand' IMMeta CmdDeclare = void.runMaybeT $ do
-	    name <- MaybeT $ listToMaybe <$> gets codenameStack
-	    ourName <- MaybeT $ (authUser <$>) <$> gets curAuth
+	    name <- mgetCurName
+	    ourName <- mgetOurName
 	    {-
 	    let pertinent = if name == ourName then
 		    const True
@@ -378,10 +399,10 @@ interactUI = do
 				    ] ]
 			]
 	processCommand' IMMeta CmdViewSolution = void.runMaybeT $ do
-	    ourName <- MaybeT $ (authUser <$>) <$> gets curAuth
-	    ourUInfo <- getUInfo ourName
-	    name <- MaybeT $ listToMaybe <$> gets codenameStack
-	    uinfo <- getUInfo name
+	    ourName <- mgetOurName
+	    ourUInfo <- mgetUInfo ourName
+	    name <- mgetCurName
+	    uinfo <- mgetUInfo name
 	    noteses <- lift $ sequence
 		[ case mlockinfo of
 		    Nothing -> return []
@@ -408,9 +429,11 @@ interactUI = do
 	    lift.lift $ execStateT interactUI $ newReplayState (snd.reframe$lock) soln
 
 	processCommand' IMMeta CmdPlaceLock = void.runMaybeT $ do
+	    ourName <- mgetOurName
+	    name <- mgetCurName
+	    guard $ ourName == name
 	    lock <- MaybeT $ gets curLock
-	    ourName <- MaybeT $ (authUser <$>) <$> gets curAuth
-	    ourUInfo <- getUInfo ourName
+	    ourUInfo <- mgetUInfo ourName
 	    index <- askLockIndex "Place where?" $ const True
 	    when (isJust $ userLocks ourUInfo ! index) $
 		confirmOrBail "Really retire existing lock?"
@@ -419,7 +442,7 @@ interactUI = do
 		resp <- curServerAction $ SetLock lock index soln
 		case resp of
 		    ServerError err -> lift $ drawError err
-		    _ -> setLockTVars ourName
+		    _ -> refreshUInfoUI
 
 	processCommand' IMMeta CmdSelectLock = void.runMaybeT $ do
 	    lockdir <- liftIO $ confFilePath "locks"
@@ -646,7 +669,8 @@ interactUI = do
 	pushPState (st,pm) = do
 	    st' <- gets psCurrentState
 	    stms <- gets psGameStateMoveStack
-	    when (st' /= st) $ modify $ \ps -> ps {psCurrentState = st, psGameStateMoveStack = (st',pm):stms, psUndoneStack = []}
+	    when (st' /= st) $ modify $ \ps -> ps {psCurrentState = st,
+		    psGameStateMoveStack = (st',pm):stms, psUndoneStack = []}
 	modifyEState :: UIMonad uiM => (GameState -> GameState) -> StateT MainState uiM ()
 	modifyEState f = do
 	    st:_ <- gets esGameStateStack
@@ -660,7 +684,8 @@ interactUI = do
 	nextLock :: Bool -> FilePath -> IO FilePath
 	nextLock newer path = do
 	    lockdir <- confFilePath "locks"
-	    time <- (Just <$> (fullLockPath path >>= getModificationTime)) `catchIOError` const (return Nothing)
+	    time <- (Just <$> (fullLockPath path >>= getModificationTime))
+		`catchIOError` const (return Nothing)
 	    paths <- getDirContentsRec lockdir
 	    maybe path (drop (length lockdir + 1) . fst) . listToMaybe .
 		(if newer then id else reverse) . sortBy (\x y -> compare (snd x) (snd y)) .
@@ -679,8 +704,8 @@ interactUI = do
 	    return $ reverse $ (map snd) $ psGameStateMoveStack ps
 
 	declare undecl@(Undeclared soln ls al) = do
-	    ourName <- MaybeT $ (authUser <$>) <$> gets curAuth
-	    ourUInfo <- getUInfo ourName
+	    ourName <- mgetOurName
+	    ourUInfo <- mgetUInfo ourName
 	    index <- askLockIndex "Secure behind which lock?" (\i -> isJust $ userLocks ourUInfo ! i)
 	    guard $ isJust $ userLocks ourUInfo ! index
 	    resp <- lift $ curServerAction $ DeclareSolution soln ls al index
