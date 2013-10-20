@@ -212,7 +212,7 @@ drawName showScore pos name = do
 drawActiveLock :: CVec -> ActiveLock -> StateT MainState UIM ()
 drawActiveLock pos (ActiveLock name i) = do
     drawName False (pos <+> CVec 0 (-1)) name
-    lift $ drawStr bold white (pos <+> CVec 0 1) [':',lockLetter i]
+    lift $ drawStr bold white (pos <+> CVec 0 1) [':',lockIndexChar i]
 
 data Gravity = GravUp | GravLeft | GravRight | GravDown | GravCentre
     deriving (Eq, Ord, Show, Enum)
@@ -237,8 +237,6 @@ fillBox (CVec t l) (CVec b r) width grav draws = do
 	zipped = zip locs draws
     sequence_ [draw pos | (pos,draw) <- zipped]
     return $ (if grav==GravDown then minimum else maximum) [ y | (CVec y x,_) <- zipped ]
-
-lockLetter i = toEnum . (+i) . fromEnum $ 'A'
 
 drawLockInfo al@(ActiveLock name i) lockinfo mtvar = do
     (h,w) <- liftIO Curses.scrSize

@@ -195,8 +195,16 @@ collisionMarker centre size surf =
 
 hollowGlyph :: Pixel -> Glyph
 hollowGlyph col centre size surf =
-    aaPolygon' surf corners $ bright col
+    aaPolygon' surf corners col
+    where corners = map (corner centre size) [0..5]
+hollowInnerGlyph col centre size surf =
+    aaPolygon' surf corners col
     where corners = [ innerCorner centre size dir | dir <- hexDirs ]
+
+filledHexGlyph :: Pixel -> Glyph
+filledHexGlyph col centre size surf =
+    rimmedPolygon surf corners col $ bright col
+    where corners = map (corner centre size) [0..5]
 
 buttonGlyph :: Pixel -> Glyph
 buttonGlyph = tileGlyph (BlockTile [])
@@ -226,8 +234,11 @@ whsButtonsButton whs centre size surf = do
 	col = dim white
 
 cursor :: Glyph
-cursor centre size surf =
-    aaPolygon' surf (map (corner centre size) [0..5]) $ bright white
+cursor = hollowGlyph $ bright white
+
+unfreshGlyph = hollowGlyph $ bright $ colourWheel 0
+
+playerGlyph = filledHexGlyph
 
 bright :: Pixel -> Pixel
 bright (Pixel v) = Pixel $ v `div` 0x100 * 0x100 + 0xff
@@ -307,11 +318,19 @@ data RenderContext = RenderContext
     }
 type RenderM = ReaderT RenderContext IO
 
+displaceRender :: SVec -> RenderM a -> RenderM a
+displaceRender disp = local displace
+    where displace rc = rc { renderSCentre = renderSCentre rc <+> disp }
+
+withFont :: Maybe TTF.Font -> RenderM a -> RenderM a
+withFont font = local refont
+    where refont rc = rc { renderFont = font }
 
 erase :: RenderM ()
 erase = do
     surf <- asks renderSurf
     void $ liftIO $ fillRect surf Nothing black
+
 
 drawAt :: Glyph -> HexPos -> RenderM ()
 drawAt gl pos = do
@@ -322,16 +341,23 @@ drawAtRel gl v = do
 	let cpos = scrCentre <+> (hexVec2SVec size v)
 	liftIO $ gl cpos size surf
 
-renderStrAt :: String -> HexDir -> RenderM ()
-renderStrAt str v = void $ runMaybeT $ do
+messageCol = Color 0xff 0xff 0xff
+buttonTextCol = Color 0xff 0xff 0xff
+errorCol = Color 0xff 0 0
+
+renderStrColAtLeft c str v = renderStrColAt' False c str v
+renderStrColAt c str v = renderStrColAt' True c str v
+renderStrColAt' centred c str v = void $ runMaybeT $ do
     font <- MaybeT $ asks renderFont
-    fsurf <- MaybeT $ liftIO $ TTF.tryRenderTextBlended font str (Color 0xff 0xff 0xff)
-    (surf, scrCentre, size, centre) <- lift $ asks $
+    fsurf <- MaybeT $ liftIO $ TTF.tryRenderTextBlended font str c
+    (surf, scrCentre, size, _) <- lift $ asks $
 	liftM4 (,,,) renderSurf renderSCentre renderSize renderHCentre
     let SVec x y = scrCentre <+> (hexVec2SVec size v)
-    let x' = x - (surfaceGetWidth fsurf)`div`2
-    let y' = y - (surfaceGetHeight fsurf)`div`2
-    void $ liftIO $ blitSurface fsurf Nothing surf (Just $ Rect x' y' 0 0)
+	    <+> if centred then neg $ SVec
+		    ((surfaceGetWidth fsurf)`div`2)
+		    ((surfaceGetHeight fsurf)`div`2)
+		else SVec 0 0
+    void $ liftIO $ blitSurface fsurf Nothing surf (Just $ Rect x y 0 0)
 
 drawCursorAt :: Maybe HexPos -> RenderM ()
 drawCursorAt (Just pos) = drawAt cursor pos
@@ -354,3 +380,11 @@ drawBlocked st colouring blocking (Push idx dir) = do
 	, not $ (dir<+>pos) `elem` fullfootprint ]
     -- drawAt (blockedPush dir $ bright orange) $ placedPos $ getpp st idx
 
+blitAt :: Surface -> HexVec -> RenderM ()
+blitAt surface v = do
+    (surf, scrCentre, size) <- asks $ liftM3 (,,) renderSurf renderSCentre renderSize
+    let cpos@(SVec x y) = scrCentre <+> (hexVec2SVec size v)
+	w = surfaceGetWidth surface
+	h = surfaceGetHeight surface
+    void $ liftIO $ blitSurface surface Nothing surf $ Just $
+	Rect (x-w`div`2) (y-h`div`2) (w+1) (h+1)

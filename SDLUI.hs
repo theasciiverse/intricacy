@@ -1,9 +1,11 @@
 {-# LANGUAGE FlexibleInstances #-}
 module SDLUI (UIM) where
 
-import Graphics.UI.SDL
+import Graphics.UI.SDL hiding (flip)
 import qualified Graphics.UI.SDL as SDL
 import qualified Graphics.UI.SDL.TTF as TTF
+import Control.Concurrent.STM
+import Control.Applicative hiding ((<*>))
 import Data.Char (ord)
 import qualified Data.Map as Map
 import Data.Map (Map)
@@ -14,7 +16,9 @@ import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.Reader
 import System.IO.Error
 import Data.Word
-import Data.List (elemIndex)
+import Data.Array
+import Data.List
+import Data.Ratio
 import Text.Show.Pretty (ppShow)
 --import Debug.Trace (traceShow)
 
@@ -22,25 +26,34 @@ import UI
 import Hex
 import Command
 import GameState
+import Lock
 import Physics
 import KeyBindings
 import Mundanities
+import Metagame
+import Protocol
+import Cache
+import Database
+import ServerAddr
 import SDLRender
 
 data UIState = UIState { scrHeight::Int, scrWidth::Int
     , gsSurface::Maybe Surface
     , lastDrawArgs::Maybe DrawArgs
+    , miniLocks::Map Lock Surface
     , uiOptions::UIOptions
     , settingBinding::Maybe Command
     , uiKeyBindings :: Map InputMode KeyBindings
     , dispFont::Maybe TTF.Font
+    , dispFontSmall::Maybe TTF.Font
     , lastFrameTicks::Word32
     , paintTileIndex::Int
     , leftButtonDown::Bool, middleButtonDown::Bool, rightButtonDown::Bool
     , mousePos::HexVec
+    , message::Maybe (Color, String)
     , dispCentre::HexPos, dispLastCol::PieceColouring }
 type UIM = StateT UIState IO
-nullUIState = UIState 0 0 Nothing Nothing defaultUIOptions Nothing Map.empty Nothing 0 0 False False False zero (PHS zero) Map.empty
+nullUIState = UIState 0 0 Nothing Nothing Map.empty defaultUIOptions Nothing Map.empty Nothing Nothing 0 0 False False False zero Nothing (PHS zero) Map.empty
 
 data UIOptions = UIOptions
     { useFiveColouring::Bool
@@ -50,11 +63,6 @@ data UIOptions = UIOptions
     deriving (Eq, Ord, Show, Read)
 defaultUIOptions = UIOptions True True WHSSelected
 modifyUIOptions f = modify $ \s -> s { uiOptions = f $ uiOptions s }
-
-maxlocksize = 12 -- TODO: use actual lock size?
-periphery 0 = ((3*maxlocksize)`div`2)<*>hu <+> ((3*maxlocksize)`div`4)<*>hv
-periphery n = rotate n $ periphery 0
-messageLineStart = (maxlocksize+1)<*>hw
 
 renderToMain :: RenderM a -> UIM a
 renderToMain m = do
@@ -217,7 +225,7 @@ drawPaintButtons = do
     renderToMain $ sequence_ [ 
 	do
 	    let gl = case paintTiles!!i of
-		    Nothing -> hollowGlyph $ dim $ colourWheel 5
+		    Nothing -> hollowInnerGlyph $ dim $ colourWheel 5
 		    Just t -> tileGlyph t $ dim $ colourWheel 5
 	    drawAtRel gl pos
 	    when selected $ drawAtRel cursor pos
@@ -226,14 +234,18 @@ drawPaintButtons = do
 	, let selected = i == pti
 	]
 
+periphery 0 = ((3*maxlocksize)`div`2)<*>hu <+> ((3*maxlocksize)`div`4)<*>hv
+periphery n = rotate n $ periphery 0
+-- ^ XXX only peripheries 0,2,3,5 are guaranteed to be on-screen!
+messageLineStart = (maxlocksize+1)<*>hw
+
 getGeom :: UIM (SVec, Int)
 getGeom = do 
     h <- gets scrHeight 
     w <- gets scrWidth
     let scrCentre = SVec (w`div`2) (h`div`2)
-    let size = minimum [ w`div`80, floor $ (fromIntegral h) / ((sqrt 3)*25) ]
+    let size = minimum [ w`div`(2*30), floor $ (fromIntegral h) / ((sqrt 3) * 25) ]
     return (scrCentre, size)
-
 
 data DrawArgs = DrawArgs [PieceIdx] Bool [Alert] GameState UIOptions
     deriving (Eq, Ord, Show)
@@ -278,6 +290,119 @@ drawMainGameState' args@(DrawArgs highlight colourFixed alerts st uiopts) = do
 	    vidSurf <- liftIO getVideoSurface
 	    liftIO $ blitSurface gsSurf Nothing vidSurf Nothing
 
+drawMiniLock :: Lock -> HexVec -> UIM ()
+drawMiniLock lock v = do
+    surface <- Map.lookup lock <$> gets miniLocks >>= maybe new return
+    renderToMain $ blitAt surface v
+    where
+	miniLocksize = 3
+	new = do
+	    (_, size) <- getGeom
+	    let minisize = size `div` (ceiling $ lockSize lock % miniLocksize)
+	    let width = size*2*(miniLocksize*2+1)
+	    let height = ceiling $ fromIntegral size * sqrt 3 * fromIntegral (miniLocksize*2+1+1)
+	    surf <- liftIO $ createRGBSurface [] width height 16 0 0 0 0
+	    uiopts <- gets uiOptions
+	    let st = snd $ reframe $ lock
+		coloured = colouredPieces False st
+		colouring = if useFiveColouring uiopts
+		    then boardColouring st coloured Map.empty
+		    else pieceTypeColouring st coloured
+		draw = sequence_ [ drawAt glyph pos | 
+		    (pos,glyph) <- Map.toList $ fmap (ownedTileGlyph colouring []) $ stateBoard st ]
+	    liftIO $ runReaderT draw $
+		RenderContext surf (PHS zero) (SVec (width`div`2) (height`div`2)) minisize Nothing
+	    clearOldMiniLocks
+	    modify $ \ds -> ds { miniLocks = Map.insert lock surf $ miniLocks ds }
+	    return surf
+
+-- | TODO: do this more cleverly
+clearOldMiniLocks =
+    (>=50).Map.size <$> gets miniLocks >>= flip when clearMiniLocks
+clearMiniLocks = modify $ \ds -> ds { miniLocks = Map.empty}
+
+fillArea centre area draws =
+    mapM_ (\(draw,pos) -> draw pos) $
+	zip draws $ sortBy
+		(\p p' -> hexLen (p<->centre) `compare` hexLen (p'<->centre))
+		area
+
+nameCol name = do
+    ourName <- (authUser <$>) <$> gets curAuth
+    relScore <- getRelScore name
+    return $ dim $ Pixel $ case relScore of
+	    Nothing -> if ourName == Just name then 0xa0a0a000 else 0x80808000
+	    Just 0 -> 0x80800000
+	    Just 1 -> 0x40a00000 
+	    Just 2 -> 0x20c00000
+	    Just 3 -> 0x00ff0000
+	    Just (-1) -> 0xa0400000 
+	    Just (-2) -> 0xc0200000
+	    Just (-3) -> 0xff000000
+drawName name pos = do
+    col <- nameCol name
+    lift.renderToMain $ do 
+	drawAtRel (playerGlyph col) pos
+	renderStrColAt messageCol name pos
+drawActiveLock (ActiveLock name i) pos = do
+    col <- nameCol name
+    size <- fromIntegral.snd <$> lift getGeom
+    let up = SVec 0 $ - floor (size * sqrt 3 / 6)
+    let down = SVec 0 $ ceiling $ size * sqrt 3 / 3
+    smallFont <- lift $ gets dispFontSmall
+    lift.renderToMain $ do
+	drawAtRel (playerGlyph col) pos
+	displaceRender up $ 
+	    renderStrColAt messageCol name pos
+	displaceRender down $ withFont smallFont $
+	    renderStrColAt messageCol [lockIndexChar i] pos
+
+drawLockInfo al@(ActiveLock name i) lockinfo mtvar = do
+    let centre = hw<+>neg hv <+> 7*(i-1)<*>hu
+    let accessedByPos = centre <+> 3<*>(hv <+> neg hw)
+    let accessedPos = centre <+> 2<*>(hw <+> neg hv)
+    let notesPos = centre <+> 3<*>(hw <+> neg hv)
+    ourName <- (authUser <$>) <$> gets curAuth
+    runMaybeT $ msum [
+	do
+	    tvar <- MaybeT $ return mtvar
+	    lock <- MaybeT $ liftIO.atomically.readTVar $ tvar
+	    lift.lift $ drawMiniLock lock centre
+	, lift $ drawActiveLock al centre
+	]
+
+    lift.renderToMain $ renderStrColAt messageCol "Accessed by:" $ accessedByPos <+> hv
+    if (public lockinfo) 
+    then lift.renderToMain $ renderStrColAt messageCol "Everyone!" accessedByPos
+    else if null $ accessedBy lockinfo
+	then lift.renderToMain $ renderStrColAt messageCol "No-one" accessedByPos
+	else fillArea accessedByPos
+		[ accessedByPos <+> d | j <- [0..2], i <- [-2..3]
+		    , i-j > -4, i-j < 3
+		    , let d = j<*>hw <+> i<*>hu ]
+		$ map drawName $ accessedBy lockinfo
+    
+    undecls <- gets undeclareds
+    if isJust $ guard . (|| public lockinfo) . (`elem` accessedBy lockinfo) =<< ourName
+    then lift.renderToMain $ renderStrColAt (Color 0 0xff 0) "Accessed!" accessedPos
+    else if any (\(Undeclared _ ls _) -> ls == lockSpec lockinfo) undecls
+    then lift.renderToMain $ renderStrColAt (Color 0xff 0xff 0) "Undeclared" accessedPos
+    else do
+	read <- take 3 <$> getNotesReadOn lockinfo
+	when (not $ null read || ourName == Just name) $ do
+	    lift.renderToMain $ renderStrColAt messageCol "Read notes:" $ accessedPos <+> (-2)<*>hu
+	    fillArea accessedPos [ accessedPos <+> i<*>hu | i <- [0..2] ]
+		$ map drawName $ map noteAuthor read
+
+    lift.renderToMain $ renderStrColAt messageCol "Notes held:" $ notesPos <+> hv
+    if null $ notesSecured lockinfo
+	then lift.renderToMain $ renderStrColAt messageCol "None" notesPos
+	else fillArea notesPos
+		[ notesPos <+> d | j <- [0..2], i <- [-2..3]
+		    , i-j > -4, i-j < 3
+		    , let d = j<*>hw <+> i<*>hu ]
+		$ map drawActiveLock $ map noteOn $ notesSecured lockinfo
+
 getBindingStr :: InputMode -> UIM (Command -> String)
 getBindingStr mode = do
     setting <- gets settingBinding
@@ -291,7 +416,7 @@ drawButtons mode = do
     buttons <- getButtons mode
     bindingStr <- getBindingStr mode
     renderToMain $ sequence_ $ concat [
-	    [ drawAtRel (buttonGlyph col) v >> renderStrAt bdg v |
+	    [ drawAtRel (buttonGlyph col) v >> renderStrColAt buttonTextCol bdg v |
 		(i,(v,bdg)) <- enumerate $ map (\b->(buttonPos b, bindingStr $ buttonCmd b)) $ buttonGroup
 		, let col = dim $ colourWheel (base+inc*i) ]
 	| (buttonGroup,(base,inc)) <- buttons
@@ -303,13 +428,32 @@ initVideo w h = do
     liftIO $ setVideoMode w h 0 [Resizable]
     modify $ \ds -> ds { scrWidth = w }
     modify $ \ds -> ds { scrHeight = h }
-    surf <- liftIO $ createRGBSurface [ HWSurface ] w h 16 0 0 0 0
+    surf <- liftIO $ createRGBSurface [] w h 16 0 0 0 0
     modify $ \ds -> ds { gsSurface = Just surf, lastDrawArgs = Nothing }
     (_,size) <- getGeom
     font <- liftIO $ TTF.tryOpenFont "VeraMono.ttf" (size)
-    modify $ \ds -> ds { dispFont = font }
+    smallFont <- liftIO $ TTF.tryOpenFont "VeraMono.ttf" (2*size`div`3)
+    modify $ \ds -> ds { dispFont = font, dispFontSmall = smallFont }
+    clearMiniLocks
 
-say str = renderToMain $ renderStrAt str $ messageLineStart
+drawMsgLine = void.runMaybeT $ do
+    (col,str) <- MaybeT $ gets message
+    lift $ do
+	renderToMain $ renderStrColAt col str messageLineStart
+	refresh
+setMsgLine col str = do
+    modify $ \s -> s { message = Just (col,str) }
+    drawMsgLine
+    
+say = setMsgLine messageCol
+sayError = setMsgLine errorCol
+
+minilockPos = (-9)<*>hw
+lockLinePos = 2<*>(hu <+> neg hw) <+> minilockPos
+serverPos = 12<*>hv <+> 6<*>neg hu
+codenamePos = (-4)<*>hw <+> 4<*>hv
+undeclsPos = hv <+> neg hw <+> codenamePos
+accessedOursPos = 2<*>hw <+> codenamePos
 
 instance UIMonad (StateT UIState IO) where
     runUI m = evalStateT m nullUIState
@@ -323,8 +467,12 @@ instance UIMonad (StateT UIState IO) where
 	    drawButtons IMPlay
 	    drawUIOptionButtons IMPlay
 	    when solved $ say "Unlocked!"
+	    drawMsgLine
 	    refresh
-
+	ReplayState st _ _ -> lift $ do
+	    drawMainGameState [] False [] st
+	    drawMsgLine
+	    renderToMain $ drawCursorAt Nothing
 	EditState (st:_) _ _ _ selPiece selPos _ -> lift $ do
 	    waitFrame
 	    drawMainGameState (maybeToList selPiece) True [] st
@@ -333,17 +481,57 @@ instance UIMonad (StateT UIState IO) where
 	    drawButtons IMEdit
 	    drawPaintButtons
 	    drawUIOptionButtons IMEdit
+	    drawMsgLine
 	    refresh
+	MetaState saddr undecls cOnly auth names _ _ lockTVs path lock -> do
+	    let ourName = authUser <$> auth
+	    let selName = listToMaybe names
+	    lift $ renderToMain $ erase
+	    maybe (return ()) (lift . flip drawMiniLock minilockPos) lock
+	    lift.renderToMain $ do
+		drawCursorAt Nothing
+		renderStrColAt messageCol (saddrStr saddr) $ serverPos <+> hu
+		renderStrColAtLeft messageCol path lockLinePos
+	    maybe (return ()) (flip drawName codenamePos) selName
+	    runMaybeT $ MaybeT (return selName) >>= lift . getUInfoFetched 300 >>=
+		\(FetchedRecord fresh err muirc) -> lift $ do
+		    lift $ do
+			when (not fresh) $ renderToMain $ drawAtRel unfreshGlyph $ hu <+> codenamePos
+			maybe (return ()) sayError err
+			when (fresh && isNothing ourName) $ renderToMain $
+			    renderStrColAt messageCol (if isNothing muirc then "(R)" else "(A)")
+				(codenamePos <+> 2<*>hu)
+		    case muirc of
+			Nothing -> return ()
+			Just (RCUserInfo (_,uinfo)) -> do
+			    sequence_ [ drawLockInfo (ActiveLock (codename uinfo) i) lockinfo ((!i)<$>lockTVs) |
+				(i,Just lockinfo) <- assocs $ userLocks uinfo ]
+	    when (isJust ourName && ourName == selName) $ do
+		when (not $ null undecls) $ do
+		    lift.renderToMain $ renderStrColAt messageCol "Undeclared:" (undeclsPos<+>neg hw)
+		    fillArea undeclsPos
+			(map (undeclsPos<+>) $ hexDisc 1 ++ [hu<+>neg hw, neg hu<+>hv])
+			[ drawActiveLock al | Undeclared _ _ al <- undecls ]
+	    when (ourName /= selName) $ void $ runMaybeT $ do
+		sel <- MaybeT $ return $ selName
+		us <- MaybeT $ return $ ourName
+		ourUInfo <- mgetUInfo us
+		let accessed = [ ActiveLock us i 
+			| i<-[0..2]
+			, Just lock <- [ userLocks ourUInfo ! i ]
+			, public lock || selName `elem` map Just (accessedBy lock) ]
+		guard $ not $ null accessed
+		lift $ do 
+		    lift.renderToMain $ renderStrColAt messageCol "has accessed" (accessedOursPos<+>neg hw)
+		    fillArea (accessedOursPos<+>hu) (map (\i -> accessedOursPos<+>i<*>hu) [0..2])
+			$ map drawActiveLock accessed
+	    lift $ drawMsgLine
+	    lift $ refresh
 
 	_ -> return ()
 
-    drawMessage prompt = do
-	say prompt
-	refresh
-    drawError prompt = do
-	-- TODO
-	say prompt
-	refresh
+    drawMessage prompt = say prompt
+    drawError prompt = sayError prompt
 
     drawAlerts alerts =
 	do mapM_ drawAlert alerts

@@ -12,6 +12,8 @@ type Lock = (Frame, GameState)
 liftLock :: (GameState -> GameState) -> (Lock -> Lock)
 liftLock g (f,st) = (f,g st)
 
+lockSize (f,_) = frameSize f
+
 deframe :: Lock -> Lock
 deframe = delTools . liftLock (setpp 0 nullpp)
 nullpp = PlacedPiece (PHS zero) (Block [])

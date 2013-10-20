@@ -25,3 +25,5 @@ data Command = CmdDir WrHoSel HexDir | CmdRotate TorqueDir | CmdWait
 data WrHoSel = WHSWrench | WHSHook | WHSSelected
     deriving (Eq, Ord, Show, Read)
 	
+describeCommand :: Command -> String
+describeCommand _ = "" -- TODO

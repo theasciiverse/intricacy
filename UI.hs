@@ -91,6 +91,9 @@ data MainState
 	, curLock :: Maybe Lock
 	}
 
+-- | Locks bigger than 11 won't fit in an 80x25 terminal
+maxlocksize = 11
+
 newPlayState (frame,st) = PlayState st frame [] False False [] []
 newReplayState st soln = ReplayState st soln []
 newEditState (frame,st) mpath = EditState [st] [] frame mpath Nothing (PHS zero) (PHS zero) 

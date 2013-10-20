@@ -24,8 +24,7 @@ data FetchedRecord = FetchedRecord {fresh :: Bool, fetchError :: Maybe String, f
 
 
 getRecordCached :: ServerAddr -> Maybe Auth -> Maybe (TVar Bool) -> Bool -> Record -> IO (TVar FetchedRecord)
-getRecordCached saddr auth mflag cOnly rec = do
-    cdToCacheDir saddr
+getRecordCached saddr auth mflag cOnly rec = withCacheDir saddr $ do
     fromCache <- (Just <$> getRecord rec) `catchIOError` (\_ -> return Nothing)
     let fresh = isJust fromCache && invariantRecord rec
     tvar <- atomically $ newTVar $ FetchedRecord fresh Nothing fromCache
@@ -67,7 +66,10 @@ makeRequest saddr@(ServerAddr host port) request = withStream (IP host port) mak
 
 -- | cheap way to get around having to pass the server address to the database
 -- functions - we just cd to the right place before using them.
-cdToCacheDir saddr = do
+withCacheDir saddr m = do
+    dir <- getCurrentDirectory
     confdir <- (++[pathSeparator]++saddrStr saddr) `liftM` confFilePath "cache"
     mkdirhier confdir
     setCurrentDirectory confdir
+    m <* setCurrentDirectory dir
+

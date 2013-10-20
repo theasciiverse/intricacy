@@ -59,6 +59,10 @@ hexLen (HexVec x y z) = maximum $ map abs [x,y,z]
 hexDot :: HexVec -> HexVec -> Int
 hexDot (HexVec x y z) (HexVec x' y' z') = x*x'+y*y'+z*z'
 
+hexDisc :: Int -> [HexVec] 
+hexDisc r = [ HexVec x y z | x <- [-r..r], y <- [-r..r],
+	let z = -x-y, abs z <= r ]
+
 hextant :: HexVec -> Int
 -- ^undefined at zero
 --	` 1 '
