@@ -23,9 +23,6 @@ import Mundanities
 hash :: String -> IO String
 hash str = fmap (>>=toHex) $ digest SHA1 $ CL.pack $ str
 
-validCodeName name = length name == 3 && and (map (validChar) name)
-    where validChar c = isPrint c && not (isLower c) && c /= ' '
-
 data Record
     = RecPassword Codename
     | RecUserInfo Codename

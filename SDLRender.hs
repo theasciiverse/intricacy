@@ -238,19 +238,14 @@ cursor = hollowGlyph $ bright white
 
 unfreshGlyph = hollowGlyph $ bright $ colourWheel 0
 
-playerGlyph = filledHexGlyph
+playerGlyph col centre size surf = filledHexGlyph col centre (size-1) surf
 
-bright :: Pixel -> Pixel
-bright (Pixel v) = Pixel $ v `div` 0x100 * 0x100 + 0xff
-
-dim :: Pixel -> Pixel
-dim (Pixel v) = Pixel $ v `div` 0x100 * 0x100 + 0xa0
-
-obscure :: Pixel -> Pixel
-obscure (Pixel v) = Pixel $ v `div` 0x100 * 0x100 + 0x80
-
-faint :: Pixel -> Pixel
-faint (Pixel v) = Pixel $ v `div` 0x100 * 0x100 + 0x40
+setPixelAlpha alpha (Pixel v) = Pixel $ v `div` 0x100 * 0x100 + alpha
+bright = setPixelAlpha 0xff
+dim = setPixelAlpha 0xa0
+obscure = setPixelAlpha 0x80
+faint = setPixelAlpha 0x40
+invisible = setPixelAlpha 0x00
 
 black = Pixel 0x01000000
 white = Pixel 0xffffff00
@@ -342,22 +337,41 @@ drawAtRel gl v = do
 	liftIO $ gl cpos size surf
 
 messageCol = Color 0xff 0xff 0xff
+accessedCol = Color 0 0xff 0
+dimWhiteCol = Color 0xa0 0xa0 0xa0
 buttonTextCol = Color 0xff 0xff 0xff
 errorCol = Color 0xff 0 0
+
+pixelToColor (Pixel p) =
+    let (r,p') = divMod p 0x1000000
+	(g,p'') = divMod p' 0x10000
+	(b,_) = divMod p'' 0x100
+    in Color (fromIntegral r) (fromIntegral g) (fromIntegral b)
 
 renderStrColAtLeft c str v = renderStrColAt' False c str v
 renderStrColAt c str v = renderStrColAt' True c str v
 renderStrColAt' centred c str v = void $ runMaybeT $ do
     font <- MaybeT $ asks renderFont
     fsurf <- MaybeT $ liftIO $ TTF.tryRenderTextBlended font str c
-    (surf, scrCentre, size, _) <- lift $ asks $
-	liftM4 (,,,) renderSurf renderSCentre renderSize renderHCentre
+    (surf, scrCentre, size) <- lift $ asks $
+	liftM3 (,,) renderSurf renderSCentre renderSize
     let SVec x y = scrCentre <+> (hexVec2SVec size v)
 	    <+> if centred then neg $ SVec
 		    ((surfaceGetWidth fsurf)`div`2)
 		    ((surfaceGetHeight fsurf)`div`2)
 		else SVec 0 0
     void $ liftIO $ blitSurface fsurf Nothing surf (Just $ Rect x y 0 0)
+
+blankRow v = do
+    (surf, scrCentre, size) <- asks $
+	liftM3 (,,) renderSurf renderSCentre renderSize
+    let SVec x y = scrCentre <+> (hexVec2SVec size v)
+	w = surfaceGetWidth surf
+	h = ceiling $ fromIntegral size * 2 * sqrt 3
+    void $ liftIO $ fillRect surf (Just $
+	Rect 0 (y-h`div`2)
+	    w h
+	) black
 
 drawCursorAt :: Maybe HexPos -> RenderM ()
 drawCursorAt (Just pos) = drawAt cursor pos

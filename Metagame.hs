@@ -15,6 +15,9 @@ maxLocks = 3
 
 type Codename = String
 
+validCodeName name = length name == 3 && and (map (validChar) name)
+    where validChar c = isAscii c && isPrint c && not (isLower c) && c /= ' '
+
 data UserInfo = UserInfo {codename::Codename, userLocks::Array LockIndex (Maybe LockInfo), notesRead::[NoteInfo]}
     deriving (Eq, Ord, Show, Read)
 

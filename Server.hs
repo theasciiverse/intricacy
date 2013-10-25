@@ -97,7 +97,7 @@ handleRequest req@(ClientRequest pv auth action) = do
 		    uinfo <- getUserInfoOfAuth auth
 		    lockinfo <- getALock $ noteOn note
 		    if codename uinfo == lockOwner (noteOn note) || 
-			3 >= length (filter (\n -> isNothing (noteBehind n)
+			3 <= length (filter (\n -> isNothing (noteBehind n)
 			    || n `elem` notesRead uinfo) $ lockSolutions lockinfo)
 			then liftM ServedSolution $ getSolution note
 			else throwError "You are not permitted to read that note."

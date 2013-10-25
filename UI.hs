@@ -300,11 +300,16 @@ interactUI = do
 	processCommand im cmd = lift $ processCommand' im cmd
 
 	processCommand' :: UIMonad uiM => InputMode -> Command -> StateT MainState uiM ()
-	processCommand' IMMeta CmdSelCodename = void.runMaybeT $ do
-	    newCodename <- liftM (map toUpper) $ MaybeT $ lift $ textInput "Codename:" 3 True Nothing Nothing
-	    guard $ length newCodename == 3
+	processCommand' IMMeta (CmdSelCodename mname) = void.runMaybeT $ do
+	    name <- msum [ MaybeT $ return $ mname
+		, do
+		    newCodename <- liftM (map toUpper) $ MaybeT $ lift $ textInput "Codename:" 3 True Nothing Nothing
+		    guard $ length newCodename == 3
+		    return newCodename
+		]
+	    guard $ validCodeName name
 	    lift $ do
-		modify $ \ms -> ms { codenameStack = (newCodename:codenameStack ms) }
+		modify $ \ms -> ms { codenameStack = (name:codenameStack ms) }
 		refreshUInfoUI
 	processCommand' IMMeta CmdHome = void.runMaybeT $ do
 	    ourName <- mgetOurName
@@ -345,10 +350,11 @@ interactUI = do
 			lift $ drawMessage err
 			modify $ \ms -> ms {curAuth = auth}
 		    _ -> lift $ drawMessage "BUG"
-	processCommand' IMMeta CmdSolve = void.runMaybeT $ do
+	processCommand' IMMeta (CmdSolve mindex) = void.runMaybeT $ do
 	    name <- mgetCurName
 	    uinfo <- mgetUInfo name
-	    index <- askLockIndex "Solve which lock?" (\i -> isJust $ userLocks uinfo ! i)
+	    index <- msum [ MaybeT $ return $ mindex
+		, askLockIndex "Solve which lock?" (\i -> isJust $ userLocks uinfo ! i) ]
 	    ls <- MaybeT $ return $ lockSpec <$> userLocks uinfo ! index
 	    undecls <- lift (gets undeclareds)
 	    msum [ do
@@ -371,7 +377,7 @@ interactUI = do
 			    modify $ \ms -> ms { undeclareds = (undecl : undeclareds ms) }
 			]
 		]
-	processCommand' IMMeta CmdDeclare = void.runMaybeT $ do
+	processCommand' IMMeta (CmdDeclare mundecl) = void.runMaybeT $ do
 	    name <- mgetCurName
 	    ourName <- mgetOurName
 	    {-
@@ -383,7 +389,8 @@ interactUI = do
 	    guard $ name == ourName
 	    undecls <- lift $ gets undeclareds
 	    guard $ not $ null undecls
-	    declare =<< if length undecls == 1
+	    declare =<< msum [ MaybeT $ return mundecl
+		, if length undecls == 1
 		then return $ head undecls
 		else do
 		    which <- MaybeT $ lift $ textInput
@@ -403,43 +410,49 @@ interactUI = do
 				    , name'==name && [lockIndexChar i] == which
 				    ] ]
 			]
-	processCommand' IMMeta CmdViewSolution = void.runMaybeT $ do
-	    ourName <- mgetOurName
-	    ourUInfo <- mgetUInfo ourName
-	    name <- mgetCurName
+		]
+	processCommand' IMMeta (CmdViewSolution mnote) = void.runMaybeT $ do
+	    note <- msum [ MaybeT $ return mnote, do
+		ourName <- mgetOurName
+		name <- mgetCurName
+		uinfo <- mgetUInfo name
+		noteses <- lift $ sequence
+		    [ case mlockinfo of
+			Nothing -> return []
+			Just lockinfo -> if ourName == name
+			    then return $ lockSolutions lockinfo
+			    else do
+				ns <- getNotesReadOn lockinfo 
+				return $ if length ns < 3 then [] else ns
+		    | mlockinfo <- elems $ userLocks uinfo ]
+		index <- askLockIndex "View solution to which lock?" $ not.null.(noteses!!)
+		let notes = noteses!!index
+		    authors = map noteAuthor notes
+		author <- if length notes == 1
+		    then return $ noteAuthor $ head notes 
+		    else (map toUpper <$>) $ MaybeT $ lift $
+			textInput ("View solution by which player? ["
+			    ++ concat (intersperse "," (take 3 authors))
+			    ++ if length authors > 3 then ",...]" else "]")
+			3 False (Just $ authors) Nothing
+		MaybeT $ return $ find ((==author).noteAuthor) notes
+		]
+	    let ActiveLock name index = noteOn note
 	    uinfo <- mgetUInfo name
-	    noteses <- lift $ sequence
-		[ case mlockinfo of
-		    Nothing -> return []
-		    Just lockinfo -> if ourName == name
-			then return $ lockSolutions lockinfo
-			else do
-			    ns <- getNotesReadOn lockinfo 
-			    return $ if length ns < 3 then [] else ns
-		| mlockinfo <- elems $ userLocks uinfo ]
-	    index <- askLockIndex "View solution to which lock?" $ not.null.(noteses!!)
-	    let notes = noteses!!index
-		authors = map noteAuthor notes
-	    author <- if length notes == 1
-		then return $ noteAuthor $ head notes 
-		else (map toUpper <$>) $ MaybeT $ lift $
-		    textInput ("View solution by which player? ["
-			++ concat (intersperse "," (take 3 authors))
-			++ if length authors > 3 then ",...]" else "]")
-		    3 False (Just $ authors) Nothing
-	    note <- MaybeT $ return $ find ((==author).noteAuthor) notes
-	    RCLock lock <- MaybeT $ getFreshRecBlocking $ RecLock $
-		lockSpec (fromJust $ userLocks uinfo ! index)
+	    ls <- lockSpec <$> MaybeT (return $ userLocks uinfo ! index)
+	    RCLock lock <- MaybeT $ getFreshRecBlocking $ RecLock ls
 	    RCSolution soln <- MaybeT $ getFreshRecBlocking $ RecNote note
 	    lift.lift $ execStateT interactUI $ newReplayState (snd.reframe$lock) soln
 
-	processCommand' IMMeta CmdPlaceLock = void.runMaybeT $ do
+	processCommand' IMMeta (CmdPlaceLock mindex) = void.runMaybeT $ do
 	    ourName <- mgetOurName
 	    name <- mgetCurName
 	    guard $ ourName == name
 	    lock <- MaybeT $ gets curLock
 	    ourUInfo <- mgetUInfo ourName
-	    index <- askLockIndex "Place where?" $ const True
+	    index <- msum [ MaybeT $ return mindex
+		, askLockIndex "Place where?" $ const True
+		]
 	    when (isJust $ userLocks ourUInfo ! index) $
 		confirmOrBail "Really retire existing lock?"
 	    soln <- solveLock lock
@@ -796,5 +809,6 @@ interactUI = do
 			    _ -> if isPrint c
 				then Right $ ((if length s >= maxlen then id else (++[c])) s, "")
 				else Right (s,stem)
+			applyCmd x CmdRedraw = Right x
 			applyCmd _ _ = Left False
 		completes s s' = take (length s) s' == s
