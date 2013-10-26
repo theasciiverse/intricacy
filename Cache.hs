@@ -66,13 +66,18 @@ makeRequest saddr@(ServerAddr host port) request =
     handle (return . ServerError . (show::SomeException -> String)) $
 	withStream (IP host port) makeRequest'
 	    `catchIOError` (const $ return $ ServerError $ "Cannot connect to "++saddrStr saddr++"!")
-	
     where
 	makeRequest' handle = do
 	    BS.hPut handle $ BL.toStrict $ encode request 
 	    hFlush handle
 	    (decode . BL.fromStrict) `liftM` BS.hGetContents handle
 
+knownServers :: IO [ServerAddr]
+knownServers = flip catchIOError (const $ return []) $ do
+    cachedir <- confFilePath "cache"
+    saddrstrs <- getDirectoryContents cachedir >>= filterM (\dir ->
+	doesDirectoryExist $ cachedir++[pathSeparator]++dir++[pathSeparator]++dbpath)
+    return $ concat $ map (maybeToList . strToSaddr) saddrstrs
 
 -- | cheap way to get around having to pass the server address to the database
 -- functions - we just cd to the right place before using them.
@@ -82,4 +87,3 @@ withCacheDir saddr m = do
     mkdirhier confdir
     setCurrentDirectory confdir
     m <* setCurrentDirectory dir
-

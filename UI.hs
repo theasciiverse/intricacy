@@ -285,10 +285,13 @@ interactUI = do
 	    let im = ms2im mainSt
 	    when (im == IMPlay) checkWon
 	    drawMainState
-	    cmds <- lift $ getInput im
+	    cmds <- lift $ getSomeInput im
 	    quit <- liftM (\e -> case e of Left _ -> True; _ -> False) $
 		runErrorT $ sequence_ $ map (processCommand im) cmds
 	    if quit then return () else loop
+	getSomeInput im = do
+	    cmds <- getInput im
+	    if null cmds then getSomeInput im else return cmds
 
 	processCommand :: UIMonad uiM => InputMode -> Command -> ErrorT () (StateT MainState uiM) ()
 	processCommand im CmdQuit = do
@@ -321,6 +324,18 @@ interactUI = do
 	    when (length stack > 1) $ do
 		modify $ \ms -> ms { codenameStack = tail stack }
 		refreshUInfoUI
+	processCommand' IMMeta CmdSetServer = void.runMaybeT $ do
+	    saddr <- gets curServer
+	    saddrs <- liftIO $ knownServers
+	    newSaddrstr <- MaybeT $ lift $ textInput "Set server:" 256 False
+		    (Just $ map saddrStr saddrs) (Just $ saddrStr saddr)
+	    newSaddr <- MaybeT $ return $ strToSaddr newSaddrstr
+	    modify $ \ms -> ms { curServer = newSaddr }
+	    when (not $ nullSaddr newSaddr) $
+		msum [ void $ MaybeT $ getFreshRecBlocking RecServerInfo
+		, modify $ \ms -> ms { curServer = saddr }
+		]
+
 	processCommand' IMMeta CmdRegister = void.runMaybeT $ do
 	    -- guard =<< isNothing <$> lift (gets curAuth)
 	    newName <- mgetCurName
@@ -479,9 +494,10 @@ interactUI = do
 			    RCServerInfo (ServerInfo size _) <- MaybeT $ getFreshRecBlocking RecServerInfo
 			    return size
 			, do
-			    sizet <- MaybeT $ lift $ textInput "Lock size: [3-12]" 2 False Nothing Nothing
+			    sizet <- MaybeT $ lift $ textInput
+				("Lock size: [3-" ++ show maxlocksize ++ "]") 2 False Nothing Nothing
 			    size <- MaybeT $ return $ fst <$> (listToMaybe $ (reads :: ReadS Int) sizet)
-			    guard $ 3 <= size && size <= 12
+			    guard $ 3 <= size && size <= maxlocksize
 			    return size
 			]
 		    return (frame, baseState frame)

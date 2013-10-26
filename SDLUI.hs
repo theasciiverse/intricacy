@@ -42,6 +42,7 @@ data UIState = UIState { scrHeight::Int, scrWidth::Int
     , lastDrawArgs::Maybe DrawArgs
     , miniLocks::Map Lock Surface
     , metaSelectables::Map HexVec Selectable
+    , contextButtons::[ButtonGroup]
     , uiOptions::UIOptions
     , settingBinding::Maybe Command
     , uiKeyBindings :: Map InputMode KeyBindings
@@ -54,7 +55,7 @@ data UIState = UIState { scrHeight::Int, scrWidth::Int
     , message::Maybe (Color, String)
     , dispCentre::HexPos, dispLastCol::PieceColouring }
 type UIM = StateT UIState IO
-nullUIState = UIState 0 0 Nothing Nothing Map.empty Map.empty defaultUIOptions Nothing Map.empty Nothing Nothing 0 0 False False False zero Nothing (PHS zero) Map.empty
+nullUIState = UIState 0 0 Nothing Nothing Map.empty Map.empty [] defaultUIOptions Nothing Map.empty Nothing Nothing 0 0 False False False zero Nothing (PHS zero) Map.empty
 
 data UIOptions = UIOptions
     { useFiveColouring::Bool
@@ -95,10 +96,14 @@ waitFrame = do
 
 
 data Button = Button { buttonPos::HexVec, buttonCmd::Command }
-getButtons :: InputMode -> UIM [ ([Button],(Int,Int)) ]
+type ButtonGroup = ([Button],(Int,Int))
+singleButton :: HexVec -> Command -> Int -> ButtonGroup
+singleButton pos cmd col = ([Button pos cmd], (col,0))
+getButtons :: InputMode -> UIM [ ButtonGroup ]
 getButtons mode = do
     whs <- gets $ whsButtons.uiOptions
-    return $ case mode of 
+    cntxtButtons <- gets contextButtons
+    return $ cntxtButtons ++ case mode of 
 	IMEdit -> [(commontl ++
 		[ Button (tl<+>hv) CmdResetTools
 		, Button (tl<+>(neg hw)) CmdPlay
@@ -124,6 +129,17 @@ getButtons mode = do
 		    , Button (bl<+>(2<*>hv)) (CmdTile $ WrenchTile zero)
 		    ], (2,0) )
 	    ])
+	IMMeta ->
+	    [ singleButton serverPos CmdSetServer 0
+	    , singleButton lockLinePos CmdSelectLock 4
+	    , singleButton (miniLockPos <+> 2<*>hv <+> neg hu <+> hw) CmdEdit 2
+	    , singleButton (miniLockPos <+> 2<*>hv <+> neg hu) (CmdPlaceLock Nothing) 0
+	    , singleButton (miniLockPos <+> 2<*>neg hv <+> hu) CmdPrevLock 4
+	    , singleButton (miniLockPos <+> 2<*>neg hv <+> hu <+> neg hw) CmdNextLock 4
+	    , singleButton (codenamePos <+> neg hu) (CmdSelCodename Nothing) 0
+	    , ([ Button mmiscpos (CmdSolve Nothing), Button (mmiscpos<+>hu) (CmdViewSolution Nothing)], (2,2))
+	    ]
+		
 	_ -> []
 	where
 	    commontl = [ Button tl CmdUndo, Button (tl<+>neg hu) CmdRedo ]
@@ -131,6 +147,7 @@ getButtons mode = do
 	    tl = periphery 2
 	    bl = periphery 3
 	    br = periphery 5
+	    mmiscpos = (serverPos <+> 2<*>neg hv)
 
 
 data UIOptButton a = UIOptButton { getUIOpt::UIOptions->a, setUIOpt::a->UIOptions->UIOptions,
@@ -145,7 +162,7 @@ uiOB3 = UIOptButton whsButtons (\v o -> o {whsButtons=v}) [WHSSelected, WHSWrenc
 	(periphery 3 <+> 3 <*> hv) whsButtonsButton
 
 drawUIOptionButtons :: InputMode -> UIM ()
-drawUIOptionButtons mode = do
+drawUIOptionButtons mode = when (mode `elem` [IMPlay, IMEdit]) $ do
     drawUIOptionButton uiOB1
     drawUIOptionButton uiOB2 
     when (mode == IMPlay) $ drawUIOptionButton uiOB3
@@ -320,6 +337,7 @@ clearMiniLocks = modify $ \ds -> ds { miniLocks = Map.empty}
 data Selectable = SelOurLock
     | SelLock ActiveLock
     | SelLockUnset ActiveLock
+    | SelSelectedCodeName
     | SelOurAL
     | SelUndeclared Undeclared
     | SelReadNote NoteInfo
@@ -328,14 +346,18 @@ data Selectable = SelOurLock
     | SelSecured NoteInfo
 
 registerSelectable v r s =
-    modify $ \ms -> ms {metaSelectables = foldr
-	(\k -> Map.insert k s) (metaSelectables ms) $ map (v<+>) $ hexDisc r}
-clearSelectables = modify $ \ms -> ms {metaSelectables = Map.empty}
+    modify $ \ds -> ds {metaSelectables = foldr
+	(\k -> Map.insert k s) (metaSelectables ds) $ map (v<+>) $ hexDisc r}
+clearSelectables = modify $ \ds -> ds {metaSelectables = Map.empty}
+registerButtonGroup g = modify $ \ds -> ds {contextButtons = g:contextButtons ds}
+clearButtons = modify $ \ds -> ds {contextButtons = []}
 
 commandOfSelectable IMMeta SelOurLock _ = CmdEdit
 commandOfSelectable IMMeta (SelLock (ActiveLock _ i)) False = CmdSolve (Just i)
 commandOfSelectable IMMeta (SelLock (ActiveLock _ i)) True = CmdPlaceLock (Just i)
 commandOfSelectable IMMeta (SelLockUnset (ActiveLock _ i)) _ = CmdPlaceLock (Just i)
+commandOfSelectable IMMeta SelSelectedCodeName False = CmdSelCodename Nothing
+commandOfSelectable IMMeta SelSelectedCodeName True = CmdHome
 commandOfSelectable IMMeta SelOurAL _ = CmdHome
 commandOfSelectable IMMeta (SelUndeclared undecl) _ = CmdDeclare $ Just undecl
 commandOfSelectable IMMeta (SelReadNote note) False = CmdSelCodename $ Just $ noteAuthor note
@@ -505,16 +527,15 @@ drawMsgLine = void.runMaybeT $ do
     lift $ do
 	renderToMain $ blankRow messageLineStart
 	renderToMain $ renderStrColAtLeft col str messageLineStart
-	refresh
 setMsgLine col str = do
     modify $ \s -> s { message = Just (col,str) }
-    drawMsgLine
+    drawMsgLine >> refresh
     
 say = setMsgLine messageCol
 sayError = setMsgLine errorCol
 
-minilockPos = (-9)<*>hw <+> hu
-lockLinePos = 2<*>(hu <+> neg hw) <+> minilockPos
+miniLockPos = (-9)<*>hw <+> hu
+lockLinePos = 2<*>(hu <+> neg hw) <+> miniLockPos
 serverPos = 12<*>hv <+> 6<*>neg hu
 codenamePos = (-4)<*>hw <+> 4<*>hv
 undeclsPos = hv <+> neg hw <+> codenamePos
@@ -522,55 +543,57 @@ accessedOursPos = 2<*>hw <+> codenamePos
 
 instance UIMonad (StateT UIState IO) where
     runUI m = evalStateT m nullUIState
-    drawMainState = get >>= \s -> case s of
-	PlayState st _ alerts wsel solved _ _ -> lift $ do
-	    waitFrame
+    drawMainState = do
+	lift $ clearButtons >> clearSelectables
+	s <- get
+	let mode = ms2im s
+	lift $ waitFrame
+	drawMainState' s
+	lift $ do
+	    drawButtons mode
+	    drawUIOptionButtons mode
+	    drawMsgLine
+	    refresh
+	where
+	drawMainState' (PlayState st _ alerts wsel solved _ _) = lift $ do
 	    let selTools = [ idx |
 		    (idx, PlacedPiece pos p) <- enumVec $ placedPieces st
 		    , or [wsel && isWrench p, not wsel && isHook p] ]
 	    drawMainGameState selTools False alerts st
-	    drawButtons IMPlay
-	    drawUIOptionButtons IMPlay
 	    when solved $ say "Unlocked!"
-	    drawMsgLine
-	    refresh
-	ReplayState st _ _ -> lift $ do
+	drawMainState' (ReplayState st _ _) = lift $ do
 	    drawMainGameState [] False [] st
-	    drawMsgLine
 	    renderToMain $ drawCursorAt Nothing
-	EditState (st:_) _ _ _ selPiece selPos _ -> lift $ do
-	    waitFrame
+	drawMainState' (EditState (st:_) _ _ _ selPiece selPos _) = lift $ do
 	    drawMainGameState (maybeToList selPiece) True [] st
 	    renderToMain $ drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
-	    -- drawPaintSel
-	    drawButtons IMEdit
 	    drawPaintButtons
-	    drawUIOptionButtons IMEdit
-	    drawMsgLine
-	    refresh
-	MetaState saddr undecls cOnly auth names _ _ lockTVs path lock -> do
-	    lift $ clearSelectables
+	drawMainState' (MetaState saddr undecls cOnly auth names _ _ lockTVs path lock) = do
 	    let ourName = authUser <$> auth
 	    let selName = listToMaybe names
-	    lift $ renderToMain $ erase
+	    lift $ renderToMain $ (erase >> drawCursorAt Nothing)
 	    maybe (return ())
-		(lift . (registerSelectable minilockPos 3 SelOurLock >>) . flip drawMiniLock minilockPos)
+		(lift . (registerSelectable miniLockPos 3 SelOurLock >>) . flip drawMiniLock miniLockPos)
 		lock
 	    lift.renderToMain $ do
-		drawCursorAt Nothing
-		renderStrColAt messageCol (saddrStr saddr) $ serverPos <+> hu
-		renderStrColAtLeft messageCol path lockLinePos
+		renderStrColAtLeft messageCol (saddrStr saddr) $ serverPos <+> hu
+		renderStrColAtLeft messageCol path $ lockLinePos <+> hu
 	    maybe (return ())
-		(\name -> drawName name codenamePos >> drawRelScore name (codenamePos<+>hu))
+		(\name -> do
+		    lift $ registerSelectable codenamePos 0 SelSelectedCodeName 
+		    drawName name codenamePos 
+		    drawRelScore name (codenamePos<+>hu))
 		selName
+	    when (length names > 1) $ lift $ registerButtonGroup $ singleButton
+		(codenamePos <+> 2<*>neg hu) CmdBackCodename 4
 	    runMaybeT $ MaybeT (return selName) >>= lift . getUInfoFetched 300 >>=
 		\(FetchedRecord fresh err muirc) -> lift $ do
 		    lift $ do
-			when (not fresh) $ renderToMain $ drawAtRel unfreshGlyph $ hu <+> codenamePos
+			when (not fresh) $ renderToMain $ drawAtRel unfreshGlyph $ codenamePos <+> 2<*>hu
 			maybe (return ()) sayError err
-			when (fresh && isNothing ourName) $ renderToMain $
-			    renderStrColAt messageCol (if isNothing muirc then "(R)" else "(A)")
-				(codenamePos <+> 2<*>hu)
+			when (fresh && isNothing ourName) $
+			    registerButtonGroup $ singleButton (codenamePos <+> 2<*>hu)
+				(if isNothing muirc then CmdRegister else CmdAuth) 2
 		    case muirc of
 			Nothing -> return ()
 			Just (RCUserInfo (_,uinfo)) -> do
@@ -578,12 +601,14 @@ instance UIMonad (StateT UIState IO) where
 				(i,mlockinfo) <- assocs $ userLocks uinfo ]
 	    when (isJust ourName && ourName == selName) $ do
 		when (not $ null undecls) $ do
-		    lift.renderToMain $ renderStrColAt messageCol "Undeclared:" (undeclsPos<+>2<*>hv)
+		    lift.renderToMain $ renderStrColAtLeft messageCol "Undeclared:" (undeclsPos<+>2<*>hv)
+		    lift $ registerButtonGroup $ singleButton (undeclsPos<+>2<*>hv<+>neg hu) (CmdDeclare Nothing) 2
 		    fillArea (undeclsPos<+>hv)
 			(map (undeclsPos<+>) $ hexDisc 1 ++ [hu<+>neg hw, neg hu<+>hv])
 			[ \pos -> (lift $ registerSelectable pos 0 (SelUndeclared undecl)) >> drawActiveLock al pos
 			| undecl@(Undeclared _ _ al) <- undecls ]
 	    when (ourName /= selName) $ void $ runMaybeT $ do
+		lift.lift $ registerButtonGroup $ singleButton (codenamePos <+> 3<*>neg hu) CmdHome 2
 		sel <- MaybeT $ return $ selName
 		us <- MaybeT $ return $ ourName
 		ourUInfo <- mgetUInfo us
@@ -605,10 +630,7 @@ instance UIMonad (StateT UIState IO) where
 			| i <- [0..2]
 			, let (pub,access) = accesses !! 1 !! i
 			, let col = if pub then obscure pubColour else if access then obscure $ scoreColour 3 else dim $ scoreColour $ -3 ]
-	    lift $ drawMsgLine
-	    lift $ refresh
-
-	_ -> return ()
+	drawMainState' _ = return ()
 
     drawMessage prompt = say prompt
     drawError prompt = sayError prompt

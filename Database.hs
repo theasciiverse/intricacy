@@ -116,7 +116,6 @@ newLockRecord lock = do
     putRecord (RecLock ls) (RCLock lock)
     return ls
 
--- | TODO: use System.Directory functions to make this OS-independent
 recordPath :: Record -> FilePath
 recordPath = (dbpath++) . recordPath'
     where
@@ -124,11 +123,11 @@ recordPath = (dbpath++) . recordPath'
 	recordPath' (RecUserInfo name) = userDir name ++ "info"
 	recordPath' (RecUserInfoLog name) = userDir name ++ "log"
 	recordPath' (RecLock ls) = locksDir ++ show ls
-	recordPath' (RecNote (NoteInfo name _  alock)) = userDir name ++ "notes/" ++ alockFN alock
+	recordPath' (RecNote (NoteInfo name _  alock)) = userDir name ++ "notes" ++ [pathSeparator] ++ alockFN alock
 	recordPath' (RecServerInfo) = "serverInfo"
 
-	userDir name = "users/" ++ pathifyName name ++ "/"
+	userDir name = "users" ++ [pathSeparator] ++ pathifyName name ++ [pathSeparator]
 	pathifyName = map (\c -> case c of {'/'->'s'; '.'->'d'; '\\'->'b'; _ -> c})
 	alockFN (ActiveLock name idx) = pathifyName name++":"++(show idx)
-	locksDir = "locks/"
-dbpath = "intricacydb/"
+	locksDir = "locks"++[pathSeparator]
+dbpath = "intricacydb"++[pathSeparator]
