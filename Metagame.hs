@@ -1,5 +1,6 @@
 module Metagame where
 
+import Control.Applicative
 import Data.Array
 import Data.Binary
 import Control.Monad
@@ -65,6 +66,9 @@ lockIndexChar :: LockIndex -> Char
 lockIndexChar i = toEnum $ i + fromEnum 'A' 
 charLockIndex c = fromEnum (toUpper c) - fromEnum 'A'
 
+applyDeltas :: UserInfo -> [UserInfoDelta] -> UserInfo
+applyDeltas = foldr applyDelta
+
 applyDelta :: UserInfoDelta -> UserInfo -> UserInfo
 applyDelta (AddRead n) info = info { notesRead = n:(notesRead info) }
 applyDelta (DelRead n) info = info { notesRead = delete n (notesRead info) }
@@ -82,6 +86,36 @@ applyLockDelta SetPublic lockinfo = lockinfo { public = True, lockSolutions = []
 instance Binary UserInfo where
     put (UserInfo name locks notes) = put name >> put locks >> put notes
     get = liftM3 UserInfo get get get
+
+instance Binary UserInfoDelta where
+    put (AddRead note) = put (0::Word8) >> put note
+    put (DelRead note) = put (1::Word8) >> put note
+    put (PutLock ls li) = put (2::Word8) >> put ls >> put li
+    put (LockDelta li ld) = put (3::Word8) >> put li >> put ld
+    get = do
+	tag <- get :: Get Word8
+	case tag of
+	    0 -> AddRead <$> get
+	    1 -> DelRead <$> get
+	    2 -> PutLock <$> get <*> get
+	    3 -> LockDelta <$> get <*> get
+
+instance Binary LockDelta where
+    put (SetPubNote note) = put (0::Word8) >> put note
+    put (AddSecured note) = put (1::Word8) >> put note
+    put (DelSecured note) = put (2::Word8) >> put note
+    put (AddSolution note) = put (3::Word8) >> put note
+    put (AddAccessed name) = put (4::Word8) >> put name
+    put SetPublic = put (5::Word8)
+    get = do
+	tag <- get :: Get Word8
+	case tag of
+	    0 -> SetPubNote <$> get
+	    1 -> AddSecured <$> get
+	    2 -> DelSecured <$> get
+	    3 -> AddSolution <$> get
+	    4 -> AddAccessed <$> get
+	    5 -> return SetPublic
 
 instance Binary LockInfo where
     put (LockInfo spec pk notes solved accessed) = put spec >> put pk >> put notes >> put solved >> put accessed

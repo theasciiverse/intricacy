@@ -26,6 +26,7 @@ hash str = fmap (>>=toHex) $ digest SHA1 $ CL.pack $ str
 data Record
     = RecPassword Codename
     | RecUserInfo Codename
+    | RecUserInfoLog Codename
     | RecLock LockSpec
     | RecNote NoteInfo
     | RecServerInfo
@@ -33,6 +34,7 @@ data Record
 data RecordContents
     = RCPassword Password
     | RCUserInfo VersionedUInfo
+    | RCUserInfoDeltas [UserInfoDelta]
     | RCLock Lock
     | RCSolution Solution
     | RCServerInfo ServerInfo
@@ -44,6 +46,7 @@ rcOfServerResp (ServedSolution x) = RCSolution x
 rcOfServerResp (ServedUserInfo x) = RCUserInfo x
 
 invariantRecord (RecUserInfo _) = False
+invariantRecord (RecUserInfoLog _) = False
 invariantRecord (RecPassword _) = False
 invariantRecord _ = True
 
@@ -63,6 +66,7 @@ getRecord rec = do
     return rc
 getRecordh (RecPassword _) h = liftM RCPassword $ read `liftM` hGetStrict h
 getRecordh (RecUserInfo _) h = liftM RCUserInfo $ read `liftM` hGetStrict h
+getRecordh (RecUserInfoLog _) h = liftM RCUserInfoDeltas $ read `liftM` hGetStrict h
 getRecordh (RecLock _) h = liftM RCLock $ read `liftM` hGetStrict h
 getRecordh (RecNote _) h = liftM RCSolution $ read `liftM` hGetStrict h
 getRecordh (RecServerInfo) h = liftM RCServerInfo $ read `liftM` hGetStrict h
@@ -83,6 +87,7 @@ putRecord rec rc = do
     hClose h
 putRecordh (RCPassword hpw) h = hPutStr h $ show hpw
 putRecordh (RCUserInfo info) h = hPutStr h $ show info
+putRecordh (RCUserInfoDeltas deltas) h = hPutStr h $ show deltas
 putRecordh (RCLock lock) h = hPutStr h $ show lock
 putRecordh (RCSolution solution) h = hPutStr h $ show solution
 putRecordh (RCServerInfo sinfo) h = hPutStr h $ show sinfo
@@ -117,6 +122,7 @@ recordPath = (dbpath++) . recordPath'
     where
 	recordPath' (RecPassword name) = userDir name ++ "passwd"
 	recordPath' (RecUserInfo name) = userDir name ++ "info"
+	recordPath' (RecUserInfoLog name) = userDir name ++ "log"
 	recordPath' (RecLock ls) = locksDir ++ show ls
 	recordPath' (RecNote (NoteInfo name _  alock)) = userDir name ++ "notes/" ++ alockFN alock
 	recordPath' (RecServerInfo) = "serverInfo"

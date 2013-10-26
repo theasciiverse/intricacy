@@ -4,6 +4,7 @@ import Network.Fancy
 import Control.Concurrent.STM
 import Control.Concurrent
 import Control.Applicative
+import Control.Exception
 import System.Directory
 import System.IO.Error
 import Control.Monad
@@ -16,6 +17,7 @@ import System.FilePath
 
 import Database
 import Protocol
+import Metagame
 import Mundanities
 import ServerAddr
 
@@ -28,7 +30,7 @@ getRecordCached saddr auth mflag cOnly rec = withCacheDir saddr $ do
     fromCache <- (Just <$> getRecord rec) `catchIOError` (\_ -> return Nothing)
     let fresh = isJust fromCache && invariantRecord rec
     tvar <- atomically $ newTVar $ FetchedRecord fresh Nothing fromCache
-    unless (cOnly || fresh) $ void $ forkIO $ getRecordFromServer fromCache tvar
+    unless (cOnly || fresh) $ void $ forkIO $ withCacheDir saddr $ getRecordFromServer fromCache tvar
     return tvar
     where
 	getRecordFromServer fromCache tvar = do
@@ -42,6 +44,11 @@ getRecordCached saddr auth mflag cOnly rec = withCacheDir saddr $ do
 		ServerError err -> tellRec $ FetchedRecord True (Just err) fromCache
 		ServerCodenameFree -> tellRec $ FetchedRecord True Nothing Nothing
 		ServerFresh -> tellRec $ FetchedRecord True Nothing fromCache
+		ServedUserInfoDeltas deltas -> do
+		    let Just (RCUserInfo (v,info)) = fromCache
+		    let rc = RCUserInfo (v+length deltas, applyDeltas info deltas)
+		    putRecord rec rc
+		    tellRec $ FetchedRecord True Nothing (Just rc)
 		_ -> do
 		    let rc = rcOfServerResp resp
 		    putRecord rec rc
@@ -55,8 +62,11 @@ waitFetchedFresh :: TVar FetchedRecord -> IO ()
 waitFetchedFresh tvar = atomically $ readTVar tvar >>= check.fresh
 
 makeRequest :: ServerAddr -> ClientRequest -> IO ServerResponse
-makeRequest saddr@(ServerAddr host port) request = withStream (IP host port) makeRequest'
-	`catchIOError` (const $ return $ ServerError $ "Cannot connect to "++saddrStr saddr++"!")
+makeRequest saddr@(ServerAddr host port) request =
+    handle (return . ServerError . (show::SomeException -> String)) $
+	withStream (IP host port) makeRequest'
+	    `catchIOError` (const $ return $ ServerError $ "Cannot connect to "++saddrStr saddr++"!")
+	
     where
 	makeRequest' handle = do
 	    BS.hPut handle $ BL.toStrict $ encode request 

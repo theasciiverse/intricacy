@@ -8,7 +8,7 @@ intricacy-checker: *.lhs *.hs
 intricacy-server: *.lhs *.hs
 	ghc -o intricacy-server --make -auto-all Server.hs
 intricacy-prof: *.lhs *.hs
-	ghc -o intricacy --make -rtsopts -prof -auto-all MainSDL.hs
+	ghc -o intricacy-prof --make -rtsopts -prof -auto-all MainSDL.hs
 # DO NOT DELETE: Beginning of Haskell dependencies
 Hex.o : Hex.lhs
 Intricacy.o : Intricacy.hs

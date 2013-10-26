@@ -3,9 +3,11 @@ module Main where
 import Network.Fancy
 
 import Control.Concurrent (threadDelay)
+import Control.Applicative
 import Control.Monad
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Error
+import Control.Monad.Trans.Maybe
 import Control.Monad.Trans
 import Control.Monad.IO.Class
 import Data.Maybe
@@ -16,6 +18,8 @@ import qualified Data.Binary as B
 import Data.Array
 import Control.Exception
 import System.IO.Error
+import Data.List
+import Data.Function (on)
 
 import Protocol
 import Metagame
@@ -87,11 +91,18 @@ handleRequest req@(ClientRequest pv auth action) = do
 		Register -> newUser auth >> return ServerAck
 		GetServerInfo -> liftM ServedServerInfo $ getServerInfo
 		GetLock ls -> liftM ServedLock $ getLock ls
-		GetUserInfo name version -> (do
+		GetUserInfo name mversion -> (do
 			RCUserInfo (curV,info) <- erroredIO $ getRecord $ RecUserInfo name
-			if version == Just curV
-			    then return ServerFresh
-			    else return $ ServedUserInfo (curV,info)
+			(fromJust<$>)$ runMaybeT $ msum [ do
+			    v <- MaybeT $ return mversion
+			    msum [ guard (v >= curV) >> return ServerFresh
+				, do 
+				    guard (v >= curV - 10) 
+				    RCUserInfoDeltas deltas <- lift $ erroredIO $ getRecord $ RecUserInfoLog name
+				    return $ ServedUserInfoDeltas $ take (curV-v) deltas
+				]
+			    , return $ ServedUserInfo (curV,info)
+			    ]
 		    ) `catchError` \_ -> return ServerCodenameFree
 		GetSolution note -> do 
 		    uinfo <- getUserInfoOfAuth auth
@@ -187,12 +198,19 @@ handleRequest req@(ClientRequest pv auth action) = do
 	    when exists $ throwError "Codename taken"
 	    erroredIO $ putRecord rec (RCPassword hpw)
 	    erroredIO $ putRecord (RecUserInfo name) (RCUserInfo $ (1,initUserInfo name))
+	    erroredIO $ putRecord (RecUserInfoLog name) (RCUserInfoDeltas [])
 	--- | TODO: journalling so we can survive death during database writes?
 	applyDeltasToRecords :: [(Codename, UserInfoDelta)] -> ErrorT String IO ()
-	applyDeltasToRecords = (mapM_ applyDeltaToRecords) . reverse
-	applyDeltaToRecords (name,delta) =
+	applyDeltasToRecords nds = sequence_ $ [applyDeltasToRecord name deltas
+		| group <- groupBy ((==) `on` fst) nds 
+		, let name = fst $ head group
+		, let deltas = map snd group ]
+	applyDeltasToRecord name deltas = do
+	    erroredIO $ modifyRecord (RecUserInfoLog name) $
+		\(RCUserInfoDeltas deltas') -> RCUserInfoDeltas $ deltas ++ deltas'
 	    erroredIO $ modifyRecord (RecUserInfo name) $
-		\(RCUserInfo (v,info)) -> RCUserInfo $ (v+1,applyDelta delta info)
+		\(RCUserInfo (v,info)) -> RCUserInfo $
+		    (v+length deltas, applyDeltas info deltas)
 	declareNote note@(NoteInfo _ _ target) behind@(ActiveLock name idx) = do
 	    accessLock name target =<< getCurrALock target
 	    addDelta (lockOwner target) $ LockDelta (lockIndex target) $ AddSolution note
@@ -250,6 +268,6 @@ handleRequest req@(ClientRequest pv auth action) = do
 	addDelta name delta = modify ((name,delta):)
 	getCurrUserInfo name = do
 	    info <- lift $ getUserInfo name
-	    get >>= return . foldr applyDelta info . map snd . filter (\(n,_) -> n == name)
+	    get >>= return . applyDeltas info . map snd . filter (\(n,_) -> n == name)
 	getCurrALock al@(ActiveLock name idx) = do
 	    getCurrUserInfo name >>= return.fromJust.(!idx).userLocks

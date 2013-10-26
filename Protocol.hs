@@ -37,6 +37,7 @@ data ServerResponse
     | ServedServerInfo ServerInfo
     | ServedLock Lock
     | ServedUserInfo VersionedUInfo
+    | ServedUserInfoDeltas [UserInfoDelta]
     | ServedSolution Solution
     | ServedHint Hint
     | ServerCodenameFree
@@ -84,10 +85,11 @@ instance Binary ServerResponse where
     put (ServedServerInfo sinfo) = put (2::Word8) >> put sinfo
     put (ServedLock lock) = put (3::Word8) >> put lock
     put (ServedUserInfo info) = put (4::Word8) >> put info
-    put (ServedSolution soln) = put (5::Word8) >> put soln
-    put (ServedHint hint) = put (6::Word8) >> put hint
-    put (ServerCodenameFree) = put (7::Word8)
-    put (ServerFresh) = put (8::Word8)
+    put (ServedUserInfoDeltas info) = put (5::Word8) >> put info
+    put (ServedSolution soln) = put (6::Word8) >> put soln
+    put (ServedHint hint) = put (7::Word8) >> put hint
+    put (ServerCodenameFree) = put (8::Word8)
+    put (ServerFresh) = put (9::Word8)
     get = do
 	tag <- get :: Get Word8
 	case tag of
@@ -96,10 +98,11 @@ instance Binary ServerResponse where
 	    2 -> liftM ServedServerInfo get
 	    3 -> liftM ServedLock get
 	    4 -> liftM ServedUserInfo get
-	    5 -> liftM ServedSolution get
-	    6 -> liftM ServedHint get
-	    7 -> return ServerCodenameFree
-	    8 -> return ServerFresh
+	    5 -> liftM ServedUserInfoDeltas get
+	    6 -> liftM ServedSolution get
+	    7 -> liftM ServedHint get
+	    8 -> return ServerCodenameFree
+	    9 -> return ServerFresh
 instance Binary ServerInfo where
     put (ServerInfo sz str) = put sz >> put str
     get = liftM2 ServerInfo get get

@@ -476,11 +476,7 @@ interactUI = do
 		, do
 		    frame <- BasicFrame <$> msum [ do
 			    saddr <- gets curServer
-			    tvar <- lift $ getRecordCachedFromCur False RecServerInfo
-			    RCServerInfo (ServerInfo size _) <- MaybeT $ liftIO $ atomically $ do
-				FetchedRecord fresh _ rc <- readTVar tvar
-				check fresh
-				return rc
+			    RCServerInfo (ServerInfo size _) <- MaybeT $ getFreshRecBlocking RecServerInfo
 			    return size
 			, do
 			    sizet <- MaybeT $ lift $ textInput "Lock size: [3-12]" 2 False Nothing Nothing
