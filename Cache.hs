@@ -39,7 +39,8 @@ getRecordCached saddr auth mflag cOnly rec = withCacheDir saddr $ do
 			let curVersion = (\(RCUserInfo (v,_)) -> v) <$> fromCache
 			in GetUserInfo name curVersion 
 		    _ -> askForRecord rec
-	    resp <- makeRequest saddr (ClientRequest protocolVersion auth action)
+	    resp <- makeRequest saddr (ClientRequest
+		    protocolVersion (if needsAuth action then auth else Nothing) action)
 	    case resp of
 		ServerError err -> tellRec $ FetchedRecord True (Just err) fromCache
 		ServerCodenameFree -> tellRec $ FetchedRecord True Nothing Nothing

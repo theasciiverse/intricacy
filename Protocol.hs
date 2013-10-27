@@ -31,6 +31,12 @@ data Auth = Auth {authUser :: Codename, authPasswd :: Password}
     deriving (Eq, Ord, Show, Read)
 type Password = String
 
+needsAuth :: Action -> Bool
+needsAuth GetServerInfo = False
+needsAuth (GetLock _) = False
+needsAuth (GetUserInfo _ _) = False
+needsAuth _ = True
+
 data ServerResponse
     = ServerAck
     | ServerError String
