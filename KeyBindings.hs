@@ -134,6 +134,7 @@ metaBindings =
     , ('a', CmdAuth)
     , ('T', CmdTutorials)
     , ('t', CmdTutorials)
+    , ('$', CmdSetServer)
     , ('Q', CmdQuit)
     , ('q', CmdQuit)
     ]

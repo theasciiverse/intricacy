@@ -165,7 +165,8 @@ drawUIOptionButtons mode = when (mode `elem` [IMPlay, IMEdit]) $ do
     when (mode == IMPlay) $ drawUIOptionButton uiOB3
 drawUIOptionButton b = do
     value <- gets $ (getUIOpt b).uiOptions
-    renderToMain $ drawAtRel (uiOptGlyph b value) $ uiOptPos b
+    renderToMain $ mapM_ (\g -> drawAtRel g (uiOptPos b))
+	[hollowGlyph $ obscure $ colourWheel 5, uiOptGlyph b value]
 -- XXX: hand-hacking lenses...
 toggleUIOption (UIOptButton getopt setopt vals _ _) = do
     value <- gets $ getopt.uiOptions
@@ -425,8 +426,10 @@ drawNameWithCharAndCol name charcol char col pos = do
 	displaceRender down $ withFont smallFont $
 	    renderStrColAt (pixelToColor charcol) [char] pos
 
+drawLockInfo :: ActiveLock -> Maybe LockInfo -> Maybe (TVar (Maybe Lock)) -> StateT MainState UIM ()
 drawLockInfo al@(ActiveLock name i) Nothing _ = do
     let centre = hw<+>neg hv <+> 7*(i-1)<*>hu
+    lift $ drawEmptyMiniLock centre
     drawNameWithCharAndCol name white (lockIndexChar i) (invisible white) centre
     lift $ registerSelectable centre 3 $ SelLockUnset al
 drawLockInfo al@(ActiveLock name i) (Just lockinfo) mtvar = do

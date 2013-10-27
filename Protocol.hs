@@ -25,6 +25,7 @@ data Action
     | GetSolution NoteInfo
     | DeclareSolution Solution LockSpec ActiveLock LockIndex
     | SetLock Lock LockIndex Solution
+    | GetRandomNames
     deriving (Eq, Ord, Show, Read)
 
 data Auth = Auth {authUser :: Codename, authPasswd :: Password}
@@ -68,6 +69,7 @@ instance Binary Action where
     put (GetSolution lspec) = put (6::Word8) >> put lspec
     put (DeclareSolution soln lspec alock idx) = put (7::Word8) >> put soln >> put lspec >> put alock >> put idx
     put (SetLock lock li soln) = put (8::Word8) >> put lock >> put li >> put soln
+    put GetRandomNames = put (9::Word8)
     get = do
 	tag <- get :: Get Word8
 	case tag of
@@ -80,6 +82,7 @@ instance Binary Action where
 	    6 -> liftM GetSolution get
 	    7 -> liftM4 DeclareSolution get get get get
 	    8 -> liftM3 SetLock get get get
+	    9 -> return GetRandomNames
 
 instance Binary Auth where
     put (Auth name pw) = put name >> put pw
