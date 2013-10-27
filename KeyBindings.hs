@@ -53,6 +53,18 @@ globalBindings =
 	, ('\r', CmdSelect)
 	, ('\n', CmdSelect)
 	, (' ', CmdSelect)
+
+	, ('G', CmdTile BallTile)
+	, ('H', CmdTile $ ArmTile zero False)
+	, ('J', CmdTile $ PivotTile zero)
+	, ('K', CmdTile $ SpringTile Relaxed zero)
+	, ('L', CmdTile $ BlockTile [])
+	, ('g', CmdTile BallTile)
+	, ('h', CmdTile $ ArmTile zero False)
+	, ('j', CmdTile $ PivotTile zero)
+	, ('k', CmdTile $ SpringTile Relaxed zero)
+	, ('l', CmdTile $ BlockTile [])
+	
 	, ('-', CmdTile $ ArmTile hu False)
 	, ('\\', CmdTile $ ArmTile hv False)
 	, ('-', CmdTile $ ArmTile zero False)

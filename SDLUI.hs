@@ -133,11 +133,9 @@ getButtons mode = do
 	    [ singleButton serverPos CmdSetServer 0
 	    , singleButton lockLinePos CmdSelectLock 4
 	    , singleButton (miniLockPos <+> 2<*>hv <+> neg hu <+> hw) CmdEdit 2
-	    , singleButton (miniLockPos <+> 2<*>hv <+> neg hu) (CmdPlaceLock Nothing) 0
 	    , singleButton (miniLockPos <+> 2<*>neg hv <+> hu) CmdPrevLock 4
 	    , singleButton (miniLockPos <+> 2<*>neg hv <+> hu <+> neg hw) CmdNextLock 4
-	    , singleButton (codenamePos <+> neg hu) (CmdSelCodename Nothing) 0
-	    , ([ Button mmiscpos (CmdSolve Nothing), Button (mmiscpos<+>hu) (CmdViewSolution Nothing)], (2,2))
+	    , singleButton (codenamePos <+> neg hu) (CmdSelCodename Nothing) 2
 	    ]
 		
 	_ -> []
@@ -147,7 +145,6 @@ getButtons mode = do
 	    tl = periphery 2
 	    bl = periphery 3
 	    br = periphery 5
-	    mmiscpos = (serverPos <+> 2<*>neg hv)
 
 
 data UIOptButton a = UIOptButton { getUIOpt::UIOptions->a, setUIOpt::a->UIOptions->UIOptions,
@@ -333,6 +330,9 @@ drawMiniLock lock v = do
 clearOldMiniLocks =
     (>=50).Map.size <$> gets miniLocks >>= flip when clearMiniLocks
 clearMiniLocks = modify $ \ds -> ds { miniLocks = Map.empty}
+
+drawEmptyMiniLock v = do
+    renderToMain $ recentreAt v $ rescaleRender 6 $ drawAtRel (hollowInnerGlyph $ dim white) zero
 
 data Selectable = SelOurLock
     | SelLock ActiveLock
@@ -572,7 +572,7 @@ instance UIMonad (StateT UIState IO) where
 	    let ourName = authUser <$> auth
 	    let selName = listToMaybe names
 	    lift $ renderToMain $ (erase >> drawCursorAt Nothing)
-	    maybe (return ())
+	    maybe (lift $ drawEmptyMiniLock miniLockPos)
 		(lift . (registerSelectable miniLockPos 3 SelOurLock >>) . flip drawMiniLock miniLockPos)
 		lock
 	    lift.renderToMain $ do
@@ -599,6 +599,12 @@ instance UIMonad (StateT UIState IO) where
 			Just (RCUserInfo (_,uinfo)) -> do
 			    sequence_ [ drawLockInfo (ActiveLock (codename uinfo) i) mlockinfo ((!i)<$>lockTVs) |
 				(i,mlockinfo) <- assocs $ userLocks uinfo ]
+			    let mmiscpos = (serverPos <+> 2<*>neg hv)
+			    when (isJust $ msum $ elems $ userLocks uinfo) $ lift $ do
+				registerButtonGroup
+				    ([ Button mmiscpos (CmdSolve Nothing), Button (mmiscpos<+>hu) (CmdViewSolution Nothing)], (2,2))
+				when (isJust lock) $ registerButtonGroup $
+					singleButton (miniLockPos <+> 2<*>hv <+> neg hu) (CmdPlaceLock Nothing) 0
 	    when (isJust ourName && ourName == selName) $ do
 		when (not $ null undecls) $ do
 		    lift.renderToMain $ renderStrColAtLeft messageCol "Undeclared:" (undeclsPos<+>2<*>hv)
@@ -608,7 +614,8 @@ instance UIMonad (StateT UIState IO) where
 			[ \pos -> (lift $ registerSelectable pos 0 (SelUndeclared undecl)) >> drawActiveLock al pos
 			| undecl@(Undeclared _ _ al) <- undecls ]
 	    when (ourName /= selName) $ void $ runMaybeT $ do
-		lift.lift $ registerButtonGroup $ singleButton (codenamePos <+> 3<*>neg hu) CmdHome 2
+		when (isJust ourName) $
+		    lift.lift $ registerButtonGroup $ singleButton (codenamePos <+> 3<*>neg hu) CmdHome 2
 		sel <- MaybeT $ return $ selName
 		us <- MaybeT $ return $ ourName
 		ourUInfo <- mgetUInfo us

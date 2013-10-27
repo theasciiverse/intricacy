@@ -4,6 +4,7 @@ import Graphics.UI.SDL
 import Graphics.UI.SDL.Primitives
 import qualified Graphics.UI.SDL.TTF as TTF
 import Data.Monoid
+import Data.Ratio
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Reader
@@ -316,6 +317,15 @@ type RenderM = ReaderT RenderContext IO
 displaceRender :: SVec -> RenderM a -> RenderM a
 displaceRender disp = local displace
     where displace rc = rc { renderSCentre = renderSCentre rc <+> disp }
+
+recentreAt :: HexVec -> RenderM a -> RenderM a
+recentreAt v m = do
+    size <- asks renderSize
+    displaceRender (hexVec2SVec size v) m
+
+rescaleRender :: RealFrac n => n -> RenderM a -> RenderM a
+rescaleRender r = local resize
+    where resize rc = rc { renderSize = round $ r * (fromIntegral $ renderSize rc) }
 
 withFont :: Maybe TTF.Font -> RenderM a -> RenderM a
 withFont font = local refont
