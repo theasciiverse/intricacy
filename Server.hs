@@ -139,8 +139,12 @@ handleRequest req@(ClientRequest pv auth action) = do
 		    when (frame /= BasicFrame serverSize) $ throwError $
 			"Server only accepts size "++show serverSize++" locks."
 		    when (not $ checkSolution lock soln) $ throwError "Bad solution"
-		    -- TODO: check doesn't hash to existing lock
+		    RCLockHashes hashes <- liftIO $ getRecord RecLockHashes
+			    `catchIOError` const (return (RCLockHashes []))
+		    hash <- liftIO $ hash $ show lock
+		    when (hash `elem` hashes) $ throwError "Lock has already been used"
 		    ls <- erroredIO $ newLockRecord lock
+		    erroredIO $ putRecord RecLockHashes $ RCLockHashes $ hash:hashes
 		    execStateT (do
 			    when (isJust $ userLocks info ! idx) $
 				lift (getALock al) >>= retireLock
@@ -183,20 +187,18 @@ handleRequest req@(ClientRequest pv auth action) = do
 	checkAuth (Just (Auth name pw)) = do
 	    when (not $ validCodeName name) $ throwError "Invalid codename"
 	    let rec = RecPassword name
-	    hpw <- liftIO $ hash pw
 	    exists <- liftIO $ recordExists rec
 	    when (not exists) $ throwError "No such user"
-	    RCPassword hpw' <- liftIO $ getRecord rec
-	    when (hpw /= hpw') $ throwError "Wrong password"
+	    RCPassword pw' <- liftIO $ getRecord rec
+	    when (pw /= pw') $ throwError "Wrong password"
 	newUser :: Maybe Auth -> ErrorT String IO ()
 	newUser Nothing = throwError "Require authentication"
 	newUser (Just (Auth name pw)) = do
 	    when (not $ validCodeName name) $ throwError "Invalid codename"
 	    let rec = RecPassword name
-	    hpw <- liftIO $ hash pw
 	    exists <- liftIO $ recordExists rec
 	    when exists $ throwError "Codename taken"
-	    erroredIO $ putRecord rec (RCPassword hpw)
+	    erroredIO $ putRecord rec (RCPassword pw)
 	    erroredIO $ putRecord (RecUserInfo name) (RCUserInfo $ (1,initUserInfo name))
 	    erroredIO $ putRecord (RecUserInfoLog name) (RCUserInfoDeltas [])
 	--- | TODO: journalling so we can survive death during database writes?

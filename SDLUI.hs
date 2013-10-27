@@ -571,6 +571,7 @@ instance UIMonad (StateT UIState IO) where
 	drawMainState' (MetaState saddr undecls cOnly auth names _ _ lockTVs path lock) = do
 	    let ourName = authUser <$> auth
 	    let selName = listToMaybe names
+	    let home = isJust ourName && ourName == selName
 	    lift $ renderToMain $ (erase >> drawCursorAt Nothing)
 	    maybe (lift $ drawEmptyMiniLock miniLockPos)
 		(lift . (registerSelectable miniLockPos 3 SelOurLock >>) . flip drawMiniLock miniLockPos)
@@ -585,7 +586,7 @@ instance UIMonad (StateT UIState IO) where
 		    drawRelScore name (codenamePos<+>hu))
 		selName
 	    when (length names > 1) $ lift $ registerButtonGroup $ singleButton
-		(codenamePos <+> 2<*>neg hu) CmdBackCodename 4
+		(codenamePos <+> 2<*>neg hu <+> hw) CmdBackCodename 0
 	    runMaybeT $ MaybeT (return selName) >>= lift . getUInfoFetched 300 >>=
 		\(FetchedRecord fresh err muirc) -> lift $ do
 		    lift $ do
@@ -603,9 +604,9 @@ instance UIMonad (StateT UIState IO) where
 			    when (isJust $ msum $ elems $ userLocks uinfo) $ lift $ do
 				registerButtonGroup
 				    ([ Button mmiscpos (CmdSolve Nothing), Button (mmiscpos<+>hu) (CmdViewSolution Nothing)], (2,2))
-				when (isJust lock) $ registerButtonGroup $
+				when (isJust lock && home) $ registerButtonGroup $
 					singleButton (miniLockPos <+> 2<*>hv <+> neg hu) (CmdPlaceLock Nothing) 0
-	    when (isJust ourName && ourName == selName) $ do
+	    when home $ do
 		when (not $ null undecls) $ do
 		    lift.renderToMain $ renderStrColAtLeft messageCol "Undeclared:" (undeclsPos<+>2<*>hv)
 		    lift $ registerButtonGroup $ singleButton (undeclsPos<+>2<*>hv<+>neg hu) (CmdDeclare Nothing) 2
@@ -615,7 +616,7 @@ instance UIMonad (StateT UIState IO) where
 			| undecl@(Undeclared _ _ al) <- undecls ]
 	    when (ourName /= selName) $ void $ runMaybeT $ do
 		when (isJust ourName) $
-		    lift.lift $ registerButtonGroup $ singleButton (codenamePos <+> 3<*>neg hu) CmdHome 2
+		    lift.lift $ registerButtonGroup $ singleButton (codenamePos <+> neg hu <+> hw) CmdHome 4
 		sel <- MaybeT $ return $ selName
 		us <- MaybeT $ return $ ourName
 		ourUInfo <- mgetUInfo us

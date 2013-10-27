@@ -285,7 +285,7 @@ interactUI = do
 	    let im = ms2im mainSt
 	    when (im == IMPlay) checkWon
 	    drawMainState
-	    cmds <- lift $ getSomeInput im
+	    cmds <- lift $ getInput im
 	    quit <- liftM (\e -> case e of Left _ -> True; _ -> False) $
 		runErrorT $ sequence_ $ map (processCommand im) cmds
 	    if quit then return () else loop
@@ -340,7 +340,8 @@ interactUI = do
 	    -- guard =<< isNothing <$> lift (gets curAuth)
 	    newName <- mgetCurName
 	    confirmOrBail $ "Register codename "++newName++"?"
-	    passwd <- MaybeT $ lift $ textInput "Enter new password:" 64 False Nothing Nothing
+	    passwd <- (liftIO . hash =<<) $ MaybeT $ lift $
+		textInput "Enter new password:" 64 False Nothing Nothing
 	    lift $ do
 		modify $ \ms -> ms {curAuth = Just $ Auth newName passwd}
 		resp <- curServerAction $ Register
@@ -355,7 +356,8 @@ interactUI = do
 	processCommand' IMMeta CmdAuth = void.runMaybeT $ do
 	    auth <- lift $ gets curAuth
 	    name <- mgetCurName
-	    passwd <- MaybeT $ lift $ textInput ("Enter password for "++name++":") 64 False Nothing Nothing
+	    passwd <- (liftIO . hash =<<) $ MaybeT $ lift $
+		textInput ("Enter password for "++name++":") 64 False Nothing Nothing
 	    lift $ do
 		modify $ \ms -> ms {curAuth = Just $ Auth name passwd}
 		resp <- curServerAction $ Authenticate

@@ -29,6 +29,7 @@ data Record
     | RecUserInfoLog Codename
     | RecLock LockSpec
     | RecNote NoteInfo
+    | RecLockHashes
     | RecServerInfo
     deriving (Eq, Ord, Show)
 data RecordContents
@@ -37,6 +38,7 @@ data RecordContents
     | RCUserInfoDeltas [UserInfoDelta]
     | RCLock Lock
     | RCSolution Solution
+    | RCLockHashes [String]
     | RCServerInfo ServerInfo
     deriving (Eq, Ord, Show)
 
@@ -69,7 +71,8 @@ getRecordh (RecUserInfo _) h = liftM RCUserInfo $ read `liftM` hGetStrict h
 getRecordh (RecUserInfoLog _) h = liftM RCUserInfoDeltas $ read `liftM` hGetStrict h
 getRecordh (RecLock _) h = liftM RCLock $ read `liftM` hGetStrict h
 getRecordh (RecNote _) h = liftM RCSolution $ read `liftM` hGetStrict h
-getRecordh (RecServerInfo) h = liftM RCServerInfo $ read `liftM` hGetStrict h
+getRecordh RecLockHashes h = liftM RCLockHashes $ read `liftM` hGetStrict h
+getRecordh RecServerInfo h = liftM RCServerInfo $ read `liftM` hGetStrict h
 
 hGetStrict h = CS.unpack `liftM` concatMWhileNonempty (repeat $ CS.hGet h 1024)
     where concatMWhileNonempty (m:ms) = do
@@ -90,6 +93,7 @@ putRecordh (RCUserInfo info) h = hPutStr h $ show info
 putRecordh (RCUserInfoDeltas deltas) h = hPutStr h $ show deltas
 putRecordh (RCLock lock) h = hPutStr h $ show lock
 putRecordh (RCSolution solution) h = hPutStr h $ show solution
+putRecordh (RCLockHashes hashes) h = hPutStr h $ show hashes
 putRecordh (RCServerInfo sinfo) h = hPutStr h $ show sinfo
 
 modifyRecord :: Record -> (RecordContents -> RecordContents) -> IO ()
@@ -124,7 +128,8 @@ recordPath = (dbpath++) . recordPath'
 	recordPath' (RecUserInfoLog name) = userDir name ++ "log"
 	recordPath' (RecLock ls) = locksDir ++ show ls
 	recordPath' (RecNote (NoteInfo name _  alock)) = userDir name ++ "notes" ++ [pathSeparator] ++ alockFN alock
-	recordPath' (RecServerInfo) = "serverInfo"
+	recordPath' RecLockHashes = "lockHashes"
+	recordPath' RecServerInfo = "serverInfo"
 
 	userDir name = "users" ++ [pathSeparator] ++ pathifyName name ++ [pathSeparator]
 	pathifyName = map (\c -> case c of {'/'->'s'; '.'->'d'; '\\'->'b'; _ -> c})
