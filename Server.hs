@@ -10,6 +10,7 @@ import Control.Monad.Trans.Error
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans
 import Control.Monad.IO.Class
+import System.Random
 import Data.Maybe
 import Data.Word
 import System.IO
@@ -151,6 +152,16 @@ handleRequest req@(ClientRequest pv auth action) = do
 			    addDelta name $ PutLock ls idx
 			) [] >>= applyDeltasToRecords
 		    return ServerAck
+		GetRandomNames n -> do
+		    names <- erroredIO $ listUsers
+		    gen <- erroredIO $ getStdGen
+		    let l = length names
+			shuffled = map ((listArray (0,l-1) names) !) $
+			    take (min l n) $ nub $ randomRs (0,l-1) gen
+		    liftIO newStdGen
+		    return $ ServedRandomNames shuffled
+
+
 		_ -> throwError "BUG: bad request"
 	erroredIO :: IO a -> ErrorT String IO a
 	erroredIO c = do
@@ -182,6 +193,7 @@ handleRequest req@(ClientRequest pv auth action) = do
 	    checkAuth auth
 	    let Just (Auth name _) = auth
 	    getUserInfo name
+	    
 	checkAuth :: Maybe Auth -> ErrorT String IO ()
 	checkAuth Nothing = throwError "Authentication required"
 	checkAuth (Just (Auth name pw)) = do

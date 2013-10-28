@@ -312,7 +312,7 @@ instance UIMonad (StateT UIState IO) where
 	    drawState (maybeToList selPiece) True [] st
 	    drawMsgLine
 	    drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
-	MetaState saddr undecls cOnly auth names _ _ lockTVs path lock -> do
+	MetaState saddr undecls cOnly auth names _ rnamestvar _ lockTVs path lock -> do
 	    let ourName = liftM authUser auth
 	    let selName = listToMaybe names
 	    (h,w) <- liftIO Curses.scrSize
@@ -342,6 +342,10 @@ instance UIMonad (StateT UIState IO) where
 		    lift $ drawStr bold white (CVec y s) str
 		    void $ fillBox (CVec y (s+length str+1)) (CVec y (w-1)) 5 GravLeft $
 			[ \pos -> drawActiveLock pos al | Undeclared _ _ al <- undecls ]
+		rnames <- liftIO $ atomically $ readTVar rnamestvar
+		when (not $ null rnames) $
+		    void $ fillBox (CVec 2 5) (CVec 5 (w`div`3)) 3 GravCentre
+			[ \pos -> drawName False pos name | name <- rnames ]
 	    when (ourName /= selName) $ void $ runMaybeT $ do
 		sel <- MaybeT $ return $ selName
 		us <- MaybeT $ return $ ourName

@@ -25,7 +25,7 @@ data Action
     | GetSolution NoteInfo
     | DeclareSolution Solution LockSpec ActiveLock LockIndex
     | SetLock Lock LockIndex Solution
-    | GetRandomNames
+    | GetRandomNames Int
     deriving (Eq, Ord, Show, Read)
 
 data Auth = Auth {authUser :: Codename, authPasswd :: Password}
@@ -47,6 +47,7 @@ data ServerResponse
     | ServedUserInfoDeltas [UserInfoDelta]
     | ServedSolution Solution
     | ServedHint Hint
+    | ServedRandomNames [Codename]
     | ServerCodenameFree
     | ServerFresh
     deriving (Eq, Ord, Show, Read)
@@ -69,7 +70,7 @@ instance Binary Action where
     put (GetSolution lspec) = put (6::Word8) >> put lspec
     put (DeclareSolution soln lspec alock idx) = put (7::Word8) >> put soln >> put lspec >> put alock >> put idx
     put (SetLock lock li soln) = put (8::Word8) >> put lock >> put li >> put soln
-    put GetRandomNames = put (9::Word8)
+    put (GetRandomNames n) = put (9::Word8) >> put n
     get = do
 	tag <- get :: Get Word8
 	case tag of
@@ -82,7 +83,7 @@ instance Binary Action where
 	    6 -> liftM GetSolution get
 	    7 -> liftM4 DeclareSolution get get get get
 	    8 -> liftM3 SetLock get get get
-	    9 -> return GetRandomNames
+	    9 -> liftM GetRandomNames get
 
 instance Binary Auth where
     put (Auth name pw) = put name >> put pw
@@ -97,8 +98,9 @@ instance Binary ServerResponse where
     put (ServedUserInfoDeltas info) = put (5::Word8) >> put info
     put (ServedSolution soln) = put (6::Word8) >> put soln
     put (ServedHint hint) = put (7::Word8) >> put hint
-    put (ServerCodenameFree) = put (8::Word8)
-    put (ServerFresh) = put (9::Word8)
+    put (ServedRandomNames names) = put (8::Word8) >> put names
+    put (ServerCodenameFree) = put (9::Word8)
+    put (ServerFresh) = put (10::Word8)
     get = do
 	tag <- get :: Get Word8
 	case tag of
@@ -110,8 +112,9 @@ instance Binary ServerResponse where
 	    5 -> liftM ServedUserInfoDeltas get
 	    6 -> liftM ServedSolution get
 	    7 -> liftM ServedHint get
-	    8 -> return ServerCodenameFree
-	    9 -> return ServerFresh
+	    8 -> liftM ServedRandomNames get
+	    9 -> return ServerCodenameFree
+	    10 -> return ServerFresh
 instance Binary ServerInfo where
     put (ServerInfo sz str) = put sz >> put str
     get = liftM2 ServerInfo get get

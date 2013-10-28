@@ -85,6 +85,7 @@ data MainState
 	, curAuth :: Maybe Auth
 	, codenameStack :: [Codename]
 	, newAsync :: TVar Bool
+	, randomCodenames :: TVar [Codename]
 	, userInfos :: Map Codename (TVar FetchedRecord, Integer)
 	, curLockTVars :: Maybe (Array LockIndex (TVar (Maybe Lock)))
 	, curLockPath :: FilePath
@@ -98,14 +99,15 @@ newPlayState (frame,st) = PlayState st frame [] False False [] []
 newReplayState st soln = ReplayState st soln []
 newEditState (frame,st) mpath = EditState [st] [] frame mpath Nothing (PHS zero) (PHS zero) 
 initMetaState = do
-    tvar <- atomically $ newTVar False
+    flag <- atomically $ newTVar False
+    rnamestvar <- atomically $ newTVar []
     (saddr, auth, path) <- confFilePath "metagame.conf" >>=
 	liftM (fromMaybe (defaultServerAddr, Nothing, "")) . readReadFile
     let names = maybeToList $ authUser <$> auth
     undecls <- confFilePath ("undeclared" ++ [pathSeparator] ++ saddrStr saddr) >>=
 	liftM (fromMaybe []) . readReadFile
     lock <- readLock path
-    return $ MetaState saddr undecls False auth names tvar Map.empty Nothing path lock
+    return $ MetaState saddr undecls False auth names flag rnamestvar Map.empty Nothing path lock
 
 readLock :: FilePath -> IO (Maybe Lock)
 readLock path = fullLockPath path >>= readReadFile
@@ -114,7 +116,7 @@ fullLockPath path = if isAbsolute path
     then return path
     else (++(pathSeparator:path)) <$> confFilePath "locks"
 
-writeMetaState (MetaState saddr undecls _ auth _ _ _ _ path _) = do
+writeMetaState (MetaState saddr undecls _ auth _ _ _ _ _ path _) = do
     confFilePath "metagame.conf" >>= flip writeReadFile (saddr, auth, path)
     confFilePath ("undeclared" ++ [pathSeparator] ++ saddrStr saddr) >>= flip writeReadFile undecls
 
@@ -126,7 +128,7 @@ ms2im mainSt = case mainSt of
     PlayState _ _ _ _ _ _ _ -> IMPlay
     ReplayState _ _ _ -> IMReplay
     EditState _ _ _ _ _ _ _ -> IMEdit
-    MetaState _ _ _ _ _ _ _ _ _ _ -> IMMeta
+    MetaState _ _ _ _ _ _ _ _ _ _ _ -> IMMeta
 
 instance Error () where noMsg = ()
 
@@ -207,8 +209,20 @@ refreshUInfoUI = void.runMaybeT $ do
     name <- mgetCurName
     lift $ setLockTVars name
     ourName <- mgetOurName
-    when (ourName == name) $ lift purgeInvalidUndecls
+    when (ourName == name) $ getRandomNames >> lift purgeInvalidUndecls
     where
+	getRandomNames = do
+	    rnamestvar <- gets randomCodenames
+	    flag <- gets newAsync
+	    saddr <- gets curServer
+	    liftIO $ forkIO $ do
+		resp <- makeRequest saddr $
+		    ClientRequest protocolVersion Nothing $ GetRandomNames 30
+		case resp of
+		    ServedRandomNames names -> atomically $ do 
+			    writeTVar rnamestvar names
+			    writeTVar flag True
+		    _ -> return ()
 	purgeInvalidUndecls = do
 	    undecls' <- gets undeclareds >>= filterM ((not<$>).invalid)
 	    modify $ \ms -> ms { undeclareds = undecls' }

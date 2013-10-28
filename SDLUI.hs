@@ -344,6 +344,7 @@ data Selectable = SelOurLock
     | SelReadNote NoteInfo
     | SelSolution NoteInfo
     | SelAccessed Codename
+    | SelRandom Codename
     | SelSecured NoteInfo
 
 registerSelectable v r s =
@@ -366,6 +367,7 @@ commandOfSelectable IMMeta (SelReadNote note) True = CmdViewSolution $ Just note
 commandOfSelectable IMMeta (SelSolution note) False = CmdSelCodename $ Just $ noteAuthor note
 commandOfSelectable IMMeta (SelSolution note) True = CmdViewSolution $ Just note
 commandOfSelectable IMMeta (SelAccessed name) _ = CmdSelCodename $ Just name
+commandOfSelectable IMMeta (SelRandom name) _ = CmdSelCodename $ Just name
 commandOfSelectable IMMeta (SelSecured note) False = CmdSelCodename $ Just $ lockOwner $ noteOn note
 commandOfSelectable IMMeta (SelSecured note) True = CmdViewSolution $ Just note
 commandOfSelectable _ _ _ = CmdNone
@@ -540,6 +542,7 @@ sayError = setMsgLine errorCol
 miniLockPos = (-9)<*>hw <+> hu
 lockLinePos = 2<*>(hu <+> neg hw) <+> miniLockPos
 serverPos = 12<*>hv <+> 6<*>neg hu
+randomNamesPos = 9<*>hv <+> neg hu
 codenamePos = (-4)<*>hw <+> 4<*>hv
 undeclsPos = hv <+> neg hw <+> codenamePos
 accessedOursPos = 2<*>hw <+> codenamePos
@@ -571,7 +574,7 @@ instance UIMonad (StateT UIState IO) where
 	    drawMainGameState (maybeToList selPiece) True [] st
 	    renderToMain $ drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
 	    drawPaintButtons
-	drawMainState' (MetaState saddr undecls cOnly auth names _ _ lockTVs path lock) = do
+	drawMainState' (MetaState saddr undecls cOnly auth names _ rnamestvar _ lockTVs path lock) = do
 	    let ourName = authUser <$> auth
 	    let selName = listToMaybe names
 	    let home = isJust ourName && ourName == selName
@@ -590,6 +593,7 @@ instance UIMonad (StateT UIState IO) where
 		selName
 	    when (length names > 1) $ lift $ registerButtonGroup $ singleButton
 		(codenamePos <+> 2<*>neg hu <+> hw) CmdBackCodename 0
+
 	    runMaybeT $ MaybeT (return selName) >>= lift . getUInfoFetched 300 >>=
 		\(FetchedRecord fresh err muirc) -> lift $ do
 		    lift $ do
@@ -609,6 +613,7 @@ instance UIMonad (StateT UIState IO) where
 				    ([ Button mmiscpos (CmdSolve Nothing), Button (mmiscpos<+>hu) (CmdViewSolution Nothing)], (2,2))
 				when (isJust lock && home) $ registerButtonGroup $
 					singleButton (miniLockPos <+> 2<*>hv <+> neg hu) (CmdPlaceLock Nothing) 0
+
 	    when home $ do
 		when (not $ null undecls) $ do
 		    lift.renderToMain $ renderStrColAtLeft messageCol "Undeclared:" (undeclsPos<+>2<*>hv)
@@ -617,6 +622,13 @@ instance UIMonad (StateT UIState IO) where
 			(map (undeclsPos<+>) $ hexDisc 1 ++ [hu<+>neg hw, neg hu<+>hv])
 			[ \pos -> (lift $ registerSelectable pos 0 (SelUndeclared undecl)) >> drawActiveLock al pos
 			| undecl@(Undeclared _ _ al) <- undecls ]
+		rnames <- liftIO $ atomically $ readTVar rnamestvar
+		when (not $ null rnames) $
+		    fillArea randomNamesPos
+			(map (randomNamesPos<+>) $ hexDisc 2)
+			[ \pos -> (lift $ registerSelectable pos 0 (SelRandom name)) >> drawName name pos
+			| name <- rnames ]
+
 	    when (ourName /= selName) $ void $ runMaybeT $ do
 		when (isJust ourName) $
 		    lift.lift $ registerButtonGroup $ singleButton (codenamePos <+> neg hu <+> hw) CmdHome 4

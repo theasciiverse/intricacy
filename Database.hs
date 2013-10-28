@@ -2,6 +2,7 @@ module Database where
 
 -- TODO: use ByteString everywhere
 
+import Control.Applicative
 import Control.Monad
 import System.IO
 import System.FilePath
@@ -119,6 +120,9 @@ newLockRecord lock = do
     hClose h
     putRecord (RecLock ls) (RCLock lock)
     return ls
+
+listUsers :: IO [Codename]
+listUsers = filter ((==3).length) <$> getDirectoryContents (dbpath++"users")
 
 recordPath :: Record -> FilePath
 recordPath = (dbpath++) . recordPath'
