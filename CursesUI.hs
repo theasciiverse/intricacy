@@ -300,9 +300,8 @@ instance UIMonad (StateT UIState IO) where
     runUI m = evalStateT m nullUIState
 
     drawMainState = get >>= \s -> case s of
-	PlayState st _ alerts wsel solved _ _ title -> lift $ do
+	PlayState st _ alerts wsel solved _ _ title _ -> lift $ do
 	    drawState [] False alerts st
-	    when solved $ say "Unlocked!"
 	    drawMsgLine
 	    drawTitle title
 	    drawCursorAt $ listToMaybe [ pos |

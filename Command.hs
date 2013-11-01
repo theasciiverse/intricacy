@@ -7,6 +7,7 @@ import Metagame
 data Command = CmdDir WrHoSel HexDir | CmdRotate TorqueDir | CmdWait
 	| CmdMoveTo HexPos
 	| CmdToggle
+	| CmdOpen
 	| CmdTile Tile | CmdPaint Tile | CmdMerge
 	| CmdSelect | CmdUnselect | CmdDelete
 	| CmdPlay | CmdResetTools
@@ -32,8 +33,9 @@ data WrHoSel = WHSWrench | WHSHook | WHSSelected
 describeCommand :: Command -> String
 describeCommand (CmdDir whs dir) = "Move " ++ (whsStr whs) ++ " " ++ (dirStr dir)
 describeCommand (CmdRotate dir) = "Rotate " ++ (if dir == 1 then "counter" else "") ++ "clockwise"
-describeCommand CmdWait = "pause"
+describeCommand CmdWait = "nothing"
 describeCommand CmdToggle = "toggle tool"
+describeCommand CmdOpen = "open lock"
 describeCommand (CmdTile tile) = tileStr tile
 describeCommand (CmdPaint tile) = tileStr tile
 describeCommand CmdMerge = "merge blocks" 

@@ -87,8 +87,9 @@ miscGlobal = lowerToo
 
 global = keypadHex ++ qwertyViHex ++ miscGlobal
 
-playOnly =
-    [ (' ', CmdWait)
+playOnly = lowerToo
+    [ ('O', CmdOpen)
+    , (' ', CmdWait)
     , ('\r', CmdWait)
     , ('\n', CmdWait)
     ]

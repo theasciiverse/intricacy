@@ -64,6 +64,7 @@ data MainState
 	, psGameStateMoveStack::[(GameState, PlayerMove)]
 	, psUndoneStack::[(GameState, PlayerMove)]
 	, psTitle::Maybe String
+	, psIsSub::Bool
 	}
     | ReplayState
 	{ rsCurrentState::GameState
@@ -97,7 +98,7 @@ data MainState
 -- | Locks bigger than 11 won't fit in an 80x25 terminal
 maxlocksize = 11
 
-newPlayState (frame,st) title = PlayState st frame [] False False [] [] title
+newPlayState (frame,st) title sub = PlayState st frame [] False False [] [] title sub
 newReplayState st soln title = ReplayState st soln [] title
 newEditState (frame,st) mpath = EditState [st] [] frame mpath Nothing (PHS zero) (PHS zero) 
 initMetaState = do
@@ -129,7 +130,7 @@ data InputMode = IMEdit | IMPlay | IMReplay | IMMeta | IMTextInput
 
 ms2im :: MainState -> InputMode
 ms2im mainSt = case mainSt of
-    PlayState _ _ _ _ _ _ _ _ -> IMPlay
+    PlayState _ _ _ _ _ _ _ _ _ -> IMPlay
     ReplayState _ _ _ _ -> IMReplay
     EditState _ _ _ _ _ _ _ -> IMEdit
     MetaState _ _ _ _ _ _ _ _ _ _ _ -> IMMeta
@@ -310,10 +311,14 @@ interactUI = do
 	processCommand :: UIMonad uiM => InputMode -> Command -> ErrorT () (StateT MainState uiM) ()
 	processCommand im CmdQuit = do
 	    when (im == IMPlay) $
-		lift (gets psSolved) >>= flip when (throwError ())
+		lift (gets psIsSub) >>= flip when (throwError ())
 	    when (im == IMReplay) $ throwError ()
 	    really <- lift $ lift $ confirm "Really quit?"
 	    when really $ throwError ()
+	processCommand IMPlay CmdOpen = do
+	    st <- gets psCurrentState
+	    frame <- gets psFrame
+	    if checkSolved (frame,st) then throwError () else lift.lift $ drawError "Locked!"
 	processCommand im cmd = lift $ processCommand' im cmd
 
 	processCommand' :: UIMonad uiM => InputMode -> Command -> StateT MainState uiM ()
@@ -704,6 +709,7 @@ interactUI = do
 	    frame <- gets psFrame
 	    when (checkSolved (frame,st)) $ do
 		modify $ \ps -> ps {psSolved = True}
+		lift $ drawMessage "Unlocked!"
 		{-
 		pms <- (reverse.(map snd)) `liftM` gets psGameStateMoveStack
 		let wfname = fromMaybe "unnamed.lock" fname 
@@ -724,7 +730,7 @@ interactUI = do
 	    modify $ \es -> es {lastModPos = selPos}
 	subPlay :: UIMonad uiM => Lock -> StateT MainState uiM ()
 	subPlay lock =
-	    pushEState =<< psCurrentState <$> (lift $ execStateT interactUI $ newPlayState lock Nothing)
+	    pushEState =<< psCurrentState <$> (lift $ execStateT interactUI $ newPlayState lock Nothing True)
 
 	pushEState :: UIMonad uiM => GameState -> StateT MainState uiM ()
 	pushEState st = do
@@ -764,7 +770,7 @@ interactUI = do
 
 	solveLock :: UIMonad uiM => Lock -> Maybe String -> MaybeT (StateT MainState uiM) Solution
 	solveLock lock title = do
-	    ps <- lift.lift $ execStateT interactUI $ newPlayState (reframe lock) title
+	    ps <- lift.lift $ execStateT interactUI $ newPlayState (reframe lock) title False
 	    guard $ psSolved ps
 	    return $ reverse $ (map snd) $ psGameStateMoveStack ps
 

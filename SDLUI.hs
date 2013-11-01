@@ -130,7 +130,8 @@ getButtons mode = do
 		[ ( [ Button (bl<+>(2<*>hv)<+>hw) (CmdTile $ ArmTile hw False)
 		    , Button (bl<+>(2<*>hv)) (CmdTile $ WrenchTile zero)
 		    ], (2,0) )
-	    ])
+	    ]) ++
+	    [ singleButton tr CmdOpen 1 ]
 	IMMeta ->
 	    [ singleButton serverPos CmdSetServer 0
 	    , singleButton lockLinePos CmdSelectLock 4
@@ -143,6 +144,7 @@ getButtons mode = do
 	_ -> []
 	where
 	    quitButton = Button br CmdQuit
+	    tr = periphery 0
 	    tl = periphery 2
 	    bl = periphery 3
 	    br = periphery 5
@@ -583,7 +585,7 @@ instance UIMonad (StateT UIState IO) where
 	    drawMsgLine
 	    refresh
 	where
-	drawMainState' (PlayState st _ alerts wsel solved stack undostack title) = lift $ do
+	drawMainState' (PlayState st _ alerts wsel solved stack undostack title _) = lift $ do
 	    let selTools = [ idx |
 		    (idx, PlacedPiece pos p) <- enumVec $ placedPieces st
 		    , or [wsel && isWrench p, not wsel && isHook p] ]
