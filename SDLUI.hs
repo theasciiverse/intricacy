@@ -522,8 +522,9 @@ initVideo w h = do
     surf <- liftIO $ createRGBSurface [] w h 16 0 0 0 0
     modify $ \ds -> ds { gsSurface = Just surf, lastDrawArgs = Nothing }
     (_,size) <- getGeom
-    font <- liftIO $ TTF.tryOpenFont "VeraMono.ttf" (size)
-    smallFont <- liftIO $ TTF.tryOpenFont "VeraMono.ttf" (2*size`div`3)
+    fontpath <- liftIO $ getDataPath "VeraMono.ttf"
+    font <- liftIO $ TTF.tryOpenFont fontpath (size)
+    smallFont <- liftIO $ TTF.tryOpenFont fontpath (2*size`div`3)
     modify $ \ds -> ds { dispFont = font, dispFontSmall = smallFont }
     clearMiniLocks
 

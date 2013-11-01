@@ -12,6 +12,7 @@ import Data.Maybe
 import Data.List
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
+import Paths_intricacy
 
 readReadFile :: (Read a) => FilePath -> IO (Maybe a)
 readReadFile file =
@@ -23,9 +24,12 @@ writeReadFile file x = do
     mkdirhierto file
     BS.writeFile file $ BSC.pack $ show x
 
-confFilePath :: String -> IO FilePath
+confFilePath :: FilePath -> IO FilePath
 confFilePath str =
     (++(pathSeparator:str)) <$> getAppUserDataDirectory "intricacy"
+
+getDataPath :: FilePath -> IO FilePath
+getDataPath = getDataFileName
 
 makeConfDir :: IO ()
 makeConfDir = confFilePath "" >>= createDirectoryIfMissing False

@@ -11,8 +11,19 @@ maintainer:          mbays@sdf.org
 category:            Game
 build-type:          Simple
 cabal-version:       >=1.8
+data-files: VeraMono.ttf tutorial/*.lock
 
 executable intricacy
-  main-is:  Intricacy.hs
+  main-is:  MainSDL.hs
   extensions: DoAndIfThenElse
-  build-depends:       base >=4.3, mtl >=2.0, containers >=0.4, vector >=0.9, pretty-show >=1, SDL >=0.6, SDL-ttf >=0.6, SDL-gfx >=0.6, hscurses >=1.4, binary >=0.7, bytestring >=0.9, array >=0.3, transformers >=0.2, directory >= 1.0, hopenssl >= 1.4, stm >= 2.1, network-fancy >= 1.5
+  build-depends:       base >=4.3, mtl >=2.0, containers >=0.4, vector >=0.9, pretty-show >=1, SDL >=0.6, SDL-ttf >=0.6, SDL-gfx >=0.6, hscurses >=1.4, binary >=0.7, bytestring >=0.9, array >=0.3, transformers >=0.2, directory >= 1.0, hopenssl >= 1.4, stm >= 2.1, network-fancy >= 0.1.5, filepath >= 1.0, time >= 1.4
+
+executable intricacy-curses
+  main-is:  MainCurses.hs
+  extensions: DoAndIfThenElse
+  build-depends:       base >=4.3, mtl >=2.0, containers >=0.4, vector >=0.9, pretty-show >=1, hscurses >=1.4, binary >=0.7, bytestring >=0.9, array >=0.3, transformers >=0.2, directory >= 1.0, hopenssl >= 1.4, stm >= 2.1, network-fancy >= 0.1.5, filepath >= 1.0, time >= 1.4
+
+executable intricacy-server
+  main-is:  Server.hs
+  extensions: DoAndIfThenElse
+  build-depends:       base >=4.3, mtl >=2.0, containers >=0.4, vector >=0.9, pretty-show >=1, binary >=0.7, bytestring >=0.9, array >=0.3, transformers >=0.2, directory >= 1.0, hopenssl >= 1.4, stm >= 2.1, network-fancy >= 0.1.5, filepath >= 1.0, random >= 1.0

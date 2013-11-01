@@ -19,7 +19,7 @@ import Control.Concurrent
 import System.Directory
 import System.FilePath
 import System.IO.Error
-import System.Time
+import Data.Time.Clock
 import Data.Array
 
 import Hex
@@ -86,7 +86,7 @@ data MainState
 	, codenameStack :: [Codename]
 	, newAsync :: TVar Bool
 	, randomCodenames :: TVar [Codename]
-	, userInfos :: Map Codename (TVar FetchedRecord, Integer)
+	, userInfos :: Map Codename (TVar FetchedRecord, UTCTime)
 	, curLockTVars :: Maybe (Array LockIndex (TVar (Maybe Lock)))
 	, curLockPath :: FilePath
 	, curLock :: Maybe Lock
@@ -137,18 +137,14 @@ mgetOurName = MaybeT $ (authUser <$>) <$> gets curAuth
 mgetCurName :: (UIMonad uiM) => MaybeT (StateT MainState uiM) Codename
 mgetCurName = MaybeT $ listToMaybe <$> gets codenameStack 
 
-getTime = do 
-    TOD secs msecs <- getClockTime
-    return secs
-
 getUInfoFetched :: UIMonad uiM => Integer -> Codename -> StateT MainState uiM FetchedRecord
 getUInfoFetched staleTime name = do
     gets ((Map.lookup name) . userInfos) >>=
 	\x -> case x of
 	    Nothing -> set
 	    Just (tvar, time) -> do
-		now <- liftIO getTime
-		if now - time > staleTime
+		now <- liftIO getCurrentTime
+		if floor (diffUTCTime now time) > staleTime
 		    then set
 		    else liftIO $ atomically $ readTVar tvar
     where set = do
@@ -162,7 +158,7 @@ mgetUInfo name = do
     where defaultStaleTime = 300
 
 setUInfoTVar name = do
-    now <- liftIO getTime
+    now <- liftIO getCurrentTime
     tvar <- getRecordCachedFromCur True $ RecUserInfo name
     modify $ \ms -> ms {userInfos = Map.insert name (tvar, now) $ userInfos ms}
     return tvar
@@ -521,6 +517,23 @@ interactUI = do
 	    path <- lift $ gets curLockPath
 	    newPath <- MaybeT $ lift $ (esPath <$>) $ execStateT interactUI $ newEditState (reframe lock) $ Just path
 	    lift $ setLockPath newPath
+	processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
+	    tutdir <- liftIO $ getDataPath "tutorial"
+	    tuts <- liftIO $ (sort . filter ((>2).length)) <$> getDirectoryContents tutdir `catchIOError` (const $ return [])
+	    when (null tuts) $ do
+		lift.lift $ drawError "No tutorial levels found"
+		mzero
+	    s <- MaybeT $ lift $ textInput ("Play which tutorial level [1-"++show (length tuts)++"]") 5 False Nothing Nothing
+	    i <- MaybeT $ return $ fst <$> (listToMaybe $ (reads :: ReadS Int) s)
+	    guard $ 1 <= i && i <= length tuts
+	    let dotut i = do
+		lock <- MaybeT $ liftIO $ readReadFile (tutdir ++ [pathSeparator] ++ tuts!!(i-1))
+		solveLock lock
+		guard $ i+1 < length tuts
+		confirmOrBail $ "Play tutorial level " ++ show (i+1) ++ "?"
+		dotut $ i+1
+	    dotut i
+
 	    
 	processCommand' IMPlay CmdUndo = do
 	    st <- gets psCurrentState
