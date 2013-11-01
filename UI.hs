@@ -69,6 +69,7 @@ data MainState
 	{ rsCurrentState::GameState
 	, rsMoveStack::[PlayerMove]
 	, rsGameStateMoveStack::[(GameState, PlayerMove)]
+	, rsTitle::Maybe String
 	}
     | EditState
 	{ esGameStateStack::[GameState]
@@ -97,7 +98,7 @@ data MainState
 maxlocksize = 11
 
 newPlayState (frame,st) title = PlayState st frame [] False False [] [] title
-newReplayState st soln = ReplayState st soln []
+newReplayState st soln title = ReplayState st soln [] title
 newEditState (frame,st) mpath = EditState [st] [] frame mpath Nothing (PHS zero) (PHS zero) 
 initMetaState = do
     flag <- atomically $ newTVar False
@@ -105,7 +106,8 @@ initMetaState = do
     (saddr, auth, path) <- confFilePath "metagame.conf" >>=
 	liftM (fromMaybe (defaultServerAddr, Nothing, "")) . readReadFile
     let names = maybeToList $ authUser <$> auth
-    undecls <- confFilePath ("undeclared" ++ [pathSeparator] ++ saddrStr saddr) >>=
+    undecls <- if nullSaddr saddr then return [] else
+	confFilePath ("undeclared" ++ [pathSeparator] ++ saddrStr saddr) >>=
 	liftM (fromMaybe []) . readReadFile
     lock <- readLock path
     return $ MetaState saddr undecls False auth names flag rnamestvar Map.empty Nothing path lock
@@ -119,7 +121,8 @@ fullLockPath path = if isAbsolute path
 
 writeMetaState (MetaState saddr undecls _ auth _ _ _ _ _ path _) = do
     confFilePath "metagame.conf" >>= flip writeReadFile (saddr, auth, path)
-    confFilePath ("undeclared" ++ [pathSeparator] ++ saddrStr saddr) >>= flip writeReadFile undecls
+    when (not $ nullSaddr saddr) $
+	confFilePath ("undeclared" ++ [pathSeparator] ++ saddrStr saddr) >>= flip writeReadFile undecls
 
 data InputMode = IMEdit | IMPlay | IMReplay | IMMeta | IMTextInput
     deriving (Eq, Ord, Show, Read)
@@ -127,7 +130,7 @@ data InputMode = IMEdit | IMPlay | IMReplay | IMMeta | IMTextInput
 ms2im :: MainState -> InputMode
 ms2im mainSt = case mainSt of
     PlayState _ _ _ _ _ _ _ _ -> IMPlay
-    ReplayState _ _ _ -> IMReplay
+    ReplayState _ _ _ _ -> IMReplay
     EditState _ _ _ _ _ _ _ -> IMEdit
     MetaState _ _ _ _ _ _ _ _ _ _ _ -> IMMeta
 
@@ -470,7 +473,8 @@ interactUI = do
 	    ls <- lockSpec <$> MaybeT (return $ userLocks uinfo ! index)
 	    RCLock lock <- MaybeT $ getFreshRecBlocking $ RecLock ls
 	    RCSolution soln <- MaybeT $ getFreshRecBlocking $ RecNote note
-	    lift.lift $ execStateT interactUI $ newReplayState (snd.reframe$lock) soln
+	    lift.lift $ execStateT interactUI $ newReplayState (snd.reframe$lock) soln $ Just $
+		"Viewing solution by " ++ noteAuthor note ++ " to " ++ name ++ [':',lockIndexChar index]
 
 	processCommand' IMMeta (CmdPlaceLock mindex) = void.runMaybeT $ do
 	    ourName <- mgetOurName

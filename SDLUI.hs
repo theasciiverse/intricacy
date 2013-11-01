@@ -51,11 +51,15 @@ data UIState = UIState { scrHeight::Int, scrWidth::Int
     , lastFrameTicks::Word32
     , paintTileIndex::Int
     , leftButtonDown::Bool, middleButtonDown::Bool, rightButtonDown::Bool
-    , mousePos::HexVec
+    , mousePos::(HexVec,Bool)
     , message::Maybe (Color, String)
-    , dispCentre::HexPos, dispLastCol::PieceColouring }
+    , hoverStr :: Maybe String
+    , dispCentre::HexPos
+    , dispLastCol::PieceColouring }
 type UIM = StateT UIState IO
-nullUIState = UIState 0 0 Nothing Nothing Map.empty Map.empty [] defaultUIOptions Nothing Map.empty Nothing Nothing 0 0 False False False zero Nothing (PHS zero) Map.empty
+nullUIState = UIState 0 0 Nothing Nothing Map.empty Map.empty []
+    defaultUIOptions Nothing Map.empty Nothing Nothing 0 0 False False False
+    (zero,False) Nothing Nothing (PHS zero) Map.empty
 
 data UIOptions = UIOptions
     { useFiveColouring::Bool
@@ -104,18 +108,16 @@ getButtons mode = do
     whs <- gets $ whsButtons.uiOptions
     cntxtButtons <- gets contextButtons
     return $ cntxtButtons ++ case mode of 
-	IMEdit -> [(commontl ++
-		[ Button (tl<+>hv) CmdResetTools
-		, Button (tl<+>(neg hw)) CmdPlay
-		],(0,2))
+	IMEdit -> [
+	    singleButton (tl<+>hv) CmdResetTools 4
+	    , singleButton (tl<+>(neg hw)) CmdPlay 2
 	    , ([quitButton, Button (br<+>2<*>hu) CmdWriteState],(0,2))
 	    , ( [ Button (bl<+>dir) (CmdDir whs dir) | dir <- hexDirs ], (4,0) )
 	    , ([Button (paintButtonStart <+> hu <+> i<*>hv) (paintTileCmds!!i)
 		| i <- take (length paintTiles) [0..] ],(5,0))
 	    ]
 	IMPlay -> 
-	    [ (commontl,(0,2))
-	    , ([quitButton],(0,2))
+	    [ ([quitButton],(0,2))
 	    , ( [ Button bl CmdWait ], (0,0))
 	    , ( [ Button (bl<+>dir) (CmdDir whs dir) | dir <- hexDirs ], (4,0) )
 	    ] ++
@@ -140,12 +142,60 @@ getButtons mode = do
 		
 	_ -> []
 	where
-	    commontl = [ Button tl CmdUndo, Button (tl<+>neg hu) CmdRedo ]
 	    quitButton = Button br CmdQuit
 	    tl = periphery 2
 	    bl = periphery 3
 	    br = periphery 5
 
+data Selectable = SelOurLock
+    | SelLock ActiveLock
+    | SelLockUnset ActiveLock
+    | SelSelectedCodeName
+    | SelOurAL
+    | SelUndeclared Undeclared
+    | SelReadNote NoteInfo
+    | SelSolution NoteInfo
+    | SelAccessed Codename
+    | SelRandom Codename
+    | SelSecured NoteInfo
+
+registerSelectable v r s =
+    modify $ \ds -> ds {metaSelectables = foldr
+	(\k -> Map.insert k s) (metaSelectables ds) $ map (v<+>) $ hexDisc r}
+clearSelectables = modify $ \ds -> ds {metaSelectables = Map.empty}
+registerButtonGroup g = modify $ \ds -> ds {contextButtons = g:contextButtons ds}
+clearButtons = modify $ \ds -> ds {contextButtons = []}
+
+registerUndoButtons noUndo noRedo = do
+    unless noUndo $ registerButtonGroup $ singleButton (periphery 2) CmdUndo 0
+    unless noRedo $ registerButtonGroup $ singleButton (periphery 2<+>neg hu) CmdRedo 2
+
+commandOfSelectable IMMeta SelOurLock _ = CmdEdit
+commandOfSelectable IMMeta (SelLock (ActiveLock _ i)) False = CmdSolve (Just i)
+commandOfSelectable IMMeta (SelLock (ActiveLock _ i)) True = CmdPlaceLock (Just i)
+commandOfSelectable IMMeta (SelLockUnset (ActiveLock _ i)) _ = CmdPlaceLock (Just i)
+commandOfSelectable IMMeta SelSelectedCodeName False = CmdSelCodename Nothing
+commandOfSelectable IMMeta SelSelectedCodeName True = CmdHome
+commandOfSelectable IMMeta SelOurAL _ = CmdHome
+commandOfSelectable IMMeta (SelUndeclared undecl) _ = CmdDeclare $ Just undecl
+commandOfSelectable IMMeta (SelReadNote note) False = CmdSelCodename $ Just $ noteAuthor note
+commandOfSelectable IMMeta (SelReadNote note) True = CmdViewSolution $ Just note
+commandOfSelectable IMMeta (SelSolution note) False = CmdSelCodename $ Just $ noteAuthor note
+commandOfSelectable IMMeta (SelSolution note) True = CmdViewSolution $ Just note
+commandOfSelectable IMMeta (SelAccessed name) _ = CmdSelCodename $ Just name
+commandOfSelectable IMMeta (SelRandom name) _ = CmdSelCodename $ Just name
+commandOfSelectable IMMeta (SelSecured note) False = CmdSelCodename $ Just $ lockOwner $ noteOn note
+commandOfSelectable IMMeta (SelSecured note) True = CmdViewSolution $ Just note
+commandOfSelectable _ _ _ = CmdNone
+
+cmdAtMousePos pos@(mPos,central) im selMode = do
+    buttons <- (concat . map fst) <$> getButtons im
+    sels <- gets metaSelectables
+    return $ listToMaybe $
+	[ buttonCmd button
+	    | button <- buttons, mPos == buttonPos button, central]
+	++ maybe [] (\isRight -> [ commandOfSelectable im sel isRight
+	    | Just sel <- [Map.lookup mPos sels] ]) selMode
 
 data UIOptButton a = UIOptButton { getUIOpt::UIOptions->a, setUIOpt::a->UIOptions->UIOptions,
     uiOptVals::[a], uiOptPos::HexVec, uiOptGlyph::a->Glyph }
@@ -336,43 +386,6 @@ clearMiniLocks = modify $ \ds -> ds { miniLocks = Map.empty}
 drawEmptyMiniLock v = do
     renderToMain $ recentreAt v $ rescaleRender 6 $ drawAtRel (hollowInnerGlyph $ dim white) zero
 
-data Selectable = SelOurLock
-    | SelLock ActiveLock
-    | SelLockUnset ActiveLock
-    | SelSelectedCodeName
-    | SelOurAL
-    | SelUndeclared Undeclared
-    | SelReadNote NoteInfo
-    | SelSolution NoteInfo
-    | SelAccessed Codename
-    | SelRandom Codename
-    | SelSecured NoteInfo
-
-registerSelectable v r s =
-    modify $ \ds -> ds {metaSelectables = foldr
-	(\k -> Map.insert k s) (metaSelectables ds) $ map (v<+>) $ hexDisc r}
-clearSelectables = modify $ \ds -> ds {metaSelectables = Map.empty}
-registerButtonGroup g = modify $ \ds -> ds {contextButtons = g:contextButtons ds}
-clearButtons = modify $ \ds -> ds {contextButtons = []}
-
-commandOfSelectable IMMeta SelOurLock _ = CmdEdit
-commandOfSelectable IMMeta (SelLock (ActiveLock _ i)) False = CmdSolve (Just i)
-commandOfSelectable IMMeta (SelLock (ActiveLock _ i)) True = CmdPlaceLock (Just i)
-commandOfSelectable IMMeta (SelLockUnset (ActiveLock _ i)) _ = CmdPlaceLock (Just i)
-commandOfSelectable IMMeta SelSelectedCodeName False = CmdSelCodename Nothing
-commandOfSelectable IMMeta SelSelectedCodeName True = CmdHome
-commandOfSelectable IMMeta SelOurAL _ = CmdHome
-commandOfSelectable IMMeta (SelUndeclared undecl) _ = CmdDeclare $ Just undecl
-commandOfSelectable IMMeta (SelReadNote note) False = CmdSelCodename $ Just $ noteAuthor note
-commandOfSelectable IMMeta (SelReadNote note) True = CmdViewSolution $ Just note
-commandOfSelectable IMMeta (SelSolution note) False = CmdSelCodename $ Just $ noteAuthor note
-commandOfSelectable IMMeta (SelSolution note) True = CmdViewSolution $ Just note
-commandOfSelectable IMMeta (SelAccessed name) _ = CmdSelCodename $ Just name
-commandOfSelectable IMMeta (SelRandom name) _ = CmdSelCodename $ Just name
-commandOfSelectable IMMeta (SelSecured note) False = CmdSelCodename $ Just $ lockOwner $ noteOn note
-commandOfSelectable IMMeta (SelSecured note) True = CmdViewSolution $ Just note
-commandOfSelectable _ _ _ = CmdNone
-
 fillArea centre area draws =
     mapM_ (\(draw,pos) -> draw pos) $
 	zip draws $ sortBy
@@ -530,12 +543,16 @@ initVideo w h = do
     clearMiniLocks
 
 drawMsgLine = void.runMaybeT $ do
-    (col,str) <- MaybeT $ gets message
+    (col,str) <- msum
+	[ ((,) dimWhiteCol) <$> MaybeT (gets hoverStr)
+	, MaybeT $ gets message
+	]
     lift $ do
 	renderToMain $ blankRow messageLineStart
 	renderToMain $ renderStrColAtLeft col str messageLineStart
 setMsgLine col str = do
     modify $ \s -> s { message = Just (col,str) }
+    when (not $ null str) $ modify $ \s -> s { hoverStr = Nothing }
     drawMsgLine >> refresh
 
 drawTitle (Just title) = renderToMain $ renderStrColAt messageCol title titlePos
@@ -566,19 +583,22 @@ instance UIMonad (StateT UIState IO) where
 	    drawMsgLine
 	    refresh
 	where
-	drawMainState' (PlayState st _ alerts wsel solved _ _ title) = lift $ do
+	drawMainState' (PlayState st _ alerts wsel solved stack undostack title) = lift $ do
 	    let selTools = [ idx |
 		    (idx, PlacedPiece pos p) <- enumVec $ placedPieces st
 		    , or [wsel && isWrench p, not wsel && isHook p] ]
 	    drawMainGameState selTools False alerts st
 	    drawTitle title
-	    when solved $ say "Unlocked!"
-	drawMainState' (ReplayState st _ _) = lift $ do
+	    registerUndoButtons (null stack) (null undostack)
+	drawMainState' (ReplayState st todostack stack title) = lift $ do
 	    drawMainGameState [] False [] st
+	    drawTitle title
+	    registerUndoButtons (null stack) (null todostack)
 	    renderToMain $ drawCursorAt Nothing
-	drawMainState' (EditState (st:_) _ _ _ selPiece selPos _) = lift $ do
+	drawMainState' (EditState (st:sts) undostack _ _ selPiece selPos _) = lift $ do
 	    drawMainGameState (maybeToList selPiece) True [] st
 	    renderToMain $ drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
+	    registerUndoButtons (null sts) (null undostack)
 	    drawPaintButtons
 	drawMainState' (MetaState saddr undecls cOnly auth names _ rnamestvar _ lockTVs path lock) = do
 	    let ourName = authUser <$> auth
@@ -726,37 +746,36 @@ instance UIMonad (StateT UIState IO) where
 					CmdTile t <- mCmd
 					guard $ sameTileType t pt') ]
 			return $ maybeToList mCmd
-	    processEvent (MouseMotion _ _ _ _) = case mode of
-		IMEdit -> do
-		    (mPos,_) <- getMousePos
-		    centre <- gets dispCentre
-		    relMoves <- mouseTo mPos
-		    return $ relMoves ++ [ CmdMoveTo $ mPos <+> centre ]
-		    where
-			mouseTo mPos = do
-			    oldMPos <- gets mousePos
-			    let dir = hexVec2HexDirOrZero $ mPos <-> oldMPos
-			    if dir /= zero
-				then do
-				    modify $ \s -> s {mousePos = oldMPos <+> dir}
-				    centre <- gets dispCentre
-				    pti <- getEffPaintTileIndex
-				    lb <- gets leftButtonDown
-				    more <- mouseTo mPos
-				    return $ [ CmdDir WHSSelected dir ] ++
-					(if lb then [ drawCmd (paintTiles!!pti) True ] else []) ++
-					more
-				else return []
-		_ -> return []
+	    processEvent (MouseMotion _ _ _ _) = do
+		(oldMPos,_) <- gets mousePos
+		updateMousePos mode
+		case mode of
+		    IMEdit -> do
+			(mPos,_) <- gets mousePos
+			centre <- gets dispCentre
+			relMoves <- mouseFromTo oldMPos mPos
+			return $ relMoves ++ [ CmdMoveTo $ mPos <+> centre ]
+			where
+			    mouseFromTo from to = do
+				let dir = hexVec2HexDirOrZero $ to <-> from
+				if dir /= zero
+				    then do
+					centre <- gets dispCentre
+					pti <- getEffPaintTileIndex
+					lb <- gets leftButtonDown
+					more <- mouseFromTo (from <+> dir) to
+					return $ [ CmdDir WHSSelected dir ] ++
+					    (if lb then [ drawCmd (paintTiles!!pti) True ] else []) ++
+					    more
+				    else return []
+		    _ -> return []
 	    processEvent (MouseButtonDown _ _ ButtonLeft) = do
 		modify $ \s -> s { leftButtonDown = True }
-		(mPos,central) <- getMousePos
-		buttons <- (concat . map fst) `liftM` getButtons mode
+		pos@(mPos,central) <- gets mousePos
 		rb <- gets rightButtonDown
-		sels <- gets metaSelectables
+		mcmd <- cmdAtMousePos pos mode (Just False)
 		let hotspotAction = listToMaybe
-			$ [ return [buttonCmd button]
-			    | button <- buttons, mPos == buttonPos button, central]
+			$ map (\cmd -> return [cmd]) (maybeToList mcmd)
 			++ [ (modify $ \s -> s {paintTileIndex = i}) >> return []
 			    | i <- take (length paintTiles) [0..]
 			    , mPos == paintButtonStart <+> i<*>hv ]
@@ -766,8 +785,6 @@ instance UIMonad (StateT UIState IO) where
 			    | mPos == uiOptPos uiOB2 ]
 			++ [ toggleUIOption uiOB3 >> return []
 			    | mPos == uiOptPos uiOB3 ]
-			++  [ return [ commandOfSelectable mode sel False ]
-			    | Just sel <- [Map.lookup mPos sels] ]
 
 		if rb
 		then return [ CmdWait ]
@@ -781,18 +798,16 @@ instance UIMonad (StateT UIState IO) where
 		return []
 	    processEvent (MouseButtonDown _ _ ButtonRight) = do
 		modify $ \s -> s { rightButtonDown = True }
-		(mPos,central) <- getMousePos
+		pos@(mPos,central) <- gets mousePos
 		buttons <- (concat . map fst) `liftM` getButtons mode
 		(fromMaybe [] <$>) $ runMaybeT $ msum
 		    [ do
-			cmd <- MaybeT $ return $ listToMaybe [ buttonCmd button
-			    | button <- buttons, mPos == buttonPos button, central]
+			cmd <- MaybeT $ cmdAtMousePos pos mode Nothing
 			modify $ \s -> s { settingBinding = Just cmd }
 			return []
 		    , do
-			sels <- lift $ gets metaSelectables
-			sel <- MaybeT $ return $ Map.lookup mPos sels
-			return [ commandOfSelectable mode sel True ]
+			cmd <- MaybeT $ cmdAtMousePos pos mode (Just True)
+			return [cmd]
 		    , return [ CmdSelect ] ]
 	    processEvent (MouseButtonUp _ _ ButtonRight) = do
 		modify $ \s -> s { rightButtonDown = False }
@@ -842,7 +857,7 @@ instance UIMonad (StateT UIState IO) where
 			es <- pollEvents
 			return $ e:es
 
-	    getMousePos = do
+	    updateMousePos mode = do
 		(scrCentre, size) <- getGeom
 		(x,y,_) <- lift getMouseState
 		let sv = (SVec (fromIntegral x) (fromIntegral y)) <+> neg scrCentre
@@ -850,4 +865,8 @@ instance UIMonad (StateT UIState IO) where
 		let (sx,sy,sz) = sVec2dHV size sv
 		let isCentral = and $ map (\(a,b) -> abs ((fromIntegral a) - b) < 0.5) $
 			[(x,sx),(y,sy),(z,sz)]
-		return (mPos, isCentral)
+		let newPos = (mPos,isCentral)
+		oldPos <- gets mousePos
+		when (newPos /= oldPos) $ do
+		    hstr <- (describeCommand<$>) <$> cmdAtMousePos newPos mode Nothing
+		    modify $ \ds -> ds { mousePos = newPos, hoverStr = hstr }

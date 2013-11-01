@@ -142,7 +142,6 @@ drawCursorAt (Just pos) = do
     geom@(scrCentre,centre) <- getGeom
     liftIO $ Curses.cursSet Curses.CursorVisible
     liftIO $ move $ scrCentre <+> (hexVec2CVec $ pos <-> centre)
-    refresh
 
 drawState :: [PieceIdx] -> Bool -> [Alert] -> GameState -> UIM ()
 drawState reversed colourFixed alerts st = do
@@ -150,7 +149,6 @@ drawState reversed colourFixed alerts st = do
     erase
     colouring <- drawStateWithGeom reversed colourFixed st =<< getGeom
     modify $ \ds -> ds { dispLastCol = colouring }
-    refresh
 
 -- TODO: monochrome mode
 drawStateWithGeom reversed colourFixed st geom = do
@@ -185,10 +183,10 @@ drawMsgLine = void.runMaybeT $ do
 	(h,w) <- liftIO Curses.scrSize
 	liftIO $ clearLine $ h-1
 	drawStr attr col (CVec (h-1) 0) str
-	refresh
 setMsgLine attr col str = do
     modify $ \s -> s { message = Just (attr,col,str) }
     drawMsgLine
+    refresh
 
 drawTitle (Just title) = do
     (h,w) <- liftIO Curses.scrSize
@@ -310,14 +308,18 @@ instance UIMonad (StateT UIState IO) where
 	    drawCursorAt $ listToMaybe [ pos |
 		(_, PlacedPiece pos p) <- enumVec $ placedPieces st
 		, or [wsel && isWrench p, not wsel && isHook p] ]
-	ReplayState st _ _ -> lift $ do
+	    refresh
+	ReplayState st _ _ title -> lift $ do
 	    drawState [] False [] st
 	    drawMsgLine
+	    drawTitle title
 	    drawCursorAt Nothing
+	    refresh
 	EditState (st:_) _ _ _ selPiece selPos _ -> lift $ do
 	    drawState (maybeToList selPiece) True [] st
 	    drawMsgLine
 	    drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
+	    refresh
 	MetaState saddr undecls cOnly auth names _ rnamestvar _ lockTVs path lock -> do
 	    let ourName = liftM authUser auth
 	    let selName = listToMaybe names
