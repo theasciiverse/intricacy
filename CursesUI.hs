@@ -189,6 +189,11 @@ drawMsgLine = void.runMaybeT $ do
 setMsgLine attr col str = do
     modify $ \s -> s { message = Just (attr,col,str) }
     drawMsgLine
+
+drawTitle (Just title) = do
+    (h,w) <- liftIO Curses.scrSize
+    drawStrCentred a0 white (CVec 0 (w`div`2)) title
+drawTitle Nothing = return ()
     
 say = setMsgLine bold white
 sayError = setMsgLine bold red
@@ -297,10 +302,11 @@ instance UIMonad (StateT UIState IO) where
     runUI m = evalStateT m nullUIState
 
     drawMainState = get >>= \s -> case s of
-	PlayState st _ alerts wsel solved _ _ -> lift $ do
+	PlayState st _ alerts wsel solved _ _ title -> lift $ do
 	    drawState [] False alerts st
 	    when solved $ say "Unlocked!"
 	    drawMsgLine
+	    drawTitle title
 	    drawCursorAt $ listToMaybe [ pos |
 		(_, PlacedPiece pos p) <- enumVec $ placedPieces st
 		, or [wsel && isWrench p, not wsel && isHook p] ]

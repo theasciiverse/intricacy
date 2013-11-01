@@ -249,6 +249,7 @@ periphery 0 = ((3*maxlocksize)`div`2)<*>hu <+> ((3*maxlocksize)`div`4)<*>hv
 periphery n = rotate n $ periphery 0
 -- ^ XXX only peripheries 0,2,3,5 are guaranteed to be on-screen!
 messageLineStart = (maxlocksize+1)<*>hw
+titlePos = (maxlocksize+1)<*>hv <+> ((maxlocksize+1)`div`2)<*>hu
 
 getGeom :: UIM (SVec, Int)
 getGeom = do 
@@ -536,6 +537,9 @@ drawMsgLine = void.runMaybeT $ do
 setMsgLine col str = do
     modify $ \s -> s { message = Just (col,str) }
     drawMsgLine >> refresh
+
+drawTitle (Just title) = renderToMain $ renderStrColAt messageCol title titlePos
+drawTitle Nothing = return ()
     
 say = setMsgLine messageCol
 sayError = setMsgLine errorCol
@@ -562,11 +566,12 @@ instance UIMonad (StateT UIState IO) where
 	    drawMsgLine
 	    refresh
 	where
-	drawMainState' (PlayState st _ alerts wsel solved _ _) = lift $ do
+	drawMainState' (PlayState st _ alerts wsel solved _ _ title) = lift $ do
 	    let selTools = [ idx |
 		    (idx, PlacedPiece pos p) <- enumVec $ placedPieces st
 		    , or [wsel && isWrench p, not wsel && isHook p] ]
 	    drawMainGameState selTools False alerts st
+	    drawTitle title
 	    when solved $ say "Unlocked!"
 	drawMainState' (ReplayState st _ _) = lift $ do
 	    drawMainGameState [] False [] st

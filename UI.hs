@@ -63,6 +63,7 @@ data MainState
 	, psSolved::Bool
 	, psGameStateMoveStack::[(GameState, PlayerMove)]
 	, psUndoneStack::[(GameState, PlayerMove)]
+	, psTitle::Maybe String
 	}
     | ReplayState
 	{ rsCurrentState::GameState
@@ -95,7 +96,7 @@ data MainState
 -- | Locks bigger than 11 won't fit in an 80x25 terminal
 maxlocksize = 11
 
-newPlayState (frame,st) = PlayState st frame [] False False [] []
+newPlayState (frame,st) title = PlayState st frame [] False False [] [] title
 newReplayState st soln = ReplayState st soln []
 newEditState (frame,st) mpath = EditState [st] [] frame mpath Nothing (PHS zero) (PHS zero) 
 initMetaState = do
@@ -125,7 +126,7 @@ data InputMode = IMEdit | IMPlay | IMReplay | IMMeta | IMTextInput
 
 ms2im :: MainState -> InputMode
 ms2im mainSt = case mainSt of
-    PlayState _ _ _ _ _ _ _ -> IMPlay
+    PlayState _ _ _ _ _ _ _ _ -> IMPlay
     ReplayState _ _ _ -> IMReplay
     EditState _ _ _ _ _ _ _ -> IMEdit
     MetaState _ _ _ _ _ _ _ _ _ _ _ -> IMMeta
@@ -293,7 +294,7 @@ interactUI = do
 	loop = do
 	    mainSt <- get
 	    let im = ms2im mainSt
-	    when (im == IMPlay) checkWon
+	    when (im == IMPlay && not (psSolved mainSt)) checkWon
 	    drawMainState
 	    cmds <- lift $ getInput im
 	    quit <- liftM (\e -> case e of Left _ -> True; _ -> False) $
@@ -392,7 +393,7 @@ interactUI = do
 			declare undecl
 		, do
 		    RCLock lock <- MaybeT $ getFreshRecBlocking $ RecLock ls
-		    soln <- solveLock lock
+		    soln <- solveLock lock $ Just $ "Solving " ++ name ++ ":" ++ [lockIndexChar index]
 		    mourName <- lift $ (authUser <$>) <$> gets curAuth
 		    guard $ mourName /= Just name
 		    let undecl = Undeclared soln ls (ActiveLock name index) 
@@ -482,7 +483,7 @@ interactUI = do
 		]
 	    when (isJust $ userLocks ourUInfo ! index) $
 		confirmOrBail "Really retire existing lock?"
-	    soln <- solveLock lock
+	    soln <- solveLock lock $ Just $ "Prove your lock is solvable."
 	    lift $ do
 		resp <- curServerAction $ SetLock lock index soln
 		case resp of
@@ -527,8 +528,9 @@ interactUI = do
 	    i <- MaybeT $ return $ fst <$> (listToMaybe $ (reads :: ReadS Int) s)
 	    guard $ 1 <= i && i <= length tuts
 	    let dotut i = do
-		lock <- MaybeT $ liftIO $ readReadFile (tutdir ++ [pathSeparator] ++ tuts!!(i-1))
-		solveLock lock
+		let name = tuts !! (i-1)
+		lock <- MaybeT $ liftIO $ readReadFile (tutdir ++ [pathSeparator] ++ name)
+		solveLock lock $ Just $ "Tutorial: "++ name
 		guard $ i+1 < length tuts
 		confirmOrBail $ "Play tutorial level " ++ show (i+1) ++ "?"
 		dotut $ i+1
@@ -718,7 +720,7 @@ interactUI = do
 	    modify $ \es -> es {lastModPos = selPos}
 	subPlay :: UIMonad uiM => Lock -> StateT MainState uiM ()
 	subPlay lock =
-	    pushEState =<< psCurrentState <$> (lift $ execStateT interactUI $ newPlayState lock)
+	    pushEState =<< psCurrentState <$> (lift $ execStateT interactUI $ newPlayState lock Nothing)
 
 	pushEState :: UIMonad uiM => GameState -> StateT MainState uiM ()
 	pushEState st = do
@@ -756,9 +758,9 @@ interactUI = do
 	    lock <- liftIO $ readLock path
 	    modify $ \ms -> ms {curLockPath = path, curLock = lock}
 
-	solveLock :: UIMonad uiM => Lock -> MaybeT (StateT MainState uiM) Solution
-	solveLock lock = do
-	    ps <- lift.lift $ execStateT interactUI $ newPlayState $ reframe lock
+	solveLock :: UIMonad uiM => Lock -> Maybe String -> MaybeT (StateT MainState uiM) Solution
+	solveLock lock title = do
+	    ps <- lift.lift $ execStateT interactUI $ newPlayState (reframe lock) title
 	    guard $ psSolved ps
 	    return $ reverse $ (map snd) $ psGameStateMoveStack ps
 
