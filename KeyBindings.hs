@@ -1,7 +1,7 @@
 module KeyBindings (KeyBindings, bindings, findBinding) where
 
-import Data.Map as Map
 import Data.Maybe
+import Data.Char
 
 import Command
 import Hex
@@ -9,136 +9,151 @@ import GameState
 import UI
 
 type KeyBindings = [ (Char,Command) ]
-globalBindings =
-	[ ('5', CmdWait)
-	, ('6', CmdDir WHSSelected hu)
-	, ('4', CmdDir WHSSelected $ neg hu)
-	, ('1', CmdDir WHSSelected hw)
-	, ('9', CmdDir WHSSelected $ neg hw)
-	, ('7', CmdDir WHSSelected hv)
-	, ('3', CmdDir WHSSelected $ neg hv)
-	, ('8', CmdRotate 1)
-	, ('2', CmdRotate $ -1)
-	, ('*', CmdTile $ WrenchTile zero)
-	, ('/', CmdTile $ ArmTile hw False)
-
-	, ('d', CmdDir WHSHook hu)
-	, ('a', CmdDir WHSHook $ neg hu)
-	, ('z', CmdDir WHSHook hw)
-	, ('e', CmdDir WHSHook $ neg hw)
-	, ('w', CmdDir WHSHook hv)
-	, ('x', CmdDir WHSHook $ neg hv)
-	, ('D', CmdDir WHSWrench hu)
-	, ('A', CmdDir WHSWrench $ neg hu)
-	, ('Z', CmdDir WHSWrench hw)
-	, ('E', CmdDir WHSWrench $ neg hw)
-	, ('W', CmdDir WHSWrench hv)
-	, ('X', CmdDir WHSWrench $ neg hv)
-	--, ('i', CmdDir WHSWrench hu)
-	--, ('e', CmdDir WHSWrench $ neg hu)
-	--, ('j', CmdDir WHSWrench hw)
-	--, ('y', CmdDir WHSWrench $ neg hw)
-	--, ('p', CmdDir WHSWrench hv)
-	--, ('k', CmdDir WHSWrench $ neg hv)
-	, ('q', CmdRotate 1)
-	, ('c', CmdRotate $ -1)
-	, ('.', CmdWait)
-	, ('U', CmdUndo)
-	, ('u', CmdUndo)
-	, ('R', CmdRedo)
-	, (ctrl 'R', CmdRedo)
-	, ('Q', CmdQuit)
-	, ('P', CmdPlay)
-	, ('p', CmdPlay)
-	, ('\r', CmdSelect)
-	, ('\n', CmdSelect)
-	, (' ', CmdSelect)
-
-	, ('G', CmdTile BallTile)
-	, ('H', CmdTile $ ArmTile zero False)
-	, ('J', CmdTile $ PivotTile zero)
-	, ('K', CmdTile $ SpringTile Relaxed zero)
-	, ('L', CmdTile $ BlockTile [])
-	, ('g', CmdTile BallTile)
-	, ('h', CmdTile $ ArmTile zero False)
-	, ('j', CmdTile $ PivotTile zero)
-	, ('k', CmdTile $ SpringTile Relaxed zero)
-	, ('l', CmdTile $ BlockTile [])
-	
-	, ('-', CmdTile $ ArmTile hu False)
-	, ('\\', CmdTile $ ArmTile hv False)
-	, ('-', CmdTile $ ArmTile zero False)
-	, ('@', CmdTile HookTile)
-	, ('\t', CmdToggle)
-	, ('M', CmdMerge)
-	, ('T', CmdResetTools)
-	, ('t', CmdResetTools)
-	, ('W', CmdWriteState)
-	, ('w', CmdWriteState)
-	, (ctrl 'S', CmdWriteState)
-	, ('K', CmdDelete)
-	, ('o', CmdTile $ PivotTile zero)
-	, ('O', CmdTile BallTile)
-	, ('S', CmdTile $ SpringTile Relaxed zero)
-	--, ('s', CmdTile $ SpringTile Stretched zero)
-	--, ('$', CmdTile $ SpringTile Compressed zero)
-	, ('B', CmdTile $ BlockTile [])
-	, ('b', CmdTile $ BlockTile [])
-	, ('#', CmdTile $ BlockTile [])
-	, ('.', CmdWait)
-	]
-playOnlyBindings =
-	[ ('s', CmdWait)
-	, ('S', CmdWait)
-	]
-replayOnlyBindings =
-	[ (' ', CmdReplayForward 1)
-	, ('Q', CmdQuit)
-	, ('q', CmdQuit)
-	]
-editOnlyBindings = []
 
 ctrl :: Char -> Char
 ctrl c = toEnum $ fromEnum c - 64
 
-playBindings :: KeyBindings
-playBindings = playOnlyBindings ++ globalBindings
-replayBindings = replayOnlyBindings ++ globalBindings
-editBindings = editOnlyBindings ++ globalBindings
-metaBindings =
-    [ ('C', CmdSelCodename Nothing)
-    , ('c', CmdSelCodename Nothing)
-    , ('H', CmdHome)
-    , ('h', CmdHome)
-    , ('B', CmdBackCodename)
-    , ('b', CmdBackCodename)
-    , ('S', CmdSolve Nothing)
-    , ('s', CmdSolve Nothing)
-    , ('D', CmdDeclare Nothing)
-    , ('d', CmdDeclare Nothing)
-    , ('V', CmdViewSolution Nothing)
-    , ('v', CmdViewSolution Nothing)
-    , ('R', CmdRegister)
-    , ('r', CmdRegister)
-    , ('P', CmdPlaceLock Nothing)
-    , ('p', CmdPlaceLock Nothing)
-    , ('E', CmdEdit)
-    , ('e', CmdEdit)
-    , ('L', CmdSelectLock)
-    , ('l', CmdSelectLock)
-    , ('O', CmdPrevLock)
-    , ('o', CmdPrevLock)
-    , ('N', CmdNextLock)
-    , ('n', CmdNextLock)
-    , ('A', CmdAuth)
-    , ('a', CmdAuth)
-    , ('T', CmdTutorials)
-    , ('t', CmdTutorials)
-    , ('$', CmdSetServer)
-    , ('Q', CmdQuit)
-    , ('q', CmdQuit)
+lowerToo :: KeyBindings -> KeyBindings
+lowerToo = concat . map addLower
+    where addLower b@(c, cmd) = [ b, (toLower c, cmd) ]
+
+qwertyViHex =
+    [ ('l', CmdDir WHSHook hu)
+    , ('h', CmdDir WHSHook $ neg hu)
+    , ('b', CmdDir WHSHook hw)
+    , ('u', CmdDir WHSHook $ neg hw)
+    , ('y', CmdDir WHSHook hv)
+    , ('n', CmdDir WHSHook $ neg hv)
+    , ('L', CmdDir WHSWrench hu)
+    , ('H', CmdDir WHSWrench $ neg hu)
+    , ('B', CmdDir WHSWrench hw)
+    , ('U', CmdDir WHSWrench $ neg hw)
+    , ('Y', CmdDir WHSWrench hv)
+    , ('N', CmdDir WHSWrench $ neg hv)
+    , ('k', CmdRotate 1)
+    , ('j', CmdRotate $ -1)
+    ]
+qwertyLeftHex =
+    [ ('d', CmdDir WHSHook hu)
+    , ('a', CmdDir WHSHook $ neg hu)
+    , ('z', CmdDir WHSHook hw)
+    , ('e', CmdDir WHSHook $ neg hw)
+    , ('w', CmdDir WHSHook hv)
+    , ('x', CmdDir WHSHook $ neg hv)
+    , ('D', CmdDir WHSWrench hu)
+    , ('A', CmdDir WHSWrench $ neg hu)
+    , ('Z', CmdDir WHSWrench hw)
+    , ('E', CmdDir WHSWrench $ neg hw)
+    , ('W', CmdDir WHSWrench hv)
+    , ('X', CmdDir WHSWrench $ neg hv)
+    , ('q', CmdRotate 1)
+    , ('c', CmdRotate $ -1)
+    , ('S', CmdWait)
+    , ('s', CmdWait)
+    ]
+dvorakMidHex =
+    [ ('i', CmdDir WHSWrench hu)
+    , ('e', CmdDir WHSWrench $ neg hu)
+    , ('j', CmdDir WHSWrench hw)
+    , ('y', CmdDir WHSWrench $ neg hw)
+    , ('p', CmdDir WHSWrench hv)
+    , ('k', CmdDir WHSWrench $ neg hv)
     ]
 
+keypadHex =
+    [ ('5', CmdWait)
+    , ('6', CmdDir WHSSelected hu)
+    , ('4', CmdDir WHSSelected $ neg hu)
+    , ('1', CmdDir WHSSelected hw)
+    , ('9', CmdDir WHSSelected $ neg hw)
+    , ('7', CmdDir WHSSelected hv)
+    , ('3', CmdDir WHSSelected $ neg hv)
+    , ('8', CmdRotate 1)
+    , ('2', CmdRotate $ -1)
+    , ('*', CmdTile $ WrenchTile zero)
+    , ('/', CmdTile $ ArmTile hw False)
+    ]
+
+miscGlobal = lowerToo
+    [ ('X', CmdUndo)
+    , ('\b', CmdUndo)
+    , ('R', CmdRedo)
+    , (ctrl 'R', CmdRedo)
+    , (ctrl 'U', CmdUndo)
+    , ('Q', CmdQuit)
+    , ('.', CmdWait)
+    , ('Z', CmdWait)
+    ]
+
+global = keypadHex ++ qwertyViHex ++ miscGlobal
+
+playOnly =
+    [ (' ', CmdWait)
+    , ('\r', CmdWait)
+    , ('\n', CmdWait)
+    ]
+replayOnly =
+    [ (' ', CmdReplayForward 1)
+    ]
+editMisc = lowerToo
+    [ ('P', CmdPlay)
+    , ('\r', CmdSelect)
+    , ('\n', CmdSelect)
+    , (' ', CmdSelect)
+    , ('\t', CmdToggle)
+    , ('M', CmdMerge)
+    , ('T', CmdResetTools)
+    , ('W', CmdWriteState)
+    , (ctrl 'S', CmdWriteState)
+    , ('E', CmdDelete)
+    ]
+tilesPaintRow = lowerToo
+    [ ('G', CmdTile BallTile)
+    , ('F', CmdTile $ ArmTile zero False)
+    , ('D', CmdTile $ PivotTile zero)
+    , ('S', CmdTile $ SpringTile Relaxed zero)
+    , ('A', CmdTile $ BlockTile [])
+    , ('Z', CmdWait)
+    ]
+tilesAscii =
+    [ ('o', CmdTile $ PivotTile zero)
+    , ('O', CmdTile BallTile)
+    , ('S', CmdTile $ SpringTile Relaxed zero)
+    --, ('s', CmdTile $ SpringTile Stretched zero)
+    --, ('$', CmdTile $ SpringTile Compressed zero)
+    , ('-', CmdTile $ ArmTile zero False)
+    --, ('-', CmdTile $ ArmTile hu False)
+    , ('\\', CmdTile $ ArmTile hv False)
+    , ('/', CmdTile $ ArmTile hw False)
+    , ('@', CmdTile HookTile)
+    , ('*', CmdTile $ WrenchTile zero)
+    , ('#', CmdTile $ BlockTile [])
+    ]
+editOnly = editMisc ++ tilesPaintRow ++ tilesAscii
+
+playBindings = playOnly ++ global
+replayBindings = replayOnly ++ global
+editBindings = editOnly ++ global
+metaBindings = lowerToo
+    [ ('C', CmdSelCodename Nothing)
+    , ('H', CmdHome)
+    , ('B', CmdBackCodename)
+    , ('S', CmdSolve Nothing)
+    , ('D', CmdDeclare Nothing)
+    , ('V', CmdViewSolution Nothing)
+    , ('R', CmdRegister)
+    , ('P', CmdPlaceLock Nothing)
+    , ('E', CmdEdit)
+    , ('L', CmdSelectLock)
+    , ('O', CmdPrevLock)
+    , ('N', CmdNextLock)
+    , ('A', CmdAuth)
+    , ('T', CmdTutorials)
+    , ('$', CmdSetServer)
+    , ('Q', CmdQuit)
+    ]
+
+bindings :: InputMode -> KeyBindings
 bindings IMEdit = editBindings
 bindings IMPlay = playBindings
 bindings IMMeta = metaBindings
