@@ -12,9 +12,11 @@ import Data.Map (Map)
 import Data.Array
 import Data.Maybe
 import Data.List
+import Data.Char
 import Control.Monad.Trans.Maybe
 import Control.Concurrent (threadDelay)
 import Control.Monad.State
+import Data.Function (on)
 
 import Hex
 import GameState
@@ -103,6 +105,10 @@ readBindings = do
     case mbdgs of
 	Just bdgs -> modify $ \s -> s {uiKeyBindings = bdgs}
 	Nothing -> return ()
+
+getBindings mode = do
+    uibdgs <- Map.findWithDefault [] mode `liftM` gets uiKeyBindings
+    return $ uibdgs ++ bindings mode
 
 erase :: UIM ()
 erase = liftIO Curses.erase
@@ -386,6 +392,23 @@ instance UIMonad (StateT UIState IO) where
     drawMessage str = say str
     drawError str = sayError str
 
+    showHelp mode = do
+	bdgs <- nub <$> getBindings mode
+	erase
+	(h,w) <- liftIO Curses.scrSize
+	let bdgWidth = 35
+	drawStrCentred a0 white (CVec 0 (w`div`2)) "Bindings:"
+	sequence [ drawStr a0 white (CVec (y+2) (x*bdgWidth) ) $
+		concat (intersperse " / " (map showKey chs)) ++ " : " ++ describeCommand cmd |
+	    ((chs,cmd),(x,y)) <- zip [(chs,cmd)
+		    | group <- groupBy ((==) `on` snd) $ sortBy (compare `on` snd) bdgs
+		    , let cmd = snd $ head group
+		    , let chs = map fst group]
+		(map (flip divMod (h-3)) [0..])
+	    , (x+1)*bdgWidth < w]
+	refresh
+	void $ getInput mode
+
     initUI = 
 	do liftIO $ CursesH.start 
 	   cpairs <- liftIO $ colorsToPairs [ (f, CursesH.black) | f <-
@@ -398,6 +421,7 @@ instance UIMonad (StateT UIState IO) where
     unblockInput = return $ Curses.ungetCh 0
 
     getInput mode = do
+	-- FIXME: SIGWINCH isn't being handled properly
 	key <- liftIO $ CursesH.getKey Curses.refresh
 	let mch = case key of
 		Curses.KeyChar ch -> Just ch
@@ -414,9 +438,12 @@ instance UIMonad (StateT UIState IO) where
 	flip (maybe $ return []) mch $ \ch ->
 	    if mode == IMTextInput
 	    then return [CmdInputChar ch]
-	    else do
-		uibdgs <- Map.findWithDefault [] mode `liftM` gets uiKeyBindings
-		return $ maybeToList $ lookup ch $ uibdgs ++ bindings mode
+	    else (maybeToList . lookup ch) <$> getBindings mode
+
+showKey ch | isPrint ch = [ch]
+showKey ch | isPrint (unctrl ch) = ('^':[unctrl ch])
+showKey _ = "[?]"
+unctrl c = toEnum $ fromEnum c + 64
 
 white = 0 :: ColPair
 red = 1

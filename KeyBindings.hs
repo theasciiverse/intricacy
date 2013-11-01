@@ -83,6 +83,7 @@ miscGlobal = lowerToo
     , ('Q', CmdQuit)
     , ('.', CmdWait)
     , ('Z', CmdWait)
+    , ('?', CmdHelp)
     ]
 
 global = keypadHex ++ qwertyViHex ++ miscGlobal
@@ -152,6 +153,7 @@ metaBindings = lowerToo
     , ('T', CmdTutorials)
     , ('$', CmdSetServer)
     , ('Q', CmdQuit)
+    , ('?', CmdHelp)
     ]
 
 bindings :: InputMode -> KeyBindings

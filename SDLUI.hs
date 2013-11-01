@@ -694,6 +694,8 @@ instance UIMonad (StateT UIState IO) where
 	where
 	    drawAlert _ = return ()
 
+    showHelp _ = return ()
+
     initUI = liftM isJust (runMaybeT $ do
 	catchIOErrorMT $ SDL.init [InitVideo]
 	catchIOErrorMT $ TTF.init

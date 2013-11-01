@@ -45,6 +45,7 @@ class (Applicative m, MonadIO m) => UIMonad m where
     drawAlerts :: [Alert] -> m ()
     drawMessage :: String -> m ()
     drawError :: String -> m ()
+    showHelp :: InputMode -> m ()
     getInput :: InputMode -> m [ Command ]
     unblockInput :: m (IO ())
 
@@ -322,6 +323,7 @@ interactUI = do
 	processCommand im cmd = lift $ processCommand' im cmd
 
 	processCommand' :: UIMonad uiM => InputMode -> Command -> StateT MainState uiM ()
+	processCommand' im CmdHelp = lift $ showHelp im
 	processCommand' IMMeta (CmdSelCodename mname) = void.runMaybeT $ do
 	    name <- msum [ MaybeT $ return $ mname
 		, do
