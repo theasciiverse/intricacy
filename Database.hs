@@ -15,7 +15,7 @@ import qualified Data.ByteString.Char8 as CS
 --import OpenSSL.Digest.ByteString.Lazy (digest)
 --import Data.Digest.Pure.SHA (sha1, showDigest)
 --see also OpenSSL.EVP.Digest from HsOpenSSL
-import Crypto.Hash.SHA1 (hashlazy)
+import Crypto.Hash (hashlazy, Digest, SHA1, digestToHexByteString)
 
 import Protocol
 import Metagame
@@ -25,8 +25,10 @@ import Mundanities
 
 --hash :: String -> IO String
 --hash str = fmap (>>=toHex) $ digest SHA1 $ CL.pack $ str
+sha1 :: CL.ByteString -> Digest SHA1
+sha1 = hashlazy
 hash :: String -> String
-hash = CS.unpack . hashlazy . CL.pack
+hash = CS.unpack . digestToHexByteString . sha1 . CL.pack
 
 
 data Record

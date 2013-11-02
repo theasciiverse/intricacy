@@ -4,30 +4,34 @@ Intricacy
 A competitive level-design puzzler.
 
 Dependencies:
-    sdl
-    sdl-ttf
-    sdl-gfx
+    EITHER
+	sdl
+	sdl-ttf
+	sdl-gfx
+    OR
+	curses
 
-To compile the game on *nix:
-    Install ghc, cabal, and development packages for the dependencies above,
-    then run
+To compile the game on *nix with SDL graphics:
+    Install ghc, cabal, and development packages for the SDL dependencies
+    above, then run
 	cabal update && cabal install
     which should result in various haskell packages being compiled and
     installed, probably in ~/.cabal/ . The game can then be run as
 	~/.cabal/bin/intricacy 
-    . Running cabal install as root should install it somewhere global.
+    Running cabal install as root should install it somewhere global.
+
+To compile a curses-only (ascii graphics) build:
+    cabal configure -f -SDL && cabal install
 
 To compile the server:
     Perform the steps above, and then run:
 	cabal configure -f Server && cabal install
     The server will be installed in
 	~/.cabal/bin/intricacy-server
-    . The server runs on port 27001 by default. It writes the game database to
+    The server runs on port 27001 by default. It writes the game database to
     a directory 'intricacydb' under the directory from which it is run.
 
-To compile a curses-only build:
-    cabal configure -f -SDL && cabal install
-
 To compile for windows:
-    This should work as above once you have the SDL dependencies installed
-    properly. Good luck with that.
+    This should work as above once you have the dependencies installed
+    properly. Good luck with that. The mingw32-compiled libraries in winlibs
+    may or may not help.
