@@ -535,15 +535,16 @@ interactUI = do
 	    when (null tuts) $ do
 		lift.lift $ drawError "No tutorial levels found"
 		mzero
-	    s <- MaybeT $ lift $ textInput ("Play which tutorial level [1-"++show (length tuts)++"]") 5 False Nothing Nothing
+	    s <- MaybeT $ lift $ textInput ("Play which tutorial level [1-"++show (length tuts)++"]")
+		    (length (show (length tuts))) True Nothing Nothing
 	    i <- MaybeT $ return $ fst <$> (listToMaybe $ (reads :: ReadS Int) s)
 	    guard $ 1 <= i && i <= length tuts
 	    let dotut i = do
 		let name = tuts !! (i-1)
 		lock <- MaybeT $ liftIO $ readReadFile (tutdir ++ [pathSeparator] ++ name)
 		solveLock lock $ Just $ "Tutorial: "++ name
-		guard $ i+1 < length tuts
-		confirmOrBail $ "Play tutorial level " ++ show (i+1) ++ "?"
+		guard $ i+1 <= length tuts
+		confirmOrBail $ "Tutorial level completed! Play next tutorial level (" ++ show (i+1) ++ ")?"
 		dotut $ i+1
 	    dotut i
 
