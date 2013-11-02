@@ -361,7 +361,7 @@ interactUI = do
 	    -- guard =<< isNothing <$> lift (gets curAuth)
 	    newName <- mgetCurName
 	    confirmOrBail $ "Register codename "++newName++"?"
-	    passwd <- (liftIO . hash =<<) $ MaybeT $ lift $
+	    passwd <- (hash <$>) $ MaybeT $ lift $
 		textInput "Enter new password:" 64 False Nothing Nothing
 	    lift $ do
 		modify $ \ms -> ms {curAuth = Just $ Auth newName passwd}
@@ -377,7 +377,7 @@ interactUI = do
 	processCommand' IMMeta CmdAuth = void.runMaybeT $ do
 	    auth <- lift $ gets curAuth
 	    name <- mgetCurName
-	    passwd <- (liftIO . hash =<<) $ MaybeT $ lift $
+	    passwd <- (hash <$>) $ MaybeT $ lift $
 		textInput ("Enter password for "++name++":") 64 False Nothing Nothing
 	    lift $ do
 		modify $ \ms -> ms {curAuth = Just $ Auth name passwd}

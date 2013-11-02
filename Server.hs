@@ -52,7 +52,7 @@ handler handle addr = do
 	    IPv6 n _ -> n
 	    Unix path -> path
 
-    hashedHostname <- hash hostname
+    let hashedHostname = hash hostname
     logit $ hashedHostname ++ " >>> " ++ show request
     response <- handleRequest request
     -- threadDelay $ 10^6
@@ -142,10 +142,10 @@ handleRequest req@(ClientRequest pv auth action) = do
 		    when (not $ checkSolution lock soln) $ throwError "Bad solution"
 		    RCLockHashes hashes <- liftIO $ getRecord RecLockHashes
 			    `catchIOError` const (return (RCLockHashes []))
-		    hash <- liftIO $ hash $ show lock
-		    when (hash `elem` hashes) $ throwError "Lock has already been used"
+		    let hashed = hash $ show lock
+		    when (hashed `elem` hashes) $ throwError "Lock has already been used"
 		    ls <- erroredIO $ newLockRecord lock
-		    erroredIO $ putRecord RecLockHashes $ RCLockHashes $ hash:hashes
+		    erroredIO $ putRecord RecLockHashes $ RCLockHashes $ hashed:hashes
 		    execStateT (do
 			    when (isJust $ userLocks info ! idx) $
 				lift (getALock al) >>= retireLock

@@ -11,9 +11,11 @@ import Data.Char
 import qualified Data.ByteString.Lazy.Char8 as CL
 import qualified Data.ByteString.Char8 as CS
 
---FIXME: should be using OpenSSL.EVP.Digest from HsOpenSSL?
-import OpenSSL.Digest (MessageDigest(SHA1), toHex)
-import OpenSSL.Digest.ByteString.Lazy (digest)
+--import OpenSSL.Digest (MessageDigest(SHA1), toHex)
+--import OpenSSL.Digest.ByteString.Lazy (digest)
+--import Data.Digest.Pure.SHA (sha1, showDigest)
+--see also OpenSSL.EVP.Digest from HsOpenSSL
+import Crypto.Hash.SHA1 (hashlazy)
 
 import Protocol
 import Metagame
@@ -21,8 +23,11 @@ import Lock
 import Frame
 import Mundanities
 
-hash :: String -> IO String
-hash str = fmap (>>=toHex) $ digest SHA1 $ CL.pack $ str
+--hash :: String -> IO String
+--hash str = fmap (>>=toHex) $ digest SHA1 $ CL.pack $ str
+hash :: String -> String
+hash = CS.unpack . hashlazy . CL.pack
+
 
 data Record
     = RecPassword Codename

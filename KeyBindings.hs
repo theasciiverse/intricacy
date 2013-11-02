@@ -70,8 +70,6 @@ keypadHex =
     , ('3', CmdDir WHSSelected $ neg hv)
     , ('8', CmdRotate 1)
     , ('2', CmdRotate $ -1)
-    , ('*', CmdTile $ WrenchTile zero)
-    , ('/', CmdTile $ ArmTile hw False)
     ]
 
 miscGlobal = lowerToo
@@ -93,6 +91,9 @@ playOnly = lowerToo
     , (' ', CmdWait)
     , ('\r', CmdWait)
     , ('\n', CmdWait)
+    , ('*', CmdTile $ WrenchTile zero)
+    , ('/', CmdTile HookTile)
+    , ('@', CmdTile HookTile)
     ]
 replayOnly =
     [ (' ', CmdReplayForward 1)

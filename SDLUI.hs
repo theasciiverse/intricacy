@@ -139,6 +139,7 @@ getButtons mode = do
 	    , singleButton (miniLockPos <+> 2<*>neg hv <+> hu) CmdPrevLock 4
 	    , singleButton (miniLockPos <+> 2<*>neg hv <+> hu <+> neg hw) CmdNextLock 4
 	    , singleButton (codenamePos <+> neg hu) (CmdSelCodename Nothing) 2
+	    , singleButton (serverPos <+> 2<*>neg hv <+> hw) CmdTutorials 1
 	    ]
 		
 	_ -> []
@@ -255,11 +256,11 @@ writeBindings = do
 
 paintTiles :: [ Maybe Tile ]
 paintTiles =
-    [ Just $ BlockTile []
-    , Just $ SpringTile Relaxed zero
-    , Just $ PivotTile zero
+    [ Just BallTile
     , Just $ ArmTile zero False
-    , Just BallTile
+    , Just $ PivotTile zero
+    , Just $ SpringTile Relaxed zero
+    , Just $ BlockTile []
     , Nothing
     ]
 
