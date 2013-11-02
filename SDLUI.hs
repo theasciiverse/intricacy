@@ -67,7 +67,7 @@ data UIOptions = UIOptions
     , whsButtons::WrHoSel
     }
     deriving (Eq, Ord, Show, Read)
-defaultUIOptions = UIOptions True True WHSSelected
+defaultUIOptions = UIOptions False False WHSSelected
 modifyUIOptions f = modify $ \s -> s { uiOptions = f $ uiOptions s }
 
 renderToMain :: RenderM a -> UIM a
@@ -112,7 +112,9 @@ getButtons mode = do
 	    singleButton (tl<+>hv) CmdResetTools 4
 	    , singleButton (tl<+>(neg hw)) CmdPlay 2
 	    , ([quitButton, Button (br<+>2<*>hu) CmdWriteState],(0,2))
-	    , ( [ Button (bl<+>dir) (CmdDir whs dir) | dir <- hexDirs ], (4,0) )
+	    , ( [ Button (bl<+>dir) (CmdDir WHSSelected dir) | dir <- hexDirs ] ++
+		[ Button (bl<+>((-2)<*>hv)) (CmdRotate (-1))
+		, Button (bl<+>((-2)<*>hw)) (CmdRotate 1) ], (4,0) )
 	    , ([Button (paintButtonStart <+> hu <+> i<*>hv) (paintTileCmds!!i)
 		| i <- take (length paintTiles) [0..] ],(5,0))
 	    ]
