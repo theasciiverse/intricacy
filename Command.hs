@@ -8,8 +8,10 @@ data Command = CmdDir WrHoSel HexDir | CmdRotate TorqueDir | CmdWait
 	| CmdMoveTo HexPos
 	| CmdToggle
 	| CmdOpen
-	| CmdTile Tile | CmdPaint Tile | CmdMerge
-	| CmdSelect | CmdUnselect | CmdDelete
+	| CmdTile Tile | CmdPaint (Maybe Tile)
+	| CmdPaintFromTo (Maybe Tile) HexPos HexPos
+	| CmdSelect | CmdUnselect
+	| CmdDelete | CmdMerge
 	| CmdPlay | CmdResetTools
 	| CmdUndo | CmdRedo
 	| CmdReplayForward Int | CmdReplayBack Int
@@ -38,7 +40,6 @@ describeCommand CmdWait = "nothing"
 describeCommand CmdToggle = "toggle tool"
 describeCommand CmdOpen = "open lock"
 describeCommand (CmdTile tile) = tileStr tile
-describeCommand (CmdPaint tile) = tileStr tile
 describeCommand CmdMerge = "merge blocks" 
 describeCommand CmdSelect = "select piece" 
 describeCommand CmdUnselect = "unselect piece"

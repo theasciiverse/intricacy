@@ -753,26 +753,22 @@ instance UIMonad (StateT UIState IO) where
 	    processEvent (MouseMotion _ _ _ _) = do
 		(oldMPos,_) <- gets mousePos
 		updateMousePos mode
-		case mode of
-		    IMEdit -> do
-			(mPos,_) <- gets mousePos
+		(mPos,_) <- gets mousePos
+		if mode == IMEdit && mPos /= oldMPos then do
 			centre <- gets dispCentre
 			relMoves <- mouseFromTo oldMPos mPos
-			return $ relMoves ++ [ CmdMoveTo $ mPos <+> centre ]
-			where
-			    mouseFromTo from to = do
-				let dir = hexVec2HexDirOrZero $ to <-> from
-				if dir /= zero
-				    then do
-					centre <- gets dispCentre
-					pti <- getEffPaintTileIndex
-					lb <- gets leftButtonDown
-					more <- mouseFromTo (from <+> dir) to
-					return $ [ CmdDir WHSSelected dir ] ++
-					    (if lb then [ drawCmd (paintTiles!!pti) True ] else []) ++
-					    more
-				    else return []
-		    _ -> return []
+			lb <- gets leftButtonDown
+			pti <- getEffPaintTileIndex
+			centre <- gets dispCentre
+			return $ relMoves ++ [ CmdMoveTo $ mPos <+> centre ] ++
+			    (if lb then [ CmdPaintFromTo (paintTiles!!pti) (oldMPos<+>centre) (mPos<+>centre) ] else [])
+		    else return []
+		where
+		    mouseFromTo from to = do
+			let dir = hexVec2HexDirOrZero $ to <-> from
+			if dir /= zero
+			    then (CmdDir WHSSelected dir:) <$> mouseFromTo (from <+> dir) to
+			    else return []
 	    processEvent (MouseButtonDown _ _ ButtonLeft) = do
 		modify $ \s -> s { leftButtonDown = True }
 		pos@(mPos,central) <- gets mousePos
@@ -844,7 +840,7 @@ instance UIMonad (StateT UIState IO) where
 			return []
 		
 
-	    drawCmd (Just t) True = CmdPaint t
+	    drawCmd mt True = CmdPaint mt
 	    drawCmd (Just t) False = CmdTile t
 	    drawCmd Nothing _ = CmdWait
 

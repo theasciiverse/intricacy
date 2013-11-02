@@ -647,7 +647,6 @@ interactUI = do
 		Nothing -> modify $ \es -> es {selectedPos = checkBounds frame selPos $ dir <+> selPos}
 		Just p -> doForce $ Push p dir
 	processCommand' IMEdit (CmdMoveTo newPos) = do
-	    selPos <- gets selectedPos
 	    frame <- gets esFrame
 	    modify $ \es -> es {selectedPos = truncateToBounds frame newPos}
 	processCommand' IMEdit (CmdRotate dir) = do
@@ -655,8 +654,15 @@ interactUI = do
 	    case selPiece of
 		Nothing -> return ()
 		Just p -> doForce $ Torque p dir
-	processCommand' IMEdit (CmdTile tile) = drawTile tile False
-	processCommand' IMEdit (CmdPaint tile) = drawTile tile True
+	processCommand' IMEdit (CmdTile tile) = do
+	    selPos <- gets selectedPos
+	    drawTile selPos (Just tile) False
+	processCommand' IMEdit (CmdPaint tile) = do
+	    selPos <- gets selectedPos
+	    drawTile selPos tile True
+	processCommand' IMEdit (CmdPaintFromTo tile from to) = do
+	    frame <- gets esFrame
+	    paintTilePath tile (truncateToBounds frame from) (truncateToBounds frame to)
 	processCommand' IMEdit CmdMerge = do
 	    selPos <- gets selectedPos
 	    st:_ <- gets esGameStateStack
@@ -666,13 +672,10 @@ interactUI = do
 		_ -> return ()
 	processCommand' IMEdit CmdWait = do
 	    selPos <- gets selectedPos
-	    last <- gets lastModPos
 	    selPiece <- gets selectedPiece
 	    st:_ <- gets esGameStateStack
 	    case selPiece of
-		Nothing -> do
-		    modifyEState $ modTile Nothing selPos last False
-		    modify $ \es -> es {lastModPos = selPos}
+		Nothing -> drawTile selPos Nothing False
 		Just p -> do (st',_) <- lift $ doPhysicsTick NullPM st
 			     pushEState st'
 	processCommand' IMEdit CmdDelete = do
@@ -724,12 +727,16 @@ interactUI = do
 		    (Vector.singleton (ForceChoice [force])) Vector.empty
 		    (\_ _->False) st
 	    lift (drawAlerts alerts) >> pushEState st'
-	drawTile tile painting = do
+	drawTile pos tile painting = do
 	    modify $ \es -> es {selectedPiece = Nothing}
-	    selPos <- gets selectedPos
 	    last <- gets lastModPos
-	    modifyEState $ modTile (Just tile) selPos last painting
-	    modify $ \es -> es {lastModPos = selPos}
+	    modifyEState $ modTile tile pos last painting
+	    modify $ \es -> es {lastModPos = pos}
+	paintTilePath tile from to = if from == to
+	then modify $ \es -> es {lastModPos = to}
+	else let from' = (hexVec2HexDirOrZero $ to<->from) <+> from
+	    in drawTile from' tile True >> paintTilePath tile from' to
+
 	subPlay :: UIMonad uiM => Lock -> StateT MainState uiM ()
 	subPlay lock =
 	    pushEState =<< psCurrentState <$> (lift $ execStateT interactUI $ newPlayState lock Nothing True)
