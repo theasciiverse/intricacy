@@ -1,9 +1,7 @@
 VERSION=0.2
 all: intricacy intricacy-server
 intricacy: *.lhs *.hs
-	cabal configure
-	cabal build
-	mv dist/build/intricacy/intricacy .
+	cabal install --bindir .
 intricacy-curses: *.lhs *.hs
 	cabal configure -f -SDL
 	cabal build

@@ -4,6 +4,7 @@ import Network.Fancy
 
 import Control.Concurrent (threadDelay)
 import Control.Applicative
+import Control.Exception as E
 import Control.Monad
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Error
@@ -43,22 +44,22 @@ setDefaultServerInfo = do
 logit = putStrLn
 
 handler :: Handle -> Address -> IO ()
-handler handle addr = do
-    -- FIXME: malformed requests crash server!
-    request <- B.decode `liftM` L.hGetContents handle
-
-    let hostname = case addr of
-	    IP n _ -> n
-	    IPv4 n _ -> n
-	    IPv6 n _ -> n
-	    Unix path -> path
-
-    let hashedHostname = hash hostname
-    logit $ hashedHostname ++ " >>> " ++ show request
-    response <- handleRequest request
-    -- threadDelay $ 10^6
-    logit $ hashedHostname ++ " <<< " ++ show response
-
+handler handle addr = E.handle ((\e -> return ()) :: SomeException -> IO ()) $
+    handler' handle addr
+handler' handle addr = do
+    response <- E.handle (\e -> return $ ServerError $ show (e::SomeException)) $ do
+	request <- B.decode `liftM` L.hGetContents handle
+	let hostname = case addr of
+		IP n _ -> n
+		IPv4 n _ -> n
+		IPv6 n _ -> n
+		Unix path -> path
+	    hashedHostname = hash hostname
+	logit $ hashedHostname ++ " >>> " ++ show request
+	response <- handleRequest request
+	-- threadDelay $ 10^6
+	logit $ hashedHostname ++ " <<< " ++ show response
+	return response
     L.hPut handle $ B.encode response
 
 -- | We lock the whole database during each request, using haskell's native
