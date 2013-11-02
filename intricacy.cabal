@@ -1,5 +1,5 @@
 name:                intricacy
-version:             0.0
+version:             0.2
 synopsis:            lockpicking puzzle game
 -- description:         
 homepage:            http://mbays.freeshell.org/intricacy
@@ -13,17 +13,48 @@ build-type:          Simple
 cabal-version:       >=1.8
 data-files: VeraMono.ttf tutorial/*.lock
 
-executable intricacy
-  main-is:  MainSDL.hs
-  extensions: DoAndIfThenElse
-  build-depends:       base >=4.3, mtl >=2.0, containers >=0.4, vector >=0.9, pretty-show >=1, SDL >=0.6, SDL-ttf >=0.6, SDL-gfx >=0.6, hscurses >=1.4, binary >=0.7, bytestring >=0.9, array >=0.3, transformers >=0.2, directory >= 1.0, cryptohash >= 0.10, stm >= 2.1, network-fancy >= 0.1.5, filepath >= 1.0, time >= 1.4
+Flag SDL 
+    Description: Enable SDL UI
+Flag Curses 
+    Description: Enable Curses UI
+Flag Game
+    Description: Build server
+Flag Server
+    Description: Build server
+    Default: False
 
-executable intricacy-curses
-  main-is:  MainCurses.hs
-  extensions: DoAndIfThenElse
-  build-depends:       base >=4.3, mtl >=2.0, containers >=0.4, vector >=0.9, pretty-show >=1, hscurses >=1.4, binary >=0.7, bytestring >=0.9, array >=0.3, transformers >=0.2, directory >= 1.0, cryptohash >= 0.10, stm >= 2.1, network-fancy >= 0.1.5, filepath >= 1.0, time >= 1.4
+executable intricacy
+  if flag(Game)
+      extensions: DoAndIfThenElse
+      build-depends: base >=4.3, mtl >=2.0, containers >=0.4, vector >=0.9,
+          pretty-show >=1, binary >=0.7, bytestring >=0.9, array
+          >=0.3, transformers >=0.2, directory >= 1.0, cryptohash >= 0.10, stm >= 2.1,
+          network-fancy >= 0.1.5, filepath >= 1.0, time >= 1.4
+  else
+      Buildable: False
+  if flag(SDL)
+      build-depends: SDL >=0.6, SDL-ttf >=0.6, SDL-gfx >=0.6
+      if os(windows)
+          Extra-Lib-Dirs:    winlibs
+          Extra-Libraries:   SDL_ttf SDL SDL_gfx freetype
+  if flag(Curses)
+      build-depends: hscurses >=1.4
+  if flag(SDL)
+      if flag(Curses)
+        main-is: MainBoth.hs
+      else
+        main-is: MainSDL.hs
+  else
+      if flag(Curses)
+        main-is: MainCurses.hs
 
 executable intricacy-server
+  if flag(Server)
+      extensions: DoAndIfThenElse
+      build-depends: base >=4.3, mtl >=2.0, containers >=0.4, vector >=0.9,
+          pretty-show >=1, binary >=0.7, bytestring >=0.9, array >=0.3,
+          transformers >=0.2, directory >= 1.0, cryptohash >= 0.10, stm >=
+          2.1, network-fancy >= 0.1.5, filepath >= 1.0, random >= 1.0
+  else
+    Buildable: False
   main-is:  Server.hs
-  extensions: DoAndIfThenElse
-  build-depends:       base >=4.3, mtl >=2.0, containers >=0.4, vector >=0.9, pretty-show >=1, binary >=0.7, bytestring >=0.9, array >=0.3, transformers >=0.2, directory >= 1.0, cryptohash >= 0.10, stm >= 2.1, network-fancy >= 0.1.5, filepath >= 1.0, random >= 1.0

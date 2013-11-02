@@ -1,14 +1,34 @@
+VERSION=0.2
 all: intricacy intricacy-server
 intricacy: *.lhs *.hs
-	ghc -o intricacy --make -auto-all MainSDL.hs
+	cabal configure
+	cabal build
+	mv dist/build/intricacy/intricacy .
 intricacy-curses: *.lhs *.hs
-	ghc -o intricacy-curses --make -auto-all MainCurses.hs
+	cabal configure -f -SDL
+	cabal build
+	mv dist/build/intricacy/intricacy intricacy-curses
 intricacy-checker: *.lhs *.hs
 	ghc -o intricacy-checker --make -auto-all Checker.hs
 intricacy-server: *.lhs *.hs
-	ghc -o intricacy-server --make -auto-all Server.hs
+	cabal configure -f Server -f -Game
+	cabal build
+	mv dist/build/intricacy-server/intricacy-server .
 intricacy-prof: *.lhs *.hs
-	ghc -o intricacy-prof --make -rtsopts -prof -auto-all MainSDL.hs
+	ghc -o intricacy-prof --make -rtsopts -prof -auto-all MainBoth.hs
+intricacy.exe: *.lhs *.hs
+	wine cabal configure
+	# I wish I were joking:
+	sudo mv /usr/i386-mingw32 /usr/i386-mingw32.t
+	wine cabal build || true
+	sudo mv /usr/i386-mingw32.t /usr/i386-mingw32
+	mv dist/build/intricacy/intricacy.exe .
+intricacy-${VERSION}.zip: intricacy.exe tutorial/*.lock
+	mkdir intricacy-${VERSION} || true
+	mkdir intricacy-${VERSION}/tutorial || true
+	cp intricacy.exe VeraMono.ttf SDL.dll intricacy-${VERSION}
+	cp tutorial/*.lock intricacy-${VERSION}/tutorial
+	zip intricacy-${VERSION}.zip intricacy-${VERSION}
 # DO NOT DELETE: Beginning of Haskell dependencies
 Hex.o : Hex.lhs
 Intricacy.o : Intricacy.hs
