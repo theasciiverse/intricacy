@@ -15,28 +15,33 @@ data-files: VeraMono.ttf tutorial/*.lock
 
 Flag SDL 
     Description: Enable SDL UI
+    Default: True
 Flag Curses 
     Description: Enable Curses UI
+    Default: True
 Flag Game
-    Description: Build server
+    Description: Build game
+    Default: True
+    Manual: True
 Flag Server
     Description: Build server
     Default: False
+    Manual: True
 
 executable intricacy
   if flag(Game)
       extensions: DoAndIfThenElse
       build-depends: base >=4.3, mtl >=2.0, containers >=0.4, vector >=0.9,
           pretty-show >=1, binary >=0.7, bytestring >=0.9, array
-          >=0.3, transformers >=0.2, directory >= 1.0, cryptohash >= 0.10, stm >= 2.1,
-          network-fancy >= 0.1.5, filepath >= 1.0, time >= 1.4
+          >=0.3, transformers >=0.2, directory >= 1.0, cryptohash >= 0.8, stm >= 2.1,
+          network-fancy >= 0.1.5, filepath >= 1.0, time >= 1.2
+      if flag(SDL)
+          build-depends: SDL >=0.6, SDL-ttf >=0.6, SDL-gfx >=0.6
+          if os(windows)
+              Extra-Lib-Dirs:    winlibs
+              Extra-Libraries:   SDL_ttf SDL SDL_gfx freetype
   else
       Buildable: False
-  if flag(SDL)
-      build-depends: SDL >=0.6, SDL-ttf >=0.6, SDL-gfx >=0.6
-      if os(windows)
-          Extra-Lib-Dirs:    winlibs
-          Extra-Libraries:   SDL_ttf SDL SDL_gfx freetype
   if flag(Curses)
       build-depends: hscurses >=1.4
   if flag(SDL)
@@ -53,7 +58,7 @@ executable intricacy-server
       extensions: DoAndIfThenElse
       build-depends: base >=4.3, mtl >=2.0, containers >=0.4, vector >=0.9,
           pretty-show >=1, binary >=0.7, bytestring >=0.9, array >=0.3,
-          transformers >=0.2, directory >= 1.0, cryptohash >= 0.10, stm >=
+          transformers >=0.2, directory >= 1.0, cryptohash >= 0.8, stm >=
           2.1, network-fancy >= 0.1.5, filepath >= 1.0, random >= 1.0
   else
     Buildable: False

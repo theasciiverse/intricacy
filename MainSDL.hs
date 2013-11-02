@@ -5,5 +5,5 @@ import qualified SDLUI
 import UI
 
 main = main' 
-    (Just (doUI::SDLUI.UIM a -> IO (Maybe a)))
-    Nothing
+    (Just (doUI::SDLUI.UIM MainState -> IO (Maybe MainState)))
+    (Nothing :: (Maybe (CursesUI.UIM MainState -> IO (Maybe MainState))))

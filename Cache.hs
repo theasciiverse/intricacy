@@ -27,7 +27,7 @@ data FetchedRecord = FetchedRecord {fresh :: Bool, fetchError :: Maybe String, f
 
 getRecordCached :: ServerAddr -> Maybe Auth -> Maybe (TVar Bool) -> Bool -> Record -> IO (TVar FetchedRecord)
 getRecordCached saddr auth mflag cOnly rec = withCacheDir saddr $ do
-    fromCache <- (Just <$> getRecord rec) `catchIOError` (\_ -> return Nothing)
+    fromCache <- (Just <$> getRecord rec) `catchIO` (\_ -> return Nothing)
     let fresh = isJust fromCache && invariantRecord rec
     tvar <- atomically $ newTVar $ FetchedRecord fresh Nothing fromCache
     unless (cOnly || fresh) $ void $ forkIO $ withCacheDir saddr $ getRecordFromServer fromCache tvar
@@ -66,7 +66,7 @@ makeRequest :: ServerAddr -> ClientRequest -> IO ServerResponse
 makeRequest saddr@(ServerAddr host port) request =
     handle (return . ServerError . (show::SomeException -> String)) $
 	withStream (IP host port) makeRequest'
-	    `catchIOError` (const $ return $ ServerError $ "Cannot connect to "++saddrStr saddr++"!")
+	    `catchIO` (const $ return $ ServerError $ "Cannot connect to "++saddrStr saddr++"!")
     where
 	makeRequest' handle = do
 	    BS.hPut handle $ BL.toStrict $ encode request 
@@ -74,7 +74,7 @@ makeRequest saddr@(ServerAddr host port) request =
 	    (decode . BL.fromStrict) `liftM` BS.hGetContents handle
 
 knownServers :: IO [ServerAddr]
-knownServers = flip catchIOError (const $ return []) $ do
+knownServers = flip catchIO (const $ return []) $ do
     cachedir <- confFilePath "cache"
     saddrstrs <- getDirectoryContents cachedir >>= filterM (\dir ->
 	doesDirectoryExist $ cachedir++[pathSeparator]++dir++[pathSeparator]++dbpath)

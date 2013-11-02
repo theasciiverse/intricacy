@@ -5,6 +5,7 @@ import Control.Monad
 import Control.Monad.IO.Class
 import Control.Exception
 import System.IO.Error
+import qualified Control.Exception as E
 import System.Directory
 import System.FilePath
 import System.Environment
@@ -14,10 +15,15 @@ import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as BSC
 import Paths_intricacy
 
+-- | This is "catchIOError" in >=base-4.4, but we reimplement it to support
+-- older bases.
+catchIO :: IO a -> (IOError -> IO a) -> IO a
+catchIO = E.catch
+
 readReadFile :: (Read a) => FilePath -> IO (Maybe a)
 readReadFile file =
     ((fst <$>) . listToMaybe . reads . BSC.unpack <$> BS.readFile file)
-	`catchIOError` (const $ return Nothing)
+	`catchIO` (const $ return Nothing)
 
 writeReadFile :: (Show a) => FilePath -> a -> IO ()
 writeReadFile file x = do
@@ -40,7 +46,7 @@ mkdirhier path = do
     when (not exists) $ mkdirhierto path >> createDirectory path
 
 getDirContentsRec :: FilePath -> IO [FilePath]
-getDirContentsRec path = flip catchIOError (const $ return []) $ do
+getDirContentsRec path = flip catchIO (const $ return []) $ do
     contents <- map ((path++[pathSeparator])++) <$> filter ((/='.').head) <$> getDirectoryContents path
     annotated <- (\p -> (,) p <$> doesDirectoryExist p) `mapM` contents
     let (dirs,files) = join (***) (map fst) $ partition snd $ annotated

@@ -21,11 +21,11 @@ To compile the game on *nix with SDL graphics:
     Running cabal install as root should install it somewhere global.
 
 To compile a curses-only (ascii graphics) build:
-    cabal configure -f -SDL && cabal install
+	cabal install -f -SDL
 
 To compile the server:
-    Perform the steps above, and then run:
-	cabal configure -f Server && cabal install
+	cabal install -f Server -f -Game
+
     The server will be installed in
 	~/.cabal/bin/intricacy-server
     The server runs on port 27001 by default. It writes the game database to

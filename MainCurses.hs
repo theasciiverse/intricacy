@@ -5,5 +5,5 @@ import qualified CursesUI
 import UI
 
 main = main' 
-    Nothing
-    (Just (doUI::CursesUI.UIM a -> IO (Maybe a)))
+    (Nothing :: (Maybe (CursesUI.UIM MainState -> IO (Maybe MainState))))
+    (Just (doUI::CursesUI.UIM MainState -> IO (Maybe MainState)))

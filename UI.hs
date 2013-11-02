@@ -531,7 +531,7 @@ interactUI = do
 	    lift $ setLockPath newPath
 	processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
 	    tutdir <- liftIO $ getDataPath "tutorial"
-	    tuts <- liftIO $ (sort . filter ((>2).length)) <$> getDirectoryContents tutdir `catchIOError` (const $ return [])
+	    tuts <- liftIO $ (sort . filter ((>2).length)) <$> getDirectoryContents tutdir `catchIO` (const $ return [])
 	    when (null tuts) $ do
 		lift.lift $ drawError "No tutorial levels found"
 		mzero
@@ -692,18 +692,18 @@ interactUI = do
 	    ok <- liftIO $ liftM2 (&&)
 		    (liftM2 (||) (not <$> doesFileExist newPath) (writable <$> getPermissions newPath))
 		    (not <$> doesDirectoryExist newPath)
-		`catchIOError` const (return False)
+		`catchIO` const (return False)
 	    when (not ok) $
 		(lift.lift) (drawError "Can't write there.") >> mzero
 	    -}
 	    fullPath <- liftIO $ fullLockPath newPath
-	    (liftIO (doesFileExist fullPath `catchIOError` const (return True)) >>=) $ flip when $
+	    (liftIO (doesFileExist fullPath `catchIO` const (return True)) >>=) $ flip when $
 		confirmOrBail $ "Really overwrite '"++fullPath++"'?"
 	    lift $ do
 		st <- gets $ head.esGameStateStack
 		frame <- gets esFrame
 		merr <- liftIO $ ((writeReadFile fullPath $ deframe $ canonify (frame, st)) >> return Nothing)
-		    `catchIOError` (return . Just . show)
+		    `catchIO` (return . Just . show)
 		case merr of
 		    Nothing -> modify $ \es -> es {esPath = Just newPath}
 		    Just err -> lift $ drawError $ "Write failed: "++err
@@ -765,7 +765,7 @@ interactUI = do
 	nextLock newer path = do
 	    lockdir <- confFilePath "locks"
 	    time <- (Just <$> (fullLockPath path >>= getModificationTime))
-		`catchIOError` const (return Nothing)
+		`catchIO` const (return Nothing)
 	    paths <- getDirContentsRec lockdir
 	    maybe path (drop (length lockdir + 1) . fst) . listToMaybe .
 		(if newer then id else reverse) . sortBy (\x y -> compare (snd x) (snd y)) .

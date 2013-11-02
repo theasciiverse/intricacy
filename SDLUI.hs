@@ -715,7 +715,7 @@ instance UIMonad (StateT UIState IO) where
 	    readBindings
 	)
 	where
-	    catchIOErrorMT m = MaybeT $ liftIO $ catchIOError (m >> return (Just ())) (\_ -> return Nothing)
+	    catchIOErrorMT m = MaybeT $ liftIO $ catchIO (m >> return (Just ())) (\_ -> return Nothing)
 
     endUI = do
 	writeUIConfigFile

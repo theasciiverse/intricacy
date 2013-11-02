@@ -27,6 +27,7 @@ import Metagame
 import Lock
 import Frame
 import Database
+import Mundanities
 
 port = 27001 -- 27001 == ('i'<<8) + 'y'
 main = do 
@@ -69,7 +70,7 @@ withDBLock lockMode m = do
     hClose h
     return ret
     where getDBLock lockMode =
-	    catchIOError (openFile lockFilePath lockMode) (\_ -> threadDelay (50*10^3) >> getDBLock lockMode)
+	    catchIO (openFile lockFilePath lockMode) (\_ -> threadDelay (50*10^3) >> getDBLock lockMode)
 lockFilePath = dbpath ++ "lockfile"
 
 handleRequest :: ClientRequest -> IO ServerResponse
@@ -141,7 +142,7 @@ handleRequest req@(ClientRequest pv auth action) = do
 			"Server only accepts size "++show serverSize++" locks."
 		    when (not $ checkSolution lock soln) $ throwError "Bad solution"
 		    RCLockHashes hashes <- liftIO $ getRecord RecLockHashes
-			    `catchIOError` const (return (RCLockHashes []))
+			    `catchIO` const (return (RCLockHashes []))
 		    let hashed = hash $ show lock
 		    when (hashed `elem` hashes) $ throwError "Lock has already been used"
 		    ls <- erroredIO $ newLockRecord lock
@@ -165,7 +166,7 @@ handleRequest req@(ClientRequest pv auth action) = do
 		_ -> throwError "BUG: bad request"
 	erroredIO :: IO a -> ErrorT String IO a
 	erroredIO c = do
-	    ret <- liftIO $ catchIOError (liftM Right c) (return.Left)
+	    ret <- liftIO $ catchIO (liftM Right c) (return.Left)
 	    case ret of
 		Left e -> throwError $ "Server IO error: " ++ show e
 		Right x -> return x
