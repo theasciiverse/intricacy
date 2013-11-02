@@ -1,0 +1,12 @@
+I'm compiling this on my unix machine, using the Haskell Platform from wine.
+    wine cabal install
+basically works for me, except that the only way I've found to stop it trying
+to use my locally installed mingw32 libraries in /usr/i386-mingw32/ is to
+rename that directory while compiling. Yes.
+
+Compiling the libraries in winlibs was an extremely painful process, which is
+why I'm putting them in the tree so I don't lose them. Basically I did a
+cross-compilation for each library, with
+    CC="wine gcc" ./configure --host i386-mingw32
+, and then when it started linking and building libraries using my unix
+toolchain, I reran the commands with 'wine' prepended. Pain.
