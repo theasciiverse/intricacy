@@ -320,7 +320,7 @@ instance UIMonad (StateT UIState IO) where
 	    drawTitle title
 	    drawCursorAt Nothing
 	    refresh
-	EditState (st:_) _ _ _ selPiece selPos _ -> lift $ do
+	EditState (st:_) _ _ _ selPiece selPos _ _ -> lift $ do
 	    drawState (maybeToList selPiece) True [] st
 	    drawMsgLine
 	    drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
@@ -439,11 +439,6 @@ instance UIMonad (StateT UIState IO) where
 	    if mode == IMTextInput
 	    then return [CmdInputChar ch]
 	    else (maybeToList . lookup ch) <$> getBindings mode
-
-showKey ch | isPrint ch = [ch]
-showKey ch | isPrint (unctrl ch) = ('^':[unctrl ch])
-showKey _ = "[?]"
-unctrl c = toEnum $ fromEnum c + 64
 
 white = 0 :: ColPair
 red = 1

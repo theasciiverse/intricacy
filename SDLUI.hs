@@ -111,10 +111,12 @@ getButtons mode = do
 	IMEdit -> [
 	    singleButton (tl<+>hv) CmdResetTools 4
 	    , singleButton (tl<+>(neg hw)) CmdPlay 2
+	    , singleButton (tl<+>hw) CmdMark 4
 	    , ([quitButton, Button (br<+>2<*>hu) CmdWriteState],(0,2))
 	    , ( [ Button (bl<+>dir) (CmdDir WHSSelected dir) | dir <- hexDirs ] ++
 		[ Button (bl<+>((-2)<*>hv)) (CmdRotate (-1))
 		, Button (bl<+>((-2)<*>hw)) (CmdRotate 1) ], (4,0) )
+	    , ( [ Button bl CmdSelect ], (0,0))
 	    , ([Button (paintButtonStart <+> hu <+> i<*>hv) (paintTileCmds!!i)
 		| i <- take (length paintTiles) [0..] ],(5,0))
 	    ]
@@ -518,8 +520,8 @@ getBindingStr mode = do
     setting <- gets settingBinding
     uibdgs <- Map.findWithDefault [] mode `liftM` gets uiKeyBindings
     return (\cmd ->
-	if Just cmd == setting then ".."
-	else findBinding (uibdgs ++ bindings mode) cmd)
+	if Just cmd == setting then "??"
+	else maybe "" showKey $ findBinding (uibdgs ++ bindings mode) cmd)
 
 drawButtons :: InputMode -> UIM ()
 drawButtons mode = do
@@ -600,10 +602,16 @@ instance UIMonad (StateT UIState IO) where
 	    drawTitle title
 	    registerUndoButtons (null stack) (null todostack)
 	    renderToMain $ drawCursorAt Nothing
-	drawMainState' (EditState (st:sts) undostack _ _ selPiece selPos _) = lift $ do
+	drawMainState' (EditState (st:sts) undostack _ _ selPiece selPos _ marks) = lift $ do
 	    drawMainGameState (maybeToList selPiece) True [] st
 	    renderToMain $ drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
 	    registerUndoButtons (null sts) (null undostack)
+	    when (not $ Map.null marks) $ registerButtonGroup $ singleButton
+		(periphery 2 <+> hw <+> neg hu) CmdJumpMark 0
+	    when (isJust selPiece) $ mapM_ registerButtonGroup
+		[ singleButton (periphery 2 <+> 3<*>hw<+>hu) CmdDelete 0
+		-- , singleButton (periphery 2 <+> 3<*>hw) CmdMerge 4
+		]
 	    drawPaintButtons
 	drawMainState' (MetaState saddr undecls cOnly auth names _ rnamestvar _ lockTVs path lock) = do
 	    let ourName = authUser <$> auth

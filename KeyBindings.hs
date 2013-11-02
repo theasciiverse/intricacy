@@ -1,4 +1,4 @@
-module KeyBindings (KeyBindings, bindings, findBinding) where
+module KeyBindings (KeyBindings, bindings, findBinding, showKey) where
 
 import Data.Maybe
 import Data.Char
@@ -10,8 +10,9 @@ import UI
 
 type KeyBindings = [ (Char,Command) ]
 
-ctrl :: Char -> Char
+ctrl, unctrl :: Char -> Char
 ctrl c = toEnum $ fromEnum c - 64
+unctrl c = toEnum $ fromEnum c + 64
 
 lowerToo :: KeyBindings -> KeyBindings
 lowerToo = concat . map addLower
@@ -91,6 +92,7 @@ playOnly = lowerToo
     , (' ', CmdWait)
     , ('\r', CmdWait)
     , ('\n', CmdWait)
+    , ('\t', CmdToggle)
     , ('*', CmdTile $ WrenchTile zero)
     , ('/', CmdTile HookTile)
     , ('@', CmdTile HookTile)
@@ -100,14 +102,15 @@ replayOnly =
     ]
 editMisc = lowerToo
     [ ('P', CmdPlay)
+    , (' ', CmdSelect)
     , ('\r', CmdSelect)
     , ('\n', CmdSelect)
-    , (' ', CmdSelect)
-    , ('\t', CmdToggle)
-    , ('M', CmdMerge)
     , ('T', CmdResetTools)
     , ('W', CmdWriteState)
     , (ctrl 'S', CmdWriteState)
+    , ('M', CmdMark)
+    , ('\'', CmdJumpMark)
+    , ('&', CmdMerge)
     , ('E', CmdDelete)
     ]
 tilesPaintRow = lowerToo
@@ -163,6 +166,9 @@ bindings IMPlay = playBindings
 bindings IMMeta = metaBindings
 bindings IMReplay = replayBindings
 
-findBinding :: KeyBindings -> Command -> String
-findBinding bdgs cmd =
-    fromMaybe "" $ listToMaybe [ [ch] | (ch,cmd') <- bdgs, cmd'==cmd ]
+findBinding :: KeyBindings -> Command -> Maybe Char
+findBinding bdgs cmd = listToMaybe [ ch | (ch,cmd') <- bdgs, cmd'==cmd ]
+
+showKey ch | isPrint ch = [ch]
+showKey ch | isPrint (unctrl ch) = ('^':[unctrl ch])
+showKey _ = "[?]"

@@ -81,6 +81,7 @@ data MainState
 	, selectedPiece::Maybe PieceIdx
 	, selectedPos::HexPos
 	, lastModPos::HexPos
+	, esMarks::Map Char GameState
 	}
     | MetaState
 	{ curServer :: ServerAddr
@@ -101,7 +102,7 @@ maxlocksize = 11
 
 newPlayState (frame,st) title sub = PlayState st frame [] False False [] [] title sub
 newReplayState st soln title = ReplayState st soln [] title
-newEditState (frame,st) mpath = EditState [st] [] frame mpath Nothing (PHS zero) (PHS zero) 
+newEditState (frame,st) mpath = EditState [st] [] frame mpath Nothing (PHS zero) (PHS zero) Map.empty
 initMetaState = do
     flag <- atomically $ newTVar False
     rnamestvar <- atomically $ newTVar []
@@ -133,7 +134,7 @@ ms2im :: MainState -> InputMode
 ms2im mainSt = case mainSt of
     PlayState _ _ _ _ _ _ _ _ _ -> IMPlay
     ReplayState _ _ _ _ -> IMReplay
-    EditState _ _ _ _ _ _ _ -> IMEdit
+    EditState _ _ _ _ _ _ _ _ -> IMEdit
     MetaState _ _ _ _ _ _ _ _ _ _ _ -> IMMeta
 
 instance Error () where noMsg = ()
@@ -305,6 +306,9 @@ interactUI = do
 	    quit <- liftM (\e -> case e of Left _ -> True; _ -> False) $
 		runErrorT $ sequence_ $ map (processCommand im) cmds
 	    if quit then return () else loop
+
+	-- | TODO: neater would be to use a stream (see package 'pipes') for
+	-- input?
 	getSomeInput im = do
 	    cmds <- getInput im
 	    if null cmds then getSomeInput im else return cmds
@@ -667,10 +671,23 @@ interactUI = do
 	processCommand' IMEdit CmdMerge = do
 	    selPos <- gets selectedPos
 	    st:_ <- gets esGameStateStack
-	    cmds <- lift $ getInput IMEdit
-	    case cmds of
-		[CmdDir _ mergeDir] -> modifyEState $ mergeTiles selPos mergeDir True
+	    lift $ drawMessage "Merge in which direction?"
+	    cmd <- lift $ head <$> getSomeInput IMEdit
+	    lift $ drawMessage ""
+	    case cmd of
+		CmdDir _ mergeDir -> modifyEState $ mergeTiles selPos mergeDir True
 		_ -> return ()
+	processCommand' IMEdit CmdMark = void.runMaybeT $ do
+	    str <- MaybeT $ lift $ textInput "Mark: " 1 True Nothing Nothing
+	    ch <- MaybeT $ return $ listToMaybe str
+	    st:_ <- lift $ gets esGameStateStack
+	    lift $ modify $ \es -> es {esMarks = Map.insert ch st $ esMarks es}
+	processCommand' IMEdit CmdJumpMark = void.runMaybeT $ do
+	    marks <- gets esMarks
+	    str <- MaybeT $ lift $ textInput "Mark: " 1 True (Just $ map (\x->[x]) $ Map.keys marks) Nothing
+	    ch <- MaybeT $ return $ listToMaybe str
+	    st <- MaybeT $ return $ Map.lookup ch marks
+	    lift $ pushEState st
 	processCommand' IMEdit CmdWait = do
 	    selPos <- gets selectedPos
 	    selPiece <- gets selectedPiece

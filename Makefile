@@ -1,15 +1,16 @@
 VERSION=0.2
-all: intricacy intricacy-server
+all: *.lhs *.hs
+	cabas install -f Server --bindir .
 intricacy: *.lhs *.hs
 	cabal install --bindir .
 intricacy-curses: *.lhs *.hs
-	cabal configure -f -SDL
+	cabal configure -f -SDL --bindir .
 	cabal build
 	mv dist/build/intricacy/intricacy intricacy-curses
 intricacy-checker: *.lhs *.hs
 	ghc -o intricacy-checker --make -auto-all Checker.hs
 intricacy-server: *.lhs *.hs
-	cabal configure -f Server -f -Game
+	cabal configure -f Server -f -Game --bindir .
 	cabal build
 	mv dist/build/intricacy-server/intricacy-server .
 intricacy-prof: *.lhs *.hs
