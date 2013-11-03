@@ -28,8 +28,7 @@ parseArgs argv =
     where header = "Usage: lock [OPTION...] [file]"
 
 readLockFile :: String -> IO (Maybe Lock)
-readLockFile fname = readReadFile fname
-    -- Just `liftM` decodeFile fname
+readLockFile = readReadFile
 
 setup :: IO (Maybe Lock,[Opt],Maybe String)
 setup = do
@@ -51,13 +50,13 @@ main' msdlUI mcursesUI = do
     void $ runMaybeT $ msum [ do
 	    finalState <- msum 
 		[ do
-		    guard $ not $ ForceCurses `elem` opts
+		    guard $ ForceCurses `notElem` opts
 		    sdlUI <- MaybeT . return $ msdlUI
 		    MaybeT $ sdlUI $ interactUI `execStateT` initMState
 		, do
 		    cursesUI <- MaybeT . return $ mcursesUI
 		    MaybeT $ cursesUI $ interactUI `execStateT` initMState
 		]
-	    when (mlock == Nothing) $ lift $ writeMetaState finalState
+	    when (isNothing mlock) $ lift $ writeMetaState finalState
 	    lift $ exitSuccess
 	, lift exitFailure ]

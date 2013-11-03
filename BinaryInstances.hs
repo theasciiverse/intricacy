@@ -40,7 +40,7 @@ instance Binary a => Binary (ShortList a) where
  -- | 'getMany n' get 'n' elements in order, without blowing the stack.
  -- [ copied from source of package 'binary' by Lennart Kolmodin ]
 getMany :: Binary a => Int -> Get [a]
-getMany n = go [] n
+getMany = go []
  where
     go xs 0 = return $! reverse xs
     go xs i = do x <- get
@@ -73,8 +73,8 @@ instance Binary Piece where
     get = do
 	tag <- get :: Get Word8
 	case tag of
-	    0 -> liftM Block $ liftM fromShortList get
-	    1 -> liftM Pivot $ liftM fromShortList get
+	    0 -> liftM (Block . fromShortList) get
+	    1 -> liftM (Pivot . fromShortList) get
 	    2 -> liftM2 Hook get get
 	    3 -> liftM Wrench get
 	    4 -> return Ball

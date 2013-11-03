@@ -18,6 +18,7 @@ import System.Directory
 import System.FilePath
 import Data.Time.Clock
 import Data.Array
+import Data.Function (on)
 
 import Hex
 import Command
@@ -120,7 +121,7 @@ fullLockPath path = if isAbsolute path
 
 writeMetaState (MetaState saddr undecls _ auth _ _ _ _ _ path _) = do
     confFilePath "metagame.conf" >>= flip writeReadFile (saddr, auth, path)
-    when (not $ nullSaddr saddr) $
+    unless (nullSaddr saddr) $
 	confFilePath ("undeclared" ++ [pathSeparator] ++ saddrStr saddr) >>= flip writeReadFile undecls
 
 data InputMode = IMEdit | IMPlay | IMReplay | IMMeta | IMTextInput
@@ -128,10 +129,10 @@ data InputMode = IMEdit | IMPlay | IMReplay | IMMeta | IMTextInput
 
 ms2im :: MainState -> InputMode
 ms2im mainSt = case mainSt of
-    PlayState _ _ _ _ _ _ _ _ _ -> IMPlay
-    ReplayState _ _ _ _ -> IMReplay
-    EditState _ _ _ _ _ _ _ _ -> IMEdit
-    MetaState _ _ _ _ _ _ _ _ _ _ _ -> IMMeta
+    PlayState {} -> IMPlay
+    ReplayState {} -> IMReplay
+    EditState {} -> IMEdit
+    MetaState {} -> IMMeta
 
 instance Error () where noMsg = ()
 
@@ -141,7 +142,7 @@ mgetCurName :: (UIMonad uiM) => MaybeT (StateT MainState uiM) Codename
 mgetCurName = MaybeT $ listToMaybe <$> gets codenameStack 
 
 getUInfoFetched :: UIMonad uiM => Integer -> Codename -> StateT MainState uiM FetchedRecord
-getUInfoFetched staleTime name = do
+getUInfoFetched staleTime name =
     gets ((Map.lookup name) . userInfos) >>=
 	\x -> case x of
 	    Nothing -> set
@@ -228,7 +229,7 @@ refreshUInfoUI = void.runMaybeT $ do
 	    undecls' <- gets undeclareds >>= filterM ((not<$>).invalid)
 	    modify $ \ms -> ms { undeclareds = undecls' }
 	invalid (Undeclared _ ls (ActiveLock name idx)) =
-	    (maybe False id <$>) $ runMaybeT $ do
+	    (fromMaybe False <$>) $ runMaybeT $ do
 		uinfo <- mgetUInfo name
 		ourName <- mgetOurName
 		msum [ do
@@ -256,7 +257,7 @@ getRecordCachedFromCur flagIt rec = do
 
 getFreshRecBlocking :: UIMonad uiM => Record -> StateT MainState uiM (Maybe RecordContents)
 getFreshRecBlocking rec = do
-    tvar <- getRecordCachedFromCur False $ rec
+    tvar <- getRecordCachedFromCur False rec
     fetched <- liftIO $ atomically $ do
 	fetched@(FetchedRecord fresh _ _) <- readTVar tvar
 	check fresh
@@ -279,7 +280,7 @@ getRelScore name = runMaybeT $ do
 	unaccessedBy name (Just linfo) = not $ public linfo || name `elem` accessedBy linfo 
 
 getNotesReadOn :: UIMonad uiM => LockInfo -> StateT MainState uiM [NoteInfo]
-getNotesReadOn lockinfo = (maybe [] id <$>) $ runMaybeT $ do
+getNotesReadOn lockinfo = (fromMaybe [] <$>) $ runMaybeT $ do
     ourName <- mgetOurName
     ourUInfo <- mgetUInfo ourName
     return $ filter (\n -> isNothing (noteBehind n)
@@ -306,8 +307,8 @@ interactUI = do
 	    drawMainState
 	    cmds <- lift $ getInput im
 	    quit <- liftM (\e -> case e of Left _ -> True; _ -> False) $
-		runErrorT $ sequence_ $ map (processCommand im) cmds
-	    if quit then return () else loop
+		runErrorT $ mapM_ (processCommand im) cmds
+	    unless quit loop
 
 	-- | TODO: neater would be to use a stream (see package 'pipes') for
 	-- input?
@@ -358,7 +359,7 @@ interactUI = do
 		    (Just $ map saddrStr saddrs) (Just $ saddrStr saddr)
 	    newSaddr <- MaybeT $ return $ strToSaddr newSaddrstr
 	    modify $ \ms -> ms { curServer = newSaddr }
-	    when (not $ nullSaddr newSaddr) $
+	    unless (nullSaddr newSaddr) $
 		msum [ void $ MaybeT $ getFreshRecBlocking RecServerInfo
 		, modify $ \ms -> ms { curServer = saddr }
 		]
@@ -405,7 +406,7 @@ interactUI = do
 		    undecl <- MaybeT $ return $ find (\(Undeclared _ ls' _) -> ls == ls') undecls
 		    _ <- MaybeT $ gets curAuth
 		    confirmOrBail "Declare existing solution?"
-		    void.lift.runMaybeT $ do -- ignores MaybeT failures
+		    void.lift.runMaybeT $ -- ignores MaybeT failures
 			declare undecl
 		, do
 		    RCLock lock <- MaybeT $ getFreshRecBlocking $ RecLock ls
@@ -446,13 +447,12 @@ interactUI = do
 			    i <- fst <$> (listToMaybe $ (reads :: ReadS Int) which)
 			    guard $ 0 < i && i <= length undecls
 			    return $ undecls !! (i-1)
-			, do
-			    listToMaybe $ [ undecl
-				| undecl@(Undeclared _ _ (ActiveLock name' i)) <- undecls
-				, or [ take (length which) (name' ++ ":" ++ [lockIndexChar i]) ==
-					map toUpper which 
-				    , name'==name && [lockIndexChar i] == which
-				    ] ]
+			, listToMaybe $ [ undecl
+			    | undecl@(Undeclared _ _ (ActiveLock name' i)) <- undecls
+			    , or [ take (length which) (name' ++ ":" ++ [lockIndexChar i]) ==
+				    map toUpper which 
+				, name'==name && [lockIndexChar i] == which
+				] ]
 			]
 		]
 	processCommand' IMMeta (CmdViewSolution mnote) = void.runMaybeT $ do
@@ -476,7 +476,7 @@ interactUI = do
 		    then return $ noteAuthor $ head notes 
 		    else (map toUpper <$>) $ MaybeT $ lift $
 			textInput ("View solution by which player? ["
-			    ++ concat (intersperse "," (take 3 authors))
+			    ++ intercalate "," (take 3 authors)
 			    ++ if length authors > 3 then ",...]" else "]")
 			3 False (Just $ authors) Nothing
 		MaybeT $ return $ find ((==author).noteAuthor) notes
@@ -512,9 +512,9 @@ interactUI = do
 	    paths <- liftIO $ map (drop (length lockdir + 1)) <$> getDirContentsRec lockdir
 	    path <- MaybeT $ lift $ textInput "Select lock:" 1024 False (Just paths) Nothing
 	    lift $ setLockPath path
-	processCommand' IMMeta CmdNextLock = do
+	processCommand' IMMeta CmdNextLock =
 	    gets curLockPath >>= liftIO . nextLock True >>= setLockPath
-	processCommand' IMMeta CmdPrevLock = do
+	processCommand' IMMeta CmdPrevLock =
 	    gets curLockPath >>= liftIO . nextLock False >>= setLockPath
 	processCommand' IMMeta CmdEdit = void.runMaybeT $ do
 	    lock <- msum [ MaybeT $ gets curLock
@@ -559,7 +559,7 @@ interactUI = do
 	    st <- gets psCurrentState
 	    stack <- gets psGameStateMoveStack
 	    ustms <- gets psUndoneStack
-	    when (not $ null stack) $ do
+	    unless (null stack) $ do
 		let (st',pm) = head stack
 		modify $ \ps -> ps {psCurrentState=st', psGameStateMoveStack = tail stack,
 		    psLastAlerts = [], psUndoneStack = (st,pm):ustms}
@@ -627,7 +627,7 @@ interactUI = do
 	processCommand' IMEdit CmdUndo = do
 	    st:sts <- gets esGameStateStack
 	    usts <- gets esUndoneStack
-	    when (not $ null sts) $ modify $ \es -> es {esGameStateStack = sts, esUndoneStack = st:usts}
+	    unless (null sts) $ modify $ \es -> es {esGameStateStack = sts, esUndoneStack = st:usts}
 	processCommand' IMEdit CmdRedo = do
 	    usts <- gets esUndoneStack
 	    case usts of 
@@ -686,7 +686,7 @@ interactUI = do
 	    lift $ modify $ \es -> es {esMarks = Map.insert ch st $ esMarks es}
 	processCommand' IMEdit CmdJumpMark = void.runMaybeT $ do
 	    marks <- gets esMarks
-	    str <- MaybeT $ lift $ textInput "Mark: " 1 True (Just $ map (\x->[x]) $ Map.keys marks) Nothing
+	    str <- MaybeT $ lift $ textInput "Mark: " 1 True (Just $ map (:[]) $ Map.keys marks) Nothing
 	    ch <- MaybeT $ return $ listToMaybe str
 	    st <- MaybeT $ return $ Map.lookup ch marks
 	    lift $ pushEState st
@@ -713,7 +713,7 @@ interactUI = do
 		    (liftM2 (||) (not <$> doesFileExist newPath) (writable <$> getPermissions newPath))
 		    (not <$> doesDirectoryExist newPath)
 		`catchIO` const (return False)
-	    when (not ok) $
+	    unless ok $
 		(lift.lift) (drawError "Can't write there.") >> mzero
 	    -}
 	    fullPath <- liftIO $ fullLockPath newPath
@@ -788,7 +788,7 @@ interactUI = do
 		`catchIO` const (return Nothing)
 	    paths <- getDirContentsRec lockdir
 	    maybe path (drop (length lockdir + 1) . fst) . listToMaybe .
-		(if newer then id else reverse) . sortBy (\x y -> compare (snd x) (snd y)) .
+		(if newer then id else reverse) . sortBy (compare `on` snd) .
 		filter (maybe (const True)
 		    (\x y -> (if newer then (<) else (>)) x (snd y)) time) <$>
 		(\p -> (,) p <$> getModificationTime p) `mapM` paths
@@ -850,8 +850,7 @@ interactUI = do
 
 	-- | TODO: draw cursor
 	textInput :: UIMonad uiM => String -> Int -> Bool -> Maybe [String] -> Maybe String -> uiM (Maybe String)
-	textInput prompt maxlen endOnMax mposss init = do
-	    getText (fromMaybe "" init,"") <* drawMessage ""
+	textInput prompt maxlen endOnMax mposss init = getText (fromMaybe "" init,"") <* drawMessage ""
 	    where
 		getText (s,stem) = do
 		    drawMessage $ prompt ++ " " ++ s
@@ -884,13 +883,13 @@ interactUI = do
 				    else let
 					completions = filter (completes stem) possibilities
 					later = filter (>s) completions
-					s' = if null completions then s
-					    else if null later then head completions
-					    else minimum later
+					s' | null completions = s
+					   | null later = head completions
+					   | otherwise = minimum later
 					in Right (s',stem)
-			    _ -> if isPrint c
-				then Right $ ((if length s >= maxlen then id else (++[c])) s, "")
-				else Right (s,stem)
+			    _ -> Right $ if isPrint c
+				    then ((if length s >= maxlen then id else (++[c])) s, "")
+				    else (s,stem)
 			applyCmd x CmdRedraw = Right x
 			applyCmd _ _ = Left False
 		completes s s' = take (length s) s' == s

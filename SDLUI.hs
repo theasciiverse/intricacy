@@ -18,6 +18,7 @@ import Data.Array
 import Data.List
 import Data.Ratio
 import Text.Show.Pretty (ppShow)
+import Data.Function (on)
 --import Debug.Trace (traceShow)
 
 import UI
@@ -91,9 +92,8 @@ waitFrame = do
     let next = last + 1000 `div` 30
     now <- liftIO getTicks
     -- liftIO $ print now
-    if now < next
-	then liftIO $ delay (next - now)
-	else return ()
+    when (now < next) $
+	liftIO $ delay (next - now)
     modify $ \ds -> ds { lastFrameTicks = now }
 
 
@@ -166,7 +166,7 @@ data Selectable = SelOurLock
 
 registerSelectable v r s =
     modify $ \ds -> ds {metaSelectables = foldr
-	(\k -> Map.insert k s) (metaSelectables ds) $ map (v<+>) $ hexDisc r}
+	(`Map.insert` s) (metaSelectables ds) $ map (v<+>) $ hexDisc r}
 clearSelectables = modify $ \ds -> ds {metaSelectables = Map.empty}
 registerButtonGroup g = modify $ \ds -> ds {contextButtons = g:contextButtons ds}
 clearButtons = modify $ \ds -> ds {contextButtons = []}
@@ -271,7 +271,7 @@ paintTileCmds = map (maybe CmdWait CmdTile) paintTiles
 getEffPaintTileIndex :: UIM Int
 getEffPaintTileIndex = do
     mods <- liftIO getModState
-    if (or $ map (`elem` mods) [KeyModLeftCtrl, KeyModRightCtrl]) 
+    if any (`elem` mods) [KeyModLeftCtrl, KeyModRightCtrl]
     then return $ length paintTiles - 1
     else gets paintTileIndex
 
@@ -372,7 +372,7 @@ drawMiniLock lock v = do
 	    let height = ceiling $ fromIntegral size * sqrt 3 * fromIntegral (miniLocksize*2+1+1)
 	    surf <- liftIO $ createRGBSurface [] width height 16 0 0 0 0
 	    uiopts <- gets uiOptions
-	    let st = snd $ reframe $ lock
+	    let st = snd $ reframe lock
 		coloured = colouredPieces False st
 		colouring = if useFiveColouring uiopts
 		    then boardColouring st coloured Map.empty
@@ -390,13 +390,14 @@ clearOldMiniLocks =
     (>=50).Map.size <$> gets miniLocks >>= flip when clearMiniLocks
 clearMiniLocks = modify $ \ds -> ds { miniLocks = Map.empty}
 
-drawEmptyMiniLock v = do
+drawEmptyMiniLock v =
     renderToMain $ recentreAt v $ rescaleRender 6 $ drawAtRel (hollowInnerGlyph $ dim white) zero
 
+fillArea :: HexVec -> [HexVec] -> [HexVec -> StateT MainState UIM ()] -> StateT MainState UIM () 
 fillArea centre area draws =
-    mapM_ (\(draw,pos) -> draw pos) $
+    mapM_ (uncurry ($)) $
 	zip draws $ sortBy
-		(\p p' -> hexLen (p<->centre) `compare` hexLen (p'<->centre))
+		(compare `on` (hexLen . (<->centre)))
 		area
 
 pubColour = colourWheel 5
@@ -474,7 +475,7 @@ drawLockInfo al@(ActiveLock name i) (Just lockinfo) mtvar = do
 	]
 
     lift.renderToMain $ renderStrColAt dimWhiteCol "Accessed by:" $ accessedByPos <+> hv
-    if (public lockinfo) 
+    if public lockinfo
     then lift.renderToMain $ renderStrColAt (pixelToColor pubColour) "Everyone!" accessedByPos
     else if null $ accessedBy lockinfo
 	then lift.renderToMain $ renderStrColAt messageCol "No-one" accessedByPos
@@ -498,7 +499,7 @@ drawLockInfo al@(ActiveLock name i) (Just lockinfo) mtvar = do
     then lift.renderToMain $ renderStrColAt (Color 0xff 0xff 0) "Undeclared" accessedPos
     else do
 	read <- take 3 <$> getNotesReadOn lockinfo
-	when (not $ ourName == Just name) $ do
+	unless (ourName == Just name) $ do
 	    lift.renderToMain $ renderStrColAt (if length read == 3 then accessedCol else dimWhiteCol)
 		"Read:" $ accessedPos <+> (-3)<*>hu
 	    fillArea (accessedPos<+>neg hu) [ accessedPos <+> i<*>hu | i <- [-1..1] ]
@@ -544,7 +545,7 @@ initVideo w h = do
     modify $ \ds -> ds { gsSurface = Just surf, lastDrawArgs = Nothing }
     (_,size) <- getGeom
     fontpath <- liftIO $ getDataPath "VeraMono.ttf"
-    font <- liftIO $ TTF.tryOpenFont fontpath (size)
+    font <- liftIO $ TTF.tryOpenFont fontpath size
     smallFont <- liftIO $ TTF.tryOpenFont fontpath (2*size`div`3)
     modify $ \ds -> ds { dispFont = font, dispFontSmall = smallFont }
     clearMiniLocks
@@ -559,7 +560,7 @@ drawMsgLine = void.runMaybeT $ do
 	renderToMain $ renderStrColAtLeft col str messageLineStart
 setMsgLine col str = do
     modify $ \s -> s { message = Just (col,str) }
-    when (not $ null str) $ modify $ \s -> s { hoverStr = Nothing }
+    unless (null str) $ modify $ \s -> s { hoverStr = Nothing }
     drawMsgLine >> refresh
 
 drawTitle (Just title) = renderToMain $ renderStrColAt messageCol title titlePos
@@ -606,7 +607,7 @@ instance UIMonad (StateT UIState IO) where
 	    drawMainGameState (maybeToList selPiece) True [] st
 	    renderToMain $ drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
 	    registerUndoButtons (null sts) (null undostack)
-	    when (not $ Map.null marks) $ registerButtonGroup $ singleButton
+	    unless (Map.null marks) $ registerButtonGroup $ singleButton
 		(periphery 2 <+> hw <+> neg hu) CmdJumpMark 0
 	    when (isJust selPiece) $ mapM_ registerButtonGroup
 		[ singleButton (periphery 2 <+> 3<*>hw<+>hu) CmdDelete 0
@@ -618,8 +619,8 @@ instance UIMonad (StateT UIState IO) where
 	    let selName = listToMaybe names
 	    let home = isJust ourName && ourName == selName
 	    lift $ renderToMain $ (erase >> drawCursorAt Nothing)
-	    maybe (lift $ drawEmptyMiniLock miniLockPos)
-		(lift . (registerSelectable miniLockPos 3 SelOurLock >>) . flip drawMiniLock miniLockPos)
+	    lift $ maybe (drawEmptyMiniLock miniLockPos)
+		((registerSelectable miniLockPos 3 SelOurLock >>) . flip drawMiniLock miniLockPos)
 		lock
 	    lift.renderToMain $ do
 		renderStrColAtLeft messageCol (saddrStr saddr) $ serverPos <+> hu
@@ -636,7 +637,7 @@ instance UIMonad (StateT UIState IO) where
 	    runMaybeT $ MaybeT (return selName) >>= lift . getUInfoFetched 300 >>=
 		\(FetchedRecord fresh err muirc) -> lift $ do
 		    lift $ do
-			when (not fresh) $ renderToMain $ drawAtRel unfreshGlyph $ codenamePos <+> 2<*>hu
+			unless fresh $ renderToMain $ drawAtRel unfreshGlyph $ codenamePos <+> 2<*>hu
 			maybe (return ()) sayError err
 			when (fresh && isNothing ourName) $
 			    registerButtonGroup $ singleButton (codenamePos <+> 2<*>hu)
@@ -654,7 +655,7 @@ instance UIMonad (StateT UIState IO) where
 					singleButton (miniLockPos <+> 2<*>hv <+> neg hu) (CmdPlaceLock Nothing) 0
 
 	    when home $ do
-		when (not $ null undecls) $ do
+		unless (null undecls) $ do
 		    lift.renderToMain $ renderStrColAtLeft messageCol "Undeclared:" (undeclsPos<+>2<*>hv)
 		    lift $ registerButtonGroup $ singleButton (undeclsPos<+>2<*>hv<+>neg hu) (CmdDeclare Nothing) 2
 		    fillArea (undeclsPos<+>hv)
@@ -662,7 +663,7 @@ instance UIMonad (StateT UIState IO) where
 			[ \pos -> (lift $ registerSelectable pos 0 (SelUndeclared undecl)) >> drawActiveLock al pos
 			| undecl@(Undeclared _ _ al) <- undecls ]
 		rnames <- liftIO $ atomically $ readTVar rnamestvar
-		when (not $ null rnames) $
+		unless (null rnames) $
 		    fillArea randomNamesPos
 			(map (randomNamesPos<+>) $ hexDisc 2)
 			[ \pos -> (lift $ registerSelectable pos 0 (SelRandom name)) >> drawName name pos
@@ -671,8 +672,8 @@ instance UIMonad (StateT UIState IO) where
 	    when (ourName /= selName) $ void $ runMaybeT $ do
 		when (isJust ourName) $
 		    lift.lift $ registerButtonGroup $ singleButton (codenamePos <+> neg hu <+> hw) CmdHome 4
-		sel <- MaybeT $ return $ selName
-		us <- MaybeT $ return $ ourName
+		sel <- MaybeT $ return selName
+		us <- MaybeT $ return ourName
 		ourUInfo <- mgetUInfo us
 		selUInfo <- mgetUInfo sel
 		let accesses = map (\(name,ui) -> [ maybe (False,True)
@@ -685,21 +686,27 @@ instance UIMonad (StateT UIState IO) where
 			    drawNameWithCharAndCol us white (lockIndexChar i) col pos
 			| i <- [0..2]
 			, let (pub,access) = accesses !! 0 !! i
-			, let col = if pub then obscure pubColour else if access then obscure $ scoreColour $ -3 else dim $ scoreColour 3 ]
+			, let col
+				| pub = obscure pubColour 
+				| access = obscure $ scoreColour $ -3 
+				| otherwise = dim $ scoreColour 3 ]
 		    fillArea (codenamePos<+>2<*>neg hw) (map ((codenamePos<+>3<*>neg hw)<+>) [zero,hw,neg hv])
 			[ \pos -> (lift $ registerSelectable pos 0 (SelLock $ ActiveLock sel i)) >>
 			    drawNameWithCharAndCol sel white (lockIndexChar i) col pos
 			| i <- [0..2]
 			, let (pub,access) = accesses !! 1 !! i
-			, let col = if pub then obscure pubColour else if access then obscure $ scoreColour 3 else dim $ scoreColour $ -3 ]
+			, let col
+				| pub = obscure pubColour 
+				| access = obscure $ scoreColour $ 3 
+				| otherwise = dim $ scoreColour $ -3 ]
 	drawMainState' _ = return ()
 
-    drawMessage prompt = say prompt
-    drawError prompt = sayError prompt
+    drawMessage = say
+    drawError = sayError
 
     drawAlerts alerts =
 	do mapM_ drawAlert alerts
-	   when (not $ null alerts) 
+	   unless (null alerts) 
 	    $ do refresh
 		 liftIO $ threadDelay $ 5*10^4
 	where
@@ -709,7 +716,7 @@ instance UIMonad (StateT UIState IO) where
 
     initUI = liftM isJust (runMaybeT $ do
 	catchIOErrorMT $ SDL.init [InitVideo]
-	catchIOErrorMT $ TTF.init
+	catchIOErrorMT TTF.init
 	lift $ do
 	    modes <- liftIO $ listModes Nothing [Resizable]
 	    let Rect _ _ w h = case modes of
@@ -736,7 +743,7 @@ instance UIMonad (StateT UIState IO) where
 
     getInput mode = do
 	events <- liftIO $ getEvents
-	concat `liftM` (sequence $ map processEvent events)
+	concat <$> mapM processEvent events
 	where
 	    processEvent (KeyDown (Keysym _ _ ch)) = case mode of
 		IMTextInput -> return [CmdInputChar ch]
@@ -755,13 +762,13 @@ instance UIMonad (StateT UIState IO) where
 			sequence_
 			    [ modify $ \s -> s { paintTileIndex = pti }
 				| (pti,pt) <- zip [0..] paintTiles
-				, (pt == Nothing && mCmd == Just CmdWait) ||
+				, (isNothing pt && mCmd == Just CmdWait) ||
 				    (isJust $ do
 					pt' <- pt
 					CmdTile t <- mCmd
-					guard $ sameTileType t pt') ]
+					guard $ ((==)`on`tileType) t pt') ]
 			return $ maybeToList mCmd
-	    processEvent (MouseMotion _ _ _ _) = do
+	    processEvent (MouseMotion {}) = do
 		(oldMPos,_) <- gets mousePos
 		updateMousePos mode
 		(mPos,_) <- gets mousePos
@@ -798,11 +805,9 @@ instance UIMonad (StateT UIState IO) where
 
 		if rb
 		then return [ CmdWait ]
-		else case hotspotAction of
-		    Just a -> a
-		    Nothing -> do
-			pti <- getEffPaintTileIndex
-			return $ [ drawCmd (paintTiles!!pti) False ]
+		else flip fromMaybe hotspotAction $ do
+		    pti <- getEffPaintTileIndex
+		    return $ [ drawCmd (paintTiles!!pti) False ]
 	    processEvent (MouseButtonUp _ _ ButtonLeft) = do
 		modify $ \s -> s { leftButtonDown = False }
 		return []
@@ -872,7 +877,7 @@ instance UIMonad (StateT UIState IO) where
 		let sv = (SVec (fromIntegral x) (fromIntegral y)) <+> neg scrCentre
 		let mPos@(HexVec x y z) = sVec2HexVec size sv
 		let (sx,sy,sz) = sVec2dHV size sv
-		let isCentral = and $ map (\(a,b) -> abs ((fromIntegral a) - b) < 0.5) $
+		let isCentral = all (\(a,b) -> abs ((fromIntegral a) - b) < 0.5) $
 			[(x,sx),(y,sy),(z,sz)]
 		let newPos = (mPos,isCentral)
 		oldPos <- gets mousePos

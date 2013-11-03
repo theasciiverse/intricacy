@@ -1,5 +1,7 @@
 module GameState where
 
+import Control.Applicative hiding ((<*>))
+import Data.Function (on)
 import qualified Data.Map as Map
 import Data.Map (Map)
 import qualified Data.Set as Set
@@ -32,7 +34,7 @@ validGameState :: GameState -> Bool
 validGameState = const True
 
 ppidxs :: GameState -> [PieceIdx]
-ppidxs = Vector.toList . (Vector.findIndices $ \_ -> True) . placedPieces
+ppidxs = Vector.toList . (Vector.findIndices $ const True) . placedPieces
 
 getpp :: GameState -> PieceIdx -> PlacedPiece
 getpp st idx = (placedPieces st) ! idx
@@ -93,11 +95,9 @@ floodfill start patt = floodfill' start `execState` (patt, Set.empty)
 	floodfill' start = do
 	      (patt, dels) <- get
 	      let patt' = Set.delete start patt
-	      if Set.size patt' == Set.size patt
-		  then return ()
-		  else do
-		      put (patt', Set.insert start dels)
-		      sequence_ [ floodfill' (dir<+>start) | dir <- hexDirs ]
+	      unless (Set.size patt' == Set.size patt) $ do
+		  put (patt', Set.insert start dels)
+		  sequence_ [ floodfill' (dir<+>start) | dir <- hexDirs ]
 
 repossessConns :: GameState -> GameState -> GameState
 repossessConns st st' =
@@ -109,13 +109,13 @@ repossessConns st st' =
 delConnectionsIn :: HexPos -> GameState -> GameState
 delConnectionsIn pos st =
     st {connections = filter
-	(\conn -> not $ pos `elem` (connectionFootPrint st conn))
+	((pos `notElem`) . connectionFootPrint st)
         $ connections st}
 
 delConnectionsAt :: Locus -> GameState -> GameState
 delConnectionsAt locus st =
     st {connections = filter
-	(\conn -> not $ locus `elem` [connectionRoot conn, connectionEnd conn])
+	(\conn -> locus `notElem` [connectionRoot conn, connectionEnd conn])
         $ connections st}
 
 delPiece :: PieceIdx -> GameState -> GameState
@@ -201,10 +201,9 @@ springsRootAtIdx st idx =
 	  , ridx==idx ]
 
 connGraphPathExists :: GameState -> PieceIdx -> PieceIdx -> Bool
-connGraphPathExists st ridx eidx =
-    or [ridx == eidx 
-	, or $ map (\ridx' -> connGraphPathExists st ridx' eidx)
-	    $ map (fst . connectionEnd) (springsRootAtIdx st ridx) ]
+connGraphPathExists st ridx eidx = (ridx == eidx) ||
+	any ((connGraphPathExists st `flip` eidx) . fst .  connectionEnd)
+	    (springsRootAtIdx st ridx)
 
 connGraphHeight :: GameState -> PieceIdx -> Int
 connGraphHeight st idx =
@@ -238,9 +237,6 @@ tileType (WrenchTile _) = WrenchTile zero
 tileType (BallTile) = BallTile
 tileType (SpringTile _ _) = SpringTile Relaxed zero
 tileType t = t
-
-sameTileType :: Tile -> Tile -> Bool
-sameTileType t t' = (tileType t) == (tileType t')
 
 stateBoard :: GameState -> GameBoard
 stateBoard st@(GameState plPieces conns) =
@@ -371,7 +367,7 @@ boardColouring st coloured lastCol =
 	    neighbours' idx (perim idx) []
 	perim :: PieceIdx -> Set (HexPos,HexDir)
 	perim idx =
-	    Set.fromList $ nubBy (\x y -> fst x == fst y) [ (pos', neg dir)
+	    Set.fromList $ nubBy ((==)`on`fst) [ (pos', neg dir)
 		| dir <- hexDirs
 		, pos <- fullFootprint st idx
 		, let pos' = dir <+> pos
@@ -386,7 +382,7 @@ boardColouring st coloured lastCol =
 		let a = head $ Set.elems as
 		    (path, ns') = march idx (fst a) a True
 		in neighbours' idx
-		    (Set.filter (\(pos,_) -> not $ pos `elem` path) as)
+		    (Set.filter (\(pos,_) -> pos `notElem` path) as)
 		    (ns++ns')
 	-- |march around the piece's boundary, returning positions visited and
 	-- neighbouring pieces met (in order)
@@ -401,7 +397,7 @@ boardColouring st coloured lastCol =
 		    [ (pos', rotate (h-2) basedir)
 		    | h <- [1..5] 
 		    , let pos' = (rotate h basedir)<+>pos
-		    , (Map.lookup pos' board >>= return.fst) /= Just idx
+		    , (fst <$> Map.lookup pos' board) /= Just idx
 		    ]
 		(path,ns) = case mNext of
 		    Nothing -> ([],[])
@@ -496,7 +492,7 @@ modTile tile pos lastPos painting st =
 	same = isJust $ do
 		t <- tile
 		(_,t') <- curOwnedTile
-		guard $ sameTileType t t'
+		guard $ ((==) `on` tileType) t t'
 		return $ Just ()
 	-}
 	lastElem os = isJust $ do
@@ -575,7 +571,7 @@ modTile tile pos lastPos painting st =
 	   Just (WrenchTile _) -> addPiece $ Wrench zero
 	   Just HookTile -> let arm = listToMaybe [ dir | 
 				    dir <- hexDirs
-				    , Map.lookup (dir <+> pos) board' == Nothing ]
+				    , isNothing $ Map.lookup (dir <+> pos) board' ]
 			    in case arm of Just armdir -> addPiece $ Hook armdir NullHF
 					   _ -> id
 	   Just (BallTile) -> addPiece Ball
@@ -588,7 +584,7 @@ mergeTiles pos dir mergePiece st = fromMaybe st $ do
     (idx,tile) <- Map.lookup pos board
     (idx',tile') <- Map.lookup (dir<+>pos) board
     guard $ idx /= idx'
-    guard $ and $ map (not . protectedPiece) [idx,idx']
+    guard $ all (not . protectedPiece) [idx,idx']
     case tile of
 	BlockTile _ -> do
 	    BlockTile _ <- Just tile'

@@ -42,11 +42,11 @@ mkdirhierto = mkdirhier . takeDirectory
 mkdirhier :: FilePath -> IO ()
 mkdirhier path = do
     exists <- doesDirectoryExist path
-    when (not exists) $ mkdirhierto path >> createDirectory path
+    unless exists $ mkdirhierto path >> createDirectory path
 
 getDirContentsRec :: FilePath -> IO [FilePath]
 getDirContentsRec path = flip catchIO (const $ return []) $ do
     contents <- map ((path++[pathSeparator])++) <$> filter ((/='.').head) <$> getDirectoryContents path
     annotated <- (\p -> (,) p <$> doesDirectoryExist p) `mapM` contents
-    let (dirs,files) = join (***) (map fst) $ partition snd $ annotated
+    let (dirs,files) = join (***) (map fst) $ partition snd annotated
     (files++) . concat <$> getDirContentsRec `mapM` dirs

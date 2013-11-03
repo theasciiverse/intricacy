@@ -4,7 +4,6 @@ import Network.Fancy
 
 import Control.Concurrent (threadDelay)
 import Control.Applicative
-import Control.Exception as E
 import Control.Monad
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Error
@@ -39,16 +38,16 @@ main = do
 
 setDefaultServerInfo = do
     alreadySet <- recordExists RecServerInfo
-    when (not alreadySet) $ putRecord RecServerInfo (RCServerInfo defaultServerInfo)
+    unless alreadySet $ putRecord RecServerInfo (RCServerInfo defaultServerInfo)
 
 logit = putStrLn
 
 handler :: Handle -> Address -> IO ()
-handler handle addr = E.handle ((\e -> return ()) :: SomeException -> IO ()) $
-    handler' handle addr
-handler' handle addr = do
-    response <- E.handle (\e -> return $ ServerError $ show (e::SomeException)) $ do
-	request <- B.decode `liftM` L.hGetContents handle
+handler hdl addr = handle ((\e -> return ()) :: SomeException -> IO ()) $
+    handler' hdl addr
+handler' hdl addr = do
+    response <- handle (\e -> return $ ServerError $ show (e::SomeException)) $ do
+	request <- B.decode <$> L.hGetContents hdl 
 	let hostname = case addr of
 		IP n _ -> n
 		IPv4 n _ -> n
@@ -60,7 +59,7 @@ handler' handle addr = do
 	-- threadDelay $ 10^6
 	logit $ hashedHostname ++ " <<< " ++ show response
 	return response
-    L.hPut handle $ B.encode response
+    L.hPut hdl $ B.encode response
 
 -- | We lock the whole database during each request, using haskell's native
 -- file locking, meaning that we have at any time one writer *xor* any number
@@ -92,8 +91,8 @@ handleRequest req@(ClientRequest pv auth action) = do
 	    case action of
 		Authenticate -> checkAuth auth >> return ServerAck
 		Register -> newUser auth >> return ServerAck
-		GetServerInfo -> liftM ServedServerInfo $ getServerInfo
-		GetLock ls -> liftM ServedLock $ getLock ls
+		GetServerInfo -> ServedServerInfo <$> getServerInfo
+		GetLock ls -> ServedLock <$> getLock ls
 		GetUserInfo name mversion -> (do
 			RCUserInfo (curV,info) <- erroredIO $ getRecord $ RecUserInfo name
 			(fromJust<$>)$ runMaybeT $ msum [ do
@@ -113,7 +112,7 @@ handleRequest req@(ClientRequest pv auth action) = do
 		    if codename uinfo == lockOwner (noteOn note) || 
 			3 <= length (filter (\n -> isNothing (noteBehind n)
 			    || n `elem` notesRead uinfo) $ lockSolutions lockinfo)
-			then liftM ServedSolution $ getSolution note
+			then ServedSolution <$> getSolution note
 			else throwError "You are not permitted to read that note."
 		DeclareSolution soln ls target idx -> do
 		    info <- getUserInfoOfAuth auth
@@ -130,7 +129,7 @@ handleRequest req@(ClientRequest pv auth action) = do
 			throwError "That's your lock!"
 		    behindLock <- getALock behind
 		    when (public behindLock) $ throwError "Your lock is cracked!"
-		    when (not $ checkSolution lock soln) $ throwError "Bad solution"
+		    unless (checkSolution lock soln) $ throwError "Bad solution"
 		    erroredIO $ putRecord (RecNote note) (RCSolution soln)
 		    execStateT (declareNote note behind) [] >>= applyDeltasToRecords
 		    return ServerAck
@@ -141,7 +140,7 @@ handleRequest req@(ClientRequest pv auth action) = do
 		    ServerInfo serverSize _ <- getServerInfo
 		    when (frame /= BasicFrame serverSize) $ throwError $
 			"Server only accepts size "++show serverSize++" locks."
-		    when (not $ checkSolution lock soln) $ throwError "Bad solution"
+		    unless (checkSolution lock soln) $ throwError "Bad solution"
 		    RCLockHashes hashes <- liftIO $ getRecord RecLockHashes
 			    `catchIO` const (return (RCLockHashes []))
 		    let hashed = hash $ show lock
@@ -167,7 +166,7 @@ handleRequest req@(ClientRequest pv auth action) = do
 		_ -> throwError "BUG: bad request"
 	erroredIO :: IO a -> ErrorT String IO a
 	erroredIO c = do
-	    ret <- liftIO $ catchIO (liftM Right c) (return.Left)
+	    ret <- liftIO $ catchIO (Right <$> c) (return.Left)
 	    case ret of
 		Left e -> throwError $ "Server IO error: " ++ show e
 		Right x -> return x
@@ -187,7 +186,7 @@ handleRequest req@(ClientRequest pv auth action) = do
 		Nothing -> throwError "Lock not set"
 		Just lockinfo -> return lockinfo
 	checkValidLockIndex idx =
-	    when (not $ 0<=idx && idx < maxLocks) $ throwError "Bad lock index"
+	    unless (0<=idx && idx < maxLocks) $ throwError "Bad lock index"
 	getUserInfo name = erroredIO $ do 
 	    RCUserInfo (version,info) <- getRecord $ RecUserInfo name
 	    return info
@@ -199,22 +198,22 @@ handleRequest req@(ClientRequest pv auth action) = do
 	checkAuth :: Maybe Auth -> ErrorT String IO ()
 	checkAuth Nothing = throwError "Authentication required"
 	checkAuth (Just (Auth name pw)) = do
-	    when (not $ validCodeName name) $ throwError "Invalid codename"
-	    let rec = RecPassword name
-	    exists <- liftIO $ recordExists rec
-	    when (not exists) $ throwError "No such user"
-	    RCPassword pw' <- liftIO $ getRecord rec
+	    exists <- checkCodeName name
+	    unless exists $ throwError "No such user"
+	    RCPassword pw' <- liftIO $ getRecord (RecPassword name)
 	    when (pw /= pw') $ throwError "Wrong password"
 	newUser :: Maybe Auth -> ErrorT String IO ()
 	newUser Nothing = throwError "Require authentication"
 	newUser (Just (Auth name pw)) = do
-	    when (not $ validCodeName name) $ throwError "Invalid codename"
-	    let rec = RecPassword name
-	    exists <- liftIO $ recordExists rec
+	    exists <- checkCodeName name
 	    when exists $ throwError "Codename taken"
-	    erroredIO $ putRecord rec (RCPassword pw)
+	    erroredIO $ putRecord (RecPassword name) (RCPassword pw)
 	    erroredIO $ putRecord (RecUserInfo name) (RCUserInfo $ (1,initUserInfo name))
 	    erroredIO $ putRecord (RecUserInfoLog name) (RCUserInfoDeltas [])
+	checkCodeName :: Codename -> ErrorT String IO Bool
+	checkCodeName name = do
+	    unless (validCodeName name) $ throwError "Invalid codename"
+	    liftIO $ recordExists $ RecPassword name
 	--- | TODO: journalling so we can survive death during database writes?
 	applyDeltasToRecords :: [(Codename, UserInfoDelta)] -> ErrorT String IO ()
 	applyDeltasToRecords nds = sequence_ $ [applyDeltasToRecord name deltas
@@ -231,17 +230,17 @@ handleRequest req@(ClientRequest pv auth action) = do
 	    accessLock name target =<< getCurrALock target
 	    addDelta (lockOwner target) $ LockDelta (lockIndex target) $ AddSolution note
 	    addDelta name $ LockDelta idx $ AddSecured note
-	    accessed <- accessedBy `liftM` getCurrALock behind
+	    accessed <- accessedBy <$> getCurrALock behind
 	    mapM_ (addReadNote note) (name:accessed)
 	addReadNote note@(NoteInfo _ _ target) name = do
 	    info <- getCurrUserInfo name
 	    tlock <- getCurrALock target
-	    when (not $ name `elem` accessedBy tlock || note `elem` notesRead info) $ do
+	    unless (name `elem` accessedBy tlock || note `elem` notesRead info) $ do
 		addDelta name $ AddRead note
 		checkSuffReadNotes target name
 	accessLock name target@(ActiveLock tname ti) tlock = do
 	    addDelta tname $ LockDelta ti $ AddAccessed name
-	    mapM_ (flip addReadNote name) $ notesSecured tlock
+	    mapM_ (`addReadNote` name) $ notesSecured tlock
 	publiciseLock al@(ActiveLock name idx) lock = do
 	    addDelta name $ LockDelta idx SetPublic
 	    retireLock lock
@@ -259,18 +258,18 @@ handleRequest req@(ClientRequest pv auth action) = do
 	    unreadNote note
 	    addDelta name $ LockDelta idx $ SetPubNote note
 	    publified <- checkSuffPubNotes al
-	    when (not publified) $ do
+	    unless publified $ do
 	    lock <- getCurrALock al
 	    accessorsOfNotesOnLock <- ((++ map noteAuthor (lockSolutions lock)).concat)
-		`liftM` (sequence 
-		    [ accessedBy `liftM` getCurrALock behind | NoteInfo _ (Just behind) _ <- lockSolutions lock ] )
-	    flip mapM_ accessorsOfNotesOnLock $ checkSuffReadNotes al
+		<$> (sequence 
+		    [ accessedBy <$> getCurrALock behind | NoteInfo _ (Just behind) _ <- lockSolutions lock ] )
+	    forM_ accessorsOfNotesOnLock $ checkSuffReadNotes al
 	checkSuffReadNotes target name = do
 	    info <- getCurrUserInfo name
 	    tlock <- getCurrALock target
 	    let countRead = fromIntegral $ length $
 		    filter (\n -> isNothing (noteBehind n) || n `elem` notesRead info) $ lockSolutions tlock
-	    when (not (public tlock) && countRead == notesNeeded) $
+	    unless ((public tlock) && countRead == notesNeeded) $
 		accessLock name target tlock
 	checkSuffPubNotes al@(ActiveLock name idx) = do
 	    info <- getCurrUserInfo name
@@ -284,6 +283,6 @@ handleRequest req@(ClientRequest pv auth action) = do
 	addDelta name delta = modify ((name,delta):)
 	getCurrUserInfo name = do
 	    info <- lift $ getUserInfo name
-	    get >>= return . applyDeltas info . map snd . filter (\(n,_) -> n == name)
-	getCurrALock al@(ActiveLock name idx) = do
-	    getCurrUserInfo name >>= return.fromJust.(!idx).userLocks
+	    (applyDeltas info . map snd . filter ((==name).fst)) <$> get
+	getCurrALock al@(ActiveLock name idx) =
+	     (fromJust.(!idx).userLocks) <$> getCurrUserInfo name

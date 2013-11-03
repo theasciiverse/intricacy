@@ -159,7 +159,7 @@ applyForce f s =
     let idx = forceIdx f
 	pp' = applyForceTo (getpp s idx) f
 	pp'' = case (placedPiece pp',f) of
-		   ( (Wrench _), (Push _ dir) ) -> pp' {placedPiece = (Wrench dir)}
+		   ( Wrench _ , Push _ dir ) -> pp' {placedPiece = Wrench dir}
 		   _ -> pp'
 	in 
 	s { placedPieces = (placedPieces s) // [(idx, pp'')] }

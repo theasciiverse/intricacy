@@ -24,7 +24,7 @@ port = 27001 -- 27001 == ('i'<<8) + 'y'
 main = withStream (IP "localhost" port) handler
 
 readAL :: String -> ActiveLock
-readAL s = ActiveLock (take 3 s) ((ord $ head $ drop 4 s) - ord 'A')
+readAL s = ActiveLock (take 3 s) ((ord $ s!!4) - ord 'A')
     
 handler :: Handle -> IO ()
 handler handle = do

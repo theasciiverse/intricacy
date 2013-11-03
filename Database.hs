@@ -74,13 +74,13 @@ getRecord rec = do
     rc <- getRecordh rec h
     hClose h
     return rc
-getRecordh (RecPassword _) h = liftM RCPassword $ read `liftM` hGetStrict h
-getRecordh (RecUserInfo _) h = liftM RCUserInfo $ read `liftM` hGetStrict h
-getRecordh (RecUserInfoLog _) h = liftM RCUserInfoDeltas $ read `liftM` hGetStrict h
-getRecordh (RecLock _) h = liftM RCLock $ read `liftM` hGetStrict h
-getRecordh (RecNote _) h = liftM RCSolution $ read `liftM` hGetStrict h
-getRecordh RecLockHashes h = liftM RCLockHashes $ read `liftM` hGetStrict h
-getRecordh RecServerInfo h = liftM RCServerInfo $ read `liftM` hGetStrict h
+getRecordh (RecPassword _) h = (RCPassword . read) <$> hGetStrict h
+getRecordh (RecUserInfo _) h = (RCUserInfo . read) <$> hGetStrict h
+getRecordh (RecUserInfoLog _) h = (RCUserInfoDeltas . read) <$> hGetStrict h
+getRecordh (RecLock _) h = (RCLock . read) <$> hGetStrict h
+getRecordh (RecNote _) h = (RCSolution . read) <$> hGetStrict h
+getRecordh RecLockHashes h = (RCLockHashes . read) <$> hGetStrict h
+getRecordh RecServerInfo h = (RCServerInfo . read) <$> hGetStrict h
 
 hGetStrict h = CS.unpack `liftM` concatMWhileNonempty (repeat $ CS.hGet h 1024)
     where concatMWhileNonempty (m:ms) = do
@@ -144,6 +144,6 @@ recordPath = (dbpath++) . recordPath'
 
 	userDir name = "users" ++ [pathSeparator] ++ pathifyName name ++ [pathSeparator]
 	pathifyName = map (\c -> case c of {'/'->'s'; '.'->'d'; '\\'->'b'; _ -> c})
-	alockFN (ActiveLock name idx) = pathifyName name++":"++(show idx)
+	alockFN (ActiveLock name idx) = pathifyName name ++":"++ show idx
 	locksDir = "locks"++[pathSeparator]
 dbpath = "intricacydb"++[pathSeparator]

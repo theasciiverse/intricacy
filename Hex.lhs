@@ -25,7 +25,7 @@ Some hopefully elucidatory diagrams:
 
 
 \begin{code}
-{-# LANGUAGE FunctionalDependencies, MultiParamTypeClasses, FlexibleInstances, FlexibleContexts #-}
+{-# LANGUAGE MultiParamTypeClasses, FlexibleInstances, FlexibleContexts #-}
 module Hex where
 
 import Data.Ix
@@ -47,7 +47,7 @@ hv2tup (HexVec x y z) = (x,y,z)
 tup2hv :: (Int,Int,Int) -> HexVec
 tup2hv (x,y,z) 
     | x+y+z == 0 = HexVec x y z
-    | True = error "bad hex"
+    | otherwise = error "bad hex"
 
 hv2tupxy :: HexVec -> (Int,Int)
 hv2tupxy (HexVec x y _) = (x,y)
@@ -121,7 +121,7 @@ isHexDirOrZero :: HexVec -> Bool
 isHexDirOrZero v = hexLen v <= 1
 
 hexDirs :: [HexDir]
-hexDirs = map (\n -> rotate n hu) [0..5]
+hexDirs = map (`rotate` hu) [0..5]
 
 hexVec2HexDirOrZero :: HexVec -> HexDirOrZero
 hexVec2HexDirOrZero v
@@ -145,8 +145,7 @@ scaleToLength n v@(HexVec x y z) =
 	lv' = map ((`div`l).(n*)) [x,y,z]
 	minI = fst $ minimumBy (compare `on` snd) $
 	    zip [0..] $ map abs lv'
-	[x'',y'',z''] = map (uncurry (-)) $
-	    zip lv' [ d
+	[x'',y'',z''] = zipWith (-) lv' [ d
 		| i <- [0..2]
 		, let d = if i == minI then sum lv' else 0 ]
     in HexVec x'' y'' z''

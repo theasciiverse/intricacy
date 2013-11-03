@@ -47,7 +47,7 @@ tileChar (ArmTile dir principal) = let
     c | cdir == hu = '-'
       | cdir == hv = '\\'
       | cdir == hw = '/'
-      | True = '?'
+      | otherwise = '?'
     a = if principal then bold else a0
     in (c,a)
 tileChar HookTile = ('@',bold)
@@ -84,7 +84,7 @@ addCh c = Curses.wAddStr Curses.stdScr [c]
 mvAddCh :: CVec -> Char ->  IO ()
 mvAddCh (CVec y x) c = Curses.mvAddCh y x $ fromIntegral $ ord c
 mvAddStr :: CVec -> String -> IO ()
-mvAddStr (CVec y x) str = Curses.mvWAddStr Curses.stdScr y x str
+mvAddStr (CVec y x) = Curses.mvWAddStr Curses.stdScr y x
 mvAddGlyph :: [Curses.Pair] -> CVec -> Glyph -> IO ()
 mvAddGlyph cpairs v (Glyph ch col attr) =
     Curses.attrSet attr (cpairs!!col) >> mvAddCh v ch
@@ -121,12 +121,12 @@ getGeom :: UIM Geom
 getGeom = do 
     (h,w) <- liftIO Curses.scrSize
     centre <- gets dispCentre
-    return $ (CVec (h`div`2) (w`div`2), centre)
+    return (CVec (h`div`2) (w`div`2), centre)
 
 drawAt :: Glyph -> HexPos -> UIM ()
 drawAt gl pos =
     drawAtWithGeom gl pos =<< getGeom
-drawAtWithGeom gl pos geom@(scrCentre,centre) = do
+drawAtWithGeom gl pos geom@(scrCentre,centre) =
     drawAtCVec gl $ scrCentre <+> (hexVec2CVec $ pos <-> centre)
 drawAtCVec :: Glyph -> CVec -> UIM ()
 drawAtCVec gl cpos = do
@@ -139,12 +139,12 @@ drawStr attr col v str = do
     liftIO $ Curses.attrSet attr (cpairs!!col) >> mvAddStr v str
 drawStrGrey :: CVec -> String -> UIM ()
 drawStrGrey = drawStr a0 0
-drawStrCentred attr col v str = do
+drawStrCentred attr col v str =
     drawStr attr col (v <+> CVec 0 (-length str `div` 2)) str
 
 drawCursorAt :: Maybe HexPos -> UIM ()
 drawCursorAt Nothing =
-    liftIO $ Curses.cursSet Curses.CursorInvisible >> return ()
+    void $ liftIO $ Curses.cursSet Curses.CursorInvisible
 drawCursorAt (Just pos) = do 
     geom@(scrCentre,centre) <- getGeom
     liftIO $ Curses.cursSet Curses.CursorVisible
@@ -177,7 +177,7 @@ colorsToPairs cs =
 	    print ("Terminal does not support enough colors. Number of " ++
                       " colors requested: " ++ show nColors ++
                       ". Number of colors supported: " ++ show p)
-	    return $ take nColors (repeat (Curses.Pair 0))
+	    return $ replicate nColors $ Curses.Pair 0
           else mapM toPairs (zip [1..] cs)
      where toPairs (n, (fg, bg)) =
                let p = Curses.Pair n
@@ -238,7 +238,7 @@ fillBox (CVec t l) (CVec b r) width grav draws = do
 	    GravLeft   -> CVec cv l
 	    GravRight  -> CVec cv r
 	    GravCentre -> CVec cv ch
-	locs = sortBy (\v v' -> dist v `compare` dist v') $ concat
+	locs = sortBy (compare `on` dist) $ concat
 	    [ map (CVec j) [ l+margin + (width+1)*i | i <- [0..(r-l-(2*margin))`div`(width+1)] ]
 	    | j <- [t..b]
 	    , let margin = if (j-starty)`mod`2 == 0 then half else width ]
@@ -261,7 +261,7 @@ drawLockInfo al@(ActiveLock name i) lockinfo mtvar = do
 	    lock <- MaybeT $ liftIO.atomically.readTVar $ tvar
 	    let size = frameSize $ fst lock
 	    guard $ bottom - top >= 5 + 2*size+1 + 1 + 5 && right-left >= 4*size+1
-	    lift.lift $ drawStateWithGeom [] False Map.empty (snd lock) ((CVec hcentre vcentre),origin)
+	    lift.lift $ drawStateWithGeom [] False Map.empty (snd lock) (CVec hcentre vcentre,origin)
 	    return (hcentre - size - 1, hcentre + size + 1)
 	, lift $ do
 	    drawActiveLock (CVec hcentre vcentre) al
@@ -287,11 +287,11 @@ drawLockInfo al@(ActiveLock name i) lockinfo mtvar = do
     then lift $ drawStrCentred a0 yellow (CVec (lockBottom+1) vcentre) "Undeclared solution!"
     else do
 	read <- take 3 <$> getNotesReadOn lockinfo
-	when (not $ null read || ourName == Just name) $ do
+	unless (null read || ourName == Just name) $ do
 	    let rntext = if right-left > 30 then "Read notes by:" else "Notes:"
-		s = (vcentre - (length rntext+(3+1)*3)`div`2)
+		s = vcentre - (length rntext+(3+1)*3)`div`2
 	    lift $ drawStr a0 white (CVec (lockBottom+1) s) rntext
-	    void $ fillBox (CVec (lockBottom+1) (s+length rntext+1)) (CVec (lockBottom+1) right) 3 GravLeft $
+	    void $ fillBox (CVec (lockBottom+1) (s+length rntext+1)) (CVec (lockBottom+1) right) 3 GravLeft
 		[ \pos -> drawName False pos name | name <- map noteAuthor read ]
 
     lift $ drawStrCentred a0 white (CVec (lockBottom+2) vcentre) "Notes held:"
@@ -299,8 +299,8 @@ drawLockInfo al@(ActiveLock name i) lockinfo mtvar = do
 	then lift $
 	    drawStrCentred a0 white (CVec (lockBottom+3) vcentre) "None"
 	else
-	    void $ fillBox (CVec (lockBottom+3) (left+1)) (CVec (bottom) (right-1)) 5 GravUp $
-		[ \pos -> drawActiveLock pos al | al <- map noteOn $ notesSecured lockinfo ]
+	    void $ fillBox (CVec (lockBottom+3) (left+1)) (CVec bottom (right-1)) 5 GravUp
+		[ (`drawActiveLock` al) | al <- map noteOn $ notesSecured lockinfo ]
 
 
 instance UIMonad (StateT UIState IO) where
@@ -339,30 +339,30 @@ instance UIMonad (StateT UIState IO) where
 	    void.runMaybeT $ MaybeT (return selName) >>= lift . getUInfoFetched 300 >>=
 		\(FetchedRecord fresh err muirc) -> lift $ do
 		    lift $ do
-			when (not fresh) $ drawAtCVec (Glyph '*' red bold) $ CVec 2 (w`div`2+7)
+			unless fresh $ drawAtCVec (Glyph '*' red bold) $ CVec 2 (w`div`2+7)
 			maybe (return ()) sayError err
 			when (fresh && isNothing ourName) $
 			    drawStrGrey (CVec 2 (w`div`2+1+9)) (if isNothing muirc then "(R)" else "(A)")
 		    case muirc of
 			Nothing -> return ()
-			Just (RCUserInfo (_,uinfo)) -> do
+			Just (RCUserInfo (_,uinfo)) ->
 			    sequence_ [ drawLockInfo (ActiveLock (codename uinfo) i) lockinfo ((!i)<$>lockTVs) |
 				(i,Just lockinfo) <- assocs $ userLocks uinfo ]
 	    when (isJust ourName && ourName == selName) $ do
-		when (not $ null undecls) $ do
+		unless (null undecls) $ do
 		    let str = "Undeclared solutions:"
-		    let s = max 1 $ (w-(length str + 6*(length undecls)))`div`2
+		    let s = max 1 $ (w-(length str + 6*length undecls))`div`2
 		    let y = 4
 		    lift $ drawStr bold white (CVec y s) str
-		    void $ fillBox (CVec y (s+length str+1)) (CVec y (w-1)) 5 GravLeft $
-			[ \pos -> drawActiveLock pos al | Undeclared _ _ al <- undecls ]
+		    void $ fillBox (CVec y (s+length str+1)) (CVec y (w-1)) 5 GravLeft
+			[ (`drawActiveLock` al) | Undeclared _ _ al <- undecls ]
 		rnames <- liftIO $ atomically $ readTVar rnamestvar
-		when (not $ null rnames) $
+		unless (null rnames) $
 		    void $ fillBox (CVec 2 5) (CVec 5 (w`div`3)) 3 GravCentre
 			[ \pos -> drawName False pos name | name <- rnames ]
 	    when (ourName /= selName) $ void $ runMaybeT $ do
-		sel <- MaybeT $ return $ selName
-		us <- MaybeT $ return $ ourName
+		sel <- MaybeT $ return selName
+		us <- MaybeT $ return ourName
 		ourUInfo <- mgetUInfo us
 		let accessed = [ ActiveLock us i 
 			| i<-[0..2]
@@ -376,13 +376,13 @@ instance UIMonad (StateT UIState IO) where
 		    drawName False (CVec y (s+1)) sel
 		    lift $ drawStrGrey (CVec y $ s+4) str
 		    void $ fillBox (CVec y (s+4+length str+1)) (CVec y (w-1)) 5 GravLeft $
-			[ \pos -> drawActiveLock pos al | al <- accessed]
-	    lift $ drawMsgLine
-	    lift $ refresh
+			[ (`drawActiveLock` al) | al <- accessed]
+	    lift drawMsgLine
+	    lift refresh
 
     drawAlerts alerts =
 	do mapM_ drawAlert alerts
-	   when (not $ null alerts) 
+	   unless (null alerts) 
 	    $ do refresh
 		 liftIO $ threadDelay $ 5*10^4
 	where
@@ -390,8 +390,8 @@ instance UIMonad (StateT UIState IO) where
 	    drawAlert _ = return ()
 	    cGlyph = Glyph '!' 0 a0
 
-    drawMessage str = say str
-    drawError str = sayError str
+    drawMessage = say
+    drawError = sayError
 
     showHelp mode = do
 	bdgs <- nub <$> getBindings mode
@@ -400,18 +400,18 @@ instance UIMonad (StateT UIState IO) where
 	let bdgWidth = 35
 	drawStrCentred a0 white (CVec 0 (w`div`2)) "Bindings:"
 	sequence_ [ drawStr a0 white (CVec (y+2) (x*bdgWidth) ) $
-		concat (intersperse " / " (map showKey chs)) ++ " : " ++ describeCommand cmd |
+		intercalate " / " (map showKey chs) ++ " : " ++ describeCommand cmd |
 	    ((chs,cmd),(x,y)) <- zip [(chs,cmd)
 		    | group <- groupBy ((==) `on` snd) $ sortBy (compare `on` snd) bdgs
 		    , let cmd = snd $ head group
 		    , let chs = map fst group]
-		(map (flip divMod (h-3)) [0..])
+		(map (`divMod` (h-3)) [0..])
 	    , (x+1)*bdgWidth < w]
 	refresh
 	void $ getInput mode
 
     initUI = 
-	do liftIO $ CursesH.start 
+	do liftIO CursesH.start 
 	   cpairs <- liftIO $ colorsToPairs [ (f, CursesH.black) | f <-
 		[ CursesH.white, CursesH.red, CursesH.green, CursesH.yellow, CursesH.blue, CursesH.magenta, CursesH.cyan] ] 
 	   modify $ \s -> s {dispCPairs = cpairs}

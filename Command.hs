@@ -35,7 +35,7 @@ data WrHoSel = WHSWrench | WHSHook | WHSSelected
     deriving (Eq, Ord, Show, Read)
 	
 describeCommand :: Command -> String
-describeCommand (CmdDir whs dir) = "Move " ++ (whsStr whs) ++ " " ++ (dirStr dir)
+describeCommand (CmdDir whs dir) = "Move " ++ whsStr whs ++ " " ++ dirStr dir
 describeCommand (CmdRotate dir) = "Rotate " ++ (if dir == 1 then "counter" else "") ++ "clockwise"
 describeCommand CmdWait = "nothing"
 describeCommand CmdToggle = "toggle tool"

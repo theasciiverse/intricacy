@@ -27,13 +27,13 @@ type Solution = [PlayerMove]
 checkSolution :: Lock -> Solution -> Bool
 checkSolution lock pms =
     let (frame,st) = reframe lock
-    in or $ map (\st' -> checkSolved (frame,st')) $
+    in any (\st' -> checkSolved (frame,st')) $
 		scanl (((fst.runWriter).).flip physicsTick) st pms
 
 checkSolved :: Lock -> Bool
 checkSolved (f,st) =
     let b = stateBoard st in
-	and [ Map.lookup p b == Nothing | p <- boltArea f ]
+	and [ isNothing $ Map.lookup p b | p <- boltArea f ]
 
 
 canonify :: Lock -> Lock
@@ -62,7 +62,7 @@ delOOB :: Lock -> Lock
 delOOB l@(f,st) = case listToMaybe [ idx |
 	(idx,_) <- enumVec $ placedPieces st
 	, not $ isFrame idx
-	, and $ map (not.inBounds f) $ fullFootprint st idx
+	, all (not.inBounds f) $ fullFootprint st idx
 	, null $ springsAtIdx st idx] of
     Nothing -> l
     Just idx -> delOOB $ liftLock (delPiece idx) l

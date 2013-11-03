@@ -359,8 +359,9 @@ pixelToColor (Pixel p) =
 	(b,_) = divMod p'' 0x100
     in Color (fromIntegral r) (fromIntegral g) (fromIntegral b)
 
-renderStrColAtLeft c str v = renderStrColAt' False c str v
-renderStrColAt c str v = renderStrColAt' True c str v
+renderStrColAtLeft = renderStrColAt' False
+renderStrColAt = renderStrColAt' True
+renderStrColAt' :: Bool -> Color -> String -> HexVec -> RenderM ()
 renderStrColAt' centred c str v = void $ runMaybeT $ do
     font <- MaybeT $ asks renderFont
     fsurf <- MaybeT $ liftIO $ TTF.tryRenderTextBlended font str c
@@ -400,10 +401,10 @@ drawBlocked st colouring blocking (Torque idx dir) = do
 drawBlocked st colouring blocking (Push idx dir) = do
     let footprint = plPieceFootprint $ getpp st idx
 	fullfootprint = fullFootprint st idx
-	col = if blocking then bright $ colourWheel 5 else bright orange
-    sequence_ [ drawAt (blockedPush dir $ col) pos
+	col = bright $ if blocking then colourWheel 5 else orange
+    sequence_ [ drawAt (blockedPush dir col) pos
 	| pos <- footprint
-	, not $ (dir<+>pos) `elem` fullfootprint ]
+	, (dir<+>pos) `notElem` fullfootprint ]
     -- drawAt (blockedPush dir $ bright orange) $ placedPos $ getpp st idx
 
 blitAt :: Surface -> HexVec -> RenderM ()
