@@ -213,7 +213,7 @@ buttonGlyph = tileGlyph (BlockTile [])
 useFiveColourButton :: Bool -> Glyph
 useFiveColourButton using centre@(SVec x y) size surf = do
     mapM_ (\h -> tileGlyph (BlockTile [])
-	    (dim $ colourWheel (if using then h`div`2 else 0))
+	    (dim $ colourWheel (if using then h`div`2 else 1))
 	    (SVec `uncurry` corner centre (size`div`2) h) (size`div`2) surf)
 	[0,2,4]
 

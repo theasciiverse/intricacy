@@ -206,6 +206,10 @@ connGraphPathExists st ridx eidx =
 	, or $ map (\ridx' -> connGraphPathExists st ridx' eidx)
 	    $ map (fst . connectionEnd) (springsRootAtIdx st ridx) ]
 
+connGraphHeight :: GameState -> PieceIdx -> Int
+connGraphHeight st idx =
+    maximum (0 : map ((+1) . connGraphHeight st . fst . connectionRoot) (springsEndAtIdx st idx))
+
 springExtended st c@(Connection _ _ (Spring _ natLen)) =
     let curLen = connectionLength st c
     in curLen > natLen
@@ -354,7 +358,7 @@ pieceTypeColouring :: GameState -> [PieceIdx] -> PieceColouring
 pieceTypeColouring st coloured = Map.fromList
     [ (idx, col) | (idx, PlacedPiece _ p) <- enumVec $ placedPieces st
 	, idx `elem` coloured
-	, let col = if isBlock p then 0 else 2 ]
+	, let col = if isBlock p then 1+((connGraphHeight st idx -1) `mod` 5) else 0 ]
     
 
 type Graph a = (Set a, Set (Set a))

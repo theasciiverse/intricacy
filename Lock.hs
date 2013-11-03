@@ -62,6 +62,7 @@ delOOB :: Lock -> Lock
 delOOB l@(f,st) = case listToMaybe [ idx |
 	(idx,_) <- enumVec $ placedPieces st
 	, not $ isFrame idx
-	, and $ map (not.inBounds f) $ fullFootprint st idx ] of
+	, and $ map (not.inBounds f) $ fullFootprint st idx
+	, null $ springsAtIdx st idx] of
     Nothing -> l
     Just idx -> delOOB $ liftLock (delPiece idx) l
