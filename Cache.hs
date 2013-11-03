@@ -6,7 +6,6 @@ import Control.Concurrent
 import Control.Applicative
 import Control.Exception
 import System.Directory
-import System.IO.Error
 import Control.Monad
 import Data.Maybe
 import qualified Data.ByteString as BS
@@ -68,10 +67,10 @@ makeRequest saddr@(ServerAddr host port) request =
 	withStream (IP host port) makeRequest'
 	    `catchIO` (const $ return $ ServerError $ "Cannot connect to "++saddrStr saddr++"!")
     where
-	makeRequest' handle = do
-	    BS.hPut handle $ BL.toStrict $ encode request 
-	    hFlush handle
-	    (decode . BL.fromStrict) `liftM` BS.hGetContents handle
+	makeRequest' hdl = do
+	    BS.hPut hdl $ BL.toStrict $ encode request 
+	    hFlush hdl
+	    (decode . BL.fromStrict) `liftM` BS.hGetContents hdl
 
 knownServers :: IO [ServerAddr]
 knownServers = flip catchIO (const $ return []) $ do

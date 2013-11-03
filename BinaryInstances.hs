@@ -1,7 +1,6 @@
 module BinaryInstances where
 import Data.Binary
 import qualified Data.Vector as Vector
-import Data.Word
 import Control.Monad
 import Data.Int (Int8)
 
@@ -24,9 +23,11 @@ instance Binary SmallInt where
 	n' <- get :: Get Int8
 	if n' == 127 then liftM SmallInt get else return $ SmallInt $ fromIntegral n'
 
+putPackedNat,putPackedInt :: Int -> Put
 putPackedNat n = put $ SmallNat n
-getPackedNat = liftM fromSmallNat get
 putPackedInt n = put $ SmallInt n
+getPackedNat,getPackedInt :: Get Int
+getPackedNat = liftM fromSmallNat get
 getPackedInt = liftM fromSmallInt get
 
 newtype ShortList a = ShortList {fromShortList :: [a]}
@@ -49,11 +50,11 @@ getMany n = go [] n
 {-# INLINE getMany #-}
 
 instance Binary HexVec where
-    put (HexVec hx hy hz) = putPackedInt hx >> putPackedInt hy
+    put (HexVec x y _) = putPackedInt x >> putPackedInt y
     get = do 
-	hx <- getPackedInt
-	hy <- getPackedInt
-	return $ tupxy2hv (hx,hy)
+	x <- getPackedInt
+	y <- getPackedInt
+	return $ tupxy2hv (x,y)
 instance Binary g => Binary (PHS g) where
     put (PHS v) = put v
     get = liftM PHS get

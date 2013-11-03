@@ -8,18 +8,18 @@ import Hex
 
 data Frame = BasicFrame Int
     deriving (Eq, Ord, Show, Read)
-
+ 
+bolthole, entrance :: Integral a => a -> HexVec
 bolthole size = size<*>hu <+> (size`div`2)<*>hv
 entrance size = neg $ bolthole size
 
 baseState :: Frame -> GameState
 baseState fr@(BasicFrame size) =
     GameState 
-	(Vector.fromList $ [ framePiece fr, bolt size ] ++ (initTools fr))
+	(Vector.fromList $ [ framePiece fr, bolt ] ++ (initTools fr))
 	[]
     where
-	bolt :: Int -> PlacedPiece
-	bolt size = PlacedPiece (bolthole size <+> origin) $ Block $
+	bolt = PlacedPiece (bolthole size <+> origin) $ Block $
 	    [ n<*>hu | n <- [-1..size`div`4] ] -- ++ [(-2)<*>hu<+>neg hv]
 
 framePiece :: Frame -> PlacedPiece

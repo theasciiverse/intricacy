@@ -12,7 +12,6 @@ import Data.Map (Map)
 import Data.Array
 import Data.Maybe
 import Data.List
-import Data.Char
 import Control.Monad.Trans.Maybe
 import Control.Concurrent (threadDelay)
 import Control.Monad.State
@@ -48,6 +47,7 @@ tileChar (ArmTile dir principal) = let
     c | cdir == hu = '-'
       | cdir == hv = '\\'
       | cdir == hw = '/'
+      | True = '?'
     a = if principal then bold else a0
     in (c,a)
 tileChar HookTile = ('@',bold)
@@ -56,6 +56,7 @@ tileChar BallTile = ('O',a0)
 tileChar (SpringTile Relaxed _) = ('S',a0)
 tileChar (SpringTile Compressed _) = ('$',bold)
 tileChar (SpringTile Stretched _) = ('s',bold)
+tileChar _ = ('?',bold)
 
 ownedTileGlyph :: PieceColouring -> [PieceIdx] -> OwnedTile -> Glyph
 ownedTileGlyph colouring reversed (owner,t) =
@@ -63,8 +64,8 @@ ownedTileGlyph colouring reversed (owner,t) =
 	pair = case Map.lookup owner colouring of
 		    Nothing -> 0
 		    Just n -> n+1
-	reverse = owner `elem` reversed
-    in Glyph ch pair (Curses.setReverse attr reverse)
+	rev = owner `elem` reversed
+    in Glyph ch pair (Curses.setReverse attr rev)
 
 data CVec = CVec { cy, cx :: Int }
     deriving (Eq, Ord, Show)
@@ -153,12 +154,12 @@ drawState :: [PieceIdx] -> Bool -> [Alert] -> GameState -> UIM ()
 drawState reversed colourFixed alerts st = do
     lastCol <- gets dispLastCol
     erase
-    colouring <- drawStateWithGeom reversed colourFixed st =<< getGeom
+    colouring <- drawStateWithGeom reversed colourFixed lastCol st =<< getGeom
     modify $ \ds -> ds { dispLastCol = colouring }
 
 -- TODO: monochrome mode
-drawStateWithGeom reversed colourFixed st geom = do
-    let colouring = boardColouring st (colouredPieces colourFixed st) Map.empty
+drawStateWithGeom reversed colourFixed lastCol st geom = do
+    let colouring = boardColouring st (colouredPieces colourFixed st) lastCol
     sequence_ [ drawAtWithGeom glyph pos geom | 
 	(pos,glyph) <- Map.toList $ fmap (ownedTileGlyph colouring reversed) $ stateBoard st
 	]
@@ -207,7 +208,6 @@ drawName showScore pos name = do
     ourName <- (authUser <$>) <$> gets curAuth
     relScore <- getRelScore name
     let (attr,col) = case relScore of
-	    Nothing -> if ourName == Just name then (bold,white) else (a0,white)
 	    Just 0 -> (a0,yellow)
 	    Just 1 -> (bold,cyan) 
 	    Just 2 -> (a0,green) 
@@ -215,6 +215,7 @@ drawName showScore pos name = do
 	    Just (-1) -> (bold,magenta)
 	    Just (-2) -> (a0,red)
 	    Just (-3) -> (bold,red)
+	    _ -> if ourName == Just name then (bold,white) else (a0,white)
     lift $ drawStrCentred attr col pos
 	(name ++ if showScore then " " ++ maybe "" show relScore else "")
 
@@ -260,7 +261,7 @@ drawLockInfo al@(ActiveLock name i) lockinfo mtvar = do
 	    lock <- MaybeT $ liftIO.atomically.readTVar $ tvar
 	    let size = frameSize $ fst lock
 	    guard $ bottom - top >= 5 + 2*size+1 + 1 + 5 && right-left >= 4*size+1
-	    lift.lift $ drawStateWithGeom [] False (snd lock) ((CVec hcentre vcentre),origin)
+	    lift.lift $ drawStateWithGeom [] False Map.empty (snd lock) ((CVec hcentre vcentre),origin)
 	    return (hcentre - size - 1, hcentre + size + 1)
 	, lift $ do
 	    drawActiveLock (CVec hcentre vcentre) al
@@ -306,7 +307,7 @@ instance UIMonad (StateT UIState IO) where
     runUI m = evalStateT m nullUIState
 
     drawMainState = get >>= \s -> case s of
-	PlayState st _ alerts wsel solved _ _ title _ -> lift $ do
+	PlayState st _ alerts wsel _ _ _ title _ -> lift $ do
 	    drawState [] False alerts st
 	    drawMsgLine
 	    drawTitle title
@@ -335,7 +336,7 @@ instance UIMonad (StateT UIState IO) where
 		drawStrGrey (CVec 0 0) $ "Server: " ++ saddrStr saddr 
 		drawStrGrey (CVec 1 0) $ "Lock: " ++ path
 	    maybe (return ()) (drawName True (CVec 2 (w`div`2))) selName
-	    runMaybeT $ MaybeT (return selName) >>= lift . getUInfoFetched 300 >>=
+	    void.runMaybeT $ MaybeT (return selName) >>= lift . getUInfoFetched 300 >>=
 		\(FetchedRecord fresh err muirc) -> lift $ do
 		    lift $ do
 			when (not fresh) $ drawAtCVec (Glyph '*' red bold) $ CVec 2 (w`div`2+7)
@@ -398,7 +399,7 @@ instance UIMonad (StateT UIState IO) where
 	(h,w) <- liftIO Curses.scrSize
 	let bdgWidth = 35
 	drawStrCentred a0 white (CVec 0 (w`div`2)) "Bindings:"
-	sequence [ drawStr a0 white (CVec (y+2) (x*bdgWidth) ) $
+	sequence_ [ drawStr a0 white (CVec (y+2) (x*bdgWidth) ) $
 		concat (intersperse " / " (map showKey chs)) ++ " : " ++ describeCommand cmd |
 	    ((chs,cmd),(x,y)) <- zip [(chs,cmd)
 		    | group <- groupBy ((==) `on` snd) $ sortBy (compare `on` snd) bdgs

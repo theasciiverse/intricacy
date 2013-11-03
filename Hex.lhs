@@ -32,10 +32,11 @@ import Data.Ix
 import Data.Monoid
 import Data.Ratio
 import Data.List (minimumBy)
+import Data.Function (on)
    
 data HexVec = HexVec {hx,hy,hz :: Int} deriving (Eq, Ord, Show, Read)
 
-
+hu,hv,hw :: HexVec
 hu = HexVec    1    0 (-1)
 hv = HexVec (-1)    1    0
 hw = HexVec    0 (-1)    1
@@ -46,9 +47,10 @@ hv2tup (HexVec x y z) = (x,y,z)
 tup2hv :: (Int,Int,Int) -> HexVec
 tup2hv (x,y,z) 
     | x+y+z == 0 = HexVec x y z
+    | True = error "bad hex"
 
 hv2tupxy :: HexVec -> (Int,Int)
-hv2tupxy (HexVec x y z) = (x,y)
+hv2tupxy (HexVec x y _) = (x,y)
 
 tupxy2hv :: (Int,Int) -> HexVec
 tupxy2hv (x,y) = HexVec x y (-(x+y))
@@ -92,7 +94,7 @@ rotate n v | n < 0 = rotate (n+6) v
 
 cmpAngles :: HexVec -> HexVec -> Ordering
 -- ^ordered by angle, taking cut along u
-cmpAngles v@(HexVec x y z) v'@(HexVec x' y' z')
+cmpAngles v@(HexVec x y _) v'@(HexVec x' y' _)
     | v == zero && v' == zero = EQ
     | v == zero = LT
     | compare (hextant v) (hextant v') /= EQ = 
@@ -111,10 +113,14 @@ instance Ix HexVec where
 
 -- HexDirs are intended to be HexVecs of length <= 1
 type HexDir = HexVec
+isHexDir :: HexVec -> Bool
 isHexDir v = hexLen v == 1
+
 type HexDirOrZero = HexVec
+isHexDirOrZero :: HexVec -> Bool
 isHexDirOrZero v = hexLen v <= 1
 
+hexDirs :: [HexDir]
 hexDirs = map (\n -> rotate n hu) [0..5]
 
 hexVec2HexDirOrZero :: HexVec -> HexDirOrZero
@@ -136,13 +142,13 @@ scaleToLength :: Int -> HexVec -> HexVec
 scaleToLength n v@(HexVec x y z) =
     let
 	l = hexLen v
-	lv' = map (\h -> (n * h) `div` l) [x,y,z]
-	minI = fst $ minimumBy (\x y -> compare (snd x) (snd y)) $
+	lv' = map ((`div`l).(n*)) [x,y,z]
+	minI = fst $ minimumBy (compare `on` snd) $
 	    zip [0..] $ map abs lv'
-	lv''@[x'',y'',z''] = map (uncurry (-)) $
-	    zip lv' [ n
+	[x'',y'',z''] = map (uncurry (-)) $
+	    zip lv' [ d
 		| i <- [0..2]
-		, let n = if i == minI then sum lv' else 0 ]
+		, let d = if i == minI then sum lv' else 0 ]
     in HexVec x'' y'' z''
 \end{code}
      
@@ -211,12 +217,13 @@ instance HexSpace (PHS HexVec)
 Testing:
 
 \begin{code}
+{-
 r = range (tup2hv (-3,-3,6), tup2hv (3,3,-6))
 test1 = index (tup2hv (-3,-3,6), tup2hv (3,3,-6)) (r!!5) == 5
 
 a :: PHS HexVec
 a = PHS zero
 test2 = hu <+> a
+-}
 \end{code}
-
 \end{document}

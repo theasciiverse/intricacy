@@ -165,6 +165,7 @@ bindings IMEdit = editBindings
 bindings IMPlay = playBindings
 bindings IMMeta = metaBindings
 bindings IMReplay = replayBindings
+bindings _ = []
 
 findBinding :: KeyBindings -> Command -> Maybe Char
 findBinding bdgs cmd = listToMaybe [ ch | (ch,cmd') <- bdgs, cmd'==cmd ]

@@ -4,15 +4,14 @@ import Graphics.UI.SDL
 import Graphics.UI.SDL.Primitives
 import qualified Graphics.UI.SDL.TTF as TTF
 import Data.Monoid
-import Data.Ratio
 import Control.Monad
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.Class
 import qualified Data.Map as Map
-import Data.Map (Map)
-import Data.List (maximumBy, findIndex)
+import Data.List (maximumBy)
+import Data.Function (on)
 
 import Hex
 import GameState
@@ -53,6 +52,7 @@ corner (SVec x y) size hextant = (fromIntegral $ x+dx, fromIntegral $ y+dy)
 	f n | n < 6 = let [x,y] = f (5-n) in [x,-y]
 	    | n < 0 = f (6-n)
 	    | otherwise = f (n`mod`6)
+	sizeFloat :: Double
 	sizeFloat = fromIntegral size
 
 innerCorner :: Integral i => SVec -> Int -> HexDir -> (i,i)
@@ -65,6 +65,7 @@ innerCorner (SVec x y) size dir = (fromIntegral $ x+dx, fromIntegral $ y+dy)
 	    | dir == hw = [-sizeFloat/3, (1 / (sqrt 3)) * sizeFloat]
 	    | not (isHexDir dir) = error "innerCorner: not a hexdir"
 	    | otherwise = map (\z -> -z) $ f $ neg dir
+	sizeFloat :: Double
 	sizeFloat = fromIntegral size
 
 
@@ -80,6 +81,7 @@ edge (SVec x y) size dir = (fromIntegral $ x+dx, fromIntegral $ y+dy)
 	    | dir == hw = [-x', y']
 	    | not (isHexDir dir) = error "edge: not a hexdir"
 	    | otherwise = map (\z -> -z) $ f $ neg dir
+	sizeFloat :: Double
 	sizeFloat = fromIntegral $ size - 1
 
 tileGlyph :: Tile -> Pixel -> Glyph
@@ -136,8 +138,8 @@ tileGlyph (WrenchTile mom) col centre size surf = do
     rimmedCircle surf centre (size`div`3) col $ bright col
     when (mom /= zero) $
 	let 
-	    from@(fx,fy) = innerCorner centre size $ neg mom
-	    to@(tx,ty) = edge centre size $ neg mom
+	    (fx,fy) = innerCorner centre size $ neg mom
+	    (tx,ty) = edge centre size $ neg mom
 	    shifts = map (map (`div` 2)) $
 		[ [ x1-x0, y1-y0 ]
 		| rot <- [-1,0,1]
@@ -175,17 +177,17 @@ blockedPush dir col centre size surf = do
 		, innerCorner centre size $ rotate (-1) dir
 		, innerCorner centre size dir ]
 -}
-    void $ aaLine surf `uncurry` base `uncurry` head $ col
+    void $ aaLine surf `uncurry` base `uncurry` tip $ col
     --void $ aaLine surf `uncurry` from' `uncurry` to' $ col
-    void $ aaLine surf `uncurry` head `uncurry` (arms!!0) $ col
-    void $ aaLine surf `uncurry` head `uncurry` (arms!!1) $ col
+    void $ aaLine surf `uncurry` tip `uncurry` (arms!!0) $ col
+    void $ aaLine surf `uncurry` tip `uncurry` (arms!!1) $ col
     where
 	--base@(bx,by) = innerCorner centre size dir
 	SVec bx' by' = centre
 	base@(bx,by) = (fromIntegral bx',fromIntegral by')
-	head@(hx,hy) = edge centre size dir
-	arms = [(bx + (hx-bx)`div`2 + dir*(hy-by)`div`4,
-	    by + (hy-by)`div`2 - dir*(hx-bx)`div`4) | dir <- [-1,1]]
+	tip@(tx,hy) = edge centre size dir
+	arms = [(bx + (tx-bx)`div`2 + dir*(hy-by)`div`4,
+	    by + (hy-by)`div`2 - dir*(tx-bx)`div`4) | dir <- [-1,1]]
 
 	--from' = corner centre size $ hextant dir
 	--to' = corner centre size $ (hextant dir) - 1
@@ -211,7 +213,7 @@ buttonGlyph :: Pixel -> Glyph
 buttonGlyph = tileGlyph (BlockTile [])
 
 useFiveColourButton :: Bool -> Glyph
-useFiveColourButton using centre@(SVec x y) size surf = do
+useFiveColourButton using centre size surf = do
     mapM_ (\h -> tileGlyph (BlockTile [])
 	    (dim $ colourWheel (if using then h`div`2 else 1))
 	    (SVec `uncurry` corner centre (size`div`2) h) (size`div`2) surf)
@@ -284,26 +286,25 @@ hexVec2SVec size (HexVec x y z) =
     SVec ((x-z) * size) (floor $ -(fromIntegral $ y * size) * (sqrt 3))
 
 sVec2dHV :: Int -> SVec -> (Double,Double,Double)
-sVec2dHV size sv@(SVec x y) =
-    let size' = fromIntegral size
-	x' = fromIntegral x
-	y' = fromIntegral y
-	hy' = -y' / size' / (sqrt 3)
-	hx' = ((x' / size') - hy') / 2
-	hz' = -((x' / size') + hy') / 2
-    in (hx',hy',hz')
+sVec2dHV size (SVec sx sy) =
+    let sx',sy',size' :: Double
+	[sx',sy',size'] = map fromIntegral [sx,sy,size]
+	y' = -sy' / size' / (sqrt 3)
+	x' = ((sx' / size') - y') / 2
+	z' = -((sx' / size') + y') / 2
+    in (x',y',z')
 
 sVec2HexVec :: Int -> SVec -> HexVec
 sVec2HexVec size sv =
-    let (hx',hy',hz') = sVec2dHV size sv
-	unrounded = Map.fromList [(1,hx'),(2,hy'),(3,hz')]
+    let (x',y',z') = sVec2dHV size sv
+	unrounded = Map.fromList [(1,x'),(2,y'),(3,z')]
 	rounded = Map.map round unrounded
-	maxdiff = fst $ maximumBy (\x y -> compare (snd x) (snd y)) $
-	    [ (i, abs $ x'-x) | i <- [1..3],
-		let x' = unrounded Map.! i, let x = fromIntegral $ rounded Map.! i]
-	[hx,hy,hz] = map snd $ Map.toList $
+	maxdiff = fst $ maximumBy (compare `on` snd) $
+	    [ (i, abs $ c'-c) | i <- [1..3],
+		let c' = unrounded Map.! i, let c = fromIntegral $ rounded Map.! i]
+	[x,y,z] = map snd $ Map.toList $
 	    Map.adjust (\x -> x - (sum $ Map.elems rounded)) maxdiff rounded
-    in HexVec hx hy hz
+    in HexVec x y z
 
 data RenderContext = RenderContext
     { renderSurf :: Surface
@@ -375,7 +376,7 @@ renderStrColAt' centred c str v = void $ runMaybeT $ do
 blankRow v = do
     (surf, scrCentre, size) <- asks $
 	liftM3 (,,) renderSurf renderSCentre renderSize
-    let SVec x y = scrCentre <+> (hexVec2SVec size v)
+    let SVec _ y = scrCentre <+> (hexVec2SVec size v)
 	w = surfaceGetWidth surf
 	h = ceiling $ fromIntegral size * 2 * sqrt 3
     void $ liftIO $ fillRect surf (Just $
@@ -392,6 +393,7 @@ drawBlocked st colouring blocking (Torque idx dir) = do
     let (pos,arms) = case getpp st idx of
 	    PlacedPiece pos (Pivot arms) -> (pos,arms)
 	    PlacedPiece pos (Hook arm _) -> (pos,[arm])
+	    _ -> (pos,[])
 	col = if blocking then bright $ colourWheel 5 else dim $ colourOf colouring idx
     sequence_ [ drawAt (blockedArm arm dir col) (arm <+> pos) |
 	arm <- arms ]
@@ -407,7 +409,7 @@ drawBlocked st colouring blocking (Push idx dir) = do
 blitAt :: Surface -> HexVec -> RenderM ()
 blitAt surface v = do
     (surf, scrCentre, size) <- asks $ liftM3 (,,) renderSurf renderSCentre renderSize
-    let cpos@(SVec x y) = scrCentre <+> (hexVec2SVec size v)
+    let SVec x y = scrCentre <+> (hexVec2SVec size v)
 	w = surfaceGetWidth surface
 	h = surfaceGetHeight surface
     void $ liftIO $ blitSurface surface Nothing surf $ Just $

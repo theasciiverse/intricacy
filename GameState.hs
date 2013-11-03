@@ -9,7 +9,7 @@ import Data.Maybe
 import Control.Monad
 import Control.Monad.State
 import Data.List
-import Data.Vector (Vector, (!), (!?), (//))
+import Data.Vector (Vector, (!), (//))
 
 import Hex
 --import Debug
@@ -29,7 +29,7 @@ data PlacedPiece = PlacedPiece { placedPos :: HexPos, placedPiece :: Piece }
 -- that there are no overlaps, that all the connections make sense, and that
 -- blocks are connected.
 validGameState :: GameState -> Bool
-validGameState st = True
+validGameState = const True
 
 ppidxs :: GameState -> [PieceIdx]
 ppidxs = Vector.toList . (Vector.findIndices $ \_ -> True) . placedPieces
@@ -119,7 +119,7 @@ delConnectionsAt locus st =
         $ connections st}
 
 delPiece :: PieceIdx -> GameState -> GameState
-delPiece idx st@(GameState pps conns) =
+delPiece idx (GameState pps conns) =
     GameState (Vector.concat [Vector.take idx pps, Vector.drop (idx+1) pps])
 	[ Connection (ridx',rv) (eidx',ev) link |
 	    Connection (ridx,rv) (eidx,ev) link <- conns
@@ -138,7 +138,7 @@ enumVec :: Vector a -> [(Int,a)]
 enumVec = Vector.toList . Vector.indexed
 
 setPiece :: PieceIdx -> Piece -> GameState -> GameState
-setPiece idx p st@(GameState pps _) = 
+setPiece idx p st = 
     setpp idx (PlacedPiece (placedPos $ getpp st idx) p) st
 
 adjustPieces :: (Piece -> Piece) -> GameState -> GameState
@@ -156,6 +156,7 @@ data Piece = Block { blockPattern :: [HexVec] }
 	    | Wrench { wrenchMomentum :: HexDir }
 	    | Ball
     deriving (Eq, Ord, Show, Read)
+isBlock, isPivot, isHook, isWrench, isTool, isBall :: Piece -> Bool
 isBlock p = case p of Block _ -> True; _ -> False
 isPivot p = case p of Pivot _ -> True; _ -> False
 isHook p = case p of Hook _ _ -> True; _ -> False
@@ -175,7 +176,7 @@ posLocus st pos = listToMaybe [ (idx,pos<->ppos) |
     , pos `elem` plPieceFootprint pp ]
 
 data Connection = Connection { connectionRoot :: Locus
-		    , connectionEnd :: Locus, link :: Link }
+		    , connectionEnd :: Locus, connectionLink :: Link }
     deriving (Eq, Ord, Show, Read)
 
 connectionLength :: GameState -> Connection -> Int
@@ -188,14 +189,13 @@ data Link = Free { freePos :: HexVec }
 	  | Spring { springDir :: HexDir, springNatLength :: Int }
     deriving (Eq, Ord, Show, Read)
 
+springsAtIdx,springsEndAtIdx,springsRootAtIdx :: GameState -> PieceIdx -> [Connection]
 springsAtIdx st idx =
     [ c | c@(Connection (ridx,_) (eidx, _) (Spring _ _)) <- connections st
 	  , idx `elem` [ridx,eidx] ]
-
 springsEndAtIdx st idx =
     [ c | c@(Connection _ (eidx, _) (Spring _ _)) <- connections st
 	  , eidx==idx ]
-
 springsRootAtIdx st idx =
     [ c | c@(Connection (ridx, _) _ (Spring _ _)) <- connections st
 	  , ridx==idx ]
@@ -210,18 +210,15 @@ connGraphHeight :: GameState -> PieceIdx -> Int
 connGraphHeight st idx =
     maximum (0 : map ((+1) . connGraphHeight st . fst . connectionRoot) (springsEndAtIdx st idx))
 
-springExtended st c@(Connection _ _ (Spring _ natLen)) =
-    let curLen = connectionLength st c
-    in curLen > natLen
-springCompressed st c@(Connection _ _ (Spring _ natLen)) =
-    let curLen = connectionLength st c
-    in curLen < natLen
-springFullyExtended st c@(Connection _ _ (Spring _ natLen)) =
-    let curLen = connectionLength st c
-    in curLen >= 2*natLen
-springFullyCompressed st c@(Connection _ _ (Spring _ natLen)) =
-    let curLen = connectionLength st c
-    in curLen <= (natLen+1)`div`2
+springExtended,springCompressed,springFullyExtended,springFullyCompressed :: GameState -> Connection -> Bool
+springExtended st c@(Connection _ _ (Spring _ natLen)) = connectionLength st c > natLen
+springExtended _ _ = False
+springCompressed st c@(Connection _ _ (Spring _ natLen)) = connectionLength st c < natLen
+springCompressed _ _ = False
+springFullyExtended st c@(Connection _ _ (Spring _ natLen)) = connectionLength st c >= 2*natLen
+springFullyExtended _ _ = False
+springFullyCompressed st c@(Connection _ _ (Spring _ natLen)) = connectionLength st c <= (natLen+1)`div`2
+springFullyCompressed _ _ = False
 
 data SpringExtension = Relaxed | Compressed | Stretched
     deriving (Eq, Ord, Show, Read)
@@ -242,6 +239,7 @@ tileType (BallTile) = BallTile
 tileType (SpringTile _ _) = SpringTile Relaxed zero
 tileType t = t
 
+sameTileType :: Tile -> Tile -> Bool
 sameTileType t t' = (tileType t) == (tileType t')
 
 stateBoard :: GameState -> GameBoard
@@ -251,19 +249,17 @@ stateBoard st@(GameState plPieces conns) =
 	(Map.unions $ map (connectionBoard st) conns)
 
 addConnAdjs :: GameState -> [Connection] -> GameBoard -> GameBoard
-addConnAdjs st [] board = board
-addConnAdjs st (Connection root end (Spring dir _):conns) board =
-    addConnAdjs st conns $
-    addAdj (locusPos st root) dir $
-    addAdj (locusPos st end) (neg dir) board
-	where
-	    addAdj pos d =
-		Map.adjust (\(o,tile) -> (o,case tile of
-			BlockTile adjs -> BlockTile (d:adjs)
-			_ -> tile))
-		    pos
-    
-    
+addConnAdjs st = flip $ foldr addConnAdj
+    where
+	addConnAdj (Connection root end (Spring dir _)) board =
+	    addAdj (locusPos st root) dir $
+	    addAdj (locusPos st end) (neg dir) board
+	addConnAdj _ board = board
+	addAdj pos d =
+	    Map.adjust (\(o,tile) -> (o,case tile of
+		    BlockTile adjs -> BlockTile (d:adjs)
+		    _ -> tile))
+		pos
 
 plPieceBoard :: (PieceIdx,PlacedPiece) -> GameBoard
 plPieceBoard (idx,pp) = fmap (\x -> (idx,x)) $ plPieceMap pp
@@ -358,15 +354,15 @@ pieceTypeColouring :: GameState -> [PieceIdx] -> PieceColouring
 pieceTypeColouring st coloured = Map.fromList
     [ (idx, col) | (idx, PlacedPiece _ p) <- enumVec $ placedPieces st
 	, idx `elem` coloured
-	, let col = if isBlock p then 1+((connGraphHeight st idx -1) `mod` 5) else 0 ]
+	, let col = if isBlock p then 1+((connGraphHeight st idx - 1) `mod` 5) else 0 ]
     
 
 type Graph a = (Set a, Set (Set a))
 type PlanarGraph a = Map a [a]
 
 boardColouring :: GameState -> [PieceIdx] -> PieceColouring -> PieceColouring
-boardColouring st coloured last =
-   fiveColour graph last
+boardColouring st coloured lastCol =
+   fiveColour graph lastCol
     where
 	board = stateBoard st
 	graph = Map.fromList [ (idx, nub $ neighbours idx)
@@ -394,7 +390,7 @@ boardColouring st coloured last =
 		    (ns++ns')
 	-- |march around the piece's boundary, returning positions visited and
 	-- neighbouring pieces met (in order)
-	march idx startPos a@(pos,basedir) init
+	march idx startPos (pos,basedir) init
 	    | not init && pos == startPos = ([],[])
 	    | otherwise =
 	    let n = do 
@@ -402,9 +398,9 @@ boardColouring st coloured last =
 		    guard $ idx' `elem` coloured
 		    return idx'
 		mNext = listToMaybe 
-		    [ (pos', rotate (n-2) basedir)
-		    | n <- [1..5] 
-		    , let pos' = (rotate n basedir)<+>pos
+		    [ (pos', rotate (h-2) basedir)
+		    | h <- [1..5] 
+		    , let pos' = (rotate h basedir)<+>pos
 		    , (Map.lookup pos' board >>= return.fst) /= Just idx
 		    ]
 		(path,ns) = case mNext of
@@ -415,10 +411,10 @@ boardColouring st coloured last =
 type Colouring a = Map a Int
 
 fourColour :: Ord a => Graph a -> Colouring a -> Colouring a
-fourColour (nodes,edges) last =
+fourColour (nodes,edges) lastCol =
     -- bruteforce 
-    if Map.keysSet last == nodes && isColouring last
-	then last
+    if Map.keysSet lastCol == nodes && isColouring lastCol
+	then lastCol
 	else head $ filter isColouring colourings
     where 
 	isColouring mapping = and [
@@ -438,9 +434,9 @@ fiveColour :: Ord a => PlanarGraph a -> Colouring a -> Colouring a
 -- (Proof: suppose it does, so |E| >= 3|V|; WLOG the graph is triangulated,
 -- so then |F| <= 2/3 |E|. So \xi = |V|-|E|+|F| <= (1/3 - 1 + 2/3)|E| = 0.
 -- But a planar graph has Euler characteristic 1.)
-fiveColour g last =
-    if Map.keysSet last == Map.keysSet g && isColouring last
-	then last
+fiveColour g lastCol =
+    if Map.keysSet lastCol == Map.keysSet g && isColouring lastCol
+	then lastCol
 	else fiveColour' g
     where
     isColouring mapping = and [
@@ -453,7 +449,7 @@ fiveColour g last =
 	| otherwise =
 	let 
 	    adjsOf v = (nub $ g Map.! v) \\ [v]
-	    v = head $ filter (\v -> length (adjsOf v) <= 5) $ Map.keys g
+	    v = head $ filter ((<=5) . length . adjsOf) $ Map.keys g
 	    adjs = adjsOf v
 	    addTo c = let vc = head $ possCols v \\ map (c Map.!) adjs
 		      in Map.insert v vc c
@@ -464,7 +460,7 @@ fiveColour g last =
 			else (adjs!!0,adjs!!2)
 		in addTo $ demerge v' v'' $ fiveColour' $ merge v v' v'' g
     --possCols :: a -> [Int]
-    possCols v = maybe [0..4] (\lvc -> lvc:([0..4] \\ [lvc])) $ Map.lookup v last
+    possCols v = maybe [0..4] (\lvc -> lvc:([0..4] \\ [lvc])) $ Map.lookup v lastCol
     --demerge :: a -> a -> Colouring a -> Colouring a
     demerge v v' c = Map.insert v' (c Map.! v) c
     --merge :: a -> a -> a -> PlanarGraph a -> PlanarGraph a
@@ -496,11 +492,13 @@ modTile tile pos lastPos painting st =
 	lastMOwner = do
 	    (o,_) <- Map.lookup lastPos board
 	    return o
+	{-
 	same = isJust $ do
 		t <- tile
 		(_,t') <- curOwnedTile
 		guard $ sameTileType t t'
 		return $ Just ()
+	-}
 	lastElem os = isJust $ do
 	       lastOwner <- lastMOwner
 	       guard $ lastOwner `elem` os
@@ -524,7 +522,6 @@ modTile tile pos lastPos painting st =
     in case mowner of
 	 Just o | protectedPiece o -> st
 	 _ -> (case tile of
-	   Nothing -> id
 	   -- _ | same && (pos /= lastPos) -> id
 	   Just (BlockTile _) ->
 	       let adjacentBlocks = [ idx |
@@ -582,6 +579,7 @@ modTile tile pos lastPos painting st =
 			    in case arm of Just armdir -> addPiece $ Hook armdir NullHF
 					   _ -> id
 	   Just (BallTile) -> addPiece Ball
+	   _ -> id
 	   ) st'
 
 mergeTiles :: HexPos -> HexDir -> Bool -> GameState -> GameState

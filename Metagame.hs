@@ -9,7 +9,6 @@ import Data.Char
 
 import GameState
 import Lock
-import Physics
 
 notesNeeded = 3
 maxLocks = 3
@@ -120,10 +119,6 @@ instance Binary LockDelta where
 instance Binary LockInfo where
     put (LockInfo spec pk notes solved accessed) = put spec >> put pk >> put notes >> put solved >> put accessed
     get = liftM5 LockInfo get get get get get 
-
-liftM6 f g1 g2 g3 g4 g5 g6 = do
-    nearly <- liftM5 f g1 g2 g3 g4 g5
-    liftM nearly g6
 
 instance Binary NoteInfo where
     put (NoteInfo author behind on) = put author >> put behind >> put on

@@ -6,24 +6,19 @@ import Control.Monad.Trans
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.State
 import Data.Maybe
-import Control.Exception
 import System.Exit
-import System.IO.Error
 import System.Environment
 import System.Console.GetOpt
-import Data.Binary
 
 import Mundanities
-import Frame
-import BinaryInstances
 import Lock
 import UI
 
 data Opt = LockSize Int | ForceCurses
     deriving (Eq, Ord, Show)
-options = [
-    Option ['s'] ["locksize"] (ReqArg (LockSize . read) "SIZE") "locksize"
-    , Option ['c'] ["curses"] (NoArg ForceCurses) "force curses UI"
+options =
+    [ Option ['c'] ["curses"] (NoArg ForceCurses) "force curses UI"
+    -- , Option ['s'] ["locksize"] (ReqArg (LockSize . read) "SIZE") "locksize"
     ]
 parseArgs :: [String] -> IO ([Opt],[String])
 parseArgs argv =
@@ -40,7 +35,7 @@ setup :: IO (Maybe Lock,[Opt],Maybe String)
 setup = do
     argv <- getArgs
     (opts,args) <- parseArgs argv
-    let frameSize = fromMaybe 8 $ listToMaybe [ size | LockSize size <- opts ]
+    --let frameSize = fromMaybe 8 $ listToMaybe [ size | LockSize size <- opts ]
     let fname = listToMaybe args
     mlock <- runMaybeT $ (MaybeT . return) fname >>= MaybeT . readLockFile
     return (liftM reframe mlock,opts,fname)

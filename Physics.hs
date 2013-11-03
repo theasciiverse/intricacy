@@ -1,16 +1,13 @@
 module Physics where
 
-import qualified Data.Map as Map
-import Data.Map (Map)
 import qualified Data.Set as Set
 import Data.Set (Set)
 import qualified Data.Vector as Vector
-import Data.List (intersect, union, (\\), elemIndices, nub)
-import Data.Maybe
 import Control.Monad.State
 import Control.Monad.Writer
 import Data.Foldable (foldrM)
-import Data.Vector (Vector, (!), (!?), (//))
+import Data.List (nub)
+import Data.Vector (Vector, (!), (//))
 
 import Hex
 import GameState
@@ -28,13 +25,17 @@ newtype ForceChoice = ForceChoice {getForceChoice :: [Force]}
 
 type ForceChoices = Vector.Vector ForceChoice
 
+forceIdx :: Force -> PieceIdx
 forceIdx force = case force of (Push idx _) -> idx
 			       (Torque idx _) -> idx
+
+isPush,isTorque,forceIsNull :: Force -> Bool
 isPush (Push _ _) = True
 isPush _ = False
 isTorque = not . isPush
 forceIsNull (Push _ dir) = dir == zero
 forceIsNull (Torque _ dir) = dir == 0
+
 getForcedpp :: GameState -> Force -> PlacedPiece
 getForcedpp s f = getpp s (forceIdx f)
 
@@ -71,7 +72,7 @@ toolForces st pm = Vector.fromList $
 type Dominance = Int -> Int -> Bool
 
 envForces :: GameState -> (ForceChoices, Dominance)
-envForces st@(GameState plPieces conns) =
+envForces st@(GameState _ conns) =
     let rootedForces :: Vector (Maybe PieceIdx, Force)
 	rootedForces = Vector.fromList [ (Just rootIdx, Push endIdx dir)
 	    | c@(Connection (rootIdx,_) (endIdx,_) (Spring outDir natLen)) <- conns
@@ -108,8 +109,7 @@ data SourcedForce = SForce Source Force Bool Bool
     deriving (Eq, Ord, Show)
 resolveForces :: ForceChoices -> ForceChoices -> Dominance -> GameState -> Writer [Alert] GameState
 resolveForces plForces eForces eDominates st =
-    let forces = plForces Vector.++ eForces
-	pln = Vector.length plForces
+    let pln = Vector.length plForces
 	dominates i j = case map (< pln) [i,j] of
 		[True,False] -> True
 		[False,False] -> eDominates (i-pln) (j-pln)
@@ -175,9 +175,9 @@ applyForceTo pp _ = pp
 
 -- A force on a piece which resists it is immediately blocked
 pieceResists :: GameState -> Force -> Bool 
-pieceResists st@(GameState pps conns) force =
+pieceResists st force =
     let idx = forceIdx force
-	PlacedPiece pos piece = getpp st idx
+	PlacedPiece _ piece = getpp st idx
         springs = springsEndAtIdx st idx
 	fixed = case piece of
 		     (Pivot _) -> isPush force
@@ -194,7 +194,7 @@ pieceResists st@(GameState pps conns) force =
 -- |transmittedForce: convert pushes into torques as appropriate
 transmittedForce :: GameState -> Source -> HexPos -> HexDir -> Force
 transmittedForce st idx cpos dir =
-    let pp@(PlacedPiece pos piece) = getpp st idx
+    let pp@(PlacedPiece _ piece) = getpp st idx
 	rpos = cpos <-> placedPos pp
 	armPush = case
 		(dir `hexDot` ((rotate 1 rpos) <-> rpos)) `compare`
@@ -210,7 +210,7 @@ transmittedForce st idx cpos dir =
 -- |propagateForce: return forces a force causes via bumps and fully
 -- compressed/extended springs
 propagateForce :: GameState -> Bool -> Force -> [ForceChoice]
-propagateForce st@(GameState plPieces conns) isPlSource force =
+propagateForce st@(GameState _ conns) isPlSource force =
     bumps ++ springTransmissions
     where
 	idx = forceIdx force
@@ -226,7 +226,7 @@ propagateForce st@(GameState plPieces conns) isPlSource force =
 			      arm = cpos <-> placedPos (getpp st idx) ]
 	springTransmissions =
 	    case force of
-		 Push idx dir -> [ ForceChoice [Push idx' dir] |
+		 Push _ dir -> [ ForceChoice [Push idx' dir] |
 			c@(Connection (ridx,_) (eidx,_) (Spring sdir _)) <- conns
 			, let root = idx == ridx
 			, let end = idx == eidx
@@ -251,7 +251,7 @@ propagate st isPlSource fch = Set.toList `liftM` propagate' isPlSource Set.empty
 	    let (ps', failed) = if pieceResists st f && (not isPlForce)
 		    then (ps, Any True)
 		    else runWriter $ foldrM
-			    (\p ps' -> propagate' False ps' p)
+			    (flip $ propagate' False)
 			    (f `Set.insert` ps)
 			    $ propagateForce st isPlSource f
 	    in if getAny failed

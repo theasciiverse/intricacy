@@ -91,7 +91,7 @@ instance Binary Auth where
 
 instance Binary ServerResponse where
     put ServerAck = put (0::Word8)
-    put (ServerError error) = put (1::Word8) >> put error
+    put (ServerError err) = put (1::Word8) >> put err
     put (ServedServerInfo sinfo) = put (2::Word8) >> put sinfo
     put (ServedLock lock) = put (3::Word8) >> put lock
     put (ServedUserInfo info) = put (4::Word8) >> put info

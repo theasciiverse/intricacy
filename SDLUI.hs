@@ -6,7 +6,6 @@ import qualified Graphics.UI.SDL as SDL
 import qualified Graphics.UI.SDL.TTF as TTF
 import Control.Concurrent.STM
 import Control.Applicative hiding ((<*>))
-import Data.Char (ord)
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.Maybe
@@ -14,7 +13,6 @@ import Control.Concurrent (threadDelay)
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.Reader
-import System.IO.Error
 import Data.Word
 import Data.Array
 import Data.List
@@ -280,12 +278,14 @@ getEffPaintTileIndex = do
 paintButtonStart :: HexVec
 paintButtonStart = periphery 0 <+> (- length paintTiles `div` 2)<*>hv
 
+{-
 drawPaintSel :: UIM ()
 drawPaintSel = do
     pti <- getEffPaintTileIndex
     case (paintTiles!!pti) of
 	Nothing -> return ()
 	Just t -> renderToMain $ drawAtRel (tileGlyph t (dim $ colourWheel 5)) (periphery 0)
+-}
 
 drawPaintButtons :: UIM ()
 drawPaintButtons = do
@@ -715,7 +715,7 @@ instance UIMonad (StateT UIState IO) where
 	    let Rect _ _ w h = case modes of
 		    Modes (mode:_) -> mode
 		    AnyOK -> Rect 0 0 1024 768
-		    NonAvailable -> error "SDL says no resolution available"
+		    _ -> error "SDL says no resolution available"
 	    initVideo w h
 	    liftIO $ warpMouse (fromIntegral $ w`div`2) (fromIntegral $ h`div`2)
 	    renderToMain $ erase
@@ -766,7 +766,6 @@ instance UIMonad (StateT UIState IO) where
 		updateMousePos mode
 		(mPos,_) <- gets mousePos
 		if mode == IMEdit && mPos /= oldMPos then do
-			centre <- gets dispCentre
 			relMoves <- mouseFromTo oldMPos mPos
 			lb <- gets leftButtonDown
 			pti <- getEffPaintTileIndex
@@ -809,8 +808,7 @@ instance UIMonad (StateT UIState IO) where
 		return []
 	    processEvent (MouseButtonDown _ _ ButtonRight) = do
 		modify $ \s -> s { rightButtonDown = True }
-		pos@(mPos,central) <- gets mousePos
-		buttons <- (concat . map fst) `liftM` getButtons mode
+		pos <- gets mousePos
 		(fromMaybe [] <$>) $ runMaybeT $ msum
 		    [ do
 			cmd <- MaybeT $ cmdAtMousePos pos mode Nothing

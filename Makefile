@@ -1,6 +1,6 @@
 VERSION=0.2
 all: *.lhs *.hs
-	cabas install -f Server --bindir .
+	cabal install -f Server --bindir .
 intricacy: *.lhs *.hs
 	cabal install --bindir .
 intricacy-curses: *.lhs *.hs

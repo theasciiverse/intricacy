@@ -7,7 +7,6 @@ import Control.Monad
 import System.IO
 import System.FilePath
 import System.Directory
-import Data.Char
 import qualified Data.ByteString.Lazy.Char8 as CL
 import qualified Data.ByteString.Char8 as CS
 
@@ -20,7 +19,6 @@ import Crypto.Hash (hashlazy, Digest, SHA1, digestToHexByteString)
 import Protocol
 import Metagame
 import Lock
-import Frame
 import Mundanities
 
 --hash :: String -> IO String
@@ -54,6 +52,7 @@ rcOfServerResp (ServedServerInfo x) = RCServerInfo x
 rcOfServerResp (ServedLock x) = RCLock x
 rcOfServerResp (ServedSolution x) = RCSolution x
 rcOfServerResp (ServedUserInfo x) = RCUserInfo x
+rcOfServerResp _ = error "no corresponding rc"
 
 invariantRecord (RecUserInfo _) = False
 invariantRecord (RecUserInfoLog _) = False
@@ -64,6 +63,7 @@ askForRecord RecServerInfo = GetServerInfo
 askForRecord (RecUserInfo name) = GetUserInfo name Nothing
 askForRecord (RecLock ls) = GetLock ls
 askForRecord (RecNote note) = GetSolution note
+askForRecord _ = error "no corresponding request"
 	    
 recordExists :: Record -> IO Bool
 recordExists = doesFileExist . recordPath

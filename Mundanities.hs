@@ -2,13 +2,9 @@ module Mundanities where
 import Control.Applicative
 import Control.Arrow
 import Control.Monad
-import Control.Monad.IO.Class
-import Control.Exception
-import System.IO.Error
 import qualified Control.Exception as E
 import System.Directory
 import System.FilePath
-import System.Environment
 import Data.Maybe
 import Data.List
 import qualified Data.ByteString as BS
@@ -40,7 +36,10 @@ getDataPath = getDataFileName
 makeConfDir :: IO ()
 makeConfDir = confFilePath "" >>= createDirectoryIfMissing False
 
+mkdirhierto :: FilePath -> IO ()
 mkdirhierto = mkdirhier . takeDirectory
+
+mkdirhier :: FilePath -> IO ()
 mkdirhier path = do
     exists <- doesDirectoryExist path
     when (not exists) $ mkdirhierto path >> createDirectory path

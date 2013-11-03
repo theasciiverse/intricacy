@@ -12,13 +12,10 @@ import Control.Monad.Trans.Maybe
 import Data.Maybe
 import Data.Char
 import Data.List
-import qualified Data.Binary as Bin
-import qualified Data.ByteString.Lazy as B
 import Control.Concurrent.STM
 import Control.Concurrent
 import System.Directory
 import System.FilePath
-import System.IO.Error
 import Data.Time.Clock
 import Data.Array
 
@@ -27,9 +24,7 @@ import Command
 import Mundanities
 import GameState
 import Physics
-import Command
 import Frame
-import BinaryInstances
 import Lock
 import Cache
 import Database
@@ -117,6 +112,7 @@ initMetaState = do
 
 readLock :: FilePath -> IO (Maybe Lock)
 readLock path = fullLockPath path >>= readReadFile
+writeLock :: FilePath -> Lock -> IO ()
 writeLock path lock = fullLockPath path >>= flip writeReadFile lock
 fullLockPath path = if isAbsolute path
     then return path
@@ -164,6 +160,7 @@ mgetUInfo name = do
     return uinfo
     where defaultStaleTime = 300
 
+setUInfoTVar :: UIMonad uiM => Codename -> StateT MainState uiM (TVar FetchedRecord)
 setUInfoTVar name = do
     now <- liftIO getCurrentTime
     tvar <- getRecordCachedFromCur True $ RecUserInfo name
@@ -174,6 +171,7 @@ invalidateUInfo :: UIMonad uiM => Codename -> StateT MainState uiM ()
 invalidateUInfo name = 
     modify $ \ms -> ms {userInfos = Map.delete name $ userInfos ms}
 
+setLockTVars :: UIMonad uiM => Codename -> StateT MainState uiM ()
 setLockTVars name = do
     uiTVar <- setUInfoTVar name
     liftIO $ waitFetchedFresh uiTVar
@@ -186,7 +184,7 @@ setLockTVars name = do
     where
 	getLockTVar saddr uiTVar flag cOnly n = do
 	    tvar <- atomically $ newTVar Nothing
-	    forkIO $ do
+	    _ <- forkIO $ do
 		mlockinfo <- atomically $ do
 		    uinforc <- readTVar uiTVar
 		    case uinforc of
@@ -229,23 +227,25 @@ refreshUInfoUI = void.runMaybeT $ do
 	purgeInvalidUndecls = do
 	    undecls' <- gets undeclareds >>= filterM ((not<$>).invalid)
 	    modify $ \ms -> ms { undeclareds = undecls' }
-	invalid undecl@(Undeclared _ ls (ActiveLock name index)) =
+	invalid (Undeclared _ ls (ActiveLock name idx)) =
 	    (maybe False id <$>) $ runMaybeT $ do
 		uinfo <- mgetUInfo name
 		ourName <- mgetOurName
 		msum [ do
-			linfo <- MaybeT $ return $ userLocks uinfo ! index
+			linfo <- MaybeT $ return $ userLocks uinfo ! idx
 			return $ public linfo 
 			    || ourName `elem` accessedBy linfo 
 			    || lockSpec linfo /= ls
 		    , return True
 		    ]
 
+curServerAction :: UIMonad uiM => Protocol.Action -> StateT MainState uiM ServerResponse
 curServerAction act = do
     saddr <- gets curServer
     auth <- gets curAuth
     liftIO $ makeRequest saddr $ ClientRequest protocolVersion auth act
 
+getRecordCachedFromCur :: UIMonad uiM => Bool -> Record -> StateT MainState uiM (TVar FetchedRecord)
 getRecordCachedFromCur flagIt rec = do
     saddr <- gets curServer
     auth <- gets curAuth
@@ -254,6 +254,7 @@ getRecordCachedFromCur flagIt rec = do
     liftIO $ getRecordCached saddr auth
 	(if flagIt then Just flag else Nothing) cOnly rec
 
+getFreshRecBlocking :: UIMonad uiM => Record -> StateT MainState uiM (Maybe RecordContents)
 getFreshRecBlocking rec = do
     tvar <- getRecordCachedFromCur False $ rec
     fetched <- liftIO $ atomically $ do
@@ -277,6 +278,7 @@ getRelScore name = runMaybeT $ do
 	unaccessedBy name Nothing = False
 	unaccessedBy name (Just linfo) = not $ public linfo || name `elem` accessedBy linfo 
 
+getNotesReadOn :: UIMonad uiM => LockInfo -> StateT MainState uiM [NoteInfo]
 getNotesReadOn lockinfo = (maybe [] id <$>) $ runMaybeT $ do
     ourName <- mgetOurName
     ourUInfo <- mgetUInfo ourName
@@ -289,7 +291,7 @@ interactUI = do
     (IMMeta==) . ms2im <$> get >>= flip when (void $ do
 	flag <- gets newAsync
 	unblock <- lift unblockInput
-	liftIO $ forkIO $ forever $ do
+	_ <- liftIO $ forkIO $ forever $ do
 	    atomically $ readTVar flag >>= check >> writeTVar flag False
 	    unblock
 	refreshUInfoUI
@@ -392,27 +394,27 @@ interactUI = do
 			lift $ drawMessage err
 			modify $ \ms -> ms {curAuth = auth}
 		    _ -> lift $ drawMessage "BUG"
-	processCommand' IMMeta (CmdSolve mindex) = void.runMaybeT $ do
+	processCommand' IMMeta (CmdSolve midx) = void.runMaybeT $ do
 	    name <- mgetCurName
 	    uinfo <- mgetUInfo name
-	    index <- msum [ MaybeT $ return $ mindex
+	    idx <- msum [ MaybeT $ return $ midx
 		, askLockIndex "Solve which lock?" (\i -> isJust $ userLocks uinfo ! i) ]
-	    ls <- MaybeT $ return $ lockSpec <$> userLocks uinfo ! index
+	    ls <- MaybeT $ return $ lockSpec <$> userLocks uinfo ! idx
 	    undecls <- lift (gets undeclareds)
 	    msum [ do
 		    undecl <- MaybeT $ return $ find (\(Undeclared _ ls' _) -> ls == ls') undecls
-		    MaybeT $ gets curAuth
+		    _ <- MaybeT $ gets curAuth
 		    confirmOrBail "Declare existing solution?"
 		    void.lift.runMaybeT $ do -- ignores MaybeT failures
 			declare undecl
 		, do
 		    RCLock lock <- MaybeT $ getFreshRecBlocking $ RecLock ls
-		    soln <- solveLock lock $ Just $ "Solving " ++ name ++ ":" ++ [lockIndexChar index]
+		    soln <- solveLock lock $ Just $ "Solving " ++ name ++ ":" ++ [lockIndexChar idx]
 		    mourName <- lift $ (authUser <$>) <$> gets curAuth
 		    guard $ mourName /= Just name
-		    let undecl = Undeclared soln ls (ActiveLock name index) 
+		    let undecl = Undeclared soln ls (ActiveLock name idx) 
 		    msum [ do
-			    MaybeT $ gets curAuth
+			    _ <- MaybeT $ gets curAuth
 			    confirmOrBail "Declare solution?"
 			    declare undecl
 			, unless (any (\(Undeclared _ ls' _) -> ls == ls') undecls) $
@@ -467,8 +469,8 @@ interactUI = do
 				ns <- getNotesReadOn lockinfo 
 				return $ if length ns < 3 then [] else ns
 		    | mlockinfo <- elems $ userLocks uinfo ]
-		index <- askLockIndex "View solution to which lock?" $ not.null.(noteses!!)
-		let notes = noteses!!index
+		idx <- askLockIndex "View solution to which lock?" $ not.null.(noteses!!)
+		let notes = noteses!!idx
 		    authors = map noteAuthor notes
 		author <- if length notes == 1
 		    then return $ noteAuthor $ head notes 
@@ -479,28 +481,28 @@ interactUI = do
 			3 False (Just $ authors) Nothing
 		MaybeT $ return $ find ((==author).noteAuthor) notes
 		]
-	    let ActiveLock name index = noteOn note
+	    let ActiveLock name idx = noteOn note
 	    uinfo <- mgetUInfo name
-	    ls <- lockSpec <$> MaybeT (return $ userLocks uinfo ! index)
+	    ls <- lockSpec <$> MaybeT (return $ userLocks uinfo ! idx)
 	    RCLock lock <- MaybeT $ getFreshRecBlocking $ RecLock ls
 	    RCSolution soln <- MaybeT $ getFreshRecBlocking $ RecNote note
 	    lift.lift $ execStateT interactUI $ newReplayState (snd.reframe$lock) soln $ Just $
-		"Viewing solution by " ++ noteAuthor note ++ " to " ++ name ++ [':',lockIndexChar index]
+		"Viewing solution by " ++ noteAuthor note ++ " to " ++ name ++ [':',lockIndexChar idx]
 
-	processCommand' IMMeta (CmdPlaceLock mindex) = void.runMaybeT $ do
+	processCommand' IMMeta (CmdPlaceLock midx) = void.runMaybeT $ do
 	    ourName <- mgetOurName
 	    name <- mgetCurName
 	    guard $ ourName == name
 	    lock <- MaybeT $ gets curLock
 	    ourUInfo <- mgetUInfo ourName
-	    index <- msum [ MaybeT $ return mindex
+	    idx <- msum [ MaybeT $ return midx
 		, askLockIndex "Place where?" $ const True
 		]
-	    when (isJust $ userLocks ourUInfo ! index) $
+	    when (isJust $ userLocks ourUInfo ! idx) $
 		confirmOrBail "Really retire existing lock?"
 	    soln <- solveLock lock $ Just $ "Prove your lock is solvable."
 	    lift $ do
-		resp <- curServerAction $ SetLock lock index soln
+		resp <- curServerAction $ SetLock lock idx soln
 		case resp of
 		    ServerError err -> lift $ drawError err
 		    _ -> refreshUInfoUI
@@ -518,7 +520,7 @@ interactUI = do
 	    lock <- msum [ MaybeT $ gets curLock
 		, do
 		    frame <- BasicFrame <$> msum [ do
-			    saddr <- gets curServer
+			    _ <- gets curServer
 			    RCServerInfo (ServerInfo size _) <- MaybeT $ getFreshRecBlocking RecServerInfo
 			    return size
 			, do
@@ -546,7 +548,7 @@ interactUI = do
 	    let dotut i = do
 		let name = tuts !! (i-1)
 		lock <- MaybeT $ liftIO $ readReadFile (tutdir ++ [pathSeparator] ++ name)
-		solveLock lock $ Just $ "Tutorial: "++ name
+		_ <- solveLock lock $ Just $ "Tutorial: "++ name
 		guard $ i+1 <= length tuts
 		confirmOrBail $ "Tutorial level completed! Play next tutorial level (" ++ show (i+1) ++ ")?"
 		dotut $ i+1
@@ -694,7 +696,7 @@ interactUI = do
 	    st:_ <- gets esGameStateStack
 	    case selPiece of
 		Nothing -> drawTile selPos Nothing False
-		Just p -> do (st',_) <- lift $ doPhysicsTick NullPM st
+		Just _ -> do (st',_) <- lift $ doPhysicsTick NullPM st
 			     pushEState st'
 	processCommand' IMEdit CmdDelete = do
 	    selPiece <- gets selectedPiece
@@ -747,8 +749,8 @@ interactUI = do
 	    lift (drawAlerts alerts) >> pushEState st'
 	drawTile pos tile painting = do
 	    modify $ \es -> es {selectedPiece = Nothing}
-	    last <- gets lastModPos
-	    modifyEState $ modTile tile pos last painting
+	    lastMP <- gets lastModPos
+	    modifyEState $ modTile tile pos lastMP painting
 	    modify $ \es -> es {lastModPos = pos}
 	paintTilePath tile from to = if from == to
 	then modify $ \es -> es {lastModPos = to}
@@ -804,9 +806,9 @@ interactUI = do
 	declare undecl@(Undeclared soln ls al) = do
 	    ourName <- mgetOurName
 	    ourUInfo <- mgetUInfo ourName
-	    index <- askLockIndex "Secure behind which lock?" (\i -> isJust $ userLocks ourUInfo ! i)
-	    guard $ isJust $ userLocks ourUInfo ! index
-	    resp <- lift $ curServerAction $ DeclareSolution soln ls al index
+	    idx <- askLockIndex "Secure behind which lock?" (\i -> isJust $ userLocks ourUInfo ! i)
+	    guard $ isJust $ userLocks ourUInfo ! idx
+	    resp <- lift $ curServerAction $ DeclareSolution soln ls al idx
 	    case resp of
 		ServerAck -> lift $ do
 		    modify $ \ms -> ms {undeclareds = delete undecl $ undeclareds ms}
@@ -816,8 +818,8 @@ interactUI = do
 		    mzero
 		_ -> return ()
 
-	askLockIndex prompt check = do
-	    let ok = filter check [0,1,2]
+	askLockIndex prompt pred = do
+	    let ok = filter pred [0,1,2]
 	    case length ok of
 		0 -> (lift.lift) (drawError "No appropriate lock is available.") >> mzero
 		1 -> return $ head ok
@@ -825,9 +827,9 @@ interactUI = do
 	    where
 		ask ok = do
 		    let prompt' = prompt ++ " [" ++ intersperse ',' (map lockIndexChar ok) ++ "]"
-		    index <- MaybeT $ lift $ join . (((charLockIndex<$>).listToMaybe)<$>) <$>
+		    idx <- MaybeT $ lift $ join . (((charLockIndex<$>).listToMaybe)<$>) <$>
 			textInput prompt' 1 True Nothing Nothing
-		    if index `elem` ok then return index else ask ok
+		    if idx `elem` ok then return idx else ask ok
 	confirmOrBail prompt = (guard =<<) $ lift.lift $ confirm prompt
 	confirm :: UIMonad uiM => String -> uiM Bool
 	confirm prompt = do
