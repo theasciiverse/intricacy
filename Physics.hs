@@ -6,7 +6,7 @@ import qualified Data.Vector as Vector
 import Control.Monad.State
 import Control.Monad.Writer
 import Data.Foldable (foldrM)
-import Data.List (nub)
+import Data.List
 import Data.Vector (Vector, (!), (//))
 
 import Hex
@@ -164,6 +164,18 @@ applyForce f s =
 	in 
 	s { placedPieces = (placedPieces s) // [(idx, pp'')] }
 
+collisionsWithForce :: GameState -> Force -> PieceIdx -> [HexPos]
+collisionsWithForce st (Push idx dir) idx' =
+    intersect (map (dir<+>) $ footprintAt st idx \\ between) (footprintAt st idx' \\ between)
+    where between =
+	    (concat $ map (connectionFootPrint st)
+		$ filter (\conn ->
+		    Set.fromList [fst $ connectionRoot conn, fst $ connectionEnd conn] ==
+			Set.fromList [idx,idx'])
+		$ connections st)
+collisionsWithForce st force idx' =
+    collisions (applyForce force st) (forceIdx force) idx'
+
 applyForceTo :: PlacedPiece -> Force -> PlacedPiece
 applyForceTo (PlacedPiece pos piece) (Push _ dir) =
     PlacedPiece (dir <+> pos) piece
@@ -217,7 +229,7 @@ propagateForce st@(GameState _ conns) isPlSource force =
 	bumps = [ ForceChoice $ map (transmittedForce st idx' cpos) dirs |
 	    idx' <- ppidxs st
 	    , idx' /= idx
-	    , cpos <- collisions (applyForce force st) idx idx'
+	    , cpos <- collisionsWithForce st force idx'
 	    , let dirs = case force of
 		    Push _ dir -> [dir]
 		    Torque _ dir -> [push,claw]
