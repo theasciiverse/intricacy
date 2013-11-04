@@ -305,15 +305,19 @@ drawPaintButtons = do
 periphery 0 = ((3*maxlocksize)`div`2)<*>hu <+> ((3*maxlocksize)`div`4)<*>hv
 periphery n = rotate n $ periphery 0
 -- ^ XXX only peripheries 0,2,3,5 are guaranteed to be on-screen!
-messageLineStart = (maxlocksize+1)<*>hw
+--messageLineStart = (maxlocksize+1)<*>hw
+messageLineCentre = ((maxlocksize+1)`div`2)<*>hw <+> ((maxlocksize+1+1)`div`2)<*>neg hv
 titlePos = (maxlocksize+1)<*>hv <+> ((maxlocksize+1)`div`2)<*>hu
 
+screenWidthHexes,screenHeightHexes::Int
+screenWidthHexes = 32
+screenHeightHexes = 25
 getGeom :: UIM (SVec, Int)
 getGeom = do 
     h <- gets scrHeight 
     w <- gets scrWidth
     let scrCentre = SVec (w`div`2) (h`div`2)
-    let size = minimum [ w`div`(2*30), floor $ (fromIntegral h) / ((sqrt 3) * 25) ]
+    let size = minimum [ w`div`(2*fromIntegral screenWidthHexes), floor $ (fromIntegral h) / ((sqrt 3) * fromIntegral screenHeightHexes) ]
     return (scrCentre, size)
 
 data DrawArgs = DrawArgs [PieceIdx] Bool [Alert] GameState UIOptions
@@ -563,8 +567,11 @@ drawMsgLine = void.runMaybeT $ do
 	, MaybeT $ gets message
 	]
     lift $ do
-	renderToMain $ blankRow messageLineStart
-	renderToMain $ renderStrColAtLeft col str messageLineStart
+	renderToMain $ blankRow messageLineCentre
+	smallFont <- gets dispFontSmall
+	renderToMain $
+	    (if length str > screenWidthHexes * 3 then withFont smallFont else id) $
+		renderStrColAt col str messageLineCentre
 setMsgLine col str = do
     modify $ \s -> s { message = Just (col,str) }
     unless (null str) $ modify $ \s -> s { hoverStr = Nothing }
