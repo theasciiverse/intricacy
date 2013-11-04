@@ -394,9 +394,16 @@ drawEmptyMiniLock v =
     renderToMain $ recentreAt v $ rescaleRender 6 $ drawAtRel (hollowInnerGlyph $ dim white) zero
 
 fillArea :: HexVec -> [HexVec] -> [HexVec -> StateT MainState UIM ()] -> StateT MainState UIM () 
-fillArea centre area draws =
-    mapM_ (uncurry ($)) $
-	zip draws $ sortBy
+fillArea centre area draws = do
+    selDraws <- do
+	    offset <- gets listOffset
+	    let na = length area
+		nd = length draws
+	    when (nd > (na*(offset+1))) $ lift $
+		registerButtonGroup $ singleButton nextPagePos CmdNextPage 4
+	    return $ drop (max 0 $ min (nd - na) (na*offset)) $ draws
+    sequence_ $ map (uncurry ($)) $
+	zip selDraws $ sortBy
 		(compare `on` (hexLen . (<->centre)))
 		area
 
@@ -503,7 +510,7 @@ drawLockInfo al@(ActiveLock name i) (Just lockinfo) mtvar = do
 	    lift.renderToMain $ renderStrColAt (if length read == 3 then accessedCol else dimWhiteCol)
 		"Read:" $ accessedPos <+> (-3)<*>hu
 	    fillArea (accessedPos<+>neg hu) [ accessedPos <+> i<*>hu | i <- [-1..1] ]
-		$ [ \pos -> (lift $ registerSelectable pos 0 (SelReadNote note)) >> drawName (noteAuthor note) pos
+		$ take 3 $ [ \pos -> (lift $ registerSelectable pos 0 (SelReadNote note)) >> drawName (noteAuthor note) pos
 		    | note <- read ] ++ (repeat $ lift . renderToMain . drawAtRel (hollowGlyph $ dim $ colourWheel 2))
 
     lift.renderToMain $ renderStrColAt dimWhiteCol "Holds notes:" $ notesPos <+> hv
@@ -572,6 +579,7 @@ sayError = setMsgLine errorCol
 miniLockPos = (-9)<*>hw <+> hu
 lockLinePos = 2<*>(hu <+> neg hw) <+> miniLockPos
 serverPos = 12<*>hv <+> 6<*>neg hu
+nextPagePos = serverPos <+> 4<*>neg hv
 randomNamesPos = 9<*>hv <+> neg hu
 codenamePos = (-4)<*>hw <+> 4<*>hv
 undeclsPos = hv <+> neg hw <+> codenamePos
@@ -614,7 +622,7 @@ instance UIMonad (StateT UIState IO) where
 		-- , singleButton (periphery 2 <+> 3<*>hw) CmdMerge 4
 		]
 	    drawPaintButtons
-	drawMainState' (MetaState saddr undecls cOnly auth names _ rnamestvar _ lockTVs path lock) = do
+	drawMainState' (MetaState saddr undecls cOnly auth names _ rnamestvar _ lockTVs path lock offset) = do
 	    let ourName = authUser <$> auth
 	    let selName = listToMaybe names
 	    let home = isJust ourName && ourName == selName
@@ -625,6 +633,9 @@ instance UIMonad (StateT UIState IO) where
 	    lift.renderToMain $ do
 		renderStrColAtLeft messageCol (saddrStr saddr) $ serverPos <+> hu
 		renderStrColAtLeft messageCol path $ lockLinePos <+> hu
+	    when (offset>0) $ lift $ 
+		registerButtonGroup $ singleButton (nextPagePos<+>neg hu) CmdPrevPage 4
+
 	    maybe (return ())
 		(\name -> do
 		    lift $ registerSelectable codenamePos 0 SelSelectedCodeName 

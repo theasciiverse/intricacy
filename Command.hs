@@ -26,6 +26,7 @@ data Command = CmdDir WrHoSel HexDir | CmdRotate TorqueDir | CmdWait
 	| CmdSelectLock | CmdNextLock | CmdPrevLock
 	| CmdEdit | CmdPlaceLock (Maybe LockIndex)
 	| CmdRegister | CmdAuth
+	| CmdNextPage | CmdPrevPage
 	| CmdRedraw
 	| CmdQuit 
 	| CmdHelp
@@ -65,6 +66,8 @@ describeCommand (CmdViewSolution _) = "view lock solution"
 describeCommand CmdSelectLock = "choose lock"
 describeCommand CmdNextLock = "next lock"
 describeCommand CmdPrevLock = "previous lock"
+describeCommand CmdNextPage = "page forward through lists"
+describeCommand CmdPrevPage = "page back through lists"
 describeCommand CmdEdit = "edit lock"
 describeCommand (CmdPlaceLock _) = "place lock"
 describeCommand CmdRegister = "register codename"

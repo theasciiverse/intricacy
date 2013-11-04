@@ -156,6 +156,8 @@ metaBindings = lowerToo
     , ('A', CmdAuth)
     , ('T', CmdTutorials)
     , ('$', CmdSetServer)
+    , ('>', CmdNextPage)
+    , ('<', CmdPrevPage)
     , ('Q', CmdQuit)
     , ('?', CmdHelp)
     ]

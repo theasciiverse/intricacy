@@ -91,6 +91,7 @@ data MainState
 	, curLockTVars :: Maybe (Array LockIndex (TVar (Maybe Lock)))
 	, curLockPath :: FilePath
 	, curLock :: Maybe Lock
+	, listOffset :: Int
 	}
 
 -- | Locks bigger than 11 won't fit in an 80x25 terminal
@@ -109,7 +110,7 @@ initMetaState = do
 	confFilePath ("undeclared" ++ [pathSeparator] ++ saddrStr saddr) >>=
 	liftM (fromMaybe []) . readReadFile
     lock <- readLock path
-    return $ MetaState saddr undecls False auth names flag rnamestvar Map.empty Nothing path lock
+    return $ MetaState saddr undecls False auth names flag rnamestvar Map.empty Nothing path lock 0
 
 readLock :: FilePath -> IO (Maybe Lock)
 readLock path = fullLockPath path >>= readReadFile
@@ -119,7 +120,7 @@ fullLockPath path = if isAbsolute path
     then return path
     else (++(pathSeparator:path)) <$> confFilePath "locks"
 
-writeMetaState (MetaState saddr undecls _ auth _ _ _ _ _ path _) = do
+writeMetaState (MetaState { curServer=saddr, undeclareds=undecls, curAuth=auth, curLockPath=path }) = do
     confFilePath "metagame.conf" >>= flip writeReadFile (saddr, auth, path)
     unless (nullSaddr saddr) $
 	confFilePath ("undeclared" ++ [pathSeparator] ++ saddrStr saddr) >>= flip writeReadFile undecls
@@ -211,6 +212,7 @@ refreshUInfoUI = void.runMaybeT $ do
     name <- mgetCurName
     lift $ setLockTVars name
     ourName <- mgetOurName
+    modify $ \ms -> ms { listOffset = 0 }
     when (ourName == name) $ getRandomNames >> lift purgeInvalidUndecls
     where
 	getRandomNames = do
@@ -219,7 +221,7 @@ refreshUInfoUI = void.runMaybeT $ do
 	    saddr <- gets curServer
 	    liftIO $ forkIO $ do
 		resp <- makeRequest saddr $
-		    ClientRequest protocolVersion Nothing $ GetRandomNames 30
+		    ClientRequest protocolVersion Nothing $ GetRandomNames 19
 		case resp of
 		    ServedRandomNames names -> atomically $ do 
 			    writeTVar rnamestvar names
@@ -516,6 +518,10 @@ interactUI = do
 	    gets curLockPath >>= liftIO . nextLock True >>= setLockPath
 	processCommand' IMMeta CmdPrevLock =
 	    gets curLockPath >>= liftIO . nextLock False >>= setLockPath
+	processCommand' IMMeta CmdNextPage =
+	    modify $ \ms -> ms { listOffset = listOffset ms + 1 }
+	processCommand' IMMeta CmdPrevPage =
+	    modify $ \ms -> ms { listOffset = max 0 $ listOffset ms - 1 }
 	processCommand' IMMeta CmdEdit = void.runMaybeT $ do
 	    lock <- msum [ MaybeT $ gets curLock
 		, do

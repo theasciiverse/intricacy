@@ -1,8 +1,8 @@
 VERSION=0.2
 all: *.lhs *.hs
-	cabal install -f Server --bindir .
+	cabal install -O0 -f Server --bindir .
 intricacy: *.lhs *.hs
-	cabal install --bindir .
+	cabal install -O0 --bindir .
 intricacy-curses: *.lhs *.hs
 	cabal configure -f -SDL --bindir .
 	cabal build

@@ -244,8 +244,13 @@ fillBox (CVec t l) (CVec b r) width grav draws = do
 	    , let margin = if (j-starty)`mod`2 == 0 then half else width ]
 	dist v = sqlen $ v <-> gravCentre
 	sqlen (CVec y x) = (y*(width+1))^2+x^2
-	zipped = zip locs draws
-    sequence_ [draw pos | (pos,draw) <- zipped]
+    selDraws <- do
+	    offset <- gets listOffset
+	    let na = length locs
+		nd = length draws
+	    return $ drop (max 0 $ min (nd - na) (na*offset)) $ draws
+    let zipped = zip locs selDraws
+    sequence_ $ map (uncurry ($)) $ zip selDraws locs
     return $ (if grav==GravDown then minimum else maximum) [ y | (CVec y x,_) <- zipped ]
 
 drawLockInfo al@(ActiveLock name i) lockinfo mtvar = do
@@ -326,7 +331,7 @@ instance UIMonad (StateT UIState IO) where
 	    drawMsgLine
 	    drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
 	    refresh
-	MetaState saddr undecls cOnly auth names _ rnamestvar _ lockTVs path lock -> do
+	MetaState saddr undecls cOnly auth names _ rnamestvar _ lockTVs path lock _ -> do
 	    let ourName = liftM authUser auth
 	    let selName = listToMaybe names
 	    (h,w) <- liftIO Curses.scrSize
