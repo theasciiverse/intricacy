@@ -21,6 +21,15 @@ nullpp = PlacedPiece (PHS zero) (Block [])
 reframe :: Lock -> Lock
 reframe l@(f, st) = addTools $ delTools $ liftLock (setpp 0 (framePiece f)) l
 
+validLock :: Lock -> Bool
+validLock lock@(f,st) = and
+    [ st == stepPhysics st
+    , lock == reframe lock
+    , validGameState st 
+    ]
+
+stepPhysics :: GameState -> GameState
+stepPhysics = fst.runWriter.physicsTick NullPM
 
 type Solution = [PlayerMove]
 
@@ -56,8 +65,9 @@ stabilise = liftLock stabilise'
     where
 	stabilise' :: GameState -> GameState
 	stabilise' st =
-	    let (st',_) = runWriter $ physicsTick NullPM st
+	    let st' = stepPhysics st
 	    in if st == st' then st else stabilise' st'
+
 delOOB :: Lock -> Lock
 delOOB l@(f,st) = case listToMaybe [ idx |
 	(idx,_) <- enumVec $ placedPieces st

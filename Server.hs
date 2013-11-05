@@ -142,6 +142,7 @@ handleRequest req@(ClientRequest pv auth action) = do
 		    ServerInfo serverSize _ <- getServerInfo
 		    when (frame /= BasicFrame serverSize) $ throwError $
 			"Server only accepts size "++show serverSize++" locks."
+		    unless (validLock $ reframe lock) $ throwError "Invalid lock!"
 		    unless (checkSolution lock soln) $ throwError "Bad solution"
 		    RCLockHashes hashes <- liftIO $ getRecord RecLockHashes
 			    `catchIO` const (return (RCLockHashes []))

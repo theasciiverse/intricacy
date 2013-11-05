@@ -27,11 +27,7 @@ data GameState = GameState { placedPieces :: Vector PlacedPiece,
 data PlacedPiece = PlacedPiece { placedPos :: HexPos, placedPiece :: Piece }
     deriving (Eq, Ord, Show, Read)
 
--- |validGameState: TODO. Should check that the connection digraph is acyclic,
--- that there are no overlaps, that all the connections make sense, and that
--- blocks are connected.
-validGameState :: GameState -> Bool
-validGameState = const True
+type PieceIdx = Int
 
 ppidxs :: GameState -> [PieceIdx]
 ppidxs = Vector.toList . (Vector.findIndices $ const True) . placedPieces
@@ -99,25 +95,6 @@ floodfill start patt = floodfill' start `execState` (patt, Set.empty)
 		  put (patt', Set.insert start dels)
 		  sequence_ [ floodfill' (dir<+>start) | dir <- hexDirs ]
 
-repossessConns :: GameState -> GameState -> GameState
-repossessConns st st' =
-    st' {connections = [ Connection root' end' link |
-	Connection root end link <- connections st
-	, root' <- maybeToList $ posLocus st' $ locusPos st root
-	, end' <- maybeToList $ posLocus st' $ locusPos st end ] }
-
-delConnectionsIn :: HexPos -> GameState -> GameState
-delConnectionsIn pos st =
-    st {connections = filter
-	((pos `notElem`) . connectionFootPrint st)
-        $ connections st}
-
-delConnectionsAt :: Locus -> GameState -> GameState
-delConnectionsAt locus st =
-    st {connections = filter
-	(\conn -> locus `notElem` [connectionRoot conn, connectionEnd conn])
-        $ connections st}
-
 delPiece :: PieceIdx -> GameState -> GameState
 delPiece idx (GameState pps conns) =
     GameState (Vector.concat [Vector.take idx pps, Vector.drop (idx+1) pps])
@@ -164,7 +141,9 @@ isWrench p = case p of Wrench _ -> True; _ -> False
 isTool p = isWrench p || isHook p
 isBall p = case p of Ball -> True; _ -> False
 
-type PieceIdx = Int
+data Connection = Connection { connectionRoot :: Locus
+		    , connectionEnd :: Locus, connectionLink :: Link }
+    deriving (Eq, Ord, Show, Read)
 
 type Locus = (PieceIdx, HexVec)
 locusPos :: GameState -> Locus -> HexPos
@@ -174,10 +153,6 @@ posLocus :: GameState -> HexPos -> Maybe Locus
 posLocus st pos = listToMaybe [ (idx,pos<->ppos) |
     (idx,pp@(PlacedPiece ppos _)) <- enumVec $ placedPieces st
     , pos `elem` plPieceFootprint pp ]
-
-data Connection = Connection { connectionRoot :: Locus
-		    , connectionEnd :: Locus, connectionLink :: Link }
-    deriving (Eq, Ord, Show, Read)
 
 connectionLength :: GameState -> Connection -> Int
 connectionLength st (Connection root end _) =
@@ -209,6 +184,45 @@ connGraphHeight :: GameState -> PieceIdx -> Int
 connGraphHeight st idx =
     maximum (0 : map ((+1) . connGraphHeight st . fst . connectionRoot) (springsEndAtIdx st idx))
 
+type DiGraph a = Map a (Set a)
+checkConnGraphAcyclic :: GameState -> Bool
+checkConnGraphAcyclic st =
+    let idxs = [0..Vector.length (placedPieces st) - 1]
+	leaves dg = map fst $ filter (Set.null . snd) $ Map.toList dg
+	checkDiGraphAcyclic dg = case listToMaybe $ leaves dg of
+	    Nothing -> Map.null dg
+	    Just leaf -> checkDiGraphAcyclic $ Map.delete leaf $ fmap (Set.delete leaf) dg
+    in checkDiGraphAcyclic $ Map.fromList 
+	[ (idx, Set.fromList $ map (fst.connectionRoot) $ springsEndAtIdx st idx) | idx <- idxs ]
+
+{- Naive version:
+checkConnGraphAcyclic :: GameState -> Bool
+checkConnGraphAcyclic st = and [ idx `notElem` descendents idx
+	| idx <- [0..Vector.length $ placedPieces st] ]
+    where descendents idx = let childs = map (fst.connectionRoot) $ springsEndAtIdx st idx
+	    in concat $ (childs:map descendents childs) 
+-}
+
+repossessConns :: GameState -> GameState -> GameState
+repossessConns st st' =
+    st' {connections = [ Connection root' end' link |
+	Connection root end link <- connections st
+	, root' <- maybeToList $ posLocus st' $ locusPos st root
+	, end' <- maybeToList $ posLocus st' $ locusPos st end ] }
+
+delConnectionsIn :: HexPos -> GameState -> GameState
+delConnectionsIn pos st =
+    st {connections = filter
+	((pos `notElem`) . connectionFootPrint st)
+        $ connections st}
+
+delConnectionsAt :: Locus -> GameState -> GameState
+delConnectionsAt locus st =
+    st {connections = filter
+	(\conn -> locus `notElem` [connectionRoot conn, connectionEnd conn])
+        $ connections st}
+
+
 springExtended,springCompressed,springFullyExtended,springFullyCompressed :: GameState -> Connection -> Bool
 springExtended st c@(Connection _ _ (Spring _ natLen)) = connectionLength st c > natLen
 springExtended _ _ = False
@@ -218,6 +232,10 @@ springFullyExtended st c@(Connection _ _ (Spring _ natLen)) = connectionLength s
 springFullyExtended _ _ = False
 springFullyCompressed st c@(Connection _ _ (Spring _ natLen)) = connectionLength st c <= (natLen+1)`div`2
 springFullyCompressed _ _ = False
+springExtensionValid st c@(Connection _ _ (Spring _ natLen)) = let l = connectionLength st c in 
+    l >= (natLen+1)`div`2 && l <= 2*natLen
+springExtensionValid _ _ = True
+
 
 data SpringExtension = Relaxed | Compressed | Stretched
     deriving (Eq, Ord, Show, Read)
@@ -336,6 +354,22 @@ castRay start dir board =
 		  Nothing -> castRay' (n-1) (dir<+>pos)
 		  Just (idx,_) -> Just (idx,pos)
 
+validGameState :: GameState -> Bool
+validGameState st@(GameState pps conns) = and
+    [ checkConnGraphAcyclic st
+    , and [ null $ collisions st idx idx'
+	    | idx <- [1..Vector.length pps - 1]
+	    , idx' <- [0..idx-1] ]
+    , and [ isHexDir dir
+	    && castRay (dir<+>rpos) dir
+		(stateBoard $ GameState pps (conns \\ [c]))
+		== Just (eidx, epos)
+	    && springExtensionValid st c
+	    | c@(Connection root end@(eidx,_) (Spring dir _)) <- conns
+	    , let [rpos,epos] = map (locusPos st) [root,end] ]
+    , and [ 1 == length (components $ Set.fromList patt) 
+	    | Block patt <- map placedPiece $ Vector.toList pps ]
+    ]
 
 type PieceColouring = Map PieceIdx Int
 
