@@ -21,6 +21,8 @@ import Control.Exception
 import System.IO.Error
 import Data.List
 import Data.Function (on)
+import Pipes
+import qualified Pipes.Prelude as P
 
 import Protocol
 import Metagame
@@ -157,8 +159,18 @@ handleRequest req@(ClientRequest pv auth action) = do
 		    names <- erroredIO $ listUsers
 		    gen <- erroredIO $ getStdGen
 		    let l = length names
-			shuffled = map ((listArray (0,l-1) names) !) $
-			    take (min l n) $ nub $ randomRs (0,l-1) gen
+			namesArray = listArray (0,l-1) names
+			negligible name = do
+			    uinfo <- getUserInfo name
+			    return $ all (maybe True public . (userLocks uinfo !)) [0..2]
+
+		    -- huzzah for pipes!
+		    shuffled <- P.toListM $
+			    mapM_ Pipes.yield (nub $ randomRs (0,l-1) gen)
+			>-> P.take l -- give up once we've permuted all of [0..l-1]
+			>-> P.map (namesArray !)
+			>-> P.filterM ((not <$>) . negligible) -- throw away negligibles
+			>-> P.take n -- try to take as many as we were asked for
 		    liftIO newStdGen
 		    return $ ServedRandomNames shuffled
 
