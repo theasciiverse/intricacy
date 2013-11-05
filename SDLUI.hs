@@ -745,7 +745,7 @@ instance UIMonad (StateT UIState IO) where
 	    liftIO $ warpMouse (fromIntegral $ w`div`2) (fromIntegral $ h`div`2)
 	    renderToMain $ erase
 	    liftIO $ enableUnicode True
-	    liftIO $ enableKeyRepeat 500 30
+	    liftIO $ enableKeyRepeat 250 30
 	    readUIConfigFile
 	    readBindings
 	)
