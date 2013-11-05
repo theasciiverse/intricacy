@@ -25,6 +25,7 @@ import UI
 import Hex
 import Command
 import GameState
+import BoardColouring
 import Lock
 import Physics
 import KeyBindings
