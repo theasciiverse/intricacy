@@ -2,7 +2,7 @@ module Main where
 
 import Init
 import qualified SDLUI
-import UI
+import MainState
 
 main = main' 
     (Just (doUI::SDLUI.UIM MainState -> IO (Maybe MainState)))

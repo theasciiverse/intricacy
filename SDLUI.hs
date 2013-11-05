@@ -21,7 +21,7 @@ import Text.Show.Pretty (ppShow)
 import Data.Function (on)
 --import Debug.Trace (traceShow)
 
-import UI
+import MainState
 import Hex
 import Command
 import GameState

@@ -12,7 +12,8 @@ import System.Console.GetOpt
 
 import Mundanities
 import Lock
-import UI
+import MainState
+import Interact
 
 data Opt = LockSize Int | ForceCurses
     deriving (Eq, Ord, Show)

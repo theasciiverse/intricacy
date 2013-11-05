@@ -30,7 +30,7 @@ import Cache
 import Database
 import Metagame
 import Protocol
-import UI
+import MainState
 
 type AttrChar = (Char, Curses.Attr)
 type ColPair = Int

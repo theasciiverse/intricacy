@@ -2,7 +2,7 @@ module Main where
 
 import Init
 import qualified CursesUI
-import UI
+import MainState
 
 main = main' 
     (Nothing :: (Maybe (CursesUI.UIM MainState -> IO (Maybe MainState))))

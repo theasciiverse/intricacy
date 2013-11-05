@@ -44,37 +44,6 @@ addpp pp st@(GameState pps _) = st {placedPieces = Vector.snoc pps pp}
 addConn :: Connection -> GameState -> GameState
 addConn conn st@(GameState _ conns) = st {connections = conn:conns}
 
-addBlockPos :: PieceIdx -> HexPos -> GameState -> GameState
-addBlockPos b pos st =
-    let PlacedPiece ppos (Block patt) = getpp st b
-    in setPiece b (Block (pos <-> ppos:patt)) st
-
-addPivotArm :: PieceIdx -> HexPos -> GameState -> GameState
-addPivotArm p pos st =
-    let PlacedPiece ppos (Pivot arms) = getpp st p
-    in setPiece p (Pivot (pos <-> ppos:arms)) st
-
-delPiecePos :: PieceIdx -> HexPos -> GameState -> (GameState, Maybe PieceIdx)
--- ^ returns new state and the new index of what remains of the piece, if
--- anything
-delPiecePos idx pos st =
-    let PlacedPiece ppos p = getpp st idx
-	v = pos <-> ppos
-    in case p of
-        Block patt ->
-	    let comps = components $ Set.fromList $ patt \\ [v]
-		ppOfComp (v,patt) = PlacedPiece (v<+>ppos) $ Block $ Set.toList patt
-		(st',midx) = case comps of
-		    [] -> (delPiece idx st, Nothing)
-		    zeroComp:newComps ->
-			(setpp idx (ppOfComp zeroComp)
-			    $ foldr (addpp . ppOfComp) st newComps, Just idx)
-	    in (repossessConns st st', midx)
-        Pivot arms -> if v == zero
-	   then (delPiece idx st, Nothing)
-	   else ((setPiece idx $ Pivot $ arms \\ [v]) st, Just idx)
-        _ -> (delPiece idx st, Nothing)
-
 type Component = (HexVec, Set HexVec)
 components :: Set HexVec -> [Component]
 components patt
@@ -141,6 +110,16 @@ isWrench p = case p of Wrench _ -> True; _ -> False
 isTool p = isWrench p || isHook p
 isBall p = case p of Ball -> True; _ -> False
 
+addBlockPos :: PieceIdx -> HexPos -> GameState -> GameState
+addBlockPos b pos st =
+    let PlacedPiece ppos (Block patt) = getpp st b
+    in setPiece b (Block (pos <-> ppos:patt)) st
+
+addPivotArm :: PieceIdx -> HexPos -> GameState -> GameState
+addPivotArm p pos st =
+    let PlacedPiece ppos (Pivot arms) = getpp st p
+    in setPiece p (Pivot (pos <-> ppos:arms)) st
+
 data Connection = Connection { connectionRoot :: Locus
 		    , connectionEnd :: Locus, connectionLink :: Link }
     deriving (Eq, Ord, Show, Read)
@@ -195,14 +174,6 @@ checkConnGraphAcyclic st =
     in checkDiGraphAcyclic $ Map.fromList 
 	[ (idx, Set.fromList $ map (fst.connectionRoot) $ springsEndAtIdx st idx) | idx <- idxs ]
 
-{- Naive version:
-checkConnGraphAcyclic :: GameState -> Bool
-checkConnGraphAcyclic st = and [ idx `notElem` descendents idx
-	| idx <- [0..Vector.length $ placedPieces st] ]
-    where descendents idx = let childs = map (fst.connectionRoot) $ springsEndAtIdx st idx
-	    in concat $ (childs:map descendents childs) 
--}
-
 repossessConns :: GameState -> GameState -> GameState
 repossessConns st st' =
     st' {connections = [ Connection root' end' link |
@@ -216,12 +187,26 @@ delConnectionsIn pos st =
 	((pos `notElem`) . connectionFootPrint st)
         $ connections st}
 
-delConnectionsAt :: Locus -> GameState -> GameState
-delConnectionsAt locus st =
-    st {connections = filter
-	(\conn -> locus `notElem` [connectionRoot conn, connectionEnd conn])
-        $ connections st}
-
+delPiecePos :: PieceIdx -> HexPos -> GameState -> (GameState, Maybe PieceIdx)
+-- ^ returns new state and the new index of what remains of the piece, if
+-- anything
+delPiecePos idx pos st =
+    let PlacedPiece ppos p = getpp st idx
+	v = pos <-> ppos
+    in case p of
+        Block patt ->
+	    let comps = components $ Set.fromList $ patt \\ [v]
+		ppOfComp (v,patt) = PlacedPiece (v<+>ppos) $ Block $ Set.toList patt
+		(st',midx) = case comps of
+		    [] -> (delPiece idx st, Nothing)
+		    zeroComp:newComps ->
+			(setpp idx (ppOfComp zeroComp)
+			    $ foldr (addpp . ppOfComp) st newComps, Just idx)
+	    in (repossessConns st st', midx)
+        Pivot arms -> if v == zero
+	   then (delPiece idx st, Nothing)
+	   else ((setPiece idx $ Pivot $ arms \\ [v]) st, Just idx)
+        _ -> (delPiece idx st, Nothing)
 
 springExtended,springCompressed,springFullyExtended,springFullyCompressed :: GameState -> Connection -> Bool
 springExtended st c@(Connection _ _ (Spring _ natLen)) = connectionLength st c > natLen
@@ -318,13 +303,6 @@ collisions st idx idx' =
 		    Set.fromList [idx,idx'])
 	    $ connections st)
 
--- TODO: use bounding boxes to optimise collision detection?
-collidePieces :: PlacedPiece -> PlacedPiece -> [HexPos]
-collidePieces pp pp' =
-    intersect (plPieceFootprint pp) (plPieceFootprint pp')
-piecesIntersect :: PlacedPiece -> PlacedPiece -> Bool
-piecesIntersect pp pp' = not $ null $ collidePieces pp pp'
-
 connectionBoard :: GameState -> Connection -> GameBoard
 connectionBoard st (Connection root end@(eidx,_) (Spring dir natLen)) =
     let rootPos = locusPos st root
@@ -340,10 +318,6 @@ connectionBoard _ _ = Map.empty
 
 connectionFootPrint :: GameState -> Connection -> [HexPos]
 connectionFootPrint s c = Map.keys $ connectionBoard s c
-
-pieceIntersectsConnection :: GameState -> PlacedPiece -> Connection -> Bool
-pieceIntersectsConnection s pp c =
-    not $ null $ intersect (plPieceFootprint pp) (connectionFootPrint s c)
 
 castRay :: HexPos -> HexDir -> GameBoard -> Maybe (PieceIdx, HexPos)
 castRay start dir board =

@@ -1,0 +1,289 @@
+module MainState where
+
+import Control.Monad.State
+import Control.Applicative
+import qualified Data.Vector as Vector
+import qualified Data.Map as Map
+import Data.Map (Map)
+import Control.Monad.Writer
+import Control.Monad.Trans.Error
+import Control.Monad.Trans.Maybe
+import Data.Maybe
+import Data.Char
+import Data.List
+import Control.Concurrent.STM
+import Control.Concurrent
+import System.Directory
+import System.FilePath
+import Data.Time.Clock
+import Data.Array
+import Data.Function (on)
+
+import Hex
+import Mundanities
+import GameState
+import Physics
+import Command
+import Frame
+import Lock
+import Cache
+import Database
+import Protocol
+import Metagame
+import ServerAddr
+
+class (Applicative m, MonadIO m) => UIMonad m where
+    runUI :: m a -> IO a
+    initUI :: m Bool
+    endUI :: m ()
+    drawMainState :: StateT MainState m ()
+    drawAlerts :: [Alert] -> m ()
+    drawMessage :: String -> m ()
+    drawError :: String -> m ()
+    showHelp :: InputMode -> m ()
+    getInput :: InputMode -> m [ Command ]
+    unblockInput :: m (IO ())
+
+    doUI :: m a -> IO (Maybe a)
+    doUI m = runUI $ do
+	ok <- initUI
+	if ok then m >>= (endUI >>).return.Just else return Nothing
+
+-- | this could be neatened using GADTs
+data MainState 
+    = PlayState
+	{ psCurrentState::GameState
+	, psFrame::Frame
+	, psLastAlerts::[Alert]
+	, wrenchSelected::Bool
+	, psSolved::Bool
+	, psGameStateMoveStack::[(GameState, PlayerMove)]
+	, psUndoneStack::[(GameState, PlayerMove)]
+	, psTitle::Maybe String
+	, psIsSub::Bool
+	}
+    | ReplayState
+	{ rsCurrentState::GameState
+	, rsMoveStack::[PlayerMove]
+	, rsGameStateMoveStack::[(GameState, PlayerMove)]
+	, rsTitle::Maybe String
+	}
+    | EditState
+	{ esGameStateStack::[GameState]
+	, esUndoneStack::[GameState]
+	, esFrame::Frame
+	, esPath::Maybe FilePath
+	, selectedPiece::Maybe PieceIdx
+	, selectedPos::HexPos
+	, lastModPos::HexPos
+	, esMarks::Map Char GameState
+	}
+    | MetaState
+	{ curServer :: ServerAddr
+	, undeclareds :: [Undeclared]
+	, cacheOnly :: Bool
+	, curAuth :: Maybe Auth
+	, codenameStack :: [Codename]
+	, newAsync :: TVar Bool
+	, randomCodenames :: TVar [Codename]
+	, userInfos :: Map Codename (TVar FetchedRecord, UTCTime)
+	, curLockTVars :: Maybe (Array LockIndex (TVar (Maybe Lock)))
+	, curLockPath :: FilePath
+	, curLock :: Maybe Lock
+	, listOffset :: Int
+	}
+
+-- | Locks bigger than 11 won't fit in an 80x25 terminal
+maxlocksize :: Int
+maxlocksize = 11
+
+newPlayState (frame,st) title sub = PlayState st frame [] False False [] [] title sub
+newReplayState st soln title = ReplayState st soln [] title
+newEditState (frame,st) mpath = EditState [st] [] frame mpath Nothing (PHS zero) (PHS zero) Map.empty
+initMetaState = do
+    flag <- atomically $ newTVar False
+    rnamestvar <- atomically $ newTVar []
+    (saddr, auth, path) <- confFilePath "metagame.conf" >>=
+	liftM (fromMaybe (defaultServerAddr, Nothing, "")) . readReadFile
+    let names = maybeToList $ authUser <$> auth
+    undecls <- if nullSaddr saddr then return [] else
+	confFilePath ("undeclared" ++ [pathSeparator] ++ saddrStr saddr) >>=
+	liftM (fromMaybe []) . readReadFile
+    lock <- readLock path
+    return $ MetaState saddr undecls False auth names flag rnamestvar Map.empty Nothing path lock 0
+
+readLock :: FilePath -> IO (Maybe Lock)
+readLock path = fullLockPath path >>= readReadFile
+writeLock :: FilePath -> Lock -> IO ()
+writeLock path lock = fullLockPath path >>= flip writeReadFile lock
+fullLockPath path = if isAbsolute path
+    then return path
+    else (++(pathSeparator:path)) <$> confFilePath "locks"
+
+writeMetaState (MetaState { curServer=saddr, undeclareds=undecls, curAuth=auth, curLockPath=path }) = do
+    confFilePath "metagame.conf" >>= flip writeReadFile (saddr, auth, path)
+    unless (nullSaddr saddr) $
+	confFilePath ("undeclared" ++ [pathSeparator] ++ saddrStr saddr) >>= flip writeReadFile undecls
+
+data InputMode = IMEdit | IMPlay | IMReplay | IMMeta | IMTextInput
+    deriving (Eq, Ord, Show, Read)
+
+ms2im :: MainState -> InputMode
+ms2im mainSt = case mainSt of
+    PlayState {} -> IMPlay
+    ReplayState {} -> IMReplay
+    EditState {} -> IMEdit
+    MetaState {} -> IMMeta
+
+instance Error () where noMsg = ()
+
+mgetOurName :: (UIMonad uiM) => MaybeT (StateT MainState uiM) Codename
+mgetOurName = MaybeT $ (authUser <$>) <$> gets curAuth
+mgetCurName :: (UIMonad uiM) => MaybeT (StateT MainState uiM) Codename
+mgetCurName = MaybeT $ listToMaybe <$> gets codenameStack 
+
+getUInfoFetched :: UIMonad uiM => Integer -> Codename -> StateT MainState uiM FetchedRecord
+getUInfoFetched staleTime name =
+    gets ((Map.lookup name) . userInfos) >>=
+	\x -> case x of
+	    Nothing -> set
+	    Just (tvar, time) -> do
+		now <- liftIO getCurrentTime
+		if floor (diffUTCTime now time) > staleTime
+		    then set
+		    else liftIO $ atomically $ readTVar tvar
+    where set = do
+	    tvar <- setUInfoTVar name
+	    liftIO $ atomically $ readTVar tvar
+
+mgetUInfo :: UIMonad uiM => Codename -> MaybeT (StateT MainState uiM) UserInfo
+mgetUInfo name = do
+    RCUserInfo (_,uinfo) <- MaybeT $ (fetchedRC <$>) $ getUInfoFetched defaultStaleTime name
+    return uinfo
+    where defaultStaleTime = 300
+
+setUInfoTVar :: UIMonad uiM => Codename -> StateT MainState uiM (TVar FetchedRecord)
+setUInfoTVar name = do
+    now <- liftIO getCurrentTime
+    tvar <- getRecordCachedFromCur True $ RecUserInfo name
+    modify $ \ms -> ms {userInfos = Map.insert name (tvar, now) $ userInfos ms}
+    return tvar
+
+invalidateUInfo :: UIMonad uiM => Codename -> StateT MainState uiM ()
+invalidateUInfo name = 
+    modify $ \ms -> ms {userInfos = Map.delete name $ userInfos ms}
+
+setLockTVars :: UIMonad uiM => Codename -> StateT MainState uiM ()
+setLockTVars name = do
+    uiTVar <- setUInfoTVar name
+    liftIO $ waitFetchedFresh uiTVar
+    saddr <- gets curServer
+    cOnly <- gets cacheOnly
+    flag <- gets newAsync
+    lockTVars <- liftM (listArray (0,maxLocks-1)) $ liftIO $ sequence $
+	flip map [0..maxLocks-1] $ getLockTVar saddr uiTVar flag cOnly
+    modify $ \ms -> ms { curLockTVars = Just lockTVars }
+    where
+	getLockTVar saddr uiTVar flag cOnly n = do
+	    tvar <- atomically $ newTVar Nothing
+	    _ <- forkIO $ do
+		mlockinfo <- atomically $ do
+		    uinforc <- readTVar uiTVar
+		    case uinforc of
+			FetchedRecord _ _ (Just (RCUserInfo (_,uinfo))) ->
+			    return $ userLocks uinfo ! n
+			_ -> retry
+		case mlockinfo of
+		    Nothing -> return ()
+		    Just lockinfo -> do
+			ltvar <- getRecordCached saddr Nothing Nothing cOnly $ RecLock $ lockSpec lockinfo
+			atomically $ do
+			    lockrc <- readTVar ltvar
+			    case lockrc of
+				FetchedRecord _ (Just err) _ -> return ()
+				FetchedRecord _ _ (Just (RCLock lock)) -> do
+				    writeTVar tvar $ Just $ reframe lock
+				    writeTVar flag True
+				_ -> retry
+	    return tvar
+
+refreshUInfoUI :: (UIMonad uiM) => StateT MainState uiM ()
+refreshUInfoUI = void.runMaybeT $ do
+    name <- mgetCurName
+    lift $ setLockTVars name
+    ourName <- mgetOurName
+    modify $ \ms -> ms { listOffset = 0 }
+    when (ourName == name) $ getRandomNames >> lift purgeInvalidUndecls
+    where
+	getRandomNames = do
+	    rnamestvar <- gets randomCodenames
+	    flag <- gets newAsync
+	    saddr <- gets curServer
+	    liftIO $ forkIO $ do
+		resp <- makeRequest saddr $
+		    ClientRequest protocolVersion Nothing $ GetRandomNames 19
+		case resp of
+		    ServedRandomNames names -> atomically $ do 
+			    writeTVar rnamestvar names
+			    writeTVar flag True
+		    _ -> return ()
+	purgeInvalidUndecls = do
+	    undecls' <- gets undeclareds >>= filterM ((not<$>).invalid)
+	    modify $ \ms -> ms { undeclareds = undecls' }
+	invalid (Undeclared _ ls (ActiveLock name idx)) =
+	    (fromMaybe False <$>) $ runMaybeT $ do
+		uinfo <- mgetUInfo name
+		ourName <- mgetOurName
+		msum [ do
+			linfo <- MaybeT $ return $ userLocks uinfo ! idx
+			return $ public linfo 
+			    || ourName `elem` accessedBy linfo 
+			    || lockSpec linfo /= ls
+		    , return True
+		    ]
+
+curServerAction :: UIMonad uiM => Protocol.Action -> StateT MainState uiM ServerResponse
+curServerAction act = do
+    saddr <- gets curServer
+    auth <- gets curAuth
+    liftIO $ makeRequest saddr $ ClientRequest protocolVersion auth act
+
+getRecordCachedFromCur :: UIMonad uiM => Bool -> Record -> StateT MainState uiM (TVar FetchedRecord)
+getRecordCachedFromCur flagIt rec = do
+    saddr <- gets curServer
+    auth <- gets curAuth
+    cOnly <- gets cacheOnly
+    flag <- gets newAsync
+    liftIO $ getRecordCached saddr auth
+	(if flagIt then Just flag else Nothing) cOnly rec
+
+getFreshRecBlocking :: UIMonad uiM => Record -> StateT MainState uiM (Maybe RecordContents)
+getFreshRecBlocking rec = do
+    tvar <- getRecordCachedFromCur False rec
+    fetched <- liftIO $ atomically $ do
+	fetched@(FetchedRecord fresh _ _) <- readTVar tvar
+	check fresh
+	return fetched
+    case fetchError fetched of
+	Nothing -> return $ fetchedRC fetched
+	Just err -> lift (drawError err) >> return Nothing
+
+getRelScore :: (UIMonad uiM) => Codename -> StateT MainState uiM (Maybe Int)
+getRelScore name = runMaybeT $ do
+    ourName <- mgetOurName
+    guard $ ourName /= name
+    uinfo <- mgetUInfo name
+    ourUInfo <- mgetUInfo ourName
+    return $ countUnaccessedBy ourUInfo name - countUnaccessedBy uinfo ourName
+    where
+	countUnaccessedBy (UserInfo _ locks _) name =
+	    length $ filter (unaccessedBy name) $ elems locks
+	unaccessedBy name Nothing = False
+	unaccessedBy name (Just linfo) = not $ public linfo || name `elem` accessedBy linfo 
+
+getNotesReadOn :: UIMonad uiM => LockInfo -> StateT MainState uiM [NoteInfo]
+getNotesReadOn lockinfo = (fromMaybe [] <$>) $ runMaybeT $ do
+    ourName <- mgetOurName
+    ourUInfo <- mgetUInfo ourName
+    return $ filter (\n -> isNothing (noteBehind n)
+	    || n `elem` notesRead ourUInfo) $ lockSolutions lockinfo
