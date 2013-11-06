@@ -121,12 +121,14 @@ processCommand' IMMeta CmdRegister = void.runMaybeT $ do
     mauth <- gets curAuth
     let isUs = maybe False ((==newName).authUser) mauth
     confirmOrBail $ if isUs then "Really reset password?" else "Register codename "++newName++"?"
-    passwd <- (hash <$>) $ MaybeT $ lift $
+    passwd <- (hashPassword newName <$>) $ MaybeT $ lift $
 	textInput "Enter new password:" 64 False Nothing Nothing
     lift $ if isUs then do
 	    resp <- curServerAction $ ResetPassword passwd
 	    case resp of
-		ServerAck -> modify $ \ms -> ms {curAuth = Just $ Auth newName passwd}
+		ServerAck -> do
+		    lift $ drawMessage "New password set."
+		    modify $ \ms -> ms {curAuth = Just $ Auth newName passwd}
 		ServerError err -> lift $ drawMessage err
 		_ -> lift $ drawMessage $ "Bad server response: " ++ show resp
 	else do
@@ -144,7 +146,7 @@ processCommand' IMMeta CmdRegister = void.runMaybeT $ do
 processCommand' IMMeta CmdAuth = void.runMaybeT $ do
     auth <- lift $ gets curAuth
     name <- mgetCurName
-    passwd <- (hash <$>) $ MaybeT $ lift $
+    passwd <- (hashPassword name <$>) $ MaybeT $ lift $
 	textInput ("Enter password for "++name++":") 64 False Nothing Nothing
     lift $ do
 	modify $ \ms -> ms {curAuth = Just $ Auth name passwd}
@@ -493,6 +495,9 @@ processCommand' IMEdit CmdWriteState = void.runMaybeT $ do
 	    Just err -> lift $ drawError $ "Write failed: "++err
 processCommand' _ _ = return ()
 
+hashPassword :: String -> String -> String
+-- ^ salt password
+hashPassword name password = hash $ "IY" ++ name ++ password
 
 subPlay :: UIMonad uiM => Lock -> StateT MainState uiM ()
 subPlay lock =

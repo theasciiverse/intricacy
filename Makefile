@@ -28,6 +28,10 @@ intricacy-${VERSION}.zip: intricacy.exe tutorial/*.lock
 	cp intricacy.exe VeraMono.ttf SDL.dll intricacy-${VERSION}
 	cp tutorial/*.lock intricacy-${VERSION}/tutorial
 	zip intricacy-${VERSION}.zip intricacy-${VERSION}
+modules.dot: *.lhs *.hs
+	graphmod *.lhs *.hs > modules.dot
+modules.png: modules.dot
+	dot -Tpng -o modules.png modules.dot
 # DO NOT DELETE: Beginning of Haskell dependencies
 Hex.o : Hex.lhs
 Intricacy.o : Intricacy.hs
