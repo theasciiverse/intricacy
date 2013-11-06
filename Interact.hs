@@ -31,6 +31,8 @@ import Protocol
 import Metagame
 import ServerAddr
 import MainState
+import InputMode
+import Maxlocksize
 
 interactUI :: UIMonad uiM => StateT MainState uiM ()
 interactUI = do

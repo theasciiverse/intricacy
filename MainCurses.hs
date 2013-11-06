@@ -1,7 +1,8 @@
 module Main where
 
 import Init
-import qualified CursesUI
+import qualified CursesUI (UIM)
+import CursesUIMInstance ()
 import MainState
 
 main = main' 

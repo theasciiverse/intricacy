@@ -31,6 +31,7 @@ import Database
 import Protocol
 import Metagame
 import ServerAddr
+import InputMode
 
 class (Applicative m, MonadIO m) => UIMonad m where
     runUI :: m a -> IO a
@@ -93,10 +94,6 @@ data MainState
 	, listOffset :: Int
 	}
 
--- | Locks bigger than 11 won't fit in an 80x25 terminal
-maxlocksize :: Int
-maxlocksize = 11
-
 newPlayState (frame,st) title sub = PlayState st frame [] False False [] [] title sub
 newReplayState st soln title = ReplayState st soln [] title
 newEditState (frame,st) mpath = EditState [st] [] frame mpath Nothing (PHS zero) (PHS zero) Map.empty
@@ -124,9 +121,6 @@ writeMetaState (MetaState { curServer=saddr, undeclareds=undecls, curAuth=auth, 
     confFilePath "metagame.conf" >>= flip writeReadFile (saddr, auth, path)
     unless (nullSaddr saddr) $
 	confFilePath ("undeclared" ++ [pathSeparator] ++ saddrStr saddr) >>= flip writeReadFile undecls
-
-data InputMode = IMEdit | IMPlay | IMReplay | IMMeta | IMTextInput
-    deriving (Eq, Ord, Show, Read)
 
 ms2im :: MainState -> InputMode
 ms2im mainSt = case mainSt of
