@@ -113,20 +113,29 @@ processCommand' IMMeta CmdSetServer = void.runMaybeT $ do
 processCommand' IMMeta CmdRegister = void.runMaybeT $ do
     -- guard =<< isNothing <$> lift (gets curAuth)
     newName <- mgetCurName
-    confirmOrBail $ "Register codename "++newName++"?"
+    mauth <- gets curAuth
+    let isUs = maybe False ((==newName).authUser) mauth
+    confirmOrBail $ if isUs then "Really reset password?" else "Register codename "++newName++"?"
     passwd <- (hash <$>) $ MaybeT $ lift $
 	textInput "Enter new password:" 64 False Nothing Nothing
-    lift $ do
-	modify $ \ms -> ms {curAuth = Just $ Auth newName passwd}
-	resp <- curServerAction $ Register
-	case resp of
-	    ServerAck -> do
-		lift $ drawMessage "Registered!"
-		invalidateUInfo newName
-	    ServerError err -> do
-		lift $ drawMessage err
-		modify $ \ms -> ms {curAuth = Nothing}
-	    _ -> lift $ drawMessage "BUG"
+    lift $ if isUs then do
+	    resp <- curServerAction $ ResetPassword passwd
+	    case resp of
+		ServerAck -> modify $ \ms -> ms {curAuth = Just $ Auth newName passwd}
+		ServerError err -> lift $ drawMessage err
+		_ -> lift $ drawMessage $ "Bad server response: " ++ show resp
+	else do
+	    modify $ \ms -> ms {curAuth = Just $ Auth newName passwd}
+	    resp <- curServerAction Register
+	    case resp of
+		ServerAck -> do
+		    lift $ drawMessage "Registered!"
+		    invalidateUInfo newName
+		    refreshUInfoUI
+		ServerError err -> do
+		    lift $ drawMessage err
+		    modify $ \ms -> ms {curAuth = Nothing}
+		_ -> lift $ drawMessage $ "Bad server response: " ++ show resp
 processCommand' IMMeta CmdAuth = void.runMaybeT $ do
     auth <- lift $ gets curAuth
     name <- mgetCurName
@@ -140,12 +149,12 @@ processCommand' IMMeta CmdAuth = void.runMaybeT $ do
 	    ServerError err -> do
 		lift $ drawMessage err
 		modify $ \ms -> ms {curAuth = auth}
-	    _ -> lift $ drawMessage "BUG"
+	    _ -> lift $ drawMessage $ "Bad server response: " ++ show resp
 processCommand' IMMeta (CmdSolve midx) = void.runMaybeT $ do
     name <- mgetCurName
     uinfo <- mgetUInfo name
     idx <- msum [ MaybeT $ return $ midx
-	, askLockIndex "Solve which lock?" (\i -> isJust $ userLocks uinfo ! i) ]
+	, askLockIndex "Solve which lock?" "No lock to solve!" (\i -> isJust $ userLocks uinfo ! i) ]
     ls <- MaybeT $ return $ lockSpec <$> userLocks uinfo ! idx
     undecls <- lift (gets undeclareds)
     msum [ do
@@ -215,7 +224,7 @@ processCommand' IMMeta (CmdViewSolution mnote) = void.runMaybeT $ do
 			ns <- getNotesReadOn lockinfo 
 			return $ if length ns < 3 then [] else ns
 	    | mlockinfo <- elems $ userLocks uinfo ]
-	idx <- askLockIndex "View solution to which lock?" $ not.null.(noteses!!)
+	idx <- askLockIndex "View solution to which lock?" "No solutions to view" $ not.null.(noteses!!)
 	let notes = noteses!!idx
 	    authors = map noteAuthor notes
 	author <- if length notes == 1
@@ -242,7 +251,7 @@ processCommand' IMMeta (CmdPlaceLock midx) = void.runMaybeT $ do
     lock <- MaybeT $ gets curLock
     ourUInfo <- mgetUInfo ourName
     idx <- msum [ MaybeT $ return midx
-	, askLockIndex "Place where?" $ const True
+	, askLockIndex "Place where?" "bug" $ const True
 	]
     when (isJust $ userLocks ourUInfo ! idx) $
 	confirmOrBail "Really retire existing lock?"
@@ -557,7 +566,7 @@ solveLock lock title = do
 declare undecl@(Undeclared soln ls al) = do
     ourName <- mgetOurName
     ourUInfo <- mgetUInfo ourName
-    idx <- askLockIndex "Secure behind which lock?" (\i -> isJust $ userLocks ourUInfo ! i)
+    idx <- askLockIndex "Secure behind which lock?" "You first need to place a lock to secure your solution behind." (\i -> isJust $ userLocks ourUInfo ! i)
     guard $ isJust $ userLocks ourUInfo ! idx
     resp <- lift $ curServerAction $ DeclareSolution soln ls al idx
     case resp of
@@ -569,10 +578,10 @@ declare undecl@(Undeclared soln ls al) = do
 	    mzero
 	_ -> return ()
 
-askLockIndex prompt pred = do
+askLockIndex prompt failMessage pred = do
     let ok = filter pred [0,1,2]
     case length ok of
-	0 -> (lift.lift) (drawError "No appropriate lock is available.") >> mzero
+	0 -> (lift.lift) (drawError failMessage) >> mzero
 	1 -> return $ head ok
 	_ -> ask ok
     where
@@ -584,7 +593,7 @@ askLockIndex prompt pred = do
 confirmOrBail prompt = (guard =<<) $ lift.lift $ confirm prompt
 confirm :: UIMonad uiM => String -> uiM Bool
 confirm prompt = do
-    drawMessage prompt
+    drawMessage $ prompt ++ " [y/N]"
     waitConfirm <* drawMessage ""
     where
 	waitConfirm = do

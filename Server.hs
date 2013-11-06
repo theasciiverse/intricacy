@@ -93,6 +93,7 @@ handleRequest req@(ClientRequest pv auth action) = do
 	    case action of
 		Authenticate -> checkAuth auth >> return ServerAck
 		Register -> newUser auth >> return ServerAck
+		ResetPassword passwd -> resetPassword auth passwd >> return ServerAck
 		GetServerInfo -> ServedServerInfo <$> getServerInfo
 		GetLock ls -> ServedLock <$> getLock ls
 		GetUserInfo name mversion -> (do
@@ -223,6 +224,10 @@ handleRequest req@(ClientRequest pv auth action) = do
 	    erroredIO $ putRecord (RecPassword name) (RCPassword pw)
 	    erroredIO $ putRecord (RecUserInfo name) (RCUserInfo $ (1,initUserInfo name))
 	    erroredIO $ putRecord (RecUserInfoLog name) (RCUserInfoDeltas [])
+	resetPassword Nothing pw = throwError "Authentication required"
+	resetPassword auth@(Just (Auth name _)) newpw = do
+	    checkAuth auth
+	    erroredIO $ putRecord (RecPassword name) (RCPassword newpw)
 	checkCodeName :: Codename -> ErrorT String IO Bool
 	checkCodeName name = do
 	    unless (validCodeName name) $ throwError "Invalid codename"

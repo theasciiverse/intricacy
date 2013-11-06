@@ -638,11 +638,12 @@ instance UIMonad (StateT UIState IO) where
 	    lift $ maybe (drawEmptyMiniLock miniLockPos)
 		((registerSelectable miniLockPos 3 SelOurLock >>) . flip drawMiniLock miniLockPos)
 		lock
-	    lift.renderToMain $ do
-		renderStrColAtLeft messageCol (saddrStr saddr) $ serverPos <+> hu
-		renderStrColAtLeft messageCol path $ lockLinePos <+> hu
-	    when (offset>0) $ lift $ 
-		registerButtonGroup $ singleButton (nextPagePos<+>neg hu) CmdPrevPage 4
+	    lift $ do
+		smallFont <- gets dispFontSmall
+		renderToMain $ withFont smallFont $ renderStrColAtLeft messageCol (saddrStr saddr) $ serverPos <+> hu
+		renderToMain $ renderStrColAtLeft messageCol path $ lockLinePos <+> hu
+		when (offset>0) $
+		    registerButtonGroup $ singleButton (nextPagePos<+>neg hu) CmdPrevPage 4
 
 	    maybe (return ())
 		(\name -> do
@@ -658,9 +659,9 @@ instance UIMonad (StateT UIState IO) where
 		    lift $ do
 			unless fresh $ renderToMain $ drawAtRel unfreshGlyph $ codenamePos <+> 2<*>hu
 			maybe (return ()) sayError err
-			when (fresh && isNothing ourName) $
+			when (fresh && (isNothing ourName || home)) $
 			    registerButtonGroup $ singleButton (codenamePos <+> 2<*>hu)
-				(if isNothing muirc then CmdRegister else CmdAuth) 2
+				(if isNothing muirc || home then CmdRegister else CmdAuth) 2
 		    case muirc of
 			Nothing -> return ()
 			Just (RCUserInfo (_,uinfo)) -> do

@@ -18,6 +18,7 @@ type VersionedUInfo = (Int, UserInfo)
 data Action
     = Authenticate
     | Register
+    | ResetPassword Password
     | GetServerInfo
     | GetLock LockSpec
     | GetUserInfo Codename (Maybe Int)
@@ -71,6 +72,7 @@ instance Binary Action where
     put (DeclareSolution soln lspec alock idx) = put (7::Word8) >> put soln >> put lspec >> put alock >> put idx
     put (SetLock lock li soln) = put (8::Word8) >> put lock >> put li >> put soln
     put (GetRandomNames n) = put (9::Word8) >> put n
+    put (ResetPassword pw) = put (10::Word8) >> put pw
     get = do
 	tag <- get :: Get Word8
 	case tag of
@@ -84,6 +86,7 @@ instance Binary Action where
 	    7 -> liftM4 DeclareSolution get get get get
 	    8 -> liftM3 SetLock get get get
 	    9 -> liftM GetRandomNames get
+	    10 -> liftM ResetPassword get
 
 instance Binary Auth where
     put (Auth name pw) = put name >> put pw
