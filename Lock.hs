@@ -5,7 +5,9 @@ import qualified Data.Map as Map
 
 import Frame
 import GameState
+import GameStateTypes
 import Hex
+import Util
 import Physics
 
 type Lock = (Frame, GameState)

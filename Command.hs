@@ -1,7 +1,6 @@
 module Command where
 import Hex
-import GameState
-import Physics (TorqueDir)
+import GameStateTypes
 import Metagame
 
 data Command = CmdDir WrHoSel HexDir | CmdRotate TorqueDir | CmdWait

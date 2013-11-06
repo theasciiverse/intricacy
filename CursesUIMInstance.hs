@@ -18,7 +18,7 @@ import Control.Monad.State
 import Data.Function (on)
 
 import Hex
-import GameState
+import GameStateTypes
 import Physics
 import Frame
 import Command
@@ -28,6 +28,7 @@ import Cache
 import Database
 import Metagame
 import Protocol
+import Util
 import InputMode
 import MainState
 import CursesUI

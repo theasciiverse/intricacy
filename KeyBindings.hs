@@ -5,7 +5,7 @@ import Data.Char
 
 import Command
 import Hex
-import GameState
+import GameStateTypes
 import InputMode
 
 type KeyBindings = [ (Char,Command) ]

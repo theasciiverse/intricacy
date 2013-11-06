@@ -7,7 +7,7 @@ import Control.Monad
 import Data.List (delete)
 import Data.Char
 
-import GameState
+import GameStateTypes
 import Lock
 
 notesNeeded = 3

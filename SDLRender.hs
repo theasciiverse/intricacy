@@ -15,6 +15,7 @@ import Data.Function (on)
 
 import Hex
 import GameState
+import GameStateTypes
 import BoardColouring
 import Physics
 import Command

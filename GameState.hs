@@ -14,20 +14,9 @@ import Data.List
 import Data.Vector (Vector, (!), (//))
 
 import Hex
+import Util
+import GameStateTypes
 --import Debug
-
-type HexPos = PHS HexVec
-origin :: HexPos
-origin = PHS zero
-
-data GameState = GameState { placedPieces :: Vector PlacedPiece,
-	connections :: [Connection] }
-    deriving (Eq, Ord, Show, Read)
-
-data PlacedPiece = PlacedPiece { placedPos :: HexPos, placedPiece :: Piece }
-    deriving (Eq, Ord, Show, Read)
-
-type PieceIdx = Int
 
 ppidxs :: GameState -> [PieceIdx]
 ppidxs = Vector.toList . (Vector.findIndices $ const True) . placedPieces
@@ -80,9 +69,6 @@ delPieceIn pos st =
 	Just idx -> delPiece idx st
 	_ -> st
 
-enumVec :: Vector a -> [(Int,a)]
-enumVec = Vector.toList . Vector.indexed
-
 setPiece :: PieceIdx -> Piece -> GameState -> GameState
 setPiece idx p st = 
     setpp idx (PlacedPiece (placedPos $ getpp st idx) p) st
@@ -92,23 +78,6 @@ adjustPieces f st =
     st { placedPieces = fmap
 	(\pp -> pp { placedPiece = f $ placedPiece pp })
        $ placedPieces st }
-
-data HookForce = NullHF | PushHF HexDir | TorqueHF Int
-    deriving (Eq, Ord, Show, Read)
-
-data Piece = Block { blockPattern :: [HexVec] }
-	    | Pivot { pivotArms :: [HexDir] }
-	    | Hook { hookArm :: HexDir, hookForce :: HookForce}
-	    | Wrench { wrenchMomentum :: HexDir }
-	    | Ball
-    deriving (Eq, Ord, Show, Read)
-isBlock, isPivot, isHook, isWrench, isTool, isBall :: Piece -> Bool
-isBlock p = case p of Block _ -> True; _ -> False
-isPivot p = case p of Pivot _ -> True; _ -> False
-isHook p = case p of Hook _ _ -> True; _ -> False
-isWrench p = case p of Wrench _ -> True; _ -> False
-isTool p = isWrench p || isHook p
-isBall p = case p of Ball -> True; _ -> False
 
 addBlockPos :: PieceIdx -> HexPos -> GameState -> GameState
 addBlockPos b pos st =
@@ -120,11 +89,6 @@ addPivotArm p pos st =
     let PlacedPiece ppos (Pivot arms) = getpp st p
     in setPiece p (Pivot (pos <-> ppos:arms)) st
 
-data Connection = Connection { connectionRoot :: Locus
-		    , connectionEnd :: Locus, connectionLink :: Link }
-    deriving (Eq, Ord, Show, Read)
-
-type Locus = (PieceIdx, HexVec)
 locusPos :: GameState -> Locus -> HexPos
 locusPos s (idx,v) = v <+> (placedPos $ getpp s idx)
 
@@ -138,10 +102,6 @@ connectionLength st (Connection root end _) =
     let rootPos = locusPos st root
 	endPos = locusPos st end
     in hexLen (endPos <-> rootPos) - 1
-
-data Link = Free { freePos :: HexVec }
-	  | Spring { springDir :: HexDir, springNatLength :: Int }
-    deriving (Eq, Ord, Show, Read)
 
 springsAtIdx,springsEndAtIdx,springsRootAtIdx :: GameState -> PieceIdx -> [Connection]
 springsAtIdx st idx =
@@ -220,26 +180,6 @@ springFullyCompressed _ _ = False
 springExtensionValid st c@(Connection _ _ (Spring _ natLen)) = let l = connectionLength st c in 
     l >= (natLen+1)`div`2 && l <= 2*natLen
 springExtensionValid _ _ = True
-
-
-data SpringExtension = Relaxed | Compressed | Stretched
-    deriving (Eq, Ord, Show, Read)
-
-data Tile = BlockTile [HexDir] | PivotTile HexDir | ArmTile HexDir Bool | HookTile | WrenchTile HexDir
-	  | BallTile | SpringTile SpringExtension HexDir
-    deriving (Eq, Ord, Show, Read)
-
-type OwnedTile = (PieceIdx, Tile)
-type GameBoard = Map HexPos OwnedTile
-
-tileType :: Tile -> Tile
-tileType (BlockTile _) = BlockTile []
-tileType (PivotTile _) = PivotTile zero
-tileType (ArmTile _ _) = ArmTile zero False
-tileType (WrenchTile _) = WrenchTile zero
-tileType (BallTile) = BallTile
-tileType (SpringTile _ _) = SpringTile Relaxed zero
-tileType t = t
 
 stateBoard :: GameState -> GameBoard
 stateBoard st@(GameState plPieces conns) =
@@ -344,134 +284,6 @@ validGameState st@(GameState pps conns) = and
     , and [ 1 == length (components $ Set.fromList patt) 
 	    | Block patt <- map placedPiece $ Vector.toList pps ]
     ]
-
-	
-modTile :: Maybe Tile -> HexPos -> HexPos -> Bool -> GameState -> GameState
-modTile tile pos lastPos painting st =
-    let board = stateBoard st
-	curOwnedTile = Map.lookup pos board
-	(st',mowner) = case curOwnedTile of
-	    Nothing -> (st,Nothing)
-	    Just (owner,SpringTile _ _) -> (delConnectionsIn pos st, Just owner)
-	    Just (owner,_) -> delPiecePos owner pos st -- XXX may invalidate board's indices to st
-	board' = stateBoard st'
-	addPiece p = addpp $ PlacedPiece pos p
-	lastMOwner = do
-	    (o,_) <- Map.lookup lastPos board
-	    return o
-	{-
-	same = isJust $ do
-		t <- tile
-		(_,t') <- curOwnedTile
-		guard $ ((==) `on` tileType) t t'
-		return $ Just ()
-	-}
-	lastElem os = isJust $ do
-	       lastOwner <- lastMOwner
-	       guard $ lastOwner `elem` os
-	lastWasDiff = isNothing $ do
-	       lastOwner <- lastMOwner
-	       owner <- mowner
-	       guard $ owner == lastOwner
-	lastOK = painting || lastWasDiff
-	validSpringRootTile ot = case snd ot of
-	    BlockTile _ -> True
-	    PivotTile _ -> True
-	    _ -> False
-	-- |Find next adjacent, skipping over current entity.
-	-- XXX: Note this doesn't work when the entity is adjacent in multiple
-	-- non-contiguous directions.
-	nextOfAdjacents adjs loop = listToMaybe $ fromMaybe adjs $ do
-		owner <- mowner
-		i <- elemIndex owner adjs
-		return $ (dropWhile (== owner) $ drop i adjs) ++
-		    if loop && i > 0 then adjs else []
-    in case mowner of
-	 Just o | protectedPiece o -> st
-	 _ -> (case tile of
-	   -- _ | same && (pos /= lastPos) -> id
-	   Just (BlockTile _) ->
-	       let adjacentBlocks = [ idx |
-		       dir <- hexDirs
-		       , Just (idx, BlockTile _) <- [Map.lookup (dir <+> pos) board']
-		       , not $ protectedPiece idx ]
-		   addToIdx = if lastOK && lastElem adjacentBlocks
-		       then lastMOwner
-		       else nextOfAdjacents adjacentBlocks False
-	       in case addToIdx of
-		  Nothing -> addPiece $ Block [zero]
-		  Just b -> addBlockPos b pos
-	   Just (ArmTile armdir _) -> 
-	       let adjacentPivots = [ idx |
-		       dir <- if armdir == zero then hexDirs else [armdir, neg armdir]
-		       , Just (idx, PivotTile _) <- [Map.lookup (dir <+> pos) board'] ]
-		   addToIdx = if lastOK && lastElem adjacentPivots
-		       then lastMOwner
-		       else nextOfAdjacents adjacentPivots True
-	       in case addToIdx of
-		      Nothing -> id
-		      Just p -> addPivotArm p pos
-	   Just (SpringTile _ _) ->
-	       let possibleSprings = [ Connection root end $ Spring sdir natLen |
-		       sdir <- hexDirs
-		       , let epos = sdir <+> pos
-		       , Just (eidx, BlockTile _) <- [Map.lookup epos board']
-		       , not $ protectedPiece eidx
-		       , (ridx, rpos) <- maybeToList $ castRay (neg sdir <+> pos) (neg sdir) board'
-		       , Just True == (validSpringRootTile `liftM` Map.lookup rpos board')
-		       , let natLen = hexLen (rpos <-> epos) - 1
-		       , natLen > 0
-		       {-
-		       , null [ conn |
-			   conn@(Connection _ _ (Spring sdir' _)) <-
-			       springsAtIdx st' eidx ++ springsEndAtIdx st' ridx
-			   , not $ sdir' `elem` [sdir,neg sdir] ]
-		       -}
-		       , not $ connGraphPathExists st' eidx ridx
-		       , let end = (eidx, epos <-> (placedPos $ getpp st' eidx))
-		       , let root = (ridx, rpos <-> (placedPos $ getpp st' ridx))
-		       ]
-		   nextSpring = listToMaybe $ fromMaybe possibleSprings $ do
-		       (_,SpringTile _ _) <- curOwnedTile -- XXX: therefore the indices of st are still valid
-		       i <- findIndex (`elem` connections st) possibleSprings
-		       return $ drop (i+1) possibleSprings
-	       in case nextSpring of
-		      Nothing -> id
-		      Just conn -> addConn conn
-	   Just (PivotTile _) -> addPiece $ Pivot []
-	   Just (WrenchTile _) -> addPiece $ Wrench zero
-	   Just HookTile -> let arm = listToMaybe [ dir | 
-				    dir <- hexDirs
-				    , isNothing $ Map.lookup (dir <+> pos) board' ]
-			    in case arm of Just armdir -> addPiece $ Hook armdir NullHF
-					   _ -> id
-	   Just (BallTile) -> addPiece Ball
-	   _ -> id
-	   ) st'
-
-mergeTiles :: HexPos -> HexDir -> Bool -> GameState -> GameState
-mergeTiles pos dir mergePiece st = fromMaybe st $ do
-    let board = stateBoard st
-    (idx,tile) <- Map.lookup pos board
-    (idx',tile') <- Map.lookup (dir<+>pos) board
-    guard $ idx /= idx'
-    guard $ all (not . protectedPiece) [idx,idx']
-    case tile of
-	BlockTile _ -> do
-	    BlockTile _ <- Just tile'
-	    let st' = if mergePiece
-			  then delPiece idx st
-			  else fst $ delPiecePos idx pos st
-	    (idx'',_) <- Map.lookup (dir<+>pos) $ stateBoard st'
-	    return $ if mergePiece
-			 then foldr (addBlockPos idx'') st'
-				$ plPieceFootprint $ getpp st idx
-			 else addBlockPos idx'' pos st'
-	ArmTile _ _  -> do
-	    PivotTile _ <- Just tile'
-	    let st' = fst $ delPiecePos idx pos st
-	    (idx'',_) <- Map.lookup (dir<+>pos) $ stateBoard st'
-	    return $ addPivotArm idx'' pos st'
 
 protectedPiece :: PieceIdx -> Bool
 protectedPiece = isFrame

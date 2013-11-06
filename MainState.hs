@@ -21,7 +21,7 @@ import Data.Function (on)
 
 import Hex
 import Mundanities
-import GameState
+import GameStateTypes
 import Physics
 import Command
 import Frame

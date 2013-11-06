@@ -23,6 +23,8 @@ import Command
 import Physics
 import Mundanities
 import GameState
+import GameStateTypes
+import EditGameState
 import Frame
 import Lock
 import Cache

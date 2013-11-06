@@ -7,7 +7,7 @@ import qualified Data.Map as Map
 import Data.Map (Map)
 
 import Hex
-import GameState
+import GameStateTypes
 import BoardColouring (PieceColouring)
 
 -- From Curses.CursesHelper:

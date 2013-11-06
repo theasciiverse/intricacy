@@ -10,15 +10,9 @@ import Data.List
 import Data.Vector (Vector, (!), (//))
 
 import Hex
+import Util
 import GameState
-
--- |TorqueDir: Int of absolute value <= 1
-type TorqueDir = Int
-
--- |'force' encompasses both usual directional forces and torques; we use
--- 'push' for the former.
-data Force = Push PieceIdx HexDir | Torque PieceIdx TorqueDir
-    deriving (Eq, Ord, Show)
+import GameStateTypes
 
 -- | a list of forces to try in order:
 newtype ForceChoice = ForceChoice {getForceChoice :: [Force]}
@@ -42,11 +36,6 @@ getForcedpp s f = getpp s (forceIdx f)
 -- |PlayerMove: if not NullPM, the direction should be non-zero
 data PlayerMove = NullPM | HookPush HexDir | HookTorque TorqueDir | WrenchPush HexDir
     deriving (Eq, Ord, Show, Read)
-
--- |Alert: for passing information about physics processing to the UI
-data Alert = AlertCollision HexPos | AlertBlockingForce Force
-	   | AlertResistedForce Force | AlertBlockedForce Force
-    deriving (Eq, Ord, Show)
 
 toolForces :: GameState -> PlayerMove -> ForceChoices
 toolForces st pm = Vector.fromList $

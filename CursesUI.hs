@@ -13,9 +13,9 @@ import Control.Monad.State
 import Data.Function (on)
 
 import Hex
-import GameState
+import GameState (stateBoard)
+import GameStateTypes
 import BoardColouring
-import Physics
 import Frame
 import KeyBindings
 import Mundanities

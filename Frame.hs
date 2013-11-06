@@ -4,6 +4,7 @@ import Data.List ((\\))
 import qualified Data.Vector as Vector
 
 import GameState
+import GameStateTypes
 import Hex
 
 data Frame = BasicFrame Int

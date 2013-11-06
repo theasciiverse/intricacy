@@ -13,6 +13,8 @@ import Data.Maybe
 
 import Hex
 import GameState
+import GameStateTypes
+import Util
 import GraphColouring
 
 type PieceColouring = Map PieceIdx Int

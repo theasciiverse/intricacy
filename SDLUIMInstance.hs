@@ -22,7 +22,7 @@ import Data.Function (on)
 import MainState
 import Hex
 import Command
-import GameState
+import GameStateTypes
 import Lock
 import KeyBindings
 import Mundanities
@@ -31,6 +31,7 @@ import Protocol
 import Cache
 import Database
 import ServerAddr
+import Util
 import InputMode
 import SDLRender
 import SDLUI

@@ -4,7 +4,7 @@ import qualified Data.Vector as Vector
 import Control.Monad
 import Data.Int (Int8)
 
-import GameState
+import GameStateTypes
 import Physics
 import Hex
 import Frame

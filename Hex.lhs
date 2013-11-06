@@ -211,6 +211,10 @@ instance Grp HexVec where
 class (Action HexVec b, Differable b b HexVec) => HexSpace b
 instance HexSpace (PHS HexVec)
 
+type HexPos = PHS HexVec
+origin :: HexPos
+origin = PHS zero
+
 \end{code}
 
 Testing:
