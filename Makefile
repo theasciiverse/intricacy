@@ -22,12 +22,16 @@ intricacy.exe: *.lhs *.hs
 	wine cabal build || true
 	sudo mv /usr/i386-mingw32.t /usr/i386-mingw32
 	mv dist/build/intricacy/intricacy.exe .
-intricacy-${VERSION}.zip: intricacy.exe tutorial/*.lock
-	mkdir intricacy-${VERSION} || true
-	mkdir intricacy-${VERSION}/tutorial || true
-	cp intricacy.exe VeraMono.ttf SDL.dll intricacy-${VERSION}
-	cp tutorial/*.lock intricacy-${VERSION}/tutorial
-	zip intricacy-${VERSION}.zip intricacy-${VERSION}
+intricacy-${VERSION}-win32.zip: intricacy.exe tutorial/*.lock
+	mkdir w32tmp
+	cd w32tmp &&\
+	mkdir intricacy-${VERSION} &&\
+	mkdir intricacy-${VERSION}/tutorial &&\
+	cp ../{intricacy.exe,VeraMono.ttf,SDL.dll} intricacy-${VERSION} &&\
+	cp ../tutorial/*.lock intricacy-${VERSION}/tutorial &&\
+	zip -r intricacy-${VERSION}-win32.zip "intricacy-${VERSION}"
+	mv w32tmp/intricacy-${VERSION}-win32.zip .
+	rm -rf w32tmp
 modules.dot: *.lhs *.hs
 	graphmod *.lhs *.hs > modules.dot
 modules.png: modules.dot
