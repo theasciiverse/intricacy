@@ -97,13 +97,13 @@ handleRequest req@(ClientRequest pv auth action) = do
 		GetServerInfo -> ServedServerInfo <$> getServerInfo
 		GetLock ls -> ServedLock <$> getLock ls
 		GetUserInfo name mversion -> (do
-			RCUserInfo (curV,info) <- erroredIO $ getRecord $ RecUserInfo name
+			RCUserInfo (curV,info) <- getRecordErrored $ RecUserInfo name
 			(fromJust<$>)$ runMaybeT $ msum [ do
 			    v <- MaybeT $ return mversion
 			    msum [ guard (v >= curV) >> return ServerFresh
 				, do 
 				    guard (v >= curV - 10) 
-				    RCUserInfoDeltas deltas <- lift $ erroredIO $ getRecord $ RecUserInfoLog name
+				    RCUserInfoDeltas deltas <- lift $ getRecordErrored $ RecUserInfoLog name
 				    return $ ServedUserInfoDeltas $ take (curV-v) deltas
 				]
 			    , return $ ServedUserInfo (curV,info)
@@ -145,8 +145,8 @@ handleRequest req@(ClientRequest pv auth action) = do
 			"Server only accepts size "++show serverSize++" locks."
 		    unless (validLock $ reframe lock) $ throwError "Invalid lock!"
 		    unless (checkSolution lock soln) $ throwError "Bad solution"
-		    RCLockHashes hashes <- liftIO $ getRecord RecLockHashes
-			    `catchIO` const (return (RCLockHashes []))
+		    RCLockHashes hashes <- getRecordErrored RecLockHashes
+			    `catchError` const (return (RCLockHashes []))
 		    let hashed = hash $ show lock
 		    when (hashed `elem` hashes) $ throwError "Lock has already been used"
 		    ls <- erroredIO $ newLockRecord lock
@@ -175,8 +175,6 @@ handleRequest req@(ClientRequest pv auth action) = do
 			>-> P.take n -- try to take as many as we were asked for
 		    liftIO newStdGen
 		    return $ ServedRandomNames shuffled
-
-
 		_ -> throwError "BUG: bad request"
 	erroredIO :: IO a -> ErrorT String IO a
 	erroredIO c = do
@@ -184,14 +182,20 @@ handleRequest req@(ClientRequest pv auth action) = do
 	    case ret of
 		Left e -> throwError $ "Server IO error: " ++ show e
 		Right x -> return x
-	getLock ls = erroredIO $ do 
-	    RCLock lock <- getRecord $ RecLock ls
+	getRecordErrored :: Record -> ErrorT String IO RecordContents
+	getRecordErrored rec = do
+	    mrc <- lift $ getRecord rec
+	    case mrc of
+		Just rc -> return rc
+		Nothing -> throwError $ "Bad record on server! Record was: " ++ show rec
+	getLock ls = do 
+	    RCLock lock <- getRecordErrored $ RecLock ls
 	    return lock
-	getSolution note = erroredIO $ do 
-	    RCSolution soln <- getRecord $ RecNote note
+	getSolution note = do 
+	    RCSolution soln <- getRecordErrored $ RecNote note
 	    return soln
-	getServerInfo = erroredIO $ do
-	    RCServerInfo sinfo <- getRecord $ RecServerInfo
+	getServerInfo = do
+	    RCServerInfo sinfo <- getRecordErrored $ RecServerInfo
 	    return sinfo
 	getALock (ActiveLock name idx) = do
 	    info <- getUserInfo name
@@ -201,8 +205,8 @@ handleRequest req@(ClientRequest pv auth action) = do
 		Just lockinfo -> return lockinfo
 	checkValidLockIndex idx =
 	    unless (0<=idx && idx < maxLocks) $ throwError "Bad lock index"
-	getUserInfo name = erroredIO $ do 
-	    RCUserInfo (version,info) <- getRecord $ RecUserInfo name
+	getUserInfo name = do 
+	    RCUserInfo (version,info) <- getRecordErrored $ RecUserInfo name
 	    return info
 	getUserInfoOfAuth auth = do 
 	    checkAuth auth
@@ -214,7 +218,7 @@ handleRequest req@(ClientRequest pv auth action) = do
 	checkAuth (Just (Auth name pw)) = do
 	    exists <- checkCodeName name
 	    unless exists $ throwError "No such user"
-	    RCPassword pw' <- liftIO $ getRecord (RecPassword name)
+	    RCPassword pw' <- getRecordErrored (RecPassword name)
 	    when (pw /= pw') $ throwError "Wrong password"
 	newUser :: Maybe Auth -> ErrorT String IO ()
 	newUser Nothing = throwError "Require authentication"

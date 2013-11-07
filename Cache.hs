@@ -26,7 +26,7 @@ data FetchedRecord = FetchedRecord {fresh :: Bool, fetchError :: Maybe String, f
 
 getRecordCached :: ServerAddr -> Maybe Auth -> Maybe (TVar Bool) -> Bool -> Record -> IO (TVar FetchedRecord)
 getRecordCached saddr auth mflag cOnly rec = withCacheDir saddr $ do
-    fromCache <- (Just <$> getRecord rec) `catchIO` (\_ -> return Nothing)
+    fromCache <- getRecord rec
     let fresh = isJust fromCache && invariantRecord rec
     tvar <- atomically $ newTVar $ FetchedRecord fresh Nothing fromCache
     unless (cOnly || fresh) $ void $ forkIO $ withCacheDir saddr $ getRecordFromServer fromCache tvar

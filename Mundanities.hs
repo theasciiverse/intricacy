@@ -18,8 +18,10 @@ catchIO = E.catch
 
 readReadFile :: (Read a) => FilePath -> IO (Maybe a)
 readReadFile file =
-    ((fst <$>) . listToMaybe . reads . BSC.unpack <$> BS.readFile file)
+    (tryRead . BSC.unpack <$> BS.readFile file)
 	`catchIO` (const $ return Nothing)
+tryRead :: (Read a) => String -> Maybe a
+tryRead = (fst <$>) . listToMaybe . reads
 
 writeReadFile :: (Show a) => FilePath -> a -> IO ()
 writeReadFile file x = do

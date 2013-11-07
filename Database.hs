@@ -68,19 +68,17 @@ askForRecord _ = error "no corresponding request"
 recordExists :: Record -> IO Bool
 recordExists = doesFileExist . recordPath
 
-getRecord :: Record -> IO RecordContents
-getRecord rec = do
+getRecord :: Record -> IO (Maybe RecordContents)
+getRecord rec = flip catchIO (const $ return Nothing) $ do
     h <- openFile (recordPath rec) ReadMode
-    rc <- getRecordh rec h
-    hClose h
-    return rc
-getRecordh (RecPassword _) h = (RCPassword . read) <$> hGetStrict h
-getRecordh (RecUserInfo _) h = (RCUserInfo . read) <$> hGetStrict h
-getRecordh (RecUserInfoLog _) h = (RCUserInfoDeltas . read) <$> hGetStrict h
-getRecordh (RecLock _) h = (RCLock . read) <$> hGetStrict h
-getRecordh (RecNote _) h = (RCSolution . read) <$> hGetStrict h
-getRecordh RecLockHashes h = (RCLockHashes . read) <$> hGetStrict h
-getRecordh RecServerInfo h = (RCServerInfo . read) <$> hGetStrict h
+    getRecordh rec h <* hClose h
+getRecordh (RecPassword _) h = ((RCPassword <$>) . tryRead) <$> hGetStrict h
+getRecordh (RecUserInfo _) h = ((RCUserInfo <$>) . tryRead) <$> hGetStrict h
+getRecordh (RecUserInfoLog _) h = ((RCUserInfoDeltas <$>) . tryRead) <$> hGetStrict h
+getRecordh (RecLock _) h = ((RCLock <$>) . tryRead) <$> hGetStrict h
+getRecordh (RecNote _) h = ((RCSolution <$>) . tryRead) <$> hGetStrict h
+getRecordh RecLockHashes h = ((RCLockHashes <$>) . tryRead) <$> hGetStrict h
+getRecordh RecServerInfo h = ((RCServerInfo <$>) . tryRead) <$> hGetStrict h
 
 hGetStrict h = CS.unpack `liftM` concatMWhileNonempty (repeat $ CS.hGet h 1024)
     where concatMWhileNonempty (m:ms) = do
@@ -107,7 +105,7 @@ putRecordh (RCServerInfo sinfo) h = hPutStr h $ show sinfo
 modifyRecord :: Record -> (RecordContents -> RecordContents) -> IO ()
 modifyRecord rec f = do
     h <- openFile (recordPath rec) ReadWriteMode 
-    rc <- getRecordh rec h
+    Just rc <- getRecordh rec h
     hSeek h AbsoluteSeek 0
     putRecordh (f rc) h
     hTell h >>= hSetFileSize h 
