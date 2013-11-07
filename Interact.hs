@@ -37,7 +37,7 @@ import InputMode
 import Maxlocksize
 import InteractUtil
 
-interactUI :: UIMonad uiM => StateT MainState uiM ()
+interactUI :: UIMonad uiM => StateT MainState uiM InteractSuccess
 interactUI = do
     lift $ drawMessage ""
     (IMMeta==) . ms2im <$> get >>= flip when (void $ do
@@ -57,9 +57,9 @@ interactUI = do
 	    when (im == IMPlay && not (psSolved mainSt)) checkWon
 	    drawMainState
 	    cmds <- lift $ getInput im
-	    quit <- liftM (\e -> case e of Left _ -> True; _ -> False) $
-		runErrorT $ mapM_ (processCommand im) cmds
-	    unless quit loop
+	    runErrorT (mapM_ (processCommand im) cmds) >>= \x -> case x of
+		Left ret -> return ret
+		Right _ -> loop
 
 -- | TODO: neater would be to use a stream (see package 'pipes') for
 -- input?
@@ -67,17 +67,21 @@ getSomeInput im = do
     cmds <- getInput im
     if null cmds then getSomeInput im else return cmds
 
-processCommand :: UIMonad uiM => InputMode -> Command -> ErrorT () (StateT MainState uiM) ()
+newtype InteractSuccess = InteractSuccess Bool
+instance Error InteractSuccess where
+    noMsg = InteractSuccess False
+
+processCommand :: UIMonad uiM => InputMode -> Command -> ErrorT InteractSuccess (StateT MainState uiM) ()
 processCommand im CmdQuit = do
     when (im == IMPlay) $
-	lift (gets psIsSub) >>= flip when (throwError ())
-    when (im == IMReplay) $ throwError ()
+	lift (gets psIsSub) >>= flip when (throwError $ InteractSuccess False)
+    when (im == IMReplay) $ throwError $ InteractSuccess False
     really <- lift $ lift $ confirm "Really quit?"
-    when really $ throwError ()
+    when really $ throwError $ InteractSuccess False
 processCommand IMPlay CmdOpen = do
     st <- gets psCurrentState
     frame <- gets psFrame
-    if checkSolved (frame,st) then throwError () else lift.lift $ drawError "Locked!"
+    if checkSolved (frame,st) then throwError $ InteractSuccess True else lift.lift $ drawError "Locked!"
 processCommand im cmd = lift $ processCommand' im cmd
 
 processCommand' :: UIMonad uiM => InputMode -> Command -> StateT MainState uiM ()
@@ -505,6 +509,6 @@ subPlay lock =
 
 solveLock :: UIMonad uiM => Lock -> Maybe String -> MaybeT (StateT MainState uiM) Solution
 solveLock lock title = do
-    ps <- lift.lift $ execStateT interactUI $ newPlayState (reframe lock) title False
-    guard $ psSolved ps
+    (InteractSuccess solved, ps) <- lift.lift $ runStateT interactUI $ newPlayState (reframe lock) title False
+    guard $ solved
     return $ reverse $ (map snd) $ psGameStateMoveStack ps
