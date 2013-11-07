@@ -46,6 +46,7 @@ interactUI = do
 	_ <- liftIO $ forkIO $ forever $ do
 	    atomically $ readTVar flag >>= check >> writeTVar flag False
 	    unblock
+	testAuth
 	refreshUInfoUI
 	)
     loop
@@ -58,7 +59,9 @@ interactUI = do
 	    drawMainState
 	    cmds <- lift $ getInput im
 	    runErrorT (mapM_ (processCommand im) cmds) >>= \x -> case x of
-		Left ret -> return ret
+		Left ret -> do
+		    lift $ drawMessage ""
+		    return ret
 		Right _ -> loop
 
 -- | TODO: neater would be to use a stream (see package 'pipes') for

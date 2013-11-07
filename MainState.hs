@@ -281,3 +281,12 @@ getNotesReadOn lockinfo = (fromMaybe [] <$>) $ runMaybeT $ do
     ourUInfo <- mgetUInfo ourName
     return $ filter (\n -> isNothing (noteBehind n)
 	    || n `elem` notesRead ourUInfo) $ lockSolutions lockinfo
+
+testAuth :: UIMonad uiM => StateT MainState uiM ()
+testAuth = do
+    resp <- curServerAction $ Authenticate
+    case resp of
+	ServerError err -> do
+	    lift $ drawMessage err
+	    modify $ \ms -> ms {curAuth = Nothing}
+	_ -> return ()
