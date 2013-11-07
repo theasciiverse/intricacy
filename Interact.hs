@@ -92,7 +92,7 @@ processCommand' im CmdHelp = lift $ showHelp im
 processCommand' IMMeta (CmdSelCodename mname) = void.runMaybeT $ do
     name <- msum [ MaybeT $ return $ mname
 	, do
-	    newCodename <- liftM (map toUpper) $ MaybeT $ lift $ textInput "Codename:" 3 True Nothing Nothing
+	    newCodename <- liftM (map toUpper) $ MaybeT $ lift $ textInput "Codename:" 3 False True Nothing Nothing
 	    guard $ length newCodename == 3
 	    return newCodename
 	]
@@ -113,7 +113,7 @@ processCommand' IMMeta CmdBackCodename = do
 processCommand' IMMeta CmdSetServer = void.runMaybeT $ do
     saddr <- gets curServer
     saddrs <- liftIO $ knownServers
-    newSaddrstr <- MaybeT $ lift $ textInput "Set server:" 256 False
+    newSaddrstr <- MaybeT $ lift $ textInput "Set server:" 256 False False
 	    (Just $ map saddrStr saddrs) (Just $ saddrStr saddr)
     newSaddr <- MaybeT $ return $ strToSaddr newSaddrstr
     modify $ \ms -> ms { curServer = newSaddr }
@@ -129,7 +129,7 @@ processCommand' IMMeta CmdRegister = void.runMaybeT $ do
     let isUs = maybe False ((==newName).authUser) mauth
     confirmOrBail $ if isUs then "Really reset password?" else "Register codename "++newName++"?"
     passwd <- (hashPassword newName <$>) $ MaybeT $ lift $
-	textInput "Enter new password:" 64 False Nothing Nothing
+	textInput "Enter new password:" 64 True False Nothing Nothing
     lift $ if isUs then do
 	    resp <- curServerAction $ ResetPassword passwd
 	    case resp of
@@ -143,9 +143,9 @@ processCommand' IMMeta CmdRegister = void.runMaybeT $ do
 	    resp <- curServerAction Register
 	    case resp of
 		ServerAck -> do
-		    lift $ drawMessage "Registered!"
 		    invalidateUInfo newName
 		    refreshUInfoUI
+		    lift $ drawMessage "Registered!"
 		ServerError err -> do
 		    lift $ drawMessage err
 		    modify $ \ms -> ms {curAuth = Nothing}
@@ -154,7 +154,7 @@ processCommand' IMMeta CmdAuth = void.runMaybeT $ do
     auth <- lift $ gets curAuth
     name <- mgetCurName
     passwd <- (hashPassword name <$>) $ MaybeT $ lift $
-	textInput ("Enter password for "++name++":") 64 False Nothing Nothing
+	textInput ("Enter password for "++name++":") 64 True False Nothing Nothing
     lift $ do
 	modify $ \ms -> ms {curAuth = Just $ Auth name passwd}
 	resp <- curServerAction $ Authenticate
@@ -210,7 +210,7 @@ processCommand' IMMeta (CmdDeclare mundecl) = void.runMaybeT $ do
 	    which <- MaybeT $ lift $ textInput
 		--("Declare which solution [1-" ++ show (length undecls) ++ "?")
 		("Declare which solution?")
-		5 False Nothing Nothing
+		5 False False Nothing Nothing
 	    MaybeT $ return $ msum
 		[ do
 		    i <- fst <$> (listToMaybe $ (reads :: ReadS Int) which)
@@ -247,7 +247,7 @@ processCommand' IMMeta (CmdViewSolution mnote) = void.runMaybeT $ do
 		textInput ("View solution by which player? ["
 		    ++ intercalate "," (take 3 authors)
 		    ++ if length authors > 3 then ",...]" else "]")
-		3 False (Just $ authors) Nothing
+		3 False False (Just $ authors) Nothing
 	MaybeT $ return $ find ((==author).noteAuthor) notes
 	]
     let ActiveLock name idx = noteOn note
@@ -279,7 +279,7 @@ processCommand' IMMeta (CmdPlaceLock midx) = void.runMaybeT $ do
 processCommand' IMMeta CmdSelectLock = void.runMaybeT $ do
     lockdir <- liftIO $ confFilePath "locks"
     paths <- liftIO $ map (drop (length lockdir + 1)) <$> getDirContentsRec lockdir
-    path <- MaybeT $ lift $ textInput "Select lock:" 1024 False (Just paths) Nothing
+    path <- MaybeT $ lift $ textInput "Select lock:" 1024 False False (Just paths) Nothing
     lift $ setLockPath path
 processCommand' IMMeta CmdNextLock =
     gets curLockPath >>= liftIO . nextLock True >>= setLockPath
@@ -298,7 +298,7 @@ processCommand' IMMeta CmdEdit = void.runMaybeT $ do
 		    return size
 		, do
 		    sizet <- MaybeT $ lift $ textInput
-			("Lock size: [3-" ++ show maxlocksize ++ "]") 2 False Nothing Nothing
+			("Lock size: [3-" ++ show maxlocksize ++ "]") 2 False False Nothing Nothing
 		    size <- MaybeT $ return $ fst <$> (listToMaybe $ (reads :: ReadS Int) sizet)
 		    guard $ 3 <= size && size <= maxlocksize
 		    return size
@@ -315,7 +315,7 @@ processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
 	lift.lift $ drawError "No tutorial levels found"
 	mzero
     s <- MaybeT $ lift $ textInput ("Play which tutorial level [1-"++show (length tuts)++"]")
-	    (length (show (length tuts))) True Nothing Nothing
+	    (length (show (length tuts))) False True Nothing Nothing
     i <- MaybeT $ return $ fst <$> (listToMaybe $ (reads :: ReadS Int) s)
     guard $ 1 <= i && i <= length tuts
     let dotut i = do
@@ -453,13 +453,13 @@ processCommand' IMEdit CmdMerge = do
 	CmdDir _ mergeDir -> modifyEState $ mergeTiles selPos mergeDir True
 	_ -> return ()
 processCommand' IMEdit CmdMark = void.runMaybeT $ do
-    str <- MaybeT $ lift $ textInput "Mark: " 1 True Nothing Nothing
+    str <- MaybeT $ lift $ textInput "Mark: " 1 False True Nothing Nothing
     ch <- MaybeT $ return $ listToMaybe str
     st:_ <- lift $ gets esGameStateStack
     lift $ modify $ \es -> es {esMarks = Map.insert ch st $ esMarks es}
 processCommand' IMEdit CmdJumpMark = void.runMaybeT $ do
     marks <- gets esMarks
-    str <- MaybeT $ lift $ textInput "Mark: " 1 True (Just $ map (:[]) $ Map.keys marks) Nothing
+    str <- MaybeT $ lift $ textInput "Mark: " 1 False True (Just $ map (:[]) $ Map.keys marks) Nothing
     ch <- MaybeT $ return $ listToMaybe str
     st <- MaybeT $ return $ Map.lookup ch marks
     lift $ pushEState st
@@ -480,7 +480,7 @@ processCommand' IMEdit CmdDelete = do
 		     modifyEState $ delPiece p
 processCommand' IMEdit CmdWriteState = void.runMaybeT $ do
     path <- lift $ gets esPath
-    newPath <- MaybeT $ lift $ textInput "Save lock as:" 16 False Nothing path
+    newPath <- MaybeT $ lift $ textInput "Save lock as:" 16 False False Nothing path
     {-
     ok <- liftIO $ liftM2 (&&)
 	    (liftM2 (||) (not <$> doesFileExist newPath) (writable <$> getPermissions newPath))
@@ -497,6 +497,7 @@ processCommand' IMEdit CmdWriteState = void.runMaybeT $ do
 	frame <- gets esFrame
 	merr <- liftIO $ ((writeReadFile fullPath $ deframe $ canonify (frame, st)) >> return Nothing)
 	    `catchIO` (return . Just . show)
+	modify $ \es -> es {lastSavedState = Just st}
 	case merr of
 	    Nothing -> modify $ \es -> es {esPath = Just newPath}
 	    Just err -> lift $ drawError $ "Write failed: "++err

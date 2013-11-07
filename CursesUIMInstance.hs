@@ -143,32 +143,30 @@ drawLockInfo al@(ActiveLock name i) lockinfo mtvar = do
 instance UIMonad (StateT UIState IO) where
     runUI m = evalStateT m nullUIState
 
-    drawMainState = get >>= \s -> case s of
-	PlayState st _ alerts wsel _ _ _ title _ -> lift $ do
+    drawMainState = do
+	lift erase
+	s <- get
+	lift . drawTitle =<< getTitle
+	lift drawMsgLine
+	drawMainState' s
+	lift refresh
+	where
+	drawMainState' (PlayState st _ alerts wsel _ _ _ title _) = lift $ do
 	    drawState [] False alerts st
-	    drawMsgLine
-	    drawTitle title
 	    drawCursorAt $ listToMaybe [ pos |
 		(_, PlacedPiece pos p) <- enumVec $ placedPieces st
 		, or [wsel && isWrench p, not wsel && isHook p] ]
-	    refresh
-	ReplayState st _ _ title -> lift $ do
+	drawMainState' (ReplayState st _ _ title) = lift $ do
 	    drawState [] False [] st
-	    drawMsgLine
-	    drawTitle title
 	    drawCursorAt Nothing
-	    refresh
-	EditState (st:_) _ _ _ selPiece selPos _ _ -> lift $ do
+	drawMainState' (EditState (st:_) _ _ _ _ selPiece selPos _ _) = lift $ do
 	    drawState (maybeToList selPiece) True [] st
-	    drawMsgLine
 	    drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
-	    refresh
-	MetaState saddr undecls cOnly auth names _ rnamestvar _ lockTVs path lock _ -> do
+	drawMainState' (MetaState saddr undecls cOnly auth names _ rnamestvar _ lockTVs path lock _) = do
 	    let ourName = liftM authUser auth
 	    let selName = listToMaybe names
 	    (h,w) <- liftIO Curses.scrSize
 	    lift $ do
-		erase
 		drawCursorAt Nothing
 		drawStrGrey (CVec 0 0) $ "Server: " ++ saddrStr saddr 
 		drawStrGrey (CVec 1 0) $ "Lock: " ++ path
@@ -214,8 +212,6 @@ instance UIMonad (StateT UIState IO) where
 		    lift $ drawStrGrey (CVec y $ s+4) str
 		    void $ fillBox (CVec y (s+4+length str+1)) (CVec y (w-1)) 5 GravLeft $
 			[ (`drawActiveLock` al) | al <- accessed]
-	    lift drawMsgLine
-	    lift refresh
 
     drawAlerts alerts =
 	do mapM_ drawAlert alerts

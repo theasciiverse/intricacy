@@ -44,6 +44,7 @@ instance UIMonad (StateT UIState IO) where
 	let mode = ms2im s
 	lift $ waitFrame
 	drawMainState' s
+	lift . drawTitle =<< getTitle
 	lift $ do
 	    drawButtons mode
 	    drawUIOptionButtons mode
@@ -55,14 +56,12 @@ instance UIMonad (StateT UIState IO) where
 		    (idx, PlacedPiece pos p) <- enumVec $ placedPieces st
 		    , or [wsel && isWrench p, not wsel && isHook p] ]
 	    drawMainGameState selTools False alerts st
-	    drawTitle title
 	    registerUndoButtons (null stack) (null undostack)
 	drawMainState' (ReplayState st todostack stack title) = lift $ do
 	    drawMainGameState [] False [] st
-	    drawTitle title
 	    registerUndoButtons (null stack) (null todostack)
 	    renderToMain $ drawCursorAt Nothing
-	drawMainState' (EditState (st:sts) undostack _ _ selPiece selPos _ marks) = lift $ do
+	drawMainState' (EditState (st:sts) undostack _ _ _ selPiece selPos _ marks) = lift $ do
 	    drawMainGameState (maybeToList selPiece) True [] st
 	    renderToMain $ drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
 	    registerUndoButtons (null sts) (null undostack)

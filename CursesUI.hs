@@ -83,7 +83,6 @@ drawCursorAt (Just pos) = do
 drawState :: [PieceIdx] -> Bool -> [Alert] -> GameState -> UIM ()
 drawState reversed colourFixed alerts st = do
     lastCol <- gets dispLastCol
-    erase
     colouring <- drawStateWithGeom reversed colourFixed lastCol st =<< getGeom
     modify $ \ds -> ds { dispLastCol = colouring }
 

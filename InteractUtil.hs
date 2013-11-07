@@ -118,7 +118,7 @@ askLockIndex prompt failMessage pred = do
 	ask ok = do
 	    let prompt' = prompt ++ " [" ++ intersperse ',' (map lockIndexChar ok) ++ "]"
 	    idx <- MaybeT $ lift $ join . (((charLockIndex<$>).listToMaybe)<$>) <$>
-		textInput prompt' 1 True Nothing Nothing
+		textInput prompt' 1 False True Nothing Nothing
 	    if idx `elem` ok then return idx else ask ok
 confirmOrBail prompt = (guard =<<) $ lift.lift $ confirm prompt
 confirm :: UIMonad uiM => String -> uiM Bool
@@ -139,11 +139,11 @@ confirm prompt = do
 	ansOfCmd _ = Nothing
 
 -- | TODO: draw cursor
-textInput :: UIMonad uiM => String -> Int -> Bool -> Maybe [String] -> Maybe String -> uiM (Maybe String)
-textInput prompt maxlen endOnMax mposss init = getText (fromMaybe "" init,"") <* drawMessage ""
+textInput :: UIMonad uiM => String -> Int -> Bool -> Bool -> Maybe [String] -> Maybe String -> uiM (Maybe String)
+textInput prompt maxlen hidden endOnMax mposss init = getText (fromMaybe "" init,"") <* drawMessage ""
     where
 	getText (s,stem) = do
-	    drawMessage $ prompt ++ " " ++ s
+	    drawMessage $ prompt ++ " " ++ if hidden then replicate (length s) '*' else s
 	    if endOnMax && maxlen == length s
 	    then return $ Just s
 	    else do

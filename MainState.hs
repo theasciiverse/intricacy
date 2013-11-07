@@ -74,6 +74,7 @@ data MainState
 	, esUndoneStack::[GameState]
 	, esFrame::Frame
 	, esPath::Maybe FilePath
+	, lastSavedState::Maybe GameState
 	, selectedPiece::Maybe PieceIdx
 	, selectedPos::HexPos
 	, lastModPos::HexPos
@@ -96,7 +97,7 @@ data MainState
 
 newPlayState (frame,st) title sub = PlayState st frame [] False False [] [] title sub
 newReplayState st soln title = ReplayState st soln [] title
-newEditState (frame,st) mpath = EditState [st] [] frame mpath Nothing (PHS zero) (PHS zero) Map.empty
+newEditState (frame,st) mpath = EditState [st] [] frame mpath (Just st) Nothing (PHS zero) (PHS zero) Map.empty
 initMetaState = do
     flag <- atomically $ newTVar False
     rnamestvar <- atomically $ newTVar []
@@ -128,6 +129,18 @@ ms2im mainSt = case mainSt of
     ReplayState {} -> IMReplay
     EditState {} -> IMEdit
     MetaState {} -> IMMeta
+
+getTitle :: UIMonad uiM => StateT MainState uiM (Maybe String)
+getTitle = ms2im <$> get >>= \im -> case im of
+    IMEdit -> do
+	mpath <- gets esPath
+	st <- gets $ head.esGameStateStack
+	sst <- gets lastSavedState
+	return $ Just $ "editing " ++ fromMaybe "[unnamed lock]" mpath ++ 
+	    if isJust sst && sst /= Just st then " [+]" else "    "
+    IMPlay -> gets psTitle
+    IMReplay -> gets rsTitle
+    _ -> return Nothing
 
 instance Error () where noMsg = ()
 
@@ -208,6 +221,7 @@ refreshUInfoUI = void.runMaybeT $ do
     ourName <- mgetOurName
     modify $ \ms -> ms { listOffset = 0 }
     when (ourName == name) $ getRandomNames >> lift purgeInvalidUndecls
+    lift.lift $ drawMessage ""
     where
 	getRandomNames = do
 	    rnamestvar <- gets randomCodenames
