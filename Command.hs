@@ -18,7 +18,7 @@ data Command = CmdDir WrHoSel HexDir | CmdRotate TorqueDir | CmdWait
 	| CmdInputChar Char
 	| CmdWriteState
 	| CmdTutorials
-	| CmdSetServer
+	| CmdSetServer | CmdToggleCacheOnly
 	| CmdSelCodename (Maybe Codename) | CmdBackCodename | CmdHome
 	| CmdSolve (Maybe LockIndex) | CmdDeclare (Maybe Undeclared)
 	| CmdViewSolution (Maybe NoteInfo)
@@ -56,6 +56,7 @@ describeCommand (CmdReplayBack _) = "rewind replay"
 describeCommand CmdWriteState = "write lock"
 describeCommand CmdTutorials = "play tutorial levels"
 describeCommand CmdSetServer = "set server"
+describeCommand CmdToggleCacheOnly = "toggle using only cache"
 describeCommand (CmdSelCodename _) = "select player"
 describeCommand CmdBackCodename = "select last player"
 describeCommand CmdHome = "select self"

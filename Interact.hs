@@ -122,6 +122,8 @@ processCommand' IMMeta CmdSetServer = void.runMaybeT $ do
 	msum [ void $ MaybeT $ getFreshRecBlocking RecServerInfo
 	, modify $ \ms -> ms { curServer = saddr }
 	]
+processCommand' IMMeta CmdToggleCacheOnly =
+    not <$> gets cacheOnly >>= \c -> modify $ \ms -> ms {cacheOnly = c}
 
 processCommand' IMMeta CmdRegister = void.runMaybeT $ do
     newName <- mgetCurName

@@ -82,7 +82,9 @@ instance UIMonad (StateT UIState IO) where
 		lock
 	    lift $ do
 		smallFont <- gets dispFontSmall
-		renderToMain $ withFont smallFont $ renderStrColAtLeft messageCol (saddrStr saddr) $ serverPos <+> hu
+		renderToMain $ withFont smallFont $ renderStrColAtLeft messageCol
+			(saddrStr saddr ++ if cOnly then " (cache only)" else "")
+		    $ serverPos <+> hu
 		renderToMain $ renderStrColAtLeft messageCol path $ lockLinePos <+> hu
 		when (offset>0) $
 		    registerButtonGroup $ singleButton (nextPagePos<+>neg hu) CmdPrevPage 4
