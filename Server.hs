@@ -292,7 +292,7 @@ handleRequest req@(ClientRequest pv auth action) = do
 	    tlock <- getCurrALock target
 	    let countRead = fromIntegral $ length $
 		    filter (\n -> isNothing (noteBehind n) || n `elem` notesRead info) $ lockSolutions tlock
-	    unless ((public tlock) && countRead == notesNeeded) $
+	    when (countRead == notesNeeded && not (public tlock) && name /= lockOwner target) $
 		accessLock name target tlock
 	checkSuffPubNotes al@(ActiveLock name idx) = do
 	    info <- getCurrUserInfo name
