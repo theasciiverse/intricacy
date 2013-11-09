@@ -24,6 +24,9 @@ import Data.Function (on)
 import Pipes
 import qualified Pipes.Prelude as P
 
+import System.Environment
+import System.Console.GetOpt
+
 import Protocol
 import Metagame
 import Lock
@@ -32,10 +35,27 @@ import Database
 import Mundanities
 
 port = 27001 -- 27001 == ('i'<<8) + 'y'
+
+data Opt = RequestDelay Int
+    deriving (Eq, Ord, Show)
+options =
+    [ Option ['d'] ["delay"] (ReqArg (RequestDelay . read) "MICROSECS") "delay before sending response (for testing) (default: 0)"
+    --, Option ['d'] ["dir"] (ReqArg (DBDir . read)) "directory for server database [default: intricacydb]"
+    ]
+parseArgs :: [String] -> IO ([Opt],[String])
+parseArgs argv =
+    case getOpt Permute options argv of
+	(o,n,[]) -> return (o,n)
+	(_,_,errs) -> ioError (userError (concat errs ++ usageInfo header options))
+    where header = "Usage: intricacy-server [OPTION...]"
+
 main = do 
+    argv <- getArgs
+    (opts,_) <- parseArgs argv
+    let delay = fromMaybe 0 $ listToMaybe [ d | RequestDelay d <- opts ]
     setDefaultServerInfo
     writeFile lockFilePath ""
-    streamServer serverSpec{address = IPv4 "" port, threading=Inline} handler
+    streamServer serverSpec{address = IPv4 "" port, threading=Inline} $ handler delay
     sleepForever
 
 setDefaultServerInfo = do
@@ -44,24 +64,24 @@ setDefaultServerInfo = do
 
 logit = putStrLn
 
-handler :: Handle -> Address -> IO ()
-handler hdl addr = handle ((\e -> return ()) :: SomeException -> IO ()) $
+handler :: Int -> Handle -> Address -> IO ()
+handler delay hdl addr = handle ((\e -> return ()) :: SomeException -> IO ()) $
     handler' hdl addr
-handler' hdl addr = do
-    response <- handle (\e -> return $ ServerError $ show (e::SomeException)) $ do
-	request <- B.decode <$> L.hGetContents hdl 
-	let hostname = case addr of
-		IP n _ -> n
-		IPv4 n _ -> n
-		IPv6 n _ -> n
-		Unix path -> path
-	    hashedHostname = hash hostname
-	logit $ hashedHostname ++ " >>> " ++ show request
-	response <- handleRequest request
-	-- threadDelay $ 10^6
-	logit $ hashedHostname ++ " <<< " ++ show response
-	return response
-    L.hPut hdl $ B.encode response
+    where handler' hdl addr = do
+	    response <- handle (\e -> return $ ServerError $ show (e::SomeException)) $ do
+		request <- B.decode <$> L.hGetContents hdl 
+		let hostname = case addr of
+			IP n _ -> n
+			IPv4 n _ -> n
+			IPv6 n _ -> n
+			Unix path -> path
+		    hashedHostname = hash hostname
+		logit $ hashedHostname ++ " >>> " ++ show request
+		response <- handleRequest request
+		when (delay > 0) $ threadDelay delay
+		logit $ hashedHostname ++ " <<< " ++ show response
+		return response
+	    L.hPut hdl $ B.encode response
 
 -- | We lock the whole database during each request, using haskell's native
 -- file locking, meaning that we have at any time one writer *xor* any number

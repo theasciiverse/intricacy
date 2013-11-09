@@ -26,7 +26,7 @@ parseArgs argv =
     case getOpt Permute options argv of
 	(o,n,[]) -> return (o,n)
 	(_,_,errs) -> ioError (userError (concat errs ++ usageInfo header options))
-    where header = "Usage: lock [OPTION...] [file]"
+    where header = "Usage: intricacy [OPTION...] [file]"
 
 readLockFile :: String -> IO (Maybe Lock)
 readLockFile = readReadFile
