@@ -136,13 +136,15 @@ getTitle :: UIMonad uiM => StateT MainState uiM (Maybe String)
 getTitle = ms2im <$> get >>= \im -> case im of
     IMEdit -> do
 	mpath <- gets esPath
-	st <- gets $ head.esGameStateStack
-	sst <- gets lastSavedState
+	unsaved <- editStateUnsaved <$> get
 	return $ Just $ "editing " ++ fromMaybe "[unnamed lock]" mpath ++ 
-	    if isJust sst && sst /= Just st then " [+]" else "    "
+	    if unsaved then " [+]" else "    "
     IMPlay -> gets psTitle
     IMReplay -> gets rsTitle
     _ -> return Nothing
+
+editStateUnsaved (EditState { lastSavedState=Just st, esGameStateStack=st':_ }) = st /= st'
+editStateUnsaved (EditState { lastSavedState=Nothing }) = True
 
 instance Error () where noMsg = ()
 
@@ -185,7 +187,6 @@ invalidateUInfo name =
 setLockTVars :: UIMonad uiM => Codename -> StateT MainState uiM ()
 setLockTVars name = do
     uiTVar <- setUInfoTVar name
-    liftIO $ waitFetchedFresh uiTVar
     saddr <- gets curServer
     cOnly <- gets cacheOnly
     flag <- gets newAsync
@@ -195,25 +196,28 @@ setLockTVars name = do
     where
 	getLockTVar saddr uiTVar flag cOnly n = do
 	    tvar <- atomically $ newTVar Nothing
-	    _ <- forkIO $ do
+	    let writeLock = do
 		mlockinfo <- atomically $ do
 		    uinforc <- readTVar uiTVar
 		    case uinforc of
 			FetchedRecord _ _ (Just (RCUserInfo (_,uinfo))) ->
 			    return $ userLocks uinfo ! n
 			_ -> retry
-		case mlockinfo of
-		    Nothing -> return ()
-		    Just lockinfo -> do
-			ltvar <- getRecordCached saddr Nothing Nothing cOnly $ RecLock $ lockSpec lockinfo
-			atomically $ do
-			    lockrc <- readTVar ltvar
-			    case lockrc of
-				FetchedRecord _ (Just err) _ -> return ()
-				FetchedRecord _ _ (Just (RCLock lock)) -> do
-				    writeTVar tvar $ Just $ reframe lock
-				    writeTVar flag True
-				_ -> retry
+		flip (maybe $ return ()) mlockinfo $ \lockinfo -> do
+		    ltvar <- getRecordCached saddr Nothing Nothing cOnly $ RecLock $ lockSpec lockinfo
+		    atomically $ do
+			lockrc <- readTVar ltvar
+			case lockrc of
+			    FetchedRecord _ (Just err) _ -> return ()
+			    FetchedRecord _ _ (Just (RCLock lock)) -> do
+				writeTVar tvar $ Just $ reframe lock
+				writeTVar flag True
+			    _ -> retry
+	    forkIO $ do
+		wasFresh <- fresh <$> atomically (readTVar uiTVar)
+		writeLock
+		unless wasFresh $ 
+		    waitFetchedFresh uiTVar >> writeLock
 	    return tvar
 
 refreshUInfoUI :: (UIMonad uiM) => StateT MainState uiM ()
@@ -266,10 +270,9 @@ curServerActionAsync act = do
     errtvar <- gets asyncError
     void $ liftIO $ forkIO $ do
 	resp <- makeRequest saddr $ ClientRequest protocolVersion auth act
+	atomically $ writeTVar flag True
 	case resp of
-	    ServerError err -> atomically $ do
-		writeTVar flag True
-		writeTVar errtvar $ Just err
+	    ServerError err -> atomically $ writeTVar errtvar $ Just err
 	    _ -> return ()
 
 checkAsyncErrors :: UIMonad uiM => StateT MainState uiM ()
@@ -288,9 +291,10 @@ getRecordCachedFromCur flagIt rec = do
 getFreshRecBlocking :: UIMonad uiM => Record -> StateT MainState uiM (Maybe RecordContents)
 getFreshRecBlocking rec = do
     tvar <- getRecordCachedFromCur False rec
+    cOnly <- gets cacheOnly
     fetched <- liftIO $ atomically $ do
 	fetched@(FetchedRecord fresh _ _) <- readTVar tvar
-	check fresh
+	check $ fresh || cOnly
 	return fetched
     case fetchError fetched of
 	Nothing -> return $ fetchedRC fetched

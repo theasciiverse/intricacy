@@ -98,11 +98,13 @@ declare undecl@(Undeclared soln ls al) = do
     ourUInfo <- mgetUInfo ourName
     idx <- askLockIndex "Secure behind which lock?" "You first need to place a lock to secure your solution behind." (\i -> isJust $ userLocks ourUInfo ! i)
     guard $ isJust $ userLocks ourUInfo ! idx
+    lift $ drawMessage "declaring..."
     resp <- lift $ curServerAction $ DeclareSolution soln ls al idx
     case resp of
 	ServerAck -> lift $ do
 	    modify $ \ms -> ms {undeclareds = delete undecl $ undeclareds ms}
 	    mapM_ invalidateUInfo [lockOwner al, ourName]
+	    refreshUInfoUI
 	ServerError err -> do
 	    lift.lift $ drawError err
 	    mzero

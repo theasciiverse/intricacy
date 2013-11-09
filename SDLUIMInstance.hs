@@ -101,8 +101,10 @@ instance UIMonad (StateT UIState IO) where
 	    runMaybeT $ MaybeT (return selName) >>= lift . getUInfoFetched 300 >>=
 		\(FetchedRecord fresh err muirc) -> lift $ do
 		    lift $ do
-			unless fresh $ renderToMain $ drawAtRel unfreshGlyph $ codenamePos <+> 2<*>hu
-			maybe (return ()) sayError err
+			unless fresh $ do
+			    let unfreshPos = codenamePos <+> neg hw
+			    renderToMain $ drawAtRel unfreshGlyph unfreshPos 
+			maybe (return ()) (setMsgLineNoRefresh errorCol) err
 			when (fresh && (isNothing ourName || home)) $
 			    registerButtonGroup $ singleButton (codenamePos <+> 2<*>hu)
 				(if isNothing muirc || home then CmdRegister else CmdAuth) 2

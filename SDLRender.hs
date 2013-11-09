@@ -241,7 +241,11 @@ whsButtonsButton whs centre size surf = do
 cursor :: Glyph
 cursor = hollowGlyph $ bright white
 
-unfreshGlyph = hollowGlyph $ bright $ colourWheel 0
+unfreshGlyph centre@(SVec x y) size surf = do
+    let col = bright $ colourWheel 0
+    hollowInnerGlyph col centre size surf
+    sequence_ [pixel surf (fromIntegral $ x+(i*size`div`4)) (fromIntegral y) col
+	| i <- [-1..1] ]
 
 playerGlyph col centre size surf = filledHexGlyph col centre (size-1) surf
 

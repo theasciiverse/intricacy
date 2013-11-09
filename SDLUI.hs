@@ -433,10 +433,12 @@ drawMsgLine = void.runMaybeT $ do
 	renderToMain $
 	    (if length str > screenWidthHexes * 3 then withFont smallFont else id) $
 		renderStrColAt col str messageLineCentre
-setMsgLine col str = do
+
+setMsgLineNoRefresh col str = do
     modify $ \s -> s { message = Just (col,str) }
     unless (null str) $ modify $ \s -> s { hoverStr = Nothing }
-    drawMsgLine >> refresh
+    drawMsgLine 
+setMsgLine col str = setMsgLineNoRefresh col str >> refresh
 
 drawTitle (Just title) = renderToMain $ renderStrColAt messageCol title titlePos
 drawTitle Nothing = return ()

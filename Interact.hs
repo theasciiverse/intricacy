@@ -77,9 +77,11 @@ instance Error InteractSuccess where
 
 processCommand :: UIMonad uiM => InputMode -> Command -> ErrorT InteractSuccess (StateT MainState uiM) ()
 processCommand im CmdQuit = do
-    when (im == IMPlay) $
-	lift (gets psIsSub) >>= flip when (throwError $ InteractSuccess False)
-    when (im == IMReplay) $ throwError $ InteractSuccess False
+    case im of
+	IMReplay -> throwError $ InteractSuccess False
+	IMPlay -> lift (gets psIsSub) >>= flip when (throwError $ InteractSuccess False)
+	IMEdit -> editStateUnsaved <$> get >>= flip unless (throwError $ InteractSuccess True)
+	_ -> return ()
     really <- lift $ lift $ confirm "Really quit?"
     when really $ throwError $ InteractSuccess False
 processCommand IMPlay CmdOpen = do
@@ -255,8 +257,7 @@ processCommand' IMMeta (CmdViewSolution mnote) = void.runMaybeT $ do
 
 processCommand' IMMeta (CmdPlaceLock midx) = void.runMaybeT $ do
     ourName <- mgetOurName
-    name <- mgetCurName
-    guard $ ourName == name
+    mgetCurName >>= guard . (== ourName)
     lock <- MaybeT $ gets curLock
     ourUInfo <- mgetUInfo ourName
     idx <- msum [ MaybeT $ return midx
@@ -265,7 +266,10 @@ processCommand' IMMeta (CmdPlaceLock midx) = void.runMaybeT $ do
     when (isJust $ userLocks ourUInfo ! idx) $
 	confirmOrBail "Really retire existing lock?"
     soln <- solveLock lock $ Just $ "Prove your lock is solvable."
-    lift $ curServerActionAsync $ SetLock lock idx soln
+    lift $ do 
+	curServerActionAsync $ SetLock lock idx soln
+	invalidateUInfo ourName
+	refreshUInfoUI
 
 processCommand' IMMeta CmdSelectLock = void.runMaybeT $ do
     lockdir <- liftIO $ confFilePath "locks"
