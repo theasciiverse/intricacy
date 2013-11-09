@@ -107,6 +107,9 @@ springsAtIdx,springsEndAtIdx,springsRootAtIdx :: GameState -> PieceIdx -> [Conne
 springsAtIdx st idx =
     [ c | c@(Connection (ridx,_) (eidx, _) (Spring _ _)) <- connections st
 	  , idx `elem` [ridx,eidx] ]
+springsAtIdxIgnoring st idx idx' =
+    [ c | c@(Connection (ridx,_) (eidx, _) (Spring _ _)) <- connections st
+	  , idx `elem` [ridx,eidx], idx' `notElem` [ridx,eidx] ]
 springsEndAtIdx st idx =
     [ c | c@(Connection _ (eidx, _) (Spring _ _)) <- connections st
 	  , eidx==idx ]
@@ -238,6 +241,11 @@ footprintAt :: GameState -> PieceIdx -> [HexPos]
 -- ^footprint of piece and any connections at it
 footprintAt st idx = plPieceFootprint (getpp st idx) ++
     (concat $ map (connectionFootPrint st) $ springsAtIdx st idx)
+
+footprintAtIgnoring :: GameState -> PieceIdx -> PieceIdx -> [HexPos]
+-- ^footprint of piece and any connections at it, except those with idx'
+footprintAtIgnoring st idx idx' = plPieceFootprint (getpp st idx) ++
+    (concat $ map (connectionFootPrint st) $ springsAtIdxIgnoring st idx idx')
 
 collisions :: GameState -> PieceIdx -> PieceIdx -> [HexPos]
 -- ^intersections of two pieces and their connections, disregarding

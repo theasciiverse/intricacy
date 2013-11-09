@@ -155,9 +155,7 @@ applyForce f s =
 
 collisionsWithForce :: GameState -> Force -> PieceIdx -> [HexPos]
 collisionsWithForce st (Push idx dir) idx' =
-    intersect (map (dir<+>) $ footprintAt st idx \\ between) (footprintAt st idx' \\ between)
-    where between =
-	    concat $ map (connectionFootPrint st) $ connectionsBetween st idx idx'
+    intersect (map (dir<+>) $ footprintAtIgnoring st idx idx') (footprintAtIgnoring st idx' idx)
 collisionsWithForce st force idx' =
     collisions (applyForce force st) (forceIdx force) idx'
 
