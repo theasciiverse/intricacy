@@ -200,6 +200,8 @@ instance UIMonad (StateT UIState IO) where
 	liftIO $ quit
 
     unblockInput = return $ pushEvent VideoExpose
+    suspend = return ()
+    redraw = return ()
 
     getInput mode = do
 	events <- liftIO $ getEvents

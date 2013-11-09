@@ -2,7 +2,10 @@ VERSION=0.2
 all: *.lhs *.hs
 	cabal install -O0 -f Server --bindir .
 intricacy: *.lhs *.hs
-	cabal install -O0 --bindir .
+	#cabal install -O0 --bindir .
+	ghc -o intricacy --make MainBoth.hs
+intricacy-O2: *.lhs *.hs
+	ghc -o intricacy-O2 -O2 --make MainBoth.hs
 intricacy-curses: *.lhs *.hs
 	cabal configure -f -SDL --bindir .
 	cabal build
@@ -13,6 +16,8 @@ intricacy-server: *.lhs *.hs
 	cabal configure -f Server -f -Game --bindir .
 	cabal build
 	mv dist/build/intricacy-server/intricacy-server .
+intricacy-server-O2: *.lhs *.hs
+	ghc -o intricacy-server-O2 --make Server.hs
 intricacy-prof: *.lhs *.hs
 	ghc -o intricacy-prof --make -rtsopts -prof -auto-all MainBoth.hs
 intricacy.exe: *.lhs *.hs

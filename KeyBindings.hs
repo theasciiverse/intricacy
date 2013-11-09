@@ -73,19 +73,25 @@ keypadHex =
     , ('2', CmdRotate $ -1)
     ]
 
-miscGlobal = lowerToo
+miscLockGlobal = lowerToo
     [ ('X', CmdUndo)
     , ('\b', CmdUndo)
     , ('R', CmdRedo)
     , (ctrl 'R', CmdRedo)
     , (ctrl 'U', CmdUndo)
-    , ('Q', CmdQuit)
     , ('.', CmdWait)
     , ('Z', CmdWait)
-    , ('?', CmdHelp)
     ]
 
-global = keypadHex ++ qwertyViHex ++ miscGlobal
+miscGlobal = lowerToo
+    [ ('Q', CmdQuit)
+    , (ctrl 'C', CmdQuit)
+    , ('?', CmdHelp)
+    , (ctrl 'L', CmdRedraw)
+    , (ctrl 'Z', CmdSuspend)
+    ]
+
+lockGlobal = keypadHex ++ qwertyViHex ++ miscGlobal ++ miscLockGlobal
 
 playOnly = lowerToo
     [ ('O', CmdOpen)
@@ -137,9 +143,9 @@ tilesAscii =
     ]
 editOnly = editMisc ++ tilesPaintRow ++ tilesAscii
 
-playBindings = playOnly ++ global
-replayBindings = replayOnly ++ global
-editBindings = editOnly ++ global
+playBindings = playOnly ++ lockGlobal
+replayBindings = replayOnly ++ lockGlobal
+editBindings = editOnly ++ lockGlobal
 metaBindings = lowerToo
     [ ('C', CmdSelCodename Nothing)
     , ('H', CmdHome)
@@ -159,9 +165,7 @@ metaBindings = lowerToo
     , ('^', CmdToggleCacheOnly)
     , ('>', CmdNextPage)
     , ('<', CmdPrevPage)
-    , ('Q', CmdQuit)
-    , ('?', CmdHelp)
-    ]
+    ] ++ miscGlobal
 
 bindings :: InputMode -> KeyBindings
 bindings IMEdit = editBindings

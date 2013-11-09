@@ -92,6 +92,8 @@ processCommand im cmd = lift $ processCommand' im cmd
 
 processCommand' :: UIMonad uiM => InputMode -> Command -> StateT MainState uiM ()
 processCommand' im CmdHelp = lift $ showHelp im
+processCommand' _ CmdSuspend = lift $ suspend
+processCommand' _ CmdRedraw = lift $ redraw
 processCommand' IMMeta (CmdSelCodename mname) = void.runMaybeT $ do
     name <- msum [ MaybeT $ return $ mname
 	, do

@@ -233,11 +233,14 @@ instance UIMonad (StateT UIState IO) where
 	let bdgWidth = 35
 	drawStrCentred a0 white (CVec 0 (w`div`2)) "Bindings:"
 	sequence_ [ drawStr a0 white (CVec (y+2) (x*bdgWidth) ) $
-		intercalate " / " (map showKey chs) ++ " : " ++ describeCommand cmd |
-	    ((chs,cmd),(x,y)) <- zip [(chs,cmd)
+		intercalate " / " (map showKey chs) ++ " : " ++ desc |
+	    ((chs,cmd,desc),(x,y)) <- zip [(chs,cmd,desc)
 		    | group <- groupBy ((==) `on` snd) $ sortBy (compare `on` snd) bdgs
 		    , let cmd = snd $ head group
-		    , let chs = map fst group]
+		    , let chs = map fst group
+		    , let desc = describeCommand cmd
+		    , not $ null desc
+		    ]
 		(map (`divMod` (h-3)) [0..])
 	    , (x+1)*bdgWidth < w]
 	refresh
@@ -253,6 +256,14 @@ instance UIMonad (StateT UIState IO) where
 
     endUI = liftIO CursesH.end
     unblockInput = return $ Curses.ungetCh 0
+    suspend = do
+	liftIO $ do
+	    CursesH.suspend 
+	    Curses.resetParams 
+	redraw
+    redraw = liftIO $ do
+	Curses.endWin
+	Curses.refresh
 
     getInput mode = do
 	-- FIXME: SIGWINCH isn't being handled properly

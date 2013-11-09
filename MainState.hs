@@ -44,6 +44,7 @@ class (Applicative m, MonadIO m) => UIMonad m where
     showHelp :: InputMode -> m ()
     getInput :: InputMode -> m [ Command ]
     unblockInput :: m (IO ())
+    suspend,redraw :: m ()
 
     doUI :: m a -> IO (Maybe a)
     doUI m = runUI $ do
