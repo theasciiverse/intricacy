@@ -113,6 +113,13 @@ springsEndAtIdx st idx =
 springsRootAtIdx st idx =
     [ c | c@(Connection (ridx, _) _ (Spring _ _)) <- connections st
 	  , ridx==idx ]
+connectionsBetween :: GameState -> PieceIdx -> PieceIdx -> [Connection]
+connectionsBetween st idx idx' =
+    filter connIsBetween $ connections st
+    where
+	connIsBetween conn =
+	    isPerm (idx,idx') (fst $ connectionRoot conn, fst $ connectionEnd conn)
+	isPerm (x,y) (x',y') = (x==x'&&y==y')||(x==y'&&y==x')
 
 connGraphPathExists :: GameState -> PieceIdx -> PieceIdx -> Bool
 connGraphPathExists st ridx eidx = (ridx == eidx) ||
@@ -237,11 +244,7 @@ collisions :: GameState -> PieceIdx -> PieceIdx -> [HexPos]
 -- the connections which connect the two pieces
 collisions st idx idx' =
     intersect (footprintAt st idx) (footprintAt st idx') \\
-	(concat $ map (connectionFootPrint st)
-	    $ filter (\conn ->
-		Set.fromList [fst $ connectionRoot conn, fst $ connectionEnd conn] ==
-		    Set.fromList [idx,idx'])
-	    $ connections st)
+	(concat $ map (connectionFootPrint st) $ connectionsBetween st idx idx')
 
 connectionBoard :: GameState -> Connection -> GameBoard
 connectionBoard st (Connection root end@(eidx,_) (Spring dir natLen)) =

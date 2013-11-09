@@ -11,7 +11,7 @@ intricacy-curses: *.lhs *.hs
 	cabal build
 	mv dist/build/intricacy/intricacy intricacy-curses
 intricacy-checker: *.lhs *.hs
-	ghc -o intricacy-checker --make -auto-all Checker.hs
+	ghc -o intricacy-checker --make -O2 -rtsopts -prof -auto-all Checker.hs
 intricacy-server: *.lhs *.hs
 	cabal configure -f Server -f -Game --bindir .
 	cabal build
