@@ -445,7 +445,10 @@ processCommand' IMEdit CmdMerge = do
     cmd <- lift $ head <$> getSomeInput IMEdit
     lift $ drawMessage ""
     case cmd of
-	CmdDir _ mergeDir -> modifyEState $ mergeTiles selPos mergeDir True
+	CmdDir _ mergeDir -> do
+	    modifyEState $ mergeTiles selPos mergeDir True
+	    -- XXX: merging might invalidate selectedPiece
+	    modify $ \es -> es {selectedPiece = Nothing}
 	_ -> return ()
 processCommand' IMEdit CmdMark = void.runMaybeT $ do
     str <- MaybeT $ lift $ textInput "Mark: " 1 False True Nothing Nothing

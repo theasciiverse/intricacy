@@ -116,6 +116,9 @@ modTile tile pos lastPos painting st =
 	   _ -> id
 	   ) st'
 
+-- | merge tile/piece with a neighbouring piece. If we merge a piece with
+-- connections, the connections are deleted: otherwise we'd need some fiddly
+-- conditions to ensure connection graph acyclicity.
 mergeTiles :: HexPos -> HexDir -> Bool -> GameState -> GameState
 mergeTiles pos dir mergePiece st = fromMaybe st $ do
     let board = stateBoard st
