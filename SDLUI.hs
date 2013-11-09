@@ -131,6 +131,7 @@ getButtons mode = do
 		    ], (2,0) )
 	    ]) ++
 	    [ singleButton tr CmdOpen 1 ]
+	IMReplay -> [ ([quitButton],(0,2)) ]
 	IMMeta ->
 	    [ singleButton serverPos CmdSetServer 0
 	    , singleButton lockLinePos CmdSelectLock 4
@@ -275,15 +276,6 @@ getEffPaintTileIndex = do
 
 paintButtonStart :: HexVec
 paintButtonStart = periphery 0 <+> (- length paintTiles `div` 2)<*>hv
-
-{-
-drawPaintSel :: UIM ()
-drawPaintSel = do
-    pti <- getEffPaintTileIndex
-    case (paintTiles!!pti) of
-	Nothing -> return ()
-	Just t -> renderToMain $ drawAtRel (tileGlyph t (dim $ colourWheel 5)) (periphery 0)
--}
 
 drawPaintButtons :: UIM ()
 drawPaintButtons = do

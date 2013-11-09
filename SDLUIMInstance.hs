@@ -72,7 +72,7 @@ instance UIMonad (StateT UIState IO) where
 		-- , singleButton (periphery 2 <+> 3<*>hw) CmdMerge 4
 		]
 	    drawPaintButtons
-	drawMainState' (MetaState saddr undecls cOnly auth names _ rnamestvar _ lockTVs path lock offset) = do
+	drawMainState' (MetaState saddr undecls cOnly auth names _ _ rnamestvar _ lockTVs path lock offset) = do
 	    let ourName = authUser <$> auth
 	    let selName = listToMaybe names
 	    let home = isJust ourName && ourName == selName

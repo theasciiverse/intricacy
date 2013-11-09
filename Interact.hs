@@ -56,6 +56,7 @@ interactUI = do
 	    mainSt <- get
 	    let im = ms2im mainSt
 	    when (im == IMPlay && not (psSolved mainSt)) checkWon
+	    when (im == IMMeta) checkAsyncErrors
 	    drawMainState
 	    cmds <- lift $ getInput im
 	    runErrorT (mapM_ (processCommand im) cmds) >>= \x -> case x of
@@ -123,7 +124,6 @@ processCommand' IMMeta CmdSetServer = void.runMaybeT $ do
 	]
 
 processCommand' IMMeta CmdRegister = void.runMaybeT $ do
-    -- guard =<< isNothing <$> lift (gets curAuth)
     newName <- mgetCurName
     mauth <- gets curAuth
     let isUs = maybe False ((==newName).authUser) mauth
@@ -194,12 +194,6 @@ processCommand' IMMeta (CmdSolve midx) = void.runMaybeT $ do
 processCommand' IMMeta (CmdDeclare mundecl) = void.runMaybeT $ do
     name <- mgetCurName
     ourName <- mgetOurName
-    {-
-    let pertinent = if name == ourName then
-	    const True
-	    else \(Undeclared _ _ (ActiveLock name' _)) -> name==name'
-    undecls <- lift $ filter pertinent <$> gets undeclareds
-    -}
     guard $ name == ourName
     undecls <- lift $ gets undeclareds
     guard $ not $ null undecls
@@ -208,7 +202,6 @@ processCommand' IMMeta (CmdDeclare mundecl) = void.runMaybeT $ do
 	then return $ head undecls
 	else do
 	    which <- MaybeT $ lift $ textInput
-		--("Declare which solution [1-" ++ show (length undecls) ++ "?")
 		("Declare which solution?")
 		5 False False Nothing Nothing
 	    MaybeT $ return $ msum
@@ -270,11 +263,7 @@ processCommand' IMMeta (CmdPlaceLock midx) = void.runMaybeT $ do
     when (isJust $ userLocks ourUInfo ! idx) $
 	confirmOrBail "Really retire existing lock?"
     soln <- solveLock lock $ Just $ "Prove your lock is solvable."
-    lift $ do
-	resp <- curServerAction $ SetLock lock idx soln
-	case resp of
-	    ServerError err -> lift $ drawError err
-	    _ -> refreshUInfoUI
+    lift $ curServerActionAsync $ SetLock lock idx soln
 
 processCommand' IMMeta CmdSelectLock = void.runMaybeT $ do
     lockdir <- liftIO $ confFilePath "locks"
@@ -480,15 +469,7 @@ processCommand' IMEdit CmdDelete = do
 		     modifyEState $ delPiece p
 processCommand' IMEdit CmdWriteState = void.runMaybeT $ do
     path <- lift $ gets esPath
-    newPath <- MaybeT $ lift $ textInput "Save lock as:" 16 False False Nothing path
-    {-
-    ok <- liftIO $ liftM2 (&&)
-	    (liftM2 (||) (not <$> doesFileExist newPath) (writable <$> getPermissions newPath))
-	    (not <$> doesDirectoryExist newPath)
-	`catchIO` const (return False)
-    unless ok $
-	(lift.lift) (drawError "Can't write there.") >> mzero
-    -}
+    newPath <- MaybeT $ lift $ textInput "Save lock as:" 1024 False False Nothing path
     fullPath <- liftIO $ fullLockPath newPath
     (liftIO (doesFileExist fullPath `catchIO` const (return True)) >>=) $ flip when $
 	confirmOrBail $ "Really overwrite '"++fullPath++"'?"

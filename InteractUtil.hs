@@ -140,46 +140,47 @@ confirm prompt = do
 
 -- | TODO: draw cursor
 textInput :: UIMonad uiM => String -> Int -> Bool -> Bool -> Maybe [String] -> Maybe String -> uiM (Maybe String)
-textInput prompt maxlen hidden endOnMax mposss init = getText (fromMaybe "" init,"") <* drawMessage ""
+textInput prompt maxlen hidden endOnMax mposss init = getText (fromMaybe "" init, Nothing) <* drawMessage ""
     where
-	getText (s,stem) = do
+	getText :: UIMonad uiM => (String, Maybe String) -> uiM (Maybe String)
+	getText (s,mstem) = do
 	    drawMessage $ prompt ++ " " ++ if hidden then replicate (length s) '*' else s
-	    if endOnMax && maxlen == length s
+	    if endOnMax && isNothing mstem && maxlen == length s
 	    then return $ Just s
 	    else do
 		cmds <- getInput IMTextInput
-		case foldM applyCmd (s,stem) cmds of
+		case foldM applyCmd (s,mstem) cmds of
 		    Left False -> return Nothing
 		    Left True -> return $ Just s
-		    Right (s',stem') -> getText (s',stem')
+		    Right (s',mstem') -> getText (s',mstem')
 	    where
-		applyCmd (s,stem) (CmdInputChar c) = case c of
+		applyCmd (s,mstem) (CmdInputChar c) = case c of
 		    '\ESC' -> Left False
 		    '\n' -> Left True
 		    '\r' -> Left True
-		    '\NAK' -> Right ("","")  -- ^U
-		    '\b' -> Right $ (take (length s - 1) s, "")
-		    '\DEL' -> Right $ (take (length s - 1) s, "")
+		    '\NAK' -> Right ("",Nothing)  -- ^U
+		    '\b' -> Right $ (take (length s - 1) s, Nothing)
+		    '\DEL' -> Right $ (take (length s - 1) s, Nothing)
 		    '\t' -> case mposss of
-			Nothing -> Right (s,stem)
-			Just possibilities -> if null stem
-			    then let
+			Nothing -> Right (s,mstem)
+			Just possibilities -> case mstem of
+			    Nothing -> let
 				completions = filter (completes s) possibilities
 				pref = if null completions then s else
 				    let c = head completions
 				    in head [ c' | n <- reverse [0..length c],
 					let c'=take n c, all (completes c') completions ]
-				in Right (pref,pref)
-			    else let
+				in Right (pref,Just pref)
+			    Just stem -> let
 				completions = filter (completes stem) possibilities
 				later = filter (>s) completions
 				s' | null completions = s
 				   | null later = head completions
 				   | otherwise = minimum later
-				in Right (s',stem)
+				in Right (s',mstem)
 		    _ -> Right $ if isPrint c
-			    then ((if length s >= maxlen then id else (++[c])) s, "")
-			    else (s,stem)
+			    then ((if length s >= maxlen then id else (++[c])) s, Nothing)
+			    else (s,mstem)
 		applyCmd x CmdRedraw = Right x
 		applyCmd _ _ = Left False
 	completes s s' = take (length s) s' == s

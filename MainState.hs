@@ -87,6 +87,7 @@ data MainState
 	, curAuth :: Maybe Auth
 	, codenameStack :: [Codename]
 	, newAsync :: TVar Bool
+	, asyncError :: TVar (Maybe String)
 	, randomCodenames :: TVar [Codename]
 	, userInfos :: Map Codename (TVar FetchedRecord, UTCTime)
 	, curLockTVars :: Maybe (Array LockIndex (TVar (Maybe Lock)))
@@ -100,6 +101,7 @@ newReplayState st soln title = ReplayState st soln [] title
 newEditState (frame,st) mpath = EditState [st] [] frame mpath (Just st) Nothing (PHS zero) (PHS zero) Map.empty
 initMetaState = do
     flag <- atomically $ newTVar False
+    errtvar <- atomically $ newTVar Nothing
     rnamestvar <- atomically $ newTVar []
     (saddr, auth, path) <- confFilePath "metagame.conf" >>=
 	liftM (fromMaybe (defaultServerAddr, Nothing, "")) . readReadFile
@@ -108,7 +110,7 @@ initMetaState = do
 	confFilePath ("undeclared" ++ [pathSeparator] ++ saddrStr saddr) >>=
 	liftM (fromMaybe []) . readReadFile
     lock <- readLock path
-    return $ MetaState saddr undecls False auth names flag rnamestvar Map.empty Nothing path lock 0
+    return $ MetaState saddr undecls False auth names flag errtvar rnamestvar Map.empty Nothing path lock 0
 
 readLock :: FilePath -> IO (Maybe Lock)
 readLock path = fullLockPath path >>= readReadFile
@@ -255,6 +257,24 @@ curServerAction act = do
     saddr <- gets curServer
     auth <- gets curAuth
     liftIO $ makeRequest saddr $ ClientRequest protocolVersion auth act
+
+curServerActionAsync :: UIMonad uiM => Protocol.Action -> StateT MainState uiM ()
+curServerActionAsync act = do
+    saddr <- gets curServer
+    auth <- gets curAuth
+    flag <- gets newAsync
+    errtvar <- gets asyncError
+    void $ liftIO $ forkIO $ do
+	resp <- makeRequest saddr $ ClientRequest protocolVersion auth act
+	case resp of
+	    ServerError err -> atomically $ do
+		writeTVar flag True
+		writeTVar errtvar $ Just err
+	    _ -> return ()
+
+checkAsyncErrors :: UIMonad uiM => StateT MainState uiM ()
+checkAsyncErrors =
+    gets asyncError >>= liftIO . atomically . readTVar >>= maybe (return ()) (lift.drawError)
 
 getRecordCachedFromCur :: UIMonad uiM => Bool -> Record -> StateT MainState uiM (TVar FetchedRecord)
 getRecordCachedFromCur flagIt rec = do

@@ -19,3 +19,12 @@ checkConnGraphAcyclicNaive st = and [ idx `notElem` descendents idx
 	| idx <- [0..Vector.length $ placedPieces st] ]
     where descendents idx = let childs = map (fst.connectionRoot) $ springsEndAtIdx st idx
 	    in concat $ (childs:map descendents childs) 
+
+
+-- from SDLUI
+drawPaintSel :: UIM ()
+drawPaintSel = do
+    pti <- getEffPaintTileIndex
+    case (paintTiles!!pti) of
+	Nothing -> return ()
+	Just t -> renderToMain $ drawAtRel (tileGlyph t (dim $ colourWheel 5)) (periphery 0)

@@ -162,7 +162,7 @@ instance UIMonad (StateT UIState IO) where
 	drawMainState' (EditState (st:_) _ _ _ _ selPiece selPos _ _) = lift $ do
 	    drawState (maybeToList selPiece) True [] st
 	    drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
-	drawMainState' (MetaState saddr undecls cOnly auth names _ rnamestvar _ lockTVs path lock _) = do
+	drawMainState' (MetaState saddr undecls cOnly auth names _ _ rnamestvar _ lockTVs path lock _) = do
 	    let ourName = liftM authUser auth
 	    let selName = listToMaybe names
 	    (h,w) <- liftIO Curses.scrSize
