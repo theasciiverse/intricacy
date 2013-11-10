@@ -92,7 +92,7 @@ data MainState
 	, asyncError :: TVar (Maybe String)
 	, randomCodenames :: TVar [Codename]
 	, userInfos :: Map Codename (TVar FetchedRecord, UTCTime)
-	, curLockTVars :: Maybe (Array LockIndex (TVar (Maybe Lock)))
+	, indexedLocks :: Map LockSpec (TVar FetchedRecord)
 	, curLockPath :: FilePath
 	, curLock :: Maybe Lock
 	, listOffset :: Int
@@ -112,7 +112,7 @@ initMetaState = do
 	confFilePath ("undeclared" ++ [pathSeparator] ++ saddrStr saddr) >>=
 	liftM (fromMaybe []) . readReadFile
     lock <- readLock path
-    return $ MetaState saddr undecls False auth names flag errtvar rnamestvar Map.empty Nothing path lock 0
+    return $ MetaState saddr undecls False auth names flag errtvar rnamestvar Map.empty Map.empty path lock 0
 
 readLock :: FilePath -> IO (Maybe Lock)
 readLock path = runMaybeT $ msum
@@ -188,46 +188,19 @@ invalidateUInfo :: UIMonad uiM => Codename -> StateT MainState uiM ()
 invalidateUInfo name = 
     modify $ \ms -> ms {userInfos = Map.delete name $ userInfos ms}
 
-setLockTVars :: UIMonad uiM => Codename -> StateT MainState uiM ()
-setLockTVars name = do
-    uiTVar <- setUInfoTVar name
-    saddr <- gets curServer
-    cOnly <- gets cacheOnly
-    flag <- gets newAsync
-    lockTVars <- liftM (listArray (0,maxLocks-1)) $ liftIO $ sequence $
-	flip map [0..maxLocks-1] $ getLockTVar saddr uiTVar flag cOnly
-    modify $ \ms -> ms { curLockTVars = Just lockTVars }
-    where
-	getLockTVar saddr uiTVar flag cOnly n = do
-	    tvar <- atomically $ newTVar Nothing
-	    let writeLock = do
-		mlockinfo <- atomically $ do
-		    uinforc <- readTVar uiTVar
-		    case uinforc of
-			FetchedRecord _ _ (Just (RCUserInfo (_,uinfo))) ->
-			    return $ userLocks uinfo ! n
-			_ -> retry
-		flip (maybe $ return ()) mlockinfo $ \lockinfo -> do
-		    ltvar <- getRecordCached saddr Nothing Nothing cOnly $ RecLock $ lockSpec lockinfo
-		    atomically $ do
-			lockrc <- readTVar ltvar
-			case lockrc of
-			    FetchedRecord _ (Just err) _ -> return ()
-			    FetchedRecord _ _ (Just (RCLock lock)) -> do
-				writeTVar tvar $ Just $ reframe lock
-				writeTVar flag True
-			    _ -> retry
-	    forkIO $ do
-		wasFresh <- fresh <$> atomically (readTVar uiTVar)
-		writeLock
-		unless wasFresh $ 
-		    waitFetchedFresh uiTVar >> writeLock
-	    return tvar
+mgetLock :: UIMonad uiM => LockSpec -> MaybeT (StateT MainState uiM) Lock
+mgetLock ls = do
+    tvar <- msum [ MaybeT $ (Map.lookup ls) <$> gets indexedLocks 
+	, lift $ do
+	    tvar <- getRecordCachedFromCur True $ RecLock ls 
+	    modify $ \ms -> ms { indexedLocks = Map.insert ls tvar $ indexedLocks ms }
+	    return tvar ]
+    RCLock lock <- MaybeT $ (fetchedRC<$>) $ liftIO $ atomically $ readTVar tvar
+    return $ reframe lock
 
 refreshUInfoUI :: (UIMonad uiM) => StateT MainState uiM ()
 refreshUInfoUI = void.runMaybeT $ do
     name <- mgetCurName
-    lift $ setLockTVars name
     ourName <- mgetOurName
     modify $ \ms -> ms { listOffset = 0 }
     when (ourName == name) $ getRandomNames >> lift purgeInvalidUndecls

@@ -72,7 +72,7 @@ instance UIMonad (StateT UIState IO) where
 		-- , singleButton (periphery 2 <+> 3<*>hw) CmdMerge 4
 		]
 	    drawPaintButtons
-	drawMainState' (MetaState saddr undecls cOnly auth names _ _ rnamestvar _ lockTVs path lock offset) = do
+	drawMainState' (MetaState saddr undecls cOnly auth names _ _ rnamestvar _ _ path lock offset) = do
 	    let ourName = authUser <$> auth
 	    let selName = listToMaybe names
 	    let home = isJust ourName && ourName == selName
@@ -111,7 +111,7 @@ instance UIMonad (StateT UIState IO) where
 		    case muirc of
 			Nothing -> return ()
 			Just (RCUserInfo (_,uinfo)) -> do
-			    sequence_ [ drawLockInfo (ActiveLock (codename uinfo) i) mlockinfo ((!i)<$>lockTVs) |
+			    sequence_ [ drawLockInfo (ActiveLock (codename uinfo) i) mlockinfo |
 				(i,mlockinfo) <- assocs $ userLocks uinfo ]
 			    let mmiscpos = (serverPos <+> 2<*>neg hv)
 			    when (isJust $ msum $ elems $ userLocks uinfo) $ lift $ do
@@ -411,13 +411,13 @@ scoreColour score = Pixel $ case score of
 	(-2) -> 0xc0400000
 	(-3) -> 0xff000000
 
-drawLockInfo :: ActiveLock -> Maybe LockInfo -> Maybe (TVar (Maybe Lock)) -> StateT MainState UIM ()
-drawLockInfo al@(ActiveLock name i) Nothing _ = do
+drawLockInfo :: ActiveLock -> Maybe LockInfo -> StateT MainState UIM ()
+drawLockInfo al@(ActiveLock name i) Nothing = do
     let centre = hw<+>neg hv <+> 7*(i-1)<*>hu
     lift $ drawEmptyMiniLock centre
     drawNameWithCharAndCol name white (lockIndexChar i) (invisible white) centre
     lift $ registerSelectable centre 3 $ SelLockUnset al
-drawLockInfo al@(ActiveLock name i) (Just lockinfo) mtvar = do
+drawLockInfo al@(ActiveLock name i) (Just lockinfo) = do
     let centre = hw<+>neg hv <+> 7*(i-1)<*>hu
     let accessedByPos = centre <+> 3<*>(hv <+> neg hw)
     let accessedPos = centre <+> 2<*>(hw <+> neg hv)
@@ -425,8 +425,7 @@ drawLockInfo al@(ActiveLock name i) (Just lockinfo) mtvar = do
     ourName <- (authUser <$>) <$> gets curAuth
     runMaybeT $ msum [
 	do
-	    tvar <- MaybeT $ return mtvar
-	    lock <- MaybeT $ liftIO.atomically.readTVar $ tvar
+	    lock <- mgetLock $ lockSpec lockinfo
 	    lift.lift $ do
 		drawMiniLock lock centre
 		registerSelectable centre 3 $ SelLock al

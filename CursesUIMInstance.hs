@@ -85,7 +85,7 @@ fillBox (CVec t l) (CVec b r) width grav draws = do
     sequence_ $ map (uncurry ($)) $ zip selDraws locs
     return $ (if grav==GravDown then minimum else maximum) [ y | (CVec y x,_) <- zipped ]
 
-drawLockInfo al@(ActiveLock name i) lockinfo mtvar = do
+drawLockInfo al@(ActiveLock name i) lockinfo = do
     (h,w) <- liftIO Curses.scrSize
     let [left,vcentre,right] = [ (k+2*i)*w`div`6 + (1-k) | k <- [0,1,2] ]
     let [top,bottom] = [6, h-1]
@@ -94,8 +94,7 @@ drawLockInfo al@(ActiveLock name i) lockinfo mtvar = do
 
     (lockTop, lockBottom) <- (fromJust<$>)$ runMaybeT $ msum
 	[ do
-	    tvar <- MaybeT $ return mtvar
-	    lock <- MaybeT $ liftIO.atomically.readTVar $ tvar
+	    lock <- mgetLock $ lockSpec lockinfo
 	    let size = frameSize $ fst lock
 	    guard $ bottom - top >= 5 + 2*size+1 + 1 + 5 && right-left >= 4*size+1
 	    lift.lift $ drawStateWithGeom [] False Map.empty (snd lock) (CVec hcentre vcentre,origin)
@@ -181,7 +180,7 @@ instance UIMonad (StateT UIState IO) where
 		    case muirc of
 			Nothing -> return ()
 			Just (RCUserInfo (_,uinfo)) ->
-			    sequence_ [ drawLockInfo (ActiveLock (codename uinfo) i) lockinfo ((!i)<$>lockTVs) |
+			    sequence_ [ drawLockInfo (ActiveLock (codename uinfo) i) lockinfo |
 				(i,Just lockinfo) <- assocs $ userLocks uinfo ]
 	    when (isJust ourName && ourName == selName) $ do
 		unless (null undecls) $ do
