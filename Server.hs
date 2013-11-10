@@ -13,6 +13,7 @@ import Control.Monad.IO.Class
 import System.Random
 import Data.Maybe
 import Data.Word
+import Data.Time.Clock
 import System.IO
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Binary as B
@@ -75,11 +76,13 @@ handler delay hdl addr = handle ((\e -> return ()) :: SomeException -> IO ()) $
 			IPv4 n _ -> n
 			IPv6 n _ -> n
 			Unix path -> path
-		    hashedHostname = hash hostname
-		logit $ hashedHostname ++ " >>> " ++ show request
+		    hashedHostname = take 8 $ hash hostname
+		now <- liftIO getCurrentTime
+		logit $ show now ++ ": " ++ hashedHostname ++ " >>> " ++ show request
 		response <- handleRequest request
 		when (delay > 0) $ threadDelay delay
-		logit $ hashedHostname ++ " <<< " ++ show response
+		now' <- liftIO getCurrentTime
+		logit $ show now' ++ ": " ++ hashedHostname ++ " <<< " ++ show response
 		return response
 	    L.hPut hdl $ B.encode response
 
