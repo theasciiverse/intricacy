@@ -25,7 +25,14 @@ getpp :: GameState -> PieceIdx -> PlacedPiece
 getpp st idx = (placedPieces st) ! idx
 
 setpp :: PieceIdx -> PlacedPiece -> GameState -> GameState
-setpp idx pp st@(GameState pps _) = st {placedPieces = pps // [(idx, pp)] }
+setpp idx pp st@(GameState pps _) = 
+    let displacement = (placedPos $ getpp st idx) <-> placedPos pp
+	updateConn conn@(Connection root@(ridx,rpos) end@(eidx,epos) link)
+	    | ridx == idx = Connection (ridx,rpos<+>displacement) end link
+	    | eidx == idx = Connection root (eidx,epos<+>displacement) link
+	    | otherwise = conn
+    in st {placedPieces = pps // [(idx, pp)]
+	, connections = map updateConn $ connections st }
 
 addpp :: PlacedPiece -> GameState -> GameState
 addpp pp st@(GameState pps _) = st {placedPieces = Vector.snoc pps pp}
@@ -136,7 +143,7 @@ connGraphHeight st idx =
 type DiGraph a = Map a (Set a)
 checkConnGraphAcyclic :: GameState -> Bool
 checkConnGraphAcyclic st =
-    let idxs = [0..Vector.length (placedPieces st) - 1]
+    let idxs = ppidxs st
 	leaves dg = map fst $ filter (Set.null . snd) $ Map.toList dg
 	checkDiGraphAcyclic dg = case listToMaybe $ leaves dg of
 	    Nothing -> Map.null dg
@@ -165,18 +172,24 @@ delPiecePos idx pos st =
 	v = pos <-> ppos
     in case p of
         Block patt ->
-	    let comps = components $ Set.fromList $ patt \\ [v]
-		ppOfComp (v,patt) = PlacedPiece (v<+>ppos) $ Block $ Set.toList patt
-		(st',midx) = case comps of
-		    [] -> (delPiece idx st, Nothing)
-		    zeroComp:newComps ->
-			(setpp idx (ppOfComp zeroComp)
-			    $ foldr (addpp . ppOfComp) st newComps, Just idx)
+	    let (st',midx) = componentify idx $ setpp idx (PlacedPiece ppos $ Block $ patt \\ [v]) st
 	    in (repossessConns st st', midx)
         Pivot arms -> if v == zero
 	   then (delPiece idx st, Nothing)
 	   else ((setPiece idx $ Pivot $ arms \\ [v]) st, Just idx)
         _ -> (delPiece idx st, Nothing)
+componentify :: PieceIdx -> GameState -> (GameState, Maybe PieceIdx)
+componentify idx st = let PlacedPiece ppos p = getpp st idx
+    in case p of
+        Block patt ->
+	    let comps = components $ Set.fromList patt
+		ppOfComp (v,patt) = PlacedPiece (v<+>ppos) $ Block $ Set.toList patt
+	    in case comps of
+		[] -> (delPiece idx st, Nothing)
+		zeroComp:newComps ->
+		    (setpp idx (ppOfComp zeroComp)
+			$ foldr (addpp . ppOfComp) st newComps, Just idx)
+	_ -> (st,Nothing)
 
 springExtended,springCompressed,springFullyExtended,springFullyCompressed :: GameState -> Connection -> Bool
 springExtended st c@(Connection _ _ (Spring _ natLen)) = connectionLength st c > natLen
@@ -283,7 +296,7 @@ validGameState :: GameState -> Bool
 validGameState st@(GameState pps conns) = and
     [ checkConnGraphAcyclic st
     , and [ null $ collisions st idx idx'
-	    | idx <- [1..Vector.length pps - 1]
+	    | idx <- ppidxs st
 	    , idx' <- [0..idx-1] ]
     , and [ isHexDir dir
 	    && castRay (dir<+>rpos) dir

@@ -40,9 +40,9 @@ blue = 4
 magenta = 5
 cyan = 6
 data Glyph = Glyph Char ColPair Curses.Attr
-tileChar :: Tile -> AttrChar
 a0 = Curses.attr0
 bold = Curses.setBold a0 True
+tileChar :: Tile -> AttrChar
 tileChar (BlockTile _) = ('#',a0)
 tileChar (PivotTile dir) | dir == zero = ('o',bold)
     | canonDir dir == hu = ('-',bold)
@@ -84,6 +84,8 @@ type CCoord = PHS CVec
 
 hexVec2CVec :: HexVec -> CVec
 hexVec2CVec (HexVec x y z) = CVec (-y) (x-z) 
+cVec2HexVec :: CVec -> HexVec
+cVec2HexVec (CVec y x) = HexVec ((x+y)`div`2) (-y) ((y-x)`div`2)
 
 addCh :: Char ->  IO ()
 addCh c = Curses.wAddStr Curses.stdScr [c]

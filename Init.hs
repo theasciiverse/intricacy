@@ -11,6 +11,7 @@ import System.Environment
 import System.Console.GetOpt
 
 import Mundanities
+import AsciiLock
 import Lock
 import MainState
 import Interact
@@ -28,16 +29,13 @@ parseArgs argv =
 	(_,_,errs) -> ioError (userError (concat errs ++ usageInfo header options))
     where header = "Usage: intricacy [OPTION...] [file]"
 
-readLockFile :: String -> IO (Maybe Lock)
-readLockFile = readReadFile
-
 setup :: IO (Maybe Lock,[Opt],Maybe String)
 setup = do
     argv <- getArgs
     (opts,args) <- parseArgs argv
     --let frameSize = fromMaybe 8 $ listToMaybe [ size | LockSize size <- opts ]
     let fname = listToMaybe args
-    mlock <- runMaybeT $ (MaybeT . return) fname >>= MaybeT . readLockFile
+    mlock <- runMaybeT $ (MaybeT . return) fname >>= MaybeT . readLock
     return (liftM reframe mlock,opts,fname)
 
 main' :: (UIMonad s, UIMonad c) =>

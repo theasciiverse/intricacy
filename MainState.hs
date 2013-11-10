@@ -21,6 +21,7 @@ import Data.Function (on)
 
 import Hex
 import Mundanities
+import AsciiLock
 import GameStateTypes
 import Physics
 import Command
@@ -114,7 +115,9 @@ initMetaState = do
     return $ MetaState saddr undecls False auth names flag errtvar rnamestvar Map.empty Nothing path lock 0
 
 readLock :: FilePath -> IO (Maybe Lock)
-readLock path = fullLockPath path >>= readReadFile
+readLock path = runMaybeT $ msum
+	[ MaybeT $ fullLockPath path >>= readReadFile
+	, MaybeT $ fullLockPath path >>= readAsciiLockFile ]
 writeLock :: FilePath -> Lock -> IO ()
 writeLock path lock = fullLockPath path >>= flip writeReadFile lock
 fullLockPath path = if isAbsolute path

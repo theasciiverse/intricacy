@@ -22,6 +22,7 @@ import Hex
 import Command
 import Physics
 import Mundanities
+import AsciiLock
 import GameState
 import GameStateTypes
 import EditGameState
@@ -487,7 +488,7 @@ processCommand' IMEdit CmdWriteState = void.runMaybeT $ do
     lift $ do
 	st <- gets $ head.esGameStateStack
 	frame <- gets esFrame
-	merr <- liftIO $ ((writeReadFile fullPath $ deframe $ canonify (frame, st)) >> return Nothing)
+	merr <- liftIO $ ((writeAsciiLockFile fullPath $ canonify (frame, st)) >> return Nothing)
 	    `catchIO` (return . Just . show)
 	modify $ \es -> es {lastSavedState = Just st}
 	case merr of
