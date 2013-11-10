@@ -22,6 +22,7 @@ import Mundanities
 import ServerAddr
 import InputMode
 import CursesRender
+import CVec
 
 data UIState = UIState { dispCPairs::[Curses.Pair], dispCentre::HexPos
     , dispLastCol::PieceColouring, uiKeyBindings :: Map InputMode KeyBindings

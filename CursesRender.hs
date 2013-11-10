@@ -1,12 +1,12 @@
 module CursesRender where
 
 import qualified UI.HSCurses.Curses as Curses
-import Data.Monoid
 import Data.Char (ord)
 import qualified Data.Map as Map
 import Data.Map (Map)
 
 import Hex
+import CVec
 import GameStateTypes
 import BoardColouring (PieceColouring)
 
@@ -72,20 +72,6 @@ ownedTileGlyph colouring reversed (owner,t) =
 		    Just n -> n+1
 	rev = owner `elem` reversed
     in Glyph ch pair (Curses.setReverse attr rev)
-
-data CVec = CVec { cy, cx :: Int }
-    deriving (Eq, Ord, Show)
-instance Monoid CVec where
-    mempty = CVec 0 0
-    mappend (CVec y x) (CVec y' x') = CVec (y+y') (x+x')
-instance Grp CVec where
-    neg (CVec y x) = CVec (-y) (-x) 
-type CCoord = PHS CVec
-
-hexVec2CVec :: HexVec -> CVec
-hexVec2CVec (HexVec x y z) = CVec (-y) (x-z) 
-cVec2HexVec :: CVec -> HexVec
-cVec2HexVec (CVec y x) = HexVec ((x+y)`div`2) (-y) ((y-x)`div`2)
 
 addCh :: Char ->  IO ()
 addCh c = Curses.wAddStr Curses.stdScr [c]

@@ -111,7 +111,7 @@ initMetaState = do
     undecls <- if nullSaddr saddr then return [] else
 	confFilePath ("undeclared" ++ [pathSeparator] ++ saddrStr saddr) >>=
 	liftM (fromMaybe []) . readReadFile
-    lock <- readLock path
+    lock <- fullLockPath path >>= readLock
     return $ MetaState saddr undecls False auth names flag errtvar rnamestvar Map.empty Map.empty path lock 0
 
 readLock :: FilePath -> IO (Maybe Lock)

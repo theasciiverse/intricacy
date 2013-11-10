@@ -16,10 +16,10 @@ import Data.List
 import Lock
 import GameStateTypes
 import GameState
-import CursesRender
 import BoardColouring
 import Frame
 import Hex
+import CVec
 import Util
 import Mundanities
 

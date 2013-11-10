@@ -34,6 +34,7 @@ import Metagame
 import Lock
 import Frame
 import Database
+import AsciiLock
 import Mundanities
 
 port = 27001 -- 27001 == ('i'<<8) + 'y'
@@ -79,13 +80,26 @@ handler delay hdl addr = handle ((\e -> return ()) :: SomeException -> IO ()) $
 			Unix path -> path
 		    hashedHostname = take 8 $ hash hostname
 		now <- liftIO getCurrentTime
-		logit $ show now ++ ": " ++ hashedHostname ++ " >>> " ++ show request
+		logit $ show now ++ ": " ++ hashedHostname ++ " >>> " ++ showRequest request
 		response <- handleRequest request
 		when (delay > 0) $ threadDelay delay
 		now' <- liftIO getCurrentTime
-		logit $ show now' ++ ": " ++ hashedHostname ++ " <<< " ++ show response
+		logit $ show now' ++ ": " ++ hashedHostname ++ " <<< " ++ showResponse response
 		return response
 	    L.hPut hdl $ B.encode response
+
+showRequest :: ClientRequest -> String
+showRequest (ClientRequest ver mauth act) = show ver ++ " "
+    ++ maybe "" (\(Auth name pw) -> "Auth:" ++ name ++ ":" ++ take 4 pw) mauth ++ " "
+    ++ showAction act
+showAction :: Action -> String
+showAction (SetLock lock idx soln) = "SetLock " ++ show idx ++ " lock:\n"
+    ++ unlines (lockToAscii lock)
+    ++ "soln: " ++ show soln
+showAction act = show act
+showResponse :: ServerResponse -> String
+showResponse (ServedLock lock) = "ServedLock lock:\n" ++ unlines (lockToAscii lock)
+showResponse resp = show resp
 
 -- | We lock the whole database during each request, using haskell's native
 -- file locking, meaning that we have at any time one writer *xor* any number

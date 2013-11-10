@@ -1,0 +1,19 @@
+module CVec where
+
+import Hex
+import Data.Monoid
+
+data CVec = CVec { cy, cx :: Int }
+    deriving (Eq, Ord, Show)
+instance Monoid CVec where
+    mempty = CVec 0 0
+    mappend (CVec y x) (CVec y' x') = CVec (y+y') (x+x')
+instance Grp CVec where
+    neg (CVec y x) = CVec (-y) (-x) 
+type CCoord = PHS CVec
+
+hexVec2CVec :: HexVec -> CVec
+hexVec2CVec (HexVec x y z) = CVec (-y) (x-z) 
+cVec2HexVec :: CVec -> HexVec
+cVec2HexVec (CVec y x) = HexVec ((x+y)`div`2) (-y) ((y-x)`div`2)
+

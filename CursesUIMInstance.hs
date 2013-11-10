@@ -33,6 +33,7 @@ import InputMode
 import MainState
 import CursesUI
 import CursesRender
+import CVec
 
 
 drawName :: Bool -> CVec -> Codename -> StateT MainState UIM ()
