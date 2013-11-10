@@ -75,6 +75,6 @@ delOOB l@(f,st) = case listToMaybe [ idx |
 	(idx,_) <- enumVec $ placedPieces st
 	, not $ isFrame idx
 	, all (not.inBounds f) $ fullFootprint st idx
-	, null $ springsAtIdx st idx] of
+	, null $ springsEndAtIdx st idx] of
     Nothing -> l
     Just idx -> delOOB $ liftLock (delPiece idx) l

@@ -1,6 +1,7 @@
 module AsciiLock (lockToAscii, lockOfAscii, stateToAscii
     , readAsciiLockFile, writeAsciiLockFile) where
 
+import Data.Function (on)
 import Control.Applicative hiding ((<*>))
 import Control.Monad
 import System.IO
@@ -10,6 +11,7 @@ import qualified Data.Vector as Vector
 import Data.Vector (Vector, (!), (//))
 import Data.Maybe
 import Data.Traversable as T
+import Data.List
 
 import Lock
 import GameStateTypes
@@ -89,8 +91,10 @@ asciiBoardState frame board =
 	basePieceOfTile (WrenchTile _) = Wrench zero
 	basePieceOfTile BallTile = Ball
 	componentifyNew st = foldr ((fst.).componentify) st $ filter (/=0) $ ppidxs st
+	-- | we assume that the largest wholly out-of-bounds block is the frame
 	setFrame st = fromMaybe st $ do
-	    (idx,pp) <- listToMaybe [ (idx,pp)
+	    (idx,pp) <- listToMaybe $ sortBy (flip compare `on` blockSize . placedPiece . snd)
+		    [ (idx,pp)
 		    | (idx,pp) <- enumVec $ placedPieces st
 		    , isBlock . placedPiece $ pp
 		    , let fp = plPieceFootprint pp
@@ -98,6 +102,7 @@ asciiBoardState frame board =
 		    , all (not.inBounds frame) fp
 		    ]
 	    return $ delPiece idx $ setpp 0 pp st
+	blockSize (Block vs) = length vs
 	baseSt = setFrame . componentifyNew . addBase . addPreBase $ GameState Vector.empty []
 
 	baseBoard = stateBoard baseSt
@@ -144,7 +149,7 @@ monochromeTileChar (ArmTile dir _)
     | dir == hv = '\\'
     | dir == hw = '/'
     | dir == neg hu = '.'
-    | dir == neg hv = ','
+    | dir == neg hv = '`'
     | dir == neg hw = '\''
 monochromeTileChar HookTile = '@'
 monochromeTileChar (WrenchTile _) = '*'
@@ -186,7 +191,7 @@ monoToTile '-' = Just $ ArmTile hu False
 monoToTile '\\' = Just $ ArmTile hv False
 monoToTile '/' = Just $ ArmTile hw False
 monoToTile '.' = Just $ ArmTile (neg hu) False
-monoToTile ',' = Just $ ArmTile (neg hv) False
+monoToTile '`' = Just $ ArmTile (neg hv) False
 monoToTile '\'' = Just $ ArmTile (neg hw) False
 monoToTile '@' = Just $ HookTile
 monoToTile '*' = Just $ WrenchTile zero
