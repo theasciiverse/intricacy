@@ -21,6 +21,7 @@ data Action
     | ResetPassword Password
     | GetServerInfo
     | GetLock LockSpec
+    | GetRetired Codename
     | GetUserInfo Codename (Maybe Int)
     | GetHint NoteInfo
     | GetSolution NoteInfo
@@ -44,6 +45,7 @@ data ServerResponse
     | ServerError String
     | ServedServerInfo ServerInfo
     | ServedLock Lock
+    | ServedRetired [LockSpec]
     | ServedUserInfo VersionedUInfo
     | ServedUserInfoDeltas [UserInfoDelta]
     | ServedSolution Solution
@@ -73,6 +75,7 @@ instance Binary Action where
     put (SetLock lock li soln) = put (8::Word8) >> put lock >> put li >> put soln
     put (GetRandomNames n) = put (9::Word8) >> put n
     put (ResetPassword pw) = put (10::Word8) >> put pw
+    put (GetRetired name) = put (11::Word8) >> put name
     get = do
 	tag <- get :: Get Word8
 	case tag of
@@ -87,6 +90,7 @@ instance Binary Action where
 	    8 -> liftM3 SetLock get get get
 	    9 -> liftM GetRandomNames get
 	    10 -> liftM ResetPassword get
+	    11 -> liftM GetRetired get
 
 instance Binary Auth where
     put (Auth name pw) = put name >> put pw
@@ -104,6 +108,7 @@ instance Binary ServerResponse where
     put (ServedRandomNames names) = put (8::Word8) >> put names
     put (ServerCodenameFree) = put (9::Word8)
     put (ServerFresh) = put (10::Word8)
+    put (ServedRetired lss) = put (11::Word8) >> put lss
     get = do
 	tag <- get :: Get Word8
 	case tag of
@@ -118,6 +123,7 @@ instance Binary ServerResponse where
 	    8 -> liftM ServedRandomNames get
 	    9 -> return ServerCodenameFree
 	    10 -> return ServerFresh
+	    11 -> liftM ServedRetired get
 instance Binary ServerInfo where
     put (ServerInfo sz str) = put sz >> put str
     get = liftM2 ServerInfo get get

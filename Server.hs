@@ -13,6 +13,7 @@ import Control.Monad.IO.Class
 import System.Random
 import Data.Maybe
 import Data.Word
+import Data.Foldable (for_)
 import Data.Time.Clock
 import System.IO
 import qualified Data.ByteString.Lazy as L
@@ -169,17 +170,25 @@ handleRequest req@(ClientRequest pv auth action) = do
 			"Server only accepts size "++show serverSize++" locks."
 		    unless (validLock $ reframe lock) $ throwError "Invalid lock!"
 		    unless (checkSolution lock soln) $ throwError "Bad solution"
+
 		    RCLockHashes hashes <- getRecordErrored RecLockHashes
 			    `catchError` const (return (RCLockHashes []))
 		    let hashed = hash $ show lock
 		    when (hashed `elem` hashes) $ throwError "Lock has already been used"
 		    ls <- erroredIO $ newLockRecord lock
 		    erroredIO $ putRecord RecLockHashes $ RCLockHashes $ hashed:hashes
+
+		    let oldLockInfo = userLocks info ! idx
 		    execStateT (do
-			    when (isJust $ userLocks info ! idx) $
+			    when (isJust $ oldLockInfo) $
 				lift (getALock al) >>= retireLock
 			    addDelta name $ PutLock ls idx
 			) [] >>= applyDeltasToRecords
+
+		    for_ oldLockInfo $ \oldui -> do
+			RCLockSpecs lss <- getRecordErrored (RecRetiredLocks name)
+				`catchError` const (return (RCLockSpecs []))
+			erroredIO $ putRecord (RecRetiredLocks name) $ RCLockSpecs $ (lockSpec oldui):lss
 		    return ServerAck
 		GetRandomNames n -> do
 		    names <- erroredIO $ listUsers

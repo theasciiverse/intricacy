@@ -36,6 +36,7 @@ data Record
     | RecLock LockSpec
     | RecNote NoteInfo
     | RecLockHashes
+    | RecRetiredLocks Codename
     | RecServerInfo
     deriving (Eq, Ord, Show)
 data RecordContents
@@ -45,6 +46,7 @@ data RecordContents
     | RCLock Lock
     | RCSolution Solution
     | RCLockHashes [String]
+    | RCLockSpecs [LockSpec]
     | RCServerInfo ServerInfo
     deriving (Eq, Ord, Show)
 
@@ -52,17 +54,20 @@ rcOfServerResp (ServedServerInfo x) = RCServerInfo x
 rcOfServerResp (ServedLock x) = RCLock x
 rcOfServerResp (ServedSolution x) = RCSolution x
 rcOfServerResp (ServedUserInfo x) = RCUserInfo x
+rcOfServerResp (ServedRetired x) = RCLockSpecs x
 rcOfServerResp _ = error "no corresponding rc"
 
 invariantRecord (RecUserInfo _) = False
 invariantRecord (RecUserInfoLog _) = False
 invariantRecord (RecPassword _) = False
+invariantRecord (RecRetiredLocks _) = False
 invariantRecord _ = True
 
 askForRecord RecServerInfo = GetServerInfo
 askForRecord (RecUserInfo name) = GetUserInfo name Nothing
 askForRecord (RecLock ls) = GetLock ls
 askForRecord (RecNote note) = GetSolution note
+askForRecord (RecRetiredLocks name) = GetRetired name
 askForRecord _ = error "no corresponding request"
 	    
 recordExists :: Record -> IO Bool
@@ -78,6 +83,7 @@ getRecordh (RecUserInfoLog _) h = ((RCUserInfoDeltas <$>) . tryRead) <$> hGetStr
 getRecordh (RecLock _) h = ((RCLock <$>) . tryRead) <$> hGetStrict h
 getRecordh (RecNote _) h = ((RCSolution <$>) . tryRead) <$> hGetStrict h
 getRecordh RecLockHashes h = ((RCLockHashes <$>) . tryRead) <$> hGetStrict h
+getRecordh (RecRetiredLocks name) h = ((RCLockSpecs <$>) . tryRead) <$> hGetStrict h
 getRecordh RecServerInfo h = ((RCServerInfo <$>) . tryRead) <$> hGetStrict h
 
 hGetStrict h = CS.unpack `liftM` concatMWhileNonempty (repeat $ CS.hGet h 1024)
@@ -100,6 +106,7 @@ putRecordh (RCUserInfoDeltas deltas) h = hPutStr h $ show deltas
 putRecordh (RCLock lock) h = hPutStr h $ show lock
 putRecordh (RCSolution solution) h = hPutStr h $ show solution
 putRecordh (RCLockHashes hashes) h = hPutStr h $ show hashes
+putRecordh (RCLockSpecs lss) h = hPutStr h $ show lss
 putRecordh (RCServerInfo sinfo) h = hPutStr h $ show sinfo
 
 modifyRecord :: Record -> (RecordContents -> RecordContents) -> IO ()
@@ -137,6 +144,7 @@ recordPath = (dbpath++) . recordPath'
 	recordPath' (RecUserInfoLog name) = userDir name ++ "log"
 	recordPath' (RecLock ls) = locksDir ++ show ls
 	recordPath' (RecNote (NoteInfo name _  alock)) = userDir name ++ "notes" ++ [pathSeparator] ++ alockFN alock
+	recordPath' (RecRetiredLocks name) = userDir name ++ "retired"
 	recordPath' RecLockHashes = "lockHashes"
 	recordPath' RecServerInfo = "serverInfo"
 
