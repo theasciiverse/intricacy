@@ -318,7 +318,7 @@ processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
     guard $ 1 <= i && i <= length tuts
     let dotut i = do
 	let name = tuts !! (i-1)
-	lock <- MaybeT $ liftIO $ readReadFile (tutdir ++ [pathSeparator] ++ name)
+	lock <- MaybeT $ liftIO $ readLock (tutdir ++ [pathSeparator] ++ name)
 	_ <- solveLock lock $ Just $ "Tutorial: "++ name
 	guard $ i+1 <= length tuts
 	confirmOrBail $ "Tutorial level completed! Play next tutorial level (" ++ show (i+1) ++ ")?"

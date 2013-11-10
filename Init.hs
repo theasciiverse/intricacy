@@ -1,6 +1,7 @@
 module Init where
 
 
+import Control.Applicative
 import Control.Monad
 import Control.Monad.Trans
 import Control.Monad.Trans.Maybe
@@ -8,6 +9,7 @@ import Control.Monad.Trans.State
 import Data.Maybe
 import System.Exit
 import System.Environment
+import System.Directory
 import System.Console.GetOpt
 
 import Mundanities
@@ -34,9 +36,18 @@ setup = do
     argv <- getArgs
     (opts,args) <- parseArgs argv
     --let frameSize = fromMaybe 8 $ listToMaybe [ size | LockSize size <- opts ]
-    let fname = listToMaybe args
-    mlock <- runMaybeT $ (MaybeT . return) fname >>= MaybeT . readLock
-    return (liftM reframe mlock,opts,fname)
+    (fromJust <$>) $ runMaybeT $ msum [ do
+	rpath <- MaybeT $ return $ listToMaybe args
+	msum [ do
+	    path <- MaybeT $ (Just <$> canonicalizePath rpath)
+			`catchIO` (const $ return Nothing)
+	    lock <- reframe <$> MaybeT (readLock path)
+	    return (Just lock,opts,Just path)
+	    , do
+		lift $ putStrLn $ "Failed to open lock file: "++rpath
+		lift $ exitFailure
+		mzero ]
+	, return (Nothing,opts,Nothing) ]
 
 main' :: (UIMonad s, UIMonad c) =>
 	Maybe (s MainState -> IO (Maybe MainState)) ->

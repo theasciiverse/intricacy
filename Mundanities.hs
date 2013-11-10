@@ -23,10 +23,18 @@ readReadFile file =
 tryRead :: (Read a) => String -> Maybe a
 tryRead = (fst <$>) . listToMaybe . reads
 
+readStrings :: FilePath -> IO [String]
+readStrings = (lines . BSC.unpack <$>) . BS.readFile
+
 writeReadFile :: (Show a) => FilePath -> a -> IO ()
 writeReadFile file x = do
     mkdirhierto file
     BS.writeFile file $ BSC.pack $ show x
+
+writeStrings :: FilePath -> [String] -> IO ()
+writeStrings file x = do
+    mkdirhierto file
+    BS.writeFile file $ BSC.pack $ unlines x
 
 confFilePath :: FilePath -> IO FilePath
 confFilePath str =

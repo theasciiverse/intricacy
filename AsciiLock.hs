@@ -2,13 +2,14 @@ module AsciiLock (lockToAscii, lockOfAscii, stateToAscii
     , readAsciiLockFile, writeAsciiLockFile) where
 
 import Control.Applicative hiding ((<*>))
-import Control.Exception
+import Control.Monad
 import System.IO
 import qualified Data.Map as Map
 import Data.Map (Map)
 import qualified Data.Vector as Vector
 import Data.Vector (Vector, (!), (//))
 import Data.Maybe
+import Data.Traversable as T
 
 import Lock
 import GameStateTypes
@@ -18,6 +19,7 @@ import BoardColouring
 import Frame
 import Hex
 import Util
+import Mundanities
 
 type AsciiLock = [String]
 
@@ -29,13 +31,13 @@ stateToAscii st =
     let colouring = boardColouring st (ppidxs st) Map.empty
     in boardToAscii colouring . stateBoard $ st
 
-lockOfAscii :: AsciiLock -> Lock
-lockOfAscii lines = 
-    let board = asciiToBoard lines
-	size = maximum $ map (hx . (<->origin))$ Map.keys board
+lockOfAscii :: AsciiLock -> Maybe Lock
+lockOfAscii lines = do
+    board <- asciiToBoard lines
+    let size = maximum $ map (hx . (<->origin))$ Map.keys board
 	frame = BasicFrame size
-	st = asciiBoardState frame board
-    in (frame, st)
+    st <- asciiBoardState frame board
+    return (frame, st)
 
 boardToAscii :: PieceColouring -> GameBoard -> AsciiLock
 boardToAscii colouring board =
@@ -51,8 +53,8 @@ boardToAscii colouring board =
 	    | x <- [0..(maxx-minx)] ]
 	| y <- [0..(maxy-miny)] ]
 
-asciiToBoard :: AsciiLock -> GameBoard
-asciiToBoard lines = 
+asciiToBoard :: AsciiLock -> Maybe GameBoard
+asciiToBoard lines =
     let asciiBoard :: Map CVec Char
 	asciiBoard = Map.fromList [(CVec y x,ch)
 	    | (line,y) <- zip lines [0..]
@@ -66,8 +68,9 @@ asciiToBoard lines =
 	maxx = maximum $ map cx $ midline
 	centre = CVec midy ((maxx-minx)`div`2)
     in Map.mapKeys ((<+>origin) . cVec2HexVec . (<->centre))
-	$ fmap monoToOTile asciiBoard
+	<$> T.mapM monoToOTile asciiBoard
 
+asciiBoardState :: Frame -> GameBoard -> Maybe GameState
 asciiBoardState frame board =
     let addPreBase st = foldr addpp st (replicate 6 $ PlacedPiece origin $ Block [])
 	addBase st = foldr addBaseOT st $ Map.toList $
@@ -98,31 +101,33 @@ asciiBoardState frame board =
 	baseSt = setFrame . componentifyNew . addBase . addPreBase $ GameState Vector.empty []
 
 	baseBoard = stateBoard baseSt
-	addAppendages st = foldr addAppendageOT st $ Map.toList $
+	addAppendages :: GameState -> Maybe GameState
+	addAppendages st = foldM addAppendageOT st $ Map.toList $
 	    Map.filter (not.isBaseTile.snd) board
-	addAppendageOT (pos,(-1,ArmTile dir _)) = 
+	addAppendageOT st (pos,(-1,ArmTile dir _)) = 
 	    let rpos = (neg dir<+>pos)
 	    in case Map.lookup rpos baseBoard of
-		Just (idx,PivotTile _) -> addPivotArm idx pos
-		Just (idx,HookTile) -> setpp idx (PlacedPiece rpos (Hook dir NullHF))
-	addAppendageOT (pos,(-1,SpringTile extn dir)) =
+		Just (idx,PivotTile _) -> Just $ addPivotArm idx pos st
+		Just (idx,HookTile) -> Just $ setpp idx (PlacedPiece rpos (Hook dir NullHF)) st
+		_ -> Nothing
+	addAppendageOT st (pos,(-1,SpringTile extn dir)) =
 	    let rpos = (neg dir<+>pos)
 	    in case Map.lookup rpos baseBoard of
-		Just (ridx,BlockTile _) ->
-		    let Just (_,epos) = castRay pos dir baseBoard
-			twiceNatLen = sum [ extnValue extn
+		Just (ridx,BlockTile _) -> do
+		    (_,epos) <- castRay pos dir baseBoard
+		    let twiceNatLen = sum [ extnValue extn
 			    | i <- [1..hexLen (epos<->rpos)-1]
 			    , let pos' = i<*>dir<+>rpos
-			    , let Just (_,SpringTile extn _) = Map.lookup pos' board ]
+			    , Just (_,SpringTile extn _) <- [ Map.lookup pos' board ] ]
 			extnValue Compressed = 4
 			extnValue Relaxed = 2
 			extnValue Stretched = 1
 			Just root = posLocus baseSt rpos
 			Just end = posLocus baseSt epos
-		    in addConn $ Connection root end (Spring dir $ twiceNatLen`div`2)
-		_ -> id
-	addAppendageOT _ = id
-    in addAppendages $ baseSt
+		    Just $ flip addConn st $ Connection root end $ Spring dir $ twiceNatLen`div`2
+		_ -> Just st
+	addAppendageOT _ _ = Nothing
+    in addAppendages baseSt
 
 monochromeOTileChar :: PieceColouring -> OwnedTile -> Char
 monochromeOTileChar colouring (idx,BlockTile _) =
@@ -169,53 +174,48 @@ monochromeTileChar (SpringTile extn dir)
 	Stretched                  -> '&'
 	Relaxed                    -> '7'
 	Compressed                 -> '9'
-monoToOTile :: Char -> OwnedTile
-monoToOTile '#' = (1,BlockTile [])
-monoToOTile '%' = (2,BlockTile [])
-monoToOTile '"' = (3,BlockTile [])
-monoToOTile '&' = (4,BlockTile [])
-monoToOTile '~' = (5,BlockTile [])
-monoToOTile ch = (-1,monoToTile ch)
-monoToTile 'o' = PivotTile zero
-monoToTile '-' = ArmTile hu False
-monoToTile '\\' = ArmTile hv False
-monoToTile '/' = ArmTile hw False
-monoToTile '.' = ArmTile (neg hu) False
-monoToTile ',' = ArmTile (neg hv) False
-monoToTile '\'' = ArmTile (neg hw) False
-monoToTile '@' = HookTile
-monoToTile '*' = WrenchTile zero
-monoToTile 'O' = BallTile
-monoToTile 's' = SpringTile Stretched hu
-monoToTile 'S' = SpringTile Relaxed hu
-monoToTile '$' = SpringTile Compressed hu
-monoToTile 'z' = SpringTile Stretched hv
-monoToTile 'Z' = SpringTile Relaxed hv
-monoToTile '5' = SpringTile Compressed hv
-monoToTile '(' = SpringTile Stretched hw
-monoToTile '[' = SpringTile Relaxed hw
-monoToTile '{' = SpringTile Compressed hw
-monoToTile 'c' = SpringTile Stretched (neg hu)
-monoToTile 'C' = SpringTile Relaxed (neg hu)
-monoToTile 'D' = SpringTile Compressed (neg hu)
-monoToTile ')' = SpringTile Stretched (neg hv)
-monoToTile ']' = SpringTile Relaxed (neg hv)
-monoToTile '}' = SpringTile Compressed (neg hv)
-monoToTile '&' = SpringTile Stretched (neg hw)
-monoToTile '7' = SpringTile Relaxed (neg hw)
-monoToTile '9' = SpringTile Compressed (neg hw)
-
-
-catchAny :: IO a -> (SomeException -> IO a) -> IO a
-catchAny = Control.Exception.catch
+monoToOTile :: Char -> Maybe OwnedTile
+monoToOTile '#' = Just $ (1,BlockTile [])
+monoToOTile '%' = Just $ (2,BlockTile [])
+monoToOTile '"' = Just $ (3,BlockTile [])
+monoToOTile '&' = Just $ (4,BlockTile [])
+monoToOTile '~' = Just $ (5,BlockTile [])
+monoToOTile ch = ((,) (-1)) <$> monoToTile ch
+monoToTile 'o' = Just $ PivotTile zero
+monoToTile '-' = Just $ ArmTile hu False
+monoToTile '\\' = Just $ ArmTile hv False
+monoToTile '/' = Just $ ArmTile hw False
+monoToTile '.' = Just $ ArmTile (neg hu) False
+monoToTile ',' = Just $ ArmTile (neg hv) False
+monoToTile '\'' = Just $ ArmTile (neg hw) False
+monoToTile '@' = Just $ HookTile
+monoToTile '*' = Just $ WrenchTile zero
+monoToTile 'O' = Just $ BallTile
+monoToTile 's' = Just $ SpringTile Stretched hu
+monoToTile 'S' = Just $ SpringTile Relaxed hu
+monoToTile '$' = Just $ SpringTile Compressed hu
+monoToTile 'z' = Just $ SpringTile Stretched hv
+monoToTile 'Z' = Just $ SpringTile Relaxed hv
+monoToTile '5' = Just $ SpringTile Compressed hv
+monoToTile '(' = Just $ SpringTile Stretched hw
+monoToTile '[' = Just $ SpringTile Relaxed hw
+monoToTile '{' = Just $ SpringTile Compressed hw
+monoToTile 'c' = Just $ SpringTile Stretched (neg hu)
+monoToTile 'C' = Just $ SpringTile Relaxed (neg hu)
+monoToTile 'D' = Just $ SpringTile Compressed (neg hu)
+monoToTile ')' = Just $ SpringTile Stretched (neg hv)
+monoToTile ']' = Just $ SpringTile Relaxed (neg hv)
+monoToTile '}' = Just $ SpringTile Compressed (neg hv)
+monoToTile '&' = Just $ SpringTile Stretched (neg hw)
+monoToTile '7' = Just $ SpringTile Relaxed (neg hw)
+monoToTile '9' = Just $ SpringTile Compressed (neg hw)
+monoToTile _ = Nothing
 
 readAsciiLockFile :: FilePath -> IO (Maybe Lock)
 readAsciiLockFile path =
-    (Just . lockOfAscii <$> (openFile path ReadMode >>= (lines <$>) . hGetContents))
-	`catchAny` (const $ return Nothing)
+    (lockOfAscii <$> readStrings path)
+	`catchIO` (const $ return Nothing)
 
 writeAsciiLockFile :: FilePath -> Lock -> IO ()
 writeAsciiLockFile path lock = do
-    h <- openFile path WriteMode
-    flip finally (hClose h) $ mapM_ (hPutStrLn h) $ lockToAscii lock
-
+    writeStrings path $ lockToAscii lock

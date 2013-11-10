@@ -90,7 +90,7 @@ nextLock newer path = do
 	(\p -> (,) p <$> getModificationTime p) `mapM` paths
 
 setLockPath path = do
-    lock <- liftIO $ readLock path
+    lock <- liftIO $ fullLockPath path >>= readLock
     modify $ \ms -> ms {curLockPath = path, curLock = lock}
 
 declare undecl@(Undeclared soln ls al) = do
@@ -154,6 +154,8 @@ textInput prompt maxlen hidden endOnMax mposss init = getText (fromMaybe "" init
 	    where
 		applyCmd (s,mstem) (CmdInputChar c) = case c of
 		    '\ESC' -> Left False
+		    '\a' -> Left False -- ^G
+		    '\ETX' -> Left False -- ^C
 		    '\n' -> Left True
 		    '\r' -> Left True
 		    '\NAK' -> Right ("",Nothing)  -- ^U

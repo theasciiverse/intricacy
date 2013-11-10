@@ -116,10 +116,10 @@ initMetaState = do
 
 readLock :: FilePath -> IO (Maybe Lock)
 readLock path = runMaybeT $ msum
-	[ MaybeT $ fullLockPath path >>= readReadFile
-	, MaybeT $ fullLockPath path >>= readAsciiLockFile ]
-writeLock :: FilePath -> Lock -> IO ()
-writeLock path lock = fullLockPath path >>= flip writeReadFile lock
+	[ MaybeT $ readReadFile path
+	, MaybeT $ readAsciiLockFile path ]
+-- writeLock :: FilePath -> Lock -> IO ()
+-- writeLock path lock = fullLockPath path >>= flip writeReadFile lock
 fullLockPath path = if isAbsolute path
     then return path
     else (++(pathSeparator:path)) <$> confFilePath "locks"
