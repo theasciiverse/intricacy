@@ -161,6 +161,8 @@ metaBindings = lowerToo
     , ('N', CmdNextLock)
     , ('A', CmdAuth)
     , ('T', CmdTutorials)
+    , ('+', CmdShowRetired)
+    , ('#', CmdPlayLockSpec Nothing)
     , ('$', CmdSetServer)
     , ('^', CmdToggleCacheOnly)
     , ('>', CmdNextPage)

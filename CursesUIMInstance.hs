@@ -16,6 +16,7 @@ import Control.Monad.Trans.Maybe
 import Control.Concurrent (threadDelay)
 import Control.Monad.State
 import Data.Function (on)
+import Data.Foldable (for_)
 
 import Hex
 import GameStateTypes
@@ -162,7 +163,7 @@ instance UIMonad (StateT UIState IO) where
 	drawMainState' (EditState (st:_) _ _ _ _ selPiece selPos _ _) = lift $ do
 	    drawState (maybeToList selPiece) True [] st
 	    drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
-	drawMainState' (MetaState saddr undecls cOnly auth names _ _ rnamestvar _ lockTVs path lock _) = do
+	drawMainState' (MetaState saddr undecls cOnly auth names _ _ rnamestvar _ _ mretired path lock _) = do
 	    let ourName = liftM authUser auth
 	    let selName = listToMaybe names
 	    (h,w) <- liftIO Curses.scrSize
@@ -178,9 +179,12 @@ instance UIMonad (StateT UIState IO) where
 			maybe (return ()) sayError err
 			when (fresh && isNothing ourName) $
 			    drawStrGrey (CVec 2 (w`div`2+1+9)) (if isNothing muirc then "(R)" else "(A)")
-		    case muirc of
-			Nothing -> return ()
-			Just (RCUserInfo (_,uinfo)) ->
+		    for_ muirc $ \(RCUserInfo (_,uinfo)) -> case mretired of
+			Just retired -> do
+			    (h,w) <- liftIO Curses.scrSize
+			    void $ fillBox (CVec 6 2) (CVec (h-1) (w-2)) 5 GravCentre
+				[ \pos -> lift $ drawStrGrey pos $ show ls | ls <- retired ]
+			Nothing ->
 			    sequence_ [ drawLockInfo (ActiveLock (codename uinfo) i) lockinfo |
 				(i,Just lockinfo) <- assocs $ userLocks uinfo ]
 	    when (isJust ourName && ourName == selName) $ do

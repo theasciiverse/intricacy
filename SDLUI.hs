@@ -141,6 +141,7 @@ getButtons mode = do
 	    , singleButton (miniLockPos <+> 2<*>neg hv <+> hu <+> neg hw) CmdNextLock 4
 	    , singleButton (codenamePos <+> neg hu) (CmdSelCodename Nothing) 2
 	    , singleButton (serverPos <+> 2<*>neg hv <+> hw) CmdTutorials 1
+	    , singleButton (retiredPos) CmdShowRetired 4
 	    ]
 		
 	_ -> []
@@ -162,6 +163,7 @@ data Selectable = SelOurLock
     | SelAccessed Codename
     | SelRandom Codename
     | SelSecured NoteInfo
+    | SelOldLock LockSpec
 
 registerSelectable v r s =
     modify $ \ds -> ds {metaSelectables = foldr
@@ -191,6 +193,7 @@ commandOfSelectable IMMeta (SelAccessed name) _ = CmdSelCodename $ Just name
 commandOfSelectable IMMeta (SelRandom name) _ = CmdSelCodename $ Just name
 commandOfSelectable IMMeta (SelSecured note) False = CmdSelCodename $ Just $ lockOwner $ noteOn note
 commandOfSelectable IMMeta (SelSecured note) True = CmdViewSolution $ Just note
+commandOfSelectable IMMeta (SelOldLock ls) _ = CmdPlayLockSpec $ Just ls
 commandOfSelectable _ _ _ = CmdNone
 
 cmdAtMousePos pos@(mPos,central) im selMode = do
@@ -366,6 +369,7 @@ drawMiniLock lock v = do
 	    let width = size*2*(miniLocksize*2+1)
 	    let height = ceiling $ fromIntegral size * sqrt 3 * fromIntegral (miniLocksize*2+1+1)
 	    surf <- liftIO $ createRGBSurface [] width height 16 0 0 0 0
+	    liftIO $ setColorKey surf [SrcColorKey] $ Pixel 0
 	    uiopts <- gets uiOptions
 	    let st = snd $ reframe lock
 		coloured = colouredPieces False st
@@ -454,4 +458,5 @@ randomNamesPos = 9<*>hv <+> neg hu
 codenamePos = (-4)<*>hw <+> 4<*>hv
 undeclsPos = hv <+> neg hw <+> codenamePos
 accessedOursPos = 2<*>hw <+> codenamePos
-
+locksPos = hw<+>neg hv
+retiredPos = locksPos <+> 10<*>hu <+> (-4)<*>hv

@@ -17,6 +17,7 @@ import Data.Word
 import Data.Array
 import Data.List
 import Data.Function (on)
+import Data.Foldable (for_)
 --import Debug.Trace (traceShow)
 
 import MainState
@@ -72,7 +73,7 @@ instance UIMonad (StateT UIState IO) where
 		-- , singleButton (periphery 2 <+> 3<*>hw) CmdMerge 4
 		]
 	    drawPaintButtons
-	drawMainState' (MetaState saddr undecls cOnly auth names _ _ rnamestvar _ _ path lock offset) = do
+	drawMainState' (MetaState saddr undecls cOnly auth names _ _ rnamestvar _ _ mretired path lock offset) = do
 	    let ourName = authUser <$> auth
 	    let selName = listToMaybe names
 	    let home = isJust ourName && ourName == selName
@@ -108,17 +109,20 @@ instance UIMonad (StateT UIState IO) where
 			when (fresh && (isNothing ourName || home)) $
 			    registerButtonGroup $ singleButton (codenamePos <+> 2<*>hu)
 				(if isNothing muirc || home then CmdRegister else CmdAuth) 2
-		    case muirc of
-			Nothing -> return ()
-			Just (RCUserInfo (_,uinfo)) -> do
-			    sequence_ [ drawLockInfo (ActiveLock (codename uinfo) i) mlockinfo |
-				(i,mlockinfo) <- assocs $ userLocks uinfo ]
-			    let mmiscpos = (serverPos <+> 2<*>neg hv)
-			    when (isJust $ msum $ elems $ userLocks uinfo) $ lift $ do
-				registerButtonGroup
-				    ([ Button mmiscpos (CmdSolve Nothing), Button (mmiscpos<+>hu) (CmdViewSolution Nothing)], (2,2))
-				when (isJust lock && home) $ registerButtonGroup $
-					singleButton (miniLockPos <+> 2<*>hv <+> neg hu) (CmdPlaceLock Nothing) 0
+		    for_ muirc $ \(RCUserInfo (_,uinfo)) -> case mretired of 
+			    Just retired -> fillArea locksPos
+				(map (locksPos<+>) $ zero:[rotate n $ 4<*>hu<->4<*>hw | n <- [0,2,3,5]])
+				[ \pos -> (lift $ registerSelectable pos 1 (SelOldLock ls)) >> drawOldLock ls pos
+				| ls <- retired ]
+			    Nothing -> do
+				sequence_ [ drawLockInfo (ActiveLock (codename uinfo) i) mlockinfo |
+				    (i,mlockinfo) <- assocs $ userLocks uinfo ]
+				let mmiscpos = (serverPos <+> 2<*>neg hv)
+				when (isJust $ msum $ elems $ userLocks uinfo) $ lift $ do
+				    registerButtonGroup
+					([ Button mmiscpos (CmdSolve Nothing), Button (mmiscpos<+>hu) (CmdViewSolution Nothing)], (2,2))
+				    when (isJust lock && home) $ registerButtonGroup $
+					    singleButton (miniLockPos <+> 2<*>hv <+> neg hu) (CmdPlaceLock Nothing) 0
 
 	    when home $ do
 		unless (null undecls) $ do
@@ -361,6 +365,14 @@ fillArea centre area draws = do
 		(compare `on` (hexLen . (<->centre)))
 		area
 
+drawOldLock ls pos = void.runMaybeT $ msum [ do
+	lock <- mgetLock ls
+	lift.lift $ drawMiniLock lock pos
+    , lift.lift.renderToMain $
+	    renderStrColAt messageCol (show ls) pos
+    ]
+    
+
 drawName name pos = do
     col <- nameCol name
     lift.renderToMain $ do 
@@ -418,7 +430,7 @@ drawLockInfo al@(ActiveLock name i) Nothing = do
     drawNameWithCharAndCol name white (lockIndexChar i) (invisible white) centre
     lift $ registerSelectable centre 3 $ SelLockUnset al
 drawLockInfo al@(ActiveLock name i) (Just lockinfo) = do
-    let centre = hw<+>neg hv <+> 7*(i-1)<*>hu
+    let centre = locksPos <+> 7*(i-1)<*>hu
     let accessedByPos = centre <+> 3<*>(hv <+> neg hw)
     let accessedPos = centre <+> 2<*>(hw <+> neg hv)
     let notesPos = centre <+> 3<*>(hw <+> neg hv)

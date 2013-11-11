@@ -174,7 +174,7 @@ processCommand' IMMeta CmdAuth = void.runMaybeT $ do
 processCommand' IMMeta (CmdSolve midx) = void.runMaybeT $ do
     name <- mgetCurName
     uinfo <- mgetUInfo name
-    idx <- msum [ MaybeT $ return $ midx
+    idx <- msum [ MaybeT $ return midx
 	, askLockIndex "Solve which lock?" "No lock to solve!" (\i -> isJust $ userLocks uinfo ! i) ]
     ls <- MaybeT $ return $ lockSpec <$> userLocks uinfo ! idx
     undecls <- lift (gets undeclareds)
@@ -198,6 +198,15 @@ processCommand' IMMeta (CmdSolve midx) = void.runMaybeT $ do
 		    modify $ \ms -> ms { undeclareds = (undecl : undeclareds ms) }
 		]
 	]
+processCommand' IMMeta (CmdPlayLockSpec mls) = void.runMaybeT $ do
+    ls <- msum [ MaybeT $ return mls
+	, do 
+	    tls <- MaybeT . lift $ textInput "Lock number:" 16 False False Nothing Nothing
+	    MaybeT . return $ fst <$> (listToMaybe $ (reads :: ReadS Int) tls)
+	]
+    RCLock lock <- MaybeT $ getFreshRecBlocking $ RecLock ls
+    solveLock lock $ Just $ "Solving " ++ show ls
+    
 processCommand' IMMeta (CmdDeclare mundecl) = void.runMaybeT $ do
     name <- mgetCurName
     ourName <- mgetOurName
@@ -324,7 +333,14 @@ processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
 	confirmOrBail $ "Tutorial level completed! Play next tutorial level (" ++ show (i+1) ++ ")?"
 	dotut $ i+1
     dotut i
-
+processCommand' IMMeta CmdShowRetired = void.runMaybeT $ do
+    name <- mgetCurName
+    newRL <- lift (gets retiredLocks) >>= \rl -> case rl of
+	Nothing -> do
+	    RCLockSpecs lss <- MaybeT $ getFreshRecBlocking $ RecRetiredLocks name
+	    return $ Just lss
+	Just _ -> return Nothing
+    lift $ modify $ \ms -> ms {retiredLocks = newRL}
     
 processCommand' IMPlay CmdUndo = do
     st <- gets psCurrentState

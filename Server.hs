@@ -134,6 +134,7 @@ handleRequest req@(ClientRequest pv auth action) = do
 		ResetPassword passwd -> resetPassword auth passwd >> return ServerAck
 		GetServerInfo -> ServedServerInfo <$> getServerInfo
 		GetLock ls -> ServedLock <$> getLock ls
+		GetRetired name -> ServedRetired <$> getRetired name
 		GetUserInfo name mversion -> (do
 			RCUserInfo (curV,info) <- getRecordErrored $ RecUserInfo name
 			(fromJust<$>)$ runMaybeT $ msum [ do
@@ -200,8 +201,7 @@ handleRequest req@(ClientRequest pv auth action) = do
 			) [] >>= applyDeltasToRecords
 
 		    for_ oldLockInfo $ \oldui -> do
-			RCLockSpecs lss <- getRecordErrored (RecRetiredLocks name)
-				`catchError` const (return (RCLockSpecs []))
+			lss <- getRetired name
 			erroredIO $ putRecord (RecRetiredLocks name) $ RCLockSpecs $ (lockSpec oldui):lss
 		    return ServerAck
 		GetRandomNames n -> do
@@ -244,6 +244,9 @@ handleRequest req@(ClientRequest pv auth action) = do
 	getServerInfo = do
 	    RCServerInfo sinfo <- getRecordErrored $ RecServerInfo
 	    return sinfo
+	getRetired name = do
+	    RCLockSpecs lss <- fromMaybe (RCLockSpecs []) <$> (erroredIO $ getRecord $ RecRetiredLocks name)
+	    return lss
 	getALock (ActiveLock name idx) = do
 	    info <- getUserInfo name
 	    checkValidLockIndex idx

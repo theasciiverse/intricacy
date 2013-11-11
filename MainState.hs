@@ -93,6 +93,7 @@ data MainState
 	, randomCodenames :: TVar [Codename]
 	, userInfos :: Map Codename (TVar FetchedRecord, UTCTime)
 	, indexedLocks :: Map LockSpec (TVar FetchedRecord)
+	, retiredLocks :: Maybe [LockSpec]
 	, curLockPath :: FilePath
 	, curLock :: Maybe Lock
 	, listOffset :: Int
@@ -112,7 +113,7 @@ initMetaState = do
 	confFilePath ("undeclared" ++ [pathSeparator] ++ saddrStr saddr) >>=
 	liftM (fromMaybe []) . readReadFile
     lock <- fullLockPath path >>= readLock
-    return $ MetaState saddr undecls False auth names flag errtvar rnamestvar Map.empty Map.empty path lock 0
+    return $ MetaState saddr undecls False auth names flag errtvar rnamestvar Map.empty Map.empty Nothing path lock 0
 
 readLock :: FilePath -> IO (Maybe Lock)
 readLock path = runMaybeT $ msum
