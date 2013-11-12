@@ -4,6 +4,7 @@ module AsciiLock (lockToAscii, lockOfAscii, stateToAscii
 import Data.Function (on)
 import Control.Applicative hiding ((<*>))
 import Control.Monad
+import Control.Arrow ((&&&))
 import System.IO
 import qualified Data.Map as Map
 import Data.Map (Map)
@@ -22,6 +23,7 @@ import Hex
 import CVec
 import Util
 import Mundanities
+
 
 type AsciiLock = [String]
 
@@ -46,10 +48,8 @@ boardToAscii colouring board =
     let asciiBoard :: Map CVec Char
 	asciiBoard = Map.mapKeys (hexVec2CVec . (<->origin))
 	    $ fmap (monochromeOTileChar colouring) board
-	miny = (minimum $ map cy $ Map.keys asciiBoard)
-	minx = (minimum $ map cx $ Map.keys asciiBoard)
-	maxy = (maximum $ map cy $ Map.keys asciiBoard)
-	maxx = (maximum $ map cx $ Map.keys asciiBoard)
+	(miny,maxy) = minmax $ map cy $ Map.keys asciiBoard
+	(minx,maxx) = minmax $ map cx $ Map.keys asciiBoard
 	asciiBoard' = Map.mapKeys (<->CVec miny minx) asciiBoard
     in [ [ Map.findWithDefault ' ' (CVec y x) asciiBoard' 
 	    | x <- [0..(maxx-minx)] ]
@@ -62,13 +62,11 @@ asciiToBoard lines =
 	    | (line,y) <- zip lines [0..]
 	    , (ch,x) <- zip line [0..]
 	    , ch `notElem` "\t\r\n "]
-	miny = minimum $ map cy $ Map.keys asciiBoard
-	maxy = maximum $ map cy $ Map.keys asciiBoard
-	midy = (maxy-miny)`div`2
+	(miny,maxy) = minmax $ map cy $ Map.keys asciiBoard
+	midy = miny+(maxy-miny)`div`2
 	midline = filter ((==midy).cy) $ Map.keys asciiBoard
-	minx = minimum $ map cx $ midline
-	maxx = maximum $ map cx $ midline
-	centre = CVec midy ((maxx-minx)`div`2)
+	(minx,maxx) = minmax $ map cx $ midline
+	centre = CVec midy (minx+(maxx-minx)`div`2)
     in Map.mapKeys ((<+>origin) . cVec2HexVec . (<->centre))
 	<$> T.mapM monoToOTile asciiBoard
 
@@ -215,6 +213,9 @@ monoToTile '&' = Just $ SpringTile Stretched (neg hw)
 monoToTile '7' = Just $ SpringTile Relaxed (neg hw)
 monoToTile '9' = Just $ SpringTile Compressed (neg hw)
 monoToTile _ = Nothing
+
+minmax :: Ord a => [a] -> (a,a)
+minmax = minimum &&& maximum
 
 readAsciiLockFile :: FilePath -> IO (Maybe Lock)
 readAsciiLockFile path =
