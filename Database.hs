@@ -134,7 +134,7 @@ newLockRecord lock = do
     return ls
 
 listUsers :: IO [Codename]
-listUsers = filter ((==3).length) <$> getDirectoryContents (dbpath++"users")
+listUsers = (map unpathifyName . filter ((==3).length)) <$> getDirectoryContents (dbpath++"users")
 
 recordPath :: Record -> FilePath
 recordPath = (dbpath++) . recordPath'
@@ -149,7 +149,30 @@ recordPath = (dbpath++) . recordPath'
 	recordPath' RecServerInfo = "serverInfo"
 
 	userDir name = "users" ++ [pathSeparator] ++ pathifyName name ++ [pathSeparator]
-	pathifyName = map (\c -> case c of {'/'->'s'; '.'->'d'; '\\'->'b'; _ -> c})
 	alockFN (ActiveLock name idx) = pathifyName name ++":"++ show idx
 	locksDir = "locks"++[pathSeparator]
 dbpath = "intricacydb"++[pathSeparator]
+
+-- dummy out characters which are disallowed on unix or windows:
+pathifyName = map $ \c -> case c of 
+    '/'->'s'
+    '.'->'d'
+    '\\'->'b'
+    '<'->'l'
+    '>'->'g'
+    ':'->'c'
+    '|'->'p'
+    '?'->'q'
+    '*'->'a'
+    _ -> c
+unpathifyName = map $ \c -> case c of 
+    's'->'/'
+    'd'->'.'
+    'b'->'\\'
+    'l'->'<'
+    'g'->'>'
+    'c'->':'
+    'p'->'|'
+    'q'->'?'
+    'a'->'*'
+    _ -> c 

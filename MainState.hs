@@ -254,8 +254,11 @@ curServerActionAsync act = do
 	    _ -> return ()
 
 checkAsyncErrors :: UIMonad uiM => StateT MainState uiM ()
-checkAsyncErrors =
-    gets asyncError >>= liftIO . atomically . readTVar >>= maybe (return ()) (lift.drawError)
+checkAsyncErrors = void.runMaybeT $ do
+    errtvar <- lift $ gets asyncError
+    err <- MaybeT $ liftIO $ atomically $ readTVar errtvar
+    lift.lift $ drawError err
+    liftIO $ atomically $ writeTVar errtvar Nothing
 
 getRecordCachedFromCur :: UIMonad uiM => Bool -> Record -> StateT MainState uiM (TVar FetchedRecord)
 getRecordCachedFromCur flagIt rec = do
