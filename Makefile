@@ -20,6 +20,30 @@ intricacy-server-O2: *.lhs *.hs
 	ghc -o intricacy-server-O2 --make Server.hs
 intricacy-prof: *.lhs *.hs
 	ghc -o intricacy-prof --make -rtsopts -prof -auto-all MainBoth.hs
+intricacy-static: *.lhs *.hs
+	cabal configure --ghc-options="-static" --bindir=. --datadir=.
+	cabal build
+	mv dist/build/intricacy/intricacy ./intricacy-static
+intricacy-server-static: *.lhs *.hs
+	cabal configure -f Server -f -Game --ghc-options="-static" --bindir=. --datadir=.
+	cabal build
+	mv dist/build/intricacy-server/intricacy-server ./intricacy-server-static
+intricacy-${VERSION}-linux-i686-glibc-2.16.tgz: intricacy-static intricacy-server-static tutorial/*.lock
+	mkdir linuxbintmp
+	cd linuxbintmp &&\
+	mkdir intricacy-${VERSION} &&\
+	mkdirhier intricacy-${VERSION}/intricacy-${VERSION}/tutorial &&\
+	mkdir intricacy-${VERSION}/lib &&\
+	cp ../{README,VeraMono.ttf} intricacy-${VERSION}/intricacy-${VERSION}/ &&\
+	cp ../intricacy-static intricacy-${VERSION}/intricacy.bin &&\
+	cp ../intricacy-server-static intricacy-${VERSION}/intricacy-server.bin &&\
+	cp ../intricacy-lib-script intricacy-${VERSION}/intricacy &&\
+	cp ../intricacy-server-lib-script intricacy-${VERSION}/intricacy-server &&\
+	cp ../tutorial/*.lock intricacy-${VERSION}/intricacy-${VERSION}/tutorial &&\
+	cp -L ../lib/* intricacy-${VERSION}/lib &&\
+	tar -czvf intricacy-${VERSION}-linux-i686-glibc-2.16.tgz intricacy-${VERSION}
+	mv linuxbintmp/intricacy-${VERSION}-linux-i686-glibc-2.16.tgz .
+	rm -rf linuxbintmp
 intricacy.exe: *.lhs *.hs
 	wine cabal configure
 	# I wish I were joking:
@@ -32,7 +56,7 @@ intricacy-${VERSION}-win32.zip: intricacy.exe tutorial/*.lock
 	cd w32tmp &&\
 	mkdir intricacy-${VERSION} &&\
 	mkdir intricacy-${VERSION}/tutorial &&\
-	cp ../{intricacy.exe,VeraMono.ttf,SDL.dll} intricacy-${VERSION} &&\
+	cp ../{README,intricacy.exe,VeraMono.ttf,SDL.dll} intricacy-${VERSION} &&\
 	cp ../tutorial/*.lock intricacy-${VERSION}/tutorial &&\
 	zip -r intricacy-${VERSION}-win32.zip "intricacy-${VERSION}"
 	mv w32tmp/intricacy-${VERSION}-win32.zip .

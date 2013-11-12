@@ -38,7 +38,7 @@ executable intricacy
         , binary >=0.7, network-fancy >= 0.1.5
         , cryptohash >= 0.8
       if flag(SDL)
-          build-depends: SDL >=0.6, SDL-ttf >=0.6, SDL-gfx >=0.6
+          build-depends: SDL >=0.6.5, SDL-ttf >=0.6, SDL-gfx >=0.6
           if os(windows)
               Extra-Lib-Dirs:    winlibs
               Extra-Libraries:   SDL_ttf SDL SDL_gfx freetype
