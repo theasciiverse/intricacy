@@ -186,7 +186,8 @@ processCommand' IMMeta (CmdSolve midx) = void.runMaybeT $ do
 		declare undecl
 	, do
 	    RCLock lock <- MaybeT $ getFreshRecBlocking $ RecLock ls
-	    soln <- solveLock lock $ Just $ "Solving " ++ name ++ ":" ++ [lockIndexChar idx]
+	    soln <- solveLock lock $ Just $
+		"Solving " ++ name ++ ":" ++ [lockIndexChar idx] ++ "  (#" ++ show ls ++")"
 	    mourName <- lift $ (authUser <$>) <$> gets curAuth
 	    guard $ mourName /= Just name
 	    let undecl = Undeclared soln ls (ActiveLock name idx) 

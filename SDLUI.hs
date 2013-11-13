@@ -141,7 +141,6 @@ getButtons mode = do
 	    , singleButton (miniLockPos <+> 2<*>neg hv <+> hu <+> neg hw) CmdNextLock 4
 	    , singleButton (codenamePos <+> neg hu) (CmdSelCodename Nothing) 2
 	    , singleButton (serverPos <+> 2<*>neg hv <+> hw) CmdTutorials 1
-	    , singleButton (retiredPos) CmdShowRetired 4
 	    ]
 		
 	_ -> []
