@@ -100,7 +100,7 @@ playOnly = lowerToo
     , ('\n', CmdWait)
     , ('\t', CmdToggle)
     , ('*', CmdTile $ WrenchTile zero)
-    , ('/', CmdTile HookTile)
+    , ('/', CmdTile ArmTile)
     , ('@', CmdTile HookTile)
     ]
 replayOnly =
