@@ -59,6 +59,8 @@ intricacy.exe: $(sources)
 intricacy-latest-win32.zip: intricacy-${VERSION}-win32.zip
 	ln -s $< $@
 intricacy-${VERSION}-win32.zip: intricacy.exe tutorial/*.lock
+	git co build
+	git merge master
 	mkdir w32tmp
 	cd w32tmp &&\
 	mkdir intricacy-${VERSION} &&\
@@ -68,6 +70,7 @@ intricacy-${VERSION}-win32.zip: intricacy.exe tutorial/*.lock
 	zip -r intricacy-${VERSION}-win32.zip "intricacy-${VERSION}"
 	mv w32tmp/intricacy-${VERSION}-win32.zip .
 	rm -rf w32tmp
+	git co master
 modules.dot: $(sources)
 	graphmod *.lhs *.hs > modules.dot
 modules.png: modules.dot

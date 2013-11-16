@@ -2,9 +2,7 @@
 
 ##About
 
-A game of competitive puzzle-design. Players devise locks with complicated
-mechanisms to secure their secrets, and try to pick the locks of others to
-reveal theirs.
+A game of competitive puzzle-design.
 
 Written in Haskell, with SDL and Curses user interfaces.
 
