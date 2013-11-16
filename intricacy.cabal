@@ -35,7 +35,7 @@ executable intricacy
         , directory >= 1.0, filepath >= 1.0, time >= 1.2
         , bytestring >=0.9, array >=0.3, containers >=0.4, vector >=0.9
         , pretty-show >=1
-        , binary >=0.7, network-fancy >= 0.1.5
+        , binary >=0.5, network-fancy >= 0.1.5
         , cryptohash >= 0.8
       if flag(SDL)
           build-depends: SDL >=0.6.5, SDL-ttf >=0.6, SDL-gfx >=0.6
@@ -62,7 +62,7 @@ executable intricacy-server
         , directory >= 1.0, filepath >= 1.0, time >= 1.2
         , bytestring >=0.9, array >=0.3, containers >=0.4, vector >=0.9
         , pretty-show >=1
-        , binary >=0.7, network-fancy >= 0.1.5
+        , binary >=0.5, network-fancy >= 0.1.5
         , cryptohash >= 0.8
         , random >= 1.0, pipes >= 4
   else
