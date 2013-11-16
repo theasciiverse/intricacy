@@ -409,6 +409,7 @@ processCommand' IMReplay CmdRedo = processCommand' IMReplay (CmdReplayForward 1)
 processCommand' IMEdit CmdPlay = do
     st <- gets $ head.esGameStateStack
     frame <- gets esFrame
+    modify $ \es -> es {selectedPiece = Nothing}
     subPlay (frame,st)
 processCommand' IMEdit CmdResetTools = do
     frame <- gets esFrame
