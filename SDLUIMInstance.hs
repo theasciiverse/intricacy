@@ -90,17 +90,13 @@ instance UIMonad (StateT UIState IO) where
 		when (offset>0) $
 		    registerButtonGroup $ singleButton (nextPagePos<+>neg hu) CmdPrevPage 4
 
-	    maybe (return ())
-		(\name -> do
-		    lift $ registerSelectable codenamePos 0 SelSelectedCodeName 
-		    drawName name codenamePos 
-		    drawRelScore name (codenamePos<+>hu))
-		selName
 	    when (length names > 1) $ lift $ registerButtonGroup $ singleButton
 		(codenamePos <+> 2<*>neg hu <+> hw) CmdBackCodename 0
 
-	    runMaybeT $ MaybeT (return selName) >>= lift . getUInfoFetched 300 >>=
-		\(FetchedRecord fresh err muirc) -> lift $ do
+	    runMaybeT $ do
+		name <- MaybeT (return selName)
+		FetchedRecord fresh err muirc <- lift $ getUInfoFetched 300 name
+		lift $ do
 		    lift $ do
 			unless fresh $ do
 			    let unfreshPos = serverPos <+> hv
@@ -109,6 +105,9 @@ instance UIMonad (StateT UIState IO) where
 			when (fresh && (isNothing ourName || home)) $
 			    registerButtonGroup $ singleButton (codenamePos <+> 2<*>hu)
 				(if isNothing muirc || home then CmdRegister else CmdAuth) 2
+		    (if isJust muirc then drawName else drawNullName) name codenamePos
+		    lift $ registerSelectable codenamePos 0 SelSelectedCodeName
+		    drawRelScore name (codenamePos<+>hu)
 		    for_ muirc $ \(RCUserInfo (_,uinfo)) -> case mretired of 
 			    Just retired -> do
 				fillArea locksPos
@@ -377,8 +376,9 @@ drawOldLock ls pos = void.runMaybeT $ msum [ do
     ]
     
 
-drawName name pos = do
-    col <- nameCol name
+drawName name pos = nameCol name >>= drawNameCol name pos
+drawNullName name pos = drawNameCol name pos $ invisible white
+drawNameCol name pos col = do
     lift.renderToMain $ do 
 	drawAtRel (playerGlyph col) pos
 	renderStrColAt messageCol name pos
