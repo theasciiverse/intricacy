@@ -15,7 +15,6 @@ import Data.Word
 import Data.Array
 import Data.List
 import Data.Ratio
-import Text.Show.Pretty (ppShow)
 import Data.Function (on)
 --import Debug.Trace (traceShow)
 
@@ -249,7 +248,7 @@ writeUIConfigFile = do
     path <- liftIO $ confFilePath "SDLUI.conf"
     opts <- gets uiOptions
     liftIO makeConfDir
-    liftIO $ writeFile path $ ppShow opts
+    liftIO $ writeFile path $ show opts
 
 readBindings :: UIM ()
 readBindings = do 
