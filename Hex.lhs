@@ -149,6 +149,8 @@ scaleToLength n v@(HexVec x y z) =
 		| i <- [0..2]
 		, let d = if i == minI then sum lv' else 0 ]
     in HexVec x'' y'' z''
+truncateToLength :: Int -> HexVec -> HexVec
+truncateToLength n v = if hexLen v <= n then v else scaleToLength n v
 \end{code}
      
 Some general stuff on groups and actions and principal homogeneous spaces. We

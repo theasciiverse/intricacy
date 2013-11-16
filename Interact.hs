@@ -443,7 +443,7 @@ processCommand' IMEdit (CmdDir _ dir) = do
 	Just p -> doForce $ Push p dir
 processCommand' IMEdit (CmdMoveTo newPos) = do
     frame <- gets esFrame
-    modify $ \es -> es {selectedPos = truncateToBounds frame newPos}
+    modify $ \es -> es {selectedPos = truncateToEditable frame newPos}
 processCommand' IMEdit (CmdRotate dir) = do
     selPiece <- gets selectedPiece
     case selPiece of
@@ -457,7 +457,7 @@ processCommand' IMEdit (CmdPaint tile) = do
     drawTile selPos tile True
 processCommand' IMEdit (CmdPaintFromTo tile from to) = do
     frame <- gets esFrame
-    paintTilePath tile (truncateToBounds frame from) (truncateToBounds frame to)
+    paintTilePath tile (truncateToEditable frame from) (truncateToEditable frame to)
 processCommand' IMEdit CmdMerge = do
     selPos <- gets selectedPos
     st:_ <- gets esGameStateStack
