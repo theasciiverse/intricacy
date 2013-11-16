@@ -114,7 +114,7 @@ instance UIMonad (StateT UIState IO) where
 				    (map (locksPos<+>) $ zero:[rotate n $ 4<*>hu<->4<*>hw | n <- [0,2,3,5]])
 				    [ \pos -> (lift $ registerSelectable pos 1 (SelOldLock ls)) >> drawOldLock ls pos
 				    | ls <- retired ]
-				lift $ registerButtonGroup $ singleButton retiredPos CmdShowRetired 2
+				lift $ registerButtonGroup $ singleButton retiredPos CmdShowRetired pubWheelAngle
 				lift $ registerButtonGroup $ singleButton (retiredPos <+> 2<*>hw <+> hu) (CmdPlayLockSpec Nothing) 4
 			    Nothing -> do
 				sequence_ [ drawLockInfo (ActiveLock (codename uinfo) i) mlockinfo |
@@ -125,7 +125,7 @@ instance UIMonad (StateT UIState IO) where
 					([ Button mmiscpos (CmdSolve Nothing), Button (mmiscpos<+>hu) (CmdViewSolution Nothing)], (2,2))
 				    when (isJust lock && home) $ registerButtonGroup $
 					    singleButton (miniLockPos <+> 2<*>hv <+> neg hu) (CmdPlaceLock Nothing) 0
-				lift $ registerButtonGroup $ singleButton retiredPos CmdShowRetired 4
+				lift $ registerButtonGroup $ singleButton retiredPos CmdShowRetired pubWheelAngle
 
 	    when home $ do
 		unless (null undecls) $ do
@@ -410,7 +410,8 @@ drawNameWithCharAndCol name charcol char col pos = do
 	    renderStrColAt messageCol name pos
 	displaceRender down $ withFont smallFont $
 	    renderStrColAt (pixelToColor charcol) [char] pos
-pubColour = colourWheel 5
+pubWheelAngle = 5
+pubColour = colourWheel pubWheelAngle
 nameCol name = do
     ourName <- (authUser <$>) <$> gets curAuth
     relScore <- getRelScore name
