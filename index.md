@@ -13,7 +13,7 @@ Free software, released under the GPLv3.
 ##Download
 
 * Source:
-     - ` git clone http://mbays.freeshell.org/intricacy/ `
+     - ` git clone http://mbays.freeshell.org/intricacy/.git && cd intricacy `
      - see README for compilation instructions
      - please mail me <mbays@sdf.org> if it fails!
 * [Windows binary](intricacy-latest-win32.zip)
