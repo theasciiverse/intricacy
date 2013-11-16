@@ -262,7 +262,7 @@ writeBindings = do
     path <- liftIO $ confFilePath "bindings"
     bdgs <- gets uiKeyBindings
     liftIO makeConfDir
-    liftIO $ writeFile path $ ppShow bdgs
+    liftIO $ writeFile path $ show bdgs
 
 paintTiles :: [ Maybe Tile ]
 paintTiles =
