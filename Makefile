@@ -30,56 +30,9 @@ intricacy-server-static: $(sources)
 	cabal configure -f Server -f -Game --ghc-options="-static" --bindir=. --datadir=.
 	cabal build
 	mv dist/build/intricacy-server/intricacy-server ./intricacy-server-static
-intricacy-latest-${LINTARGET}.tgz: intricacy-${VERSION}-${LINTARGET}.tgz
-	ln -s $< $@
-intricacy-${VERSION}-${LINTARGET}.tgz: intricacy-static intricacy-server-static tutorial/*.lock
-	mkdir linuxbintmp
-	cd linuxbintmp &&\
-	mkdir intricacy-${VERSION} &&\
-	mkdirhier intricacy-${VERSION}/intricacy-${VERSION}/tutorial &&\
-	mkdir intricacy-${VERSION}/lib &&\
-	cp ../{README,VeraMono.ttf} intricacy-${VERSION}/intricacy-${VERSION}/ &&\
-	cp ../intricacy-static intricacy-${VERSION}/intricacy.bin &&\
-	cp ../intricacy-server-static intricacy-${VERSION}/intricacy-server.bin &&\
-	cp ../intricacy-lib-script intricacy-${VERSION}/intricacy &&\
-	cp ../intricacy-server-lib-script intricacy-${VERSION}/intricacy-server &&\
-	cp ../tutorial/*.lock intricacy-${VERSION}/intricacy-${VERSION}/tutorial &&\
-	cp -L ../lib/* intricacy-${VERSION}/lib &&\
-	tar -czvf intricacy-${VERSION}-${LINTARGET}.tgz intricacy-${VERSION}
-	mv linuxbintmp/intricacy-${VERSION}-${LINTARGET}.tgz .
-	rm -rf linuxbintmp
-intricacy.exe: $(sources)
-	echo $^
-	wine cabal configure
-	# I wish I were joking:
-	sudo mv /usr/i386-mingw32 /usr/i386-mingw32.t
-	wine cabal build || true
-	sudo mv /usr/i386-mingw32.t /usr/i386-mingw32
-	mv dist/build/intricacy/intricacy.exe .
-intricacy-latest-win32.zip: intricacy-${VERSION}-win32.zip
-	ln -s $< $@
-intricacy-${VERSION}-win32.zip: intricacy.exe tutorial/*.lock
-	git co build
-	git merge master
-	mkdir w32tmp
-	cd w32tmp &&\
-	mkdir intricacy-${VERSION} &&\
-	mkdir intricacy-${VERSION}/tutorial &&\
-	cp ../{README,intricacy.exe,VeraMono.ttf,SDL.dll} intricacy-${VERSION} &&\
-	cp ../tutorial/*.lock intricacy-${VERSION}/tutorial &&\
-	zip -r intricacy-${VERSION}-win32.zip "intricacy-${VERSION}"
-	mv w32tmp/intricacy-${VERSION}-win32.zip .
-	rm -rf w32tmp
-	git co master
 modules.dot: $(sources)
 	graphmod *.lhs *.hs > modules.dot
 modules.png: modules.dot
 	dot -Tpng -o modules.png modules.dot
 index.html: index.md
 	markdown_py < index.md > index.html
-publish: intricacy-${VERSION}-win32.zip intricacy-${VERSION}-${LINTARGET}.tgz
-	rsync $^ sverige:html/intricacy/
-	ssh sverige "cd html/intricacy && git pull && make index.html &&\
-	    git update-server-info &&\
-	    ln -sf intricacy-${VERSION}-win32.zip intricacy-latest-win32.zip &&\
-	    ln -sf intricacy-${VERSION}-${LINTARGET}.tgz intricacy-latest-${LINTARGET}.tgz"
