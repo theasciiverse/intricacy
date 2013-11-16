@@ -294,7 +294,8 @@ castRay start dir board =
 
 validGameState :: GameState -> Bool
 validGameState st@(GameState pps conns) = and
-    [ checkConnGraphAcyclic st
+    [ checkValidHex st
+    , checkConnGraphAcyclic st
     , and [ null $ collisions st idx idx'
 	    | idx <- ppidxs st
 	    , idx' <- [0..idx-1] ]
@@ -308,6 +309,22 @@ validGameState st@(GameState pps conns) = and
     , and [ 1 == length (components $ Set.fromList patt) 
 	    | Block patt <- map placedPiece $ Vector.toList pps ]
     ]
+
+checkValidHex (GameState pps conns) = and
+    [ all validPP $ Vector.toList pps
+    , all validConn conns ]
+    where
+	validVec (HexVec x y z) = x+y+z==0
+	validPos (PHS v) = validVec v
+	validDir v = validVec v && isHexDir v
+	validPP (PlacedPiece pos piece) = validPos pos && validPiece piece
+	validPiece (Block patt) = all validVec patt
+	validPiece (Pivot arms) = all validDir arms
+	validPiece (Hook dir _) = validDir dir
+	validPiece _ = True
+	validConn (Connection (_,rv) (_,ev) link) = all validVec [rv,ev] && validLink link
+	validLink (Free v) = validVec v
+	validLink (Spring dir _) = validDir dir
 
 protectedPiece :: PieceIdx -> Bool
 protectedPiece = isFrame

@@ -93,8 +93,8 @@ showRequest (ClientRequest ver mauth act) = show ver ++ " "
     ++ maybe "" (\(Auth name pw) -> "Auth:" ++ name ++ ":" ++ take 4 pw) mauth ++ " "
     ++ showAction act
 showAction :: Action -> String
-showAction (SetLock lock idx soln) = "SetLock " ++ show idx ++ " lock:\n"
-    ++ unlines (lockToAscii lock)
+showAction (SetLock lock idx soln) = "SetLock " ++ show idx ++ " lock:"
+    ++ (if not $ validLock lock then " [INVALID LOCK] " else "\n" ++ unlines (lockToAscii lock))
     ++ "soln: " ++ show soln
 showAction act = show act
 showResponse :: ServerResponse -> String
