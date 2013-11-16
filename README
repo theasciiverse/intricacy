@@ -1,7 +1,7 @@
 Intricacy
 =========
 
-A competitive level-design puzzler.
+A game of competitive puzzle-design.
 
 Dependencies:
     EITHER
@@ -35,3 +35,5 @@ To compile for windows:
     This should work as above once you have the dependencies installed
     properly. Good luck with that. The mingw32-compiled libraries in winlibs
     may or may not help.
+
+mbays@sdf.org

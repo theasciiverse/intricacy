@@ -28,6 +28,8 @@ intricacy-server-static: *.lhs *.hs
 	cabal configure -f Server -f -Game --ghc-options="-static" --bindir=. --datadir=.
 	cabal build
 	mv dist/build/intricacy-server/intricacy-server ./intricacy-server-static
+intricacy-latest-linux-i686-glibc-2.16.tgz: intricacy-${VERSION}-linux-i686-glibc-2.16.tgz
+	ln -s $< $@
 intricacy-${VERSION}-linux-i686-glibc-2.16.tgz: intricacy-static intricacy-server-static tutorial/*.lock
 	mkdir linuxbintmp
 	cd linuxbintmp &&\
@@ -51,6 +53,8 @@ intricacy.exe: *.lhs *.hs
 	wine cabal build || true
 	sudo mv /usr/i386-mingw32.t /usr/i386-mingw32
 	mv dist/build/intricacy/intricacy.exe .
+intricacy-latest-win32.zip: intricacy-${VERSION}-win32.zip
+	ln -s $< $@
 intricacy-${VERSION}-win32.zip: intricacy.exe tutorial/*.lock
 	mkdir w32tmp
 	cd w32tmp &&\
@@ -65,8 +69,5 @@ modules.dot: *.lhs *.hs
 	graphmod *.lhs *.hs > modules.dot
 modules.png: modules.dot
 	dot -Tpng -o modules.png modules.dot
-# DO NOT DELETE: Beginning of Haskell dependencies
-Hex.o : Hex.lhs
-Intricacy.o : Intricacy.hs
-Intricacy.o : Hex.hi
-# DO NOT DELETE: End of Haskell dependencies
+index.html: index.md
+	markdown_py < index.md > index.html
