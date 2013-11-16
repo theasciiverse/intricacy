@@ -103,7 +103,7 @@ instance UIMonad (StateT UIState IO) where
 		\(FetchedRecord fresh err muirc) -> lift $ do
 		    lift $ do
 			unless fresh $ do
-			    let unfreshPos = codenamePos <+> neg hw
+			    let unfreshPos = serverPos <+> hv
 			    renderToMain $ drawAtRel unfreshGlyph unfreshPos 
 			maybe (return ()) (setMsgLineNoRefresh errorCol) err
 			when (fresh && (isNothing ourName || home)) $
@@ -115,8 +115,8 @@ instance UIMonad (StateT UIState IO) where
 				    (map (locksPos<+>) $ zero:[rotate n $ 4<*>hu<->4<*>hw | n <- [0,2,3,5]])
 				    [ \pos -> (lift $ registerSelectable pos 1 (SelOldLock ls)) >> drawOldLock ls pos
 				    | ls <- retired ]
-				registerButtonGroup $ singleButton retiredPos CmdShowRetired 2
-				registerButtonGroup $ singleButton (retiredPos <+> 2<*>hw <+> hu) (CmdPlayLockSpec Nothing) 4
+				lift $ registerButtonGroup $ singleButton retiredPos CmdShowRetired 2
+				lift $ registerButtonGroup $ singleButton (retiredPos <+> 2<*>hw <+> hu) (CmdPlayLockSpec Nothing) 4
 			    Nothing -> do
 				sequence_ [ drawLockInfo (ActiveLock (codename uinfo) i) mlockinfo |
 				    (i,mlockinfo) <- assocs $ userLocks uinfo ]
@@ -126,7 +126,7 @@ instance UIMonad (StateT UIState IO) where
 					([ Button mmiscpos (CmdSolve Nothing), Button (mmiscpos<+>hu) (CmdViewSolution Nothing)], (2,2))
 				    when (isJust lock && home) $ registerButtonGroup $
 					    singleButton (miniLockPos <+> 2<*>hv <+> neg hu) (CmdPlaceLock Nothing) 0
-				registerButtonGroup $ singleButton retiredPos CmdShowRetired 4
+				lift $ registerButtonGroup $ singleButton retiredPos CmdShowRetired 4
 
 	    when home $ do
 		unless (null undecls) $ do
