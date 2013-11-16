@@ -42,6 +42,7 @@ needsAuth _ = True
 
 data ServerResponse
     = ServerAck
+    | ServerMessage String
     | ServerError String
     | ServedServerInfo ServerInfo
     | ServedLock Lock
@@ -98,32 +99,34 @@ instance Binary Auth where
 
 instance Binary ServerResponse where
     put ServerAck = put (0::Word8)
-    put (ServerError err) = put (1::Word8) >> put err
-    put (ServedServerInfo sinfo) = put (2::Word8) >> put sinfo
-    put (ServedLock lock) = put (3::Word8) >> put lock
-    put (ServedUserInfo info) = put (4::Word8) >> put info
-    put (ServedUserInfoDeltas info) = put (5::Word8) >> put info
-    put (ServedSolution soln) = put (6::Word8) >> put soln
-    put (ServedHint hint) = put (7::Word8) >> put hint
-    put (ServedRandomNames names) = put (8::Word8) >> put names
-    put (ServerCodenameFree) = put (9::Word8)
-    put (ServerFresh) = put (10::Word8)
-    put (ServedRetired lss) = put (11::Word8) >> put lss
+    put (ServerMessage mesg) = put (1::Word8) >> put mesg
+    put (ServerError err) = put (2::Word8) >> put err
+    put (ServedServerInfo sinfo) = put (3::Word8) >> put sinfo
+    put (ServedLock lock) = put (4::Word8) >> put lock
+    put (ServedUserInfo info) = put (5::Word8) >> put info
+    put (ServedUserInfoDeltas info) = put (6::Word8) >> put info
+    put (ServedSolution soln) = put (7::Word8) >> put soln
+    put (ServedHint hint) = put (8::Word8) >> put hint
+    put (ServedRandomNames names) = put (9::Word8) >> put names
+    put (ServerCodenameFree) = put (10::Word8)
+    put (ServerFresh) = put (11::Word8)
+    put (ServedRetired lss) = put (12::Word8) >> put lss
     get = do
 	tag <- get :: Get Word8
 	case tag of
 	    0 -> return ServerAck
-	    1 -> liftM ServerError get
-	    2 -> liftM ServedServerInfo get
-	    3 -> liftM ServedLock get
-	    4 -> liftM ServedUserInfo get
-	    5 -> liftM ServedUserInfoDeltas get
-	    6 -> liftM ServedSolution get
-	    7 -> liftM ServedHint get
-	    8 -> liftM ServedRandomNames get
-	    9 -> return ServerCodenameFree
-	    10 -> return ServerFresh
-	    11 -> liftM ServedRetired get
+	    1 -> liftM ServerMessage get
+	    2 -> liftM ServerError get
+	    3 -> liftM ServedServerInfo get
+	    4 -> liftM ServedLock get
+	    5 -> liftM ServedUserInfo get
+	    6 -> liftM ServedUserInfoDeltas get
+	    7 -> liftM ServedSolution get
+	    8 -> liftM ServedHint get
+	    9 -> liftM ServedRandomNames get
+	    10 -> return ServerCodenameFree
+	    11 -> return ServerFresh
+	    12 -> liftM ServedRetired get
 instance Binary ServerInfo where
     put (ServerInfo sz str) = put sz >> put str
     get = liftM2 ServerInfo get get

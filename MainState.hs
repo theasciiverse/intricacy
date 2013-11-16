@@ -305,6 +305,7 @@ testAuth :: UIMonad uiM => StateT MainState uiM ()
 testAuth = (isJust <$> gets curAuth >>=) $ flip when $ do
     resp <- curServerAction $ Authenticate
     case resp of
+	ServerMessage msg -> (lift $ drawMessage $ "Server: " ++ msg)
 	ServerError err -> do
 	    lift $ drawMessage err
 	    modify $ \ms -> ms {curAuth = Nothing}

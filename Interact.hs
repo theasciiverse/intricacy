@@ -167,6 +167,7 @@ processCommand' IMMeta CmdAuth = void.runMaybeT $ do
 	resp <- curServerAction $ Authenticate
 	case resp of
 	    ServerAck -> (lift $ drawMessage "Authenticated.")
+	    ServerMessage msg -> (lift $ drawMessage $ "Server: " ++ msg)
 	    ServerError err -> do
 		lift $ drawMessage err
 		modify $ \ms -> ms {curAuth = auth}
@@ -501,6 +502,7 @@ processCommand' IMEdit CmdDelete = do
 processCommand' IMEdit CmdWriteState = void.runMaybeT $ do
     path <- lift $ gets esPath
     newPath <- MaybeT $ lift $ textInput "Save lock as:" 1024 False False Nothing path
+    guard $ not $ null newPath
     fullPath <- liftIO $ fullLockPath newPath
     (liftIO (doesFileExist fullPath `catchIO` const (return True)) >>=) $ flip when $
 	confirmOrBail $ "Really overwrite '"++fullPath++"'?"

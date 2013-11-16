@@ -129,7 +129,9 @@ handleRequest req@(ClientRequest pv auth action) = do
 	handleRequest' = do
 	    when (pv /= protocolVersion) $ throwError "Bad protocol version"
 	    case action of
-		Authenticate -> checkAuth auth >> return ServerAck
+		Authenticate -> do 
+		    checkAuth auth 
+		    return $ ServerMessage $ "Welcome, " ++ authUser (fromJust auth)
 		Register -> newUser auth >> return ServerAck
 		ResetPassword passwd -> resetPassword auth passwd >> return ServerAck
 		GetServerInfo -> ServedServerInfo <$> getServerInfo
