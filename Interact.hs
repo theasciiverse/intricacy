@@ -105,6 +105,7 @@ processCommand' IMMeta (CmdSelCodename mname) = void.runMaybeT $ do
     guard $ validCodeName name
     lift $ do
 	modify $ \ms -> ms { codenameStack = (name:codenameStack ms) }
+	invalidateUInfo name
 	refreshUInfoUI
 processCommand' IMMeta CmdHome = void.runMaybeT $ do
     ourName <- mgetOurName

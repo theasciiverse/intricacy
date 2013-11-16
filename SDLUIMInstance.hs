@@ -123,8 +123,8 @@ instance UIMonad (StateT UIState IO) where
 				when (isJust $ msum $ elems $ userLocks uinfo) $ lift $ do
 				    registerButtonGroup
 					([ Button mmiscpos (CmdSolve Nothing), Button (mmiscpos<+>hu) (CmdViewSolution Nothing)], (2,2))
-				    when (isJust lock && home) $ registerButtonGroup $
-					    singleButton (miniLockPos <+> 2<*>hv <+> neg hu) (CmdPlaceLock Nothing) 0
+				when (isJust lock && home) $ lift $ registerButtonGroup $
+					singleButton (miniLockPos <+> 2<*>hv <+> neg hu) (CmdPlaceLock Nothing) 0
 				lift $ registerButtonGroup $ singleButton retiredPos CmdShowRetired pubWheelAngle
 
 	    when home $ do

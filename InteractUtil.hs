@@ -129,12 +129,9 @@ confirm prompt = do
 	    case msum $ map ansOfCmd cmds of
 		Just answer -> return answer
 		Nothing -> waitConfirm
-	ansOfCmd (CmdInputChar 'n') = Just False
-	ansOfCmd (CmdInputChar 'N') = Just False
 	ansOfCmd (CmdInputChar 'y') = Just True
 	ansOfCmd (CmdInputChar 'Y') = Just True
-	ansOfCmd (CmdInputChar '\ESC') = Just False
-	ansOfCmd _ = Nothing
+	ansOfCmd _ = Just False
 
 -- | TODO: draw cursor
 textInput :: UIMonad uiM => String -> Int -> Bool -> Bool -> Maybe [String] -> Maybe String -> uiM (Maybe String)
