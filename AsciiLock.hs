@@ -174,7 +174,7 @@ monochromeTileChar (SpringTile extn dir)
 	Relaxed                    -> ']'
 	Compressed                 -> '}'
     | dir == neg hw = case extn of
-	Stretched                  -> '&'
+	Stretched                  -> '1'
 	Relaxed                    -> '7'
 	Compressed                 -> '9'
 monoToOTile :: Char -> Maybe OwnedTile
@@ -209,7 +209,7 @@ monoToTile 'D' = Just $ SpringTile Compressed (neg hu)
 monoToTile ')' = Just $ SpringTile Stretched (neg hv)
 monoToTile ']' = Just $ SpringTile Relaxed (neg hv)
 monoToTile '}' = Just $ SpringTile Compressed (neg hv)
-monoToTile '&' = Just $ SpringTile Stretched (neg hw)
+monoToTile '1' = Just $ SpringTile Stretched (neg hw)
 monoToTile '7' = Just $ SpringTile Relaxed (neg hw)
 monoToTile '9' = Just $ SpringTile Compressed (neg hw)
 monoToTile _ = Nothing
