@@ -82,7 +82,7 @@ asciiBoardState frame board =
 	isBaseTile (BallTile) = True
 	isBaseTile _ = False
 	addBaseOT :: (HexPos,(PieceIdx,Tile)) -> GameState -> GameState
-	addBaseOT (pos,(o,BlockTile [])) = addBlockPos (o+1) pos
+	addBaseOT (pos,(o,BlockTile [])) = addBlockPos o pos
 	addBaseOT (pos,(-1,t)) = addpp $ PlacedPiece pos $ basePieceOfTile t
 	basePieceOfTile (PivotTile _) = Pivot []
 	basePieceOfTile HookTile = Hook hu NullHF
