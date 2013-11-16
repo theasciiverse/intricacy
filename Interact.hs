@@ -314,7 +314,8 @@ processCommand' IMMeta CmdEdit = void.runMaybeT $ do
 	    return (frame, baseState frame)
 	]
     path <- lift $ gets curLockPath
-    newPath <- MaybeT $ lift $ (esPath <$>) $ execStateT interactUI $ newEditState (reframe lock) $ Just path
+    newPath <- MaybeT $ lift $ (esPath <$>) $ execStateT interactUI $ newEditState (reframe lock)
+	(if null path then Nothing else Just path)
     lift $ setLockPath newPath
 processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
     tutdir <- liftIO $ getDataPath "tutorial"
