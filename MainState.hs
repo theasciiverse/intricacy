@@ -302,7 +302,7 @@ getNotesReadOn lockinfo = (fromMaybe [] <$>) $ runMaybeT $ do
 	    || n `elem` notesRead ourUInfo) $ lockSolutions lockinfo
 
 testAuth :: UIMonad uiM => StateT MainState uiM ()
-testAuth = do
+testAuth = (isJust <$> gets curAuth >>=) $ flip when $ do
     resp <- curServerAction $ Authenticate
     case resp of
 	ServerError err -> do
