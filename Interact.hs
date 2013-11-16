@@ -98,7 +98,7 @@ processCommand' _ CmdRedraw = lift $ redraw
 processCommand' IMMeta (CmdSelCodename mname) = void.runMaybeT $ do
     name <- msum [ MaybeT $ return $ mname
 	, do
-	    newCodename <- liftM (map toUpper) $ MaybeT $ lift $ textInput "Codename:" 3 False True Nothing Nothing
+	    newCodename <- (map toUpper <$>) $ MaybeT $ lift $ textInput "Codename:" 3 False True Nothing Nothing
 	    guard $ length newCodename == 3
 	    return newCodename
 	]
@@ -220,7 +220,7 @@ processCommand' IMMeta (CmdDeclare mundecl) = void.runMaybeT $ do
 	else do
 	    which <- MaybeT $ lift $ textInput
 		("Declare which solution?")
-		5 False False Nothing Nothing
+		5 False True Nothing Nothing
 	    MaybeT $ return $ msum
 		[ do
 		    i <- fst <$> (listToMaybe $ (reads :: ReadS Int) which)
@@ -257,7 +257,7 @@ processCommand' IMMeta (CmdViewSolution mnote) = void.runMaybeT $ do
 		textInput ("View solution by which player? ["
 		    ++ intercalate "," (take 3 authors)
 		    ++ if length authors > 3 then ",...]" else "]")
-		3 False False (Just $ authors) Nothing
+		3 False True (Just $ authors) Nothing
 	MaybeT $ return $ find ((==author).noteAuthor) notes
 	]
     let ActiveLock name idx = noteOn note

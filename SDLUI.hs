@@ -193,6 +193,13 @@ commandOfSelectable IMMeta (SelRandom name) _ = CmdSelCodename $ Just name
 commandOfSelectable IMMeta (SelSecured note) False = CmdSelCodename $ Just $ lockOwner $ noteOn note
 commandOfSelectable IMMeta (SelSecured note) True = CmdViewSolution $ Just note
 commandOfSelectable IMMeta (SelOldLock ls) _ = CmdPlayLockSpec $ Just ls
+commandOfSelectable IMTextInput (SelLock (ActiveLock _ i)) _ = CmdInputSelLock i
+commandOfSelectable IMTextInput (SelLockUnset (ActiveLock _ i)) _ = CmdInputSelLock i
+commandOfSelectable IMTextInput (SelReadNote note) _ = CmdInputCodename $ noteAuthor note
+commandOfSelectable IMTextInput (SelSolution note) _ = CmdInputCodename $ noteAuthor note
+commandOfSelectable IMTextInput (SelSecured note) _ = CmdInputCodename $ noteAuthor note
+commandOfSelectable IMTextInput (SelRandom name) _ = CmdInputCodename name
+commandOfSelectable IMTextInput (SelUndeclared undecl) _ = CmdInputSelUndecl undecl
 commandOfSelectable _ _ _ = CmdNone
 
 cmdAtMousePos pos@(mPos,central) im selMode = do

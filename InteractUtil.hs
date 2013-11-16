@@ -143,8 +143,8 @@ textInput prompt maxlen hidden endOnMax mposss init = getText (fromMaybe "" init
 	getText :: UIMonad uiM => (String, Maybe String) -> uiM (Maybe String)
 	getText (s,mstem) = do
 	    drawMessage $ prompt ++ " " ++ if hidden then replicate (length s) '*' else s
-	    if endOnMax && isNothing mstem && maxlen == length s
-	    then return $ Just s
+	    if endOnMax && isNothing mstem && maxlen <= length s
+	    then return $ Just $ take maxlen s
 	    else do
 		cmds <- getInput IMTextInput
 		case foldM applyCmd (s,mstem) cmds of
@@ -181,6 +181,12 @@ textInput prompt maxlen hidden endOnMax mposss init = getText (fromMaybe "" init
 		    _ -> Right $ if isPrint c
 			    then ((if length s >= maxlen then id else (++[c])) s, Nothing)
 			    else (s,mstem)
+		applyCmd x (CmdInputSelLock idx) =
+		    Right $ ([lockIndexChar idx], Nothing)
+		applyCmd x (CmdInputSelUndecl (Undeclared _ _ (ActiveLock name idx))) =
+		    Right $ (name++[':',lockIndexChar idx], Nothing)
+		applyCmd x (CmdInputCodename name) =
+		    Right $ (name, Nothing)
 		applyCmd x CmdRedraw = Right x
 		applyCmd _ _ = Left False
 	completes s s' = take (length s) s' == s

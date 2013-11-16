@@ -16,6 +16,7 @@ data Command = CmdDir WrHoSel HexDir | CmdRotate TorqueDir | CmdWait
 	| CmdUndo | CmdRedo
 	| CmdReplayForward Int | CmdReplayBack Int
 	| CmdInputChar Char
+	| CmdInputSelLock LockIndex | CmdInputCodename Codename | CmdInputSelUndecl Undeclared
 	| CmdWriteState
 	| CmdTutorials
 	| CmdShowRetired | CmdPlayLockSpec (Maybe LockSpec)
