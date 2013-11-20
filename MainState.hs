@@ -64,12 +64,14 @@ data MainState
 	, psUndoneStack::[(GameState, PlayerMove)]
 	, psTitle::Maybe String
 	, psIsSub::Bool
+	, psMarks::Map Char MainState
 	}
     | ReplayState
 	{ rsCurrentState::GameState
 	, rsMoveStack::[PlayerMove]
 	, rsGameStateMoveStack::[(GameState, PlayerMove)]
 	, rsTitle::Maybe String
+	, rsMarks::Map Char MainState
 	}
     | EditState
 	{ esGameStateStack::[GameState]
@@ -100,8 +102,8 @@ data MainState
 	, listOffset :: Int
 	}
 
-newPlayState (frame,st) title sub = PlayState st frame [] False False [] [] title sub
-newReplayState st soln title = ReplayState st soln [] title
+newPlayState (frame,st) title sub = PlayState st frame [] False False [] [] title sub Map.empty
+newReplayState st soln title = ReplayState st soln [] title Map.empty
 newEditState (frame,st) msoln mpath = EditState [st] [] frame mpath
     ((\s->(st,s))<$>msoln) (Just st) Nothing (PHS zero) (PHS zero) Map.empty
 initMetaState = do

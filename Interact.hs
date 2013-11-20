@@ -50,6 +50,7 @@ interactUI = do
 	testAuth
 	refreshUInfoUI
 	)
+    setMark '0'
     loop
 
     where
@@ -95,6 +96,18 @@ processCommand' :: UIMonad uiM => InputMode -> Command -> StateT MainState uiM (
 processCommand' im CmdHelp = lift $ showHelp im
 processCommand' _ CmdSuspend = lift $ suspend
 processCommand' _ CmdRedraw = lift $ redraw
+processCommand' im CmdMark = void.runMaybeT $ do
+    guard $ im `elem` [IMEdit, IMPlay, IMReplay]
+    str <- MaybeT $ lift $ textInput "Mark: " 1 False True Nothing Nothing
+    ch <- MaybeT $ return $ listToMaybe str
+    guard $ ch `notElem` ['0', '\'']
+    lift $ setMark ch
+processCommand' im CmdJumpMark = void.runMaybeT $ do
+    guard $ im `elem` [IMEdit, IMPlay, IMReplay]
+    str <- MaybeT $ lift $ textInput
+	"Jump to mark ('0' for starting state): " 1 False True Nothing Nothing
+    ch <- MaybeT $ return $ listToMaybe str
+    lift $ jumpMark ch
 processCommand' IMMeta (CmdSelCodename mname) = void.runMaybeT $ do
     name <- msum [ MaybeT $ return $ mname
 	, do
@@ -481,17 +494,6 @@ processCommand' IMEdit CmdMerge = do
 	    -- XXX: merging might invalidate selectedPiece
 	    modify $ \es -> es {selectedPiece = Nothing}
 	_ -> return ()
-processCommand' IMEdit CmdMark = void.runMaybeT $ do
-    str <- MaybeT $ lift $ textInput "Mark: " 1 False True Nothing Nothing
-    ch <- MaybeT $ return $ listToMaybe str
-    st:_ <- lift $ gets esGameStateStack
-    lift $ modify $ \es -> es {esMarks = Map.insert ch st $ esMarks es}
-processCommand' IMEdit CmdJumpMark = void.runMaybeT $ do
-    marks <- gets esMarks
-    str <- MaybeT $ lift $ textInput "Mark: " 1 False True (Just $ map (:[]) $ Map.keys marks) Nothing
-    ch <- MaybeT $ return $ listToMaybe str
-    st <- MaybeT $ return $ Map.lookup ch marks
-    lift $ pushEState st
 processCommand' IMEdit CmdWait = do
     selPos <- gets selectedPos
     selPiece <- gets selectedPiece

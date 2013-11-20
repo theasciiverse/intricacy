@@ -106,6 +106,30 @@ declare undecl@(Undeclared soln ls al) = do
 	mapM_ invalidateUInfo [lockOwner al, ourName]
 	refreshUInfoUI
 
+jumpMark :: UIMonad uiM => Char -> StateT MainState uiM ()
+jumpMark ch = do
+    mst <- get
+    void.runMaybeT $ case ms2im mst of
+	IMEdit -> do
+	    st <- MaybeT $ return $ ch `Map.lookup` esMarks mst
+	    lift $ setMark '\'' >> pushEState st
+	IMPlay -> do
+	    mst' <- MaybeT $ return $ ch `Map.lookup` psMarks mst
+	    put mst' { psMarks = Map.insert '\'' mst $ psMarks mst }
+	IMReplay -> do
+	    mst' <- MaybeT $ return $ ch `Map.lookup` rsMarks mst
+	    put mst' { rsMarks = Map.insert '\'' mst $ rsMarks mst }
+	_ -> return ()
+
+setMark :: (Monad m) => Char -> StateT MainState m ()
+setMark ch = get >>= \mst -> case mst of
+    -- ugh... remind me why I'm not using lens?
+    EditState { esMarks = marks, esGameStateStack = (st:_) } ->
+	put $ mst { esMarks = Map.insert ch st marks }
+    PlayState {} -> put $ mst { psMarks = Map.insert ch mst $ psMarks mst }
+    ReplayState {} -> put $ mst { rsMarks = Map.insert ch mst $ rsMarks mst }
+    _ -> return ()
+
 askLockIndex prompt failMessage pred = do
     let ok = filter pred [0,1,2]
     case length ok of
