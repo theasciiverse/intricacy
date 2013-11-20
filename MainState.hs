@@ -219,6 +219,7 @@ refreshUInfoUI = void.runMaybeT $ do
     ourName <- mgetOurName
     modify $ \ms -> ms { listOffset = 0 }
     when (ourName == name) $ getRandomNames >> lift purgeInvalidUndecls
+    lift $ modify $ \ms -> ms {retiredLocks = Nothing}
     lift.lift $ drawMessage ""
     where
 	getRandomNames = do
