@@ -52,22 +52,27 @@ instance UIMonad (StateT UIState IO) where
 	    drawMsgLine
 	    refresh
 	where
-	drawMainState' (PlayState st _ alerts wsel solved stack undostack title _) = lift $ do
-	    let selTools = [ idx |
-		    (idx, PlacedPiece pos p) <- enumVec $ placedPieces st
-		    , or [wsel && isWrench p, not wsel && isHook p] ]
-	    drawMainGameState selTools False alerts st
-	    registerUndoButtons (null stack) (null undostack)
-	drawMainState' (ReplayState st todostack stack title) = lift $ do
-	    drawMainGameState [] False [] st
-	    registerUndoButtons (null stack) (null todostack)
-	    renderToMain $ drawCursorAt Nothing
-	drawMainState' (EditState (st:sts) undostack _ _ _ _ selPiece selPos _ marks) = lift $ do
+	drawMainState' (PlayState { psCurrentState=st, psLastAlerts=alerts, wrenchSelected=wsel }) = do
+	    canUndo <- null <$> gets psGameStateMoveStack
+	    canRedo <- null <$> gets psUndoneStack
+	    lift $ do
+		let selTools = [ idx |
+			(idx, PlacedPiece pos p) <- enumVec $ placedPieces st
+			, or [wsel && isWrench p, not wsel && isHook p] ]
+		drawMainGameState selTools False alerts st
+		registerUndoButtons canUndo canRedo
+	drawMainState' (ReplayState { rsCurrentState=st } ) = do
+	    canUndo <- null <$> gets rsGameStateMoveStack
+	    canRedo <- null <$> gets rsMoveStack
+	    lift $ do
+		drawMainGameState [] False [] st
+		registerUndoButtons canUndo canRedo
+		renderToMain $ drawCursorAt Nothing
+	drawMainState' (EditState { esGameStateStack=(st:sts), esUndoneStack=undostack,
+		selectedPiece=selPiece, selectedPos=selPos }) = lift $ do
 	    drawMainGameState (maybeToList selPiece) True [] st
 	    renderToMain $ drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
 	    registerUndoButtons (null sts) (null undostack)
-	    unless (Map.null marks) $ registerButtonGroup $ singleButton
-		(periphery 2 <+> hw <+> neg hu) CmdJumpMark 0
 	    when (isJust selPiece) $ mapM_ registerButtonGroup
 		[ singleButton (periphery 2 <+> 3<*>hw<+>hu) CmdDelete 0
 		-- , singleButton (periphery 2 <+> 3<*>hw) CmdMerge 4

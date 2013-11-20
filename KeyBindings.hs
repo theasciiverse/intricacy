@@ -81,6 +81,8 @@ miscLockGlobal = lowerToo
     , (ctrl 'U', CmdUndo)
     , ('.', CmdWait)
     , ('Z', CmdWait)
+    , ('M', CmdMark)
+    , ('\'', CmdJumpMark)
     ]
 
 miscGlobal = lowerToo
@@ -114,8 +116,6 @@ editMisc = lowerToo
     , ('T', CmdTest)
     , ('W', CmdWriteState)
     , (ctrl 'S', CmdWriteState)
-    , ('M', CmdMark)
-    , ('\'', CmdJumpMark)
     , ('&', CmdMerge)
     , ('E', CmdDelete)
     ]
