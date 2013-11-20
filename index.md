@@ -10,6 +10,8 @@ Free software, released under the GPLv3.
 
 ##Download
 
+Latest version is 0.2.1 [NEWS]
+
 * Source:
      - ` git clone http://mbays.freeshell.org/intricacy/.git && cd intricacy `
      - see README for compilation instructions

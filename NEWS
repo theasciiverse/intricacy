@@ -1,0 +1,16 @@
+0.2.1:
+    New features:
+	The "reset tools" command has become a "test lock" command. Successful
+	    tests are saved along with the lock, meaning you can then place the
+	    lock without having to test it again.
+
+	You can now use marks in 'play' mode, and there's a default mark for the
+	    initial state, effectively giving a "reset" command.
+
+    Bugs fixed: 
+	stale notes weren't getting refreshed
+	retired display got stuck on changing codename
+	you couldn't move into the bolthole with keyboard commands
+    
+0.2:
+    First public release
