@@ -41,7 +41,7 @@ setup = do
 	msum [ do
 	    path <- MaybeT $ (Just <$> canonicalizePath rpath)
 			`catchIO` (const $ return Nothing)
-	    lock <- reframe <$> MaybeT (readLock path)
+	    lock <- reframe.fst <$> MaybeT (readLock path)
 	    return (Just lock,opts,Just path)
 	    , do
 		lift $ putStrLn $ "Failed to open lock file: "++rpath
@@ -56,7 +56,7 @@ main' msdlUI mcursesUI = do
     (mlock,opts,mpath) <- setup
     initMState <- case mlock of
 	    Nothing -> initMetaState
-	    Just lock -> return $ newEditState lock mpath
+	    Just lock -> return $ newEditState lock Nothing mpath
     void $ runMaybeT $ msum [ do
 	    finalState <- msum 
 		[ do

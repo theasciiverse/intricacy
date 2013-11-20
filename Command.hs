@@ -12,7 +12,7 @@ data Command = CmdDir WrHoSel HexDir | CmdRotate TorqueDir | CmdWait
 	| CmdSelect | CmdUnselect
 	| CmdDelete | CmdMerge
 	| CmdMark | CmdJumpMark
-	| CmdPlay | CmdResetTools
+	| CmdPlay | CmdTest
 	| CmdUndo | CmdRedo
 	| CmdReplayForward Int | CmdReplayBack Int
 	| CmdInputChar Char
@@ -50,7 +50,7 @@ describeCommand CmdSelect = "select piece"
 describeCommand CmdUnselect = "unselect piece"
 describeCommand CmdDelete = "delete piece"
 describeCommand CmdPlay = "play lock"
-describeCommand CmdResetTools = "reset tools"
+describeCommand CmdTest = "test lock"
 describeCommand CmdUndo = "undo"
 describeCommand CmdRedo = "redo"
 describeCommand (CmdReplayForward _) = "advance replay"

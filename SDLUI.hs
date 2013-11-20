@@ -103,7 +103,7 @@ getButtons mode = do
     cntxtButtons <- gets contextButtons
     return $ cntxtButtons ++ case mode of 
 	IMEdit -> [
-	    singleButton (tl<+>hv) CmdResetTools 4
+	    singleButton (tl<+>hv) CmdTest 4
 	    , singleButton (tl<+>(neg hw)) CmdPlay 2
 	    , singleButton (tl<+>hw) CmdMark 4
 	    , ([quitButton, Button (br<+>2<*>hu) CmdWriteState],(0,2))

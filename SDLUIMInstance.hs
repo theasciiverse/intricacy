@@ -62,7 +62,7 @@ instance UIMonad (StateT UIState IO) where
 	    drawMainGameState [] False [] st
 	    registerUndoButtons (null stack) (null todostack)
 	    renderToMain $ drawCursorAt Nothing
-	drawMainState' (EditState (st:sts) undostack _ _ _ selPiece selPos _ marks) = lift $ do
+	drawMainState' (EditState (st:sts) undostack _ _ _ _ selPiece selPos _ marks) = lift $ do
 	    drawMainGameState (maybeToList selPiece) True [] st
 	    renderToMain $ drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
 	    registerUndoButtons (null sts) (null undostack)
@@ -73,14 +73,14 @@ instance UIMonad (StateT UIState IO) where
 		-- , singleButton (periphery 2 <+> 3<*>hw) CmdMerge 4
 		]
 	    drawPaintButtons
-	drawMainState' (MetaState saddr undecls cOnly auth names _ _ rnamestvar _ _ mretired path lock offset) = do
+	drawMainState' (MetaState saddr undecls cOnly auth names _ _ rnamestvar _ _ mretired path mlock offset) = do
 	    let ourName = authUser <$> auth
 	    let selName = listToMaybe names
 	    let home = isJust ourName && ourName == selName
 	    lift $ renderToMain $ (erase >> drawCursorAt Nothing)
 	    lift $ maybe (drawEmptyMiniLock miniLockPos)
 		((registerSelectable miniLockPos 3 SelOurLock >>) . flip drawMiniLock miniLockPos)
-		lock
+		(fst<$>mlock)
 	    lift $ do
 		smallFont <- gets dispFontSmall
 		renderToMain $ withFont smallFont $ renderStrColAtLeft messageCol
@@ -123,8 +123,9 @@ instance UIMonad (StateT UIState IO) where
 				when (isJust $ msum $ elems $ userLocks uinfo) $ lift $ do
 				    registerButtonGroup
 					([ Button mmiscpos (CmdSolve Nothing), Button (mmiscpos<+>hu) (CmdViewSolution Nothing)], (2,2))
-				when (isJust lock && home) $ lift $ registerButtonGroup $
-					singleButton (miniLockPos <+> 2<*>hv <+> neg hu) (CmdPlaceLock Nothing) 0
+				let tested = maybe False (isJust.snd) mlock
+				when (isJust mlock && home) $ lift $ registerButtonGroup $
+					singleButton (miniLockPos <+> 2<*>hv <+> neg hu) (CmdPlaceLock Nothing) $ if tested then 2 else 0
 				lift $ registerButtonGroup $ singleButton retiredPos CmdShowRetired pubWheelAngle
 
 	    when home $ do

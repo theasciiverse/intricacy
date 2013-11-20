@@ -217,11 +217,18 @@ monoToTile _ = Nothing
 minmax :: Ord a => [a] -> (a,a)
 minmax = minimum &&& maximum
 
-readAsciiLockFile :: FilePath -> IO (Maybe Lock)
-readAsciiLockFile path =
-    (lockOfAscii <$> readStrings path)
-	`catchIO` (const $ return Nothing)
+readAsciiLockFile :: FilePath -> IO (Maybe Lock, Maybe Solution)
+readAsciiLockFile path = flip catchIO (const $ return (Nothing,Nothing)) $ do
+    lines <- readStrings path
+    return $ fromMaybe (lockOfAscii lines, Nothing) $ do
+	    guard $ length lines > 2
+	    let (locklines, [header,solnLine]) = splitAt (length lines - 2) lines
+	    guard $ isPrefixOf "Solution:" header
+	    return (lockOfAscii locklines, tryRead solnLine)
 
-writeAsciiLockFile :: FilePath -> Lock -> IO ()
-writeAsciiLockFile path lock = do
-    writeStrings path $ lockToAscii lock
+writeAsciiLockFile :: FilePath -> Maybe Solution -> Lock -> IO ()
+writeAsciiLockFile path msoln lock = do
+    writeStrings path $ lockToAscii lock ++ case msoln of
+	Nothing -> []
+	Just soln -> ["Solution:", show soln]
+

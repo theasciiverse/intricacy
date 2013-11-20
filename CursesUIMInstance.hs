@@ -160,7 +160,7 @@ instance UIMonad (StateT UIState IO) where
 	drawMainState' (ReplayState st _ _ title) = lift $ do
 	    drawState [] False [] st
 	    drawCursorAt Nothing
-	drawMainState' (EditState (st:_) _ _ _ _ selPiece selPos _ _) = lift $ do
+	drawMainState' (EditState (st:_) _ _ _ _ _ selPiece selPos _ _) = lift $ do
 	    drawState (maybeToList selPiece) True [] st
 	    drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
 	drawMainState' (MetaState saddr undecls cOnly auth names _ _ rnamestvar _ _ mretired path lock _) = do

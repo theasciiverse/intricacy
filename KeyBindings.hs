@@ -111,7 +111,7 @@ editMisc = lowerToo
     , (' ', CmdSelect)
     , ('\r', CmdSelect)
     , ('\n', CmdSelect)
-    , ('T', CmdResetTools)
+    , ('T', CmdTest)
     , ('W', CmdWriteState)
     , (ctrl 'S', CmdWriteState)
     , ('M', CmdMark)

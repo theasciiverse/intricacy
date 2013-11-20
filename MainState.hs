@@ -76,6 +76,7 @@ data MainState
 	, esUndoneStack::[GameState]
 	, esFrame::Frame
 	, esPath::Maybe FilePath
+	, esTested::Maybe (GameState,Solution)
 	, lastSavedState::Maybe GameState
 	, selectedPiece::Maybe PieceIdx
 	, selectedPos::HexPos
@@ -95,13 +96,14 @@ data MainState
 	, indexedLocks :: Map LockSpec (TVar FetchedRecord)
 	, retiredLocks :: Maybe [LockSpec]
 	, curLockPath :: FilePath
-	, curLock :: Maybe Lock
+	, curLock :: Maybe (Lock,Maybe Solution)
 	, listOffset :: Int
 	}
 
 newPlayState (frame,st) title sub = PlayState st frame [] False False [] [] title sub
 newReplayState st soln title = ReplayState st soln [] title
-newEditState (frame,st) mpath = EditState [st] [] frame mpath (Just st) Nothing (PHS zero) (PHS zero) Map.empty
+newEditState (frame,st) msoln mpath = EditState [st] [] frame mpath
+    ((\s->(st,s))<$>msoln) (Just st) Nothing (PHS zero) (PHS zero) Map.empty
 initMetaState = do
     flag <- atomically $ newTVar False
     errtvar <- atomically $ newTVar Nothing
@@ -112,13 +114,16 @@ initMetaState = do
     undecls <- if nullSaddr saddr then return [] else
 	confFilePath ("undeclared" ++ [pathSeparator] ++ saddrStr saddr) >>=
 	liftM (fromMaybe []) . readReadFile
-    lock <- fullLockPath path >>= readLock
-    return $ MetaState saddr undecls False auth names flag errtvar rnamestvar Map.empty Map.empty Nothing path lock 0
+    mlock <- fullLockPath path >>= readLock
+    return $ MetaState saddr undecls False auth names flag errtvar rnamestvar Map.empty Map.empty Nothing path mlock 0
 
-readLock :: FilePath -> IO (Maybe Lock)
+readLock :: FilePath -> IO (Maybe (Lock, Maybe Solution))
 readLock path = runMaybeT $ msum
-	[ MaybeT $ readReadFile path
-	, MaybeT $ readAsciiLockFile path ]
+	[ (\l->(l,Nothing)) <$> (MaybeT $ readReadFile path)
+	, do
+	    (mlock,msoln) <- lift $ readAsciiLockFile path
+	    lock <- MaybeT $ return mlock
+	    return $ (lock,msoln) ]
 -- writeLock :: FilePath -> Lock -> IO ()
 -- writeLock path lock = fullLockPath path >>= flip writeReadFile lock
 fullLockPath path = if isAbsolute path
@@ -142,14 +147,23 @@ getTitle = ms2im <$> get >>= \im -> case im of
     IMEdit -> do
 	mpath <- gets esPath
 	unsaved <- editStateUnsaved <$> get
+	isTested <- isJust <$> getCurTestSoln
 	return $ Just $ "editing " ++ fromMaybe "[unnamed lock]" mpath ++ 
-	    if unsaved then " [+]" else "    "
+	    (if isTested then " (Tested)" else "") ++
+	    (if unsaved then " [+]" else "    ")
     IMPlay -> gets psTitle
     IMReplay -> gets rsTitle
     _ -> return Nothing
 
 editStateUnsaved (EditState { lastSavedState=Just st, esGameStateStack=st':_ }) = st /= st'
 editStateUnsaved (EditState { lastSavedState=Nothing }) = True
+
+getCurTestSoln :: UIMonad uiM => StateT MainState uiM (Maybe Solution)
+getCurTestSoln = runMaybeT $ do
+    (st',soln) <- MaybeT $ gets esTested
+    st <- lift $ gets $ head.esGameStateStack
+    guard $ st == st'
+    return soln
 
 instance Error () where noMsg = ()
 

@@ -273,14 +273,15 @@ processCommand' IMMeta (CmdViewSolution mnote) = void.runMaybeT $ do
 processCommand' IMMeta (CmdPlaceLock midx) = void.runMaybeT $ do
     ourName <- mgetOurName
     mgetCurName >>= guard . (== ourName)
-    lock <- MaybeT $ gets curLock
+    (lock,msoln) <- MaybeT $ gets curLock
     ourUInfo <- mgetUInfo ourName
     idx <- msum [ MaybeT $ return midx
 	, askLockIndex "Place where?" "bug" $ const True
 	]
     when (isJust $ userLocks ourUInfo ! idx) $
 	confirmOrBail "Really retire existing lock?"
-    soln <- solveLock lock $ Just $ "Prove your lock is solvable."
+    soln <- msum [ MaybeT $ return msoln,
+	solveLock lock $ Just $ "Prove your lock is solvable." ]
     lift $ do 
 	curServerActionAsync $ SetLock lock idx soln
 	invalidateUInfo ourName
@@ -300,7 +301,7 @@ processCommand' IMMeta CmdNextPage =
 processCommand' IMMeta CmdPrevPage =
     modify $ \ms -> ms { listOffset = max 0 $ listOffset ms - 1 }
 processCommand' IMMeta CmdEdit = void.runMaybeT $ do
-    lock <- msum [ MaybeT $ gets curLock
+    (lock, msoln) <- msum [ MaybeT $ gets curLock
 	, do
 	    frame <- BasicFrame <$> msum [ do
 		    _ <- gets curServer
@@ -313,11 +314,11 @@ processCommand' IMMeta CmdEdit = void.runMaybeT $ do
 		    guard $ 3 <= size && size <= maxlocksize
 		    return size
 		]
-	    return (frame, baseState frame)
+	    return ((frame, baseState frame), Nothing)
 	]
     path <- lift $ gets curLockPath
     newPath <- MaybeT $ lift $ (esPath <$>) $ execStateT interactUI $ newEditState (reframe lock)
-	(if null path then Nothing else Just path)
+	msoln (if null path then Nothing else Just path)
     lift $ setLockPath newPath
 processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
     tutdir <- liftIO $ getDataPath "tutorial"
@@ -331,7 +332,7 @@ processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
     guard $ 1 <= i && i <= length tuts
     let dotut i = do
 	let name = tuts !! (i-1)
-	lock <- MaybeT $ liftIO $ readLock (tutdir ++ [pathSeparator] ++ name)
+	(lock,_) <- MaybeT $ liftIO $ readLock (tutdir ++ [pathSeparator] ++ name)
 	_ <- solveLock lock $ Just $ "Tutorial: "++ name
 	guard $ i+1 <= length tuts
 	confirmOrBail $ "Tutorial level completed! Play next tutorial level (" ++ show (i+1) ++ ")?"
@@ -413,9 +414,15 @@ processCommand' IMEdit CmdPlay = do
     frame <- gets esFrame
     modify $ \es -> es {selectedPiece = Nothing}
     subPlay (frame,st)
-processCommand' IMEdit CmdResetTools = do
+processCommand' IMEdit CmdTest = do
     frame <- gets esFrame
     modifyEState (\st -> snd $ canonify (frame, st))
+    modify $ \es -> es {selectedPiece = Nothing}
+    mpath <- gets esPath
+    st <- gets $ head.esGameStateStack
+    void.runMaybeT $ do
+	soln <- solveLock (frame,st) $ Just $ "Testing " ++ fromMaybe "[unnamed lock]" mpath
+	lift $ modify $ \es -> es { esTested = Just (st, soln) }
 processCommand' IMEdit CmdUndo = do
     st:sts <- gets esGameStateStack
     usts <- gets esUndoneStack
@@ -510,7 +517,8 @@ processCommand' IMEdit CmdWriteState = void.runMaybeT $ do
     lift $ do
 	st <- gets $ head.esGameStateStack
 	frame <- gets esFrame
-	merr <- liftIO $ ((writeAsciiLockFile fullPath $ canonify (frame, st)) >> return Nothing)
+	msoln <- getCurTestSoln
+	merr <- liftIO $ ((writeAsciiLockFile fullPath msoln $ canonify (frame, st)) >> return Nothing)
 	    `catchIO` (return . Just . show)
 	modify $ \es -> es {lastSavedState = Just st}
 	case merr of
