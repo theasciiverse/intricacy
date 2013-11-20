@@ -450,7 +450,7 @@ processCommand' IMEdit (CmdDir _ dir) = do
     selPiece <- gets selectedPiece
     frame <- gets esFrame
     case selPiece of
-	Nothing -> modify $ \es -> es {selectedPos = checkBounds frame selPos $ dir <+> selPos}
+	Nothing -> modify $ \es -> es {selectedPos = checkEditable frame selPos $ dir <+> selPos}
 	Just p -> doForce $ Push p dir
 processCommand' IMEdit (CmdMoveTo newPos) = do
     frame <- gets esFrame

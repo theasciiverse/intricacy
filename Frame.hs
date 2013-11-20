@@ -59,12 +59,16 @@ boltArea f = map PHS
 
 inBounds :: Frame -> HexPos -> Bool
 inBounds f pos = hexLen (pos <-> origin) < frameSize f
+inEditable :: Frame -> HexPos -> Bool
+inEditable f pos = inBounds f pos || pos `elem` boltArea f ++ [PHS $ bolthole f]
 checkBounds :: Frame -> HexPos -> HexPos -> HexPos
 checkBounds f def pos = if inBounds f pos then pos else def
+checkEditable :: Frame -> HexPos -> HexPos -> HexPos
+checkEditable f def pos = if inEditable f pos then pos else def
 truncateToBounds,truncateToEditable :: Frame -> HexPos -> HexPos
 truncateToBounds f pos@(PHS v) = PHS $ truncateToLength (frameSize f - 1) v
 truncateToEditable f pos@(PHS v) = if inBounds f pos
     then pos
     else let pos' = PHS $ truncateToLength (frameSize f + boltWidth f - 1) v
-	in if pos' `elem` boltArea f ++ [PHS $ bolthole f]
+	in if inEditable f pos'
 	    then pos' else truncateToBounds f pos'
