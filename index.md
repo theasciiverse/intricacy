@@ -18,6 +18,7 @@ Latest version is 0.2.1 [NEWS]
      - please mail me <mbays@sdf.org> if it fails!
 * [Windows binary](intricacy-latest-win32.zip)
 * [Linux binary](intricacy-latest-linux-i686-glibc-2.14.tgz)
+* [Old versions](old)
 
 ##Screenshots
 [![Metagame](screenshots/metagame.small.png)](screenshots/metagame.png)
