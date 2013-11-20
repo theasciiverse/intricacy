@@ -61,6 +61,7 @@ invariantRecord (RecUserInfo _) = False
 invariantRecord (RecUserInfoLog _) = False
 invariantRecord (RecPassword _) = False
 invariantRecord (RecRetiredLocks _) = False
+invariantRecord (RecNote _) = False
 invariantRecord _ = True
 
 askForRecord RecServerInfo = GetServerInfo
