@@ -221,7 +221,7 @@ instance UIMonad (StateT UIState IO) where
 	oldUIState <- get
 	cmds <- concat <$> mapM processEvent events
 	newUIState <- get
-	return $ cmds ++ if uistatesMayVisiblyDiffer oldUIState newUIState then [CmdRedraw] else []
+	return $ cmds ++ if uistatesMayVisiblyDiffer oldUIState newUIState then [CmdRefresh] else []
 	where
 	    uistatesMayVisiblyDiffer uis1 uis2 =
 		uis1 { mousePos = (zero,False), lastFrameTicks=0 }

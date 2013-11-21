@@ -28,7 +28,7 @@ data Command = CmdDir WrHoSel HexDir | CmdRotate TorqueDir | CmdWait
 	| CmdEdit | CmdPlaceLock (Maybe LockIndex)
 	| CmdRegister | CmdAuth
 	| CmdNextPage | CmdPrevPage
-	| CmdRedraw | CmdSuspend
+	| CmdRedraw | CmdRefresh | CmdSuspend
 	| CmdQuit 
 	| CmdHelp
 	| CmdNone

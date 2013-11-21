@@ -284,7 +284,8 @@ instance UIMonad (StateT UIState IO) where
 		Curses.KeyPPage -> Just '9'
 		Curses.KeyEnd -> Just '1'
 		_ -> Nothing
+	    unblockBinding = (toEnum 0, CmdRefresh) -- c.f. unblockInput above
 	flip (maybe $ return []) mch $ \ch ->
 	    if mode == IMTextInput
 	    then return [CmdInputChar ch]
-	    else (maybeToList . lookup ch) <$> getBindings mode
+	    else (maybeToList . lookup ch . (unblockBinding:)) <$> getBindings mode
