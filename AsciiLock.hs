@@ -116,7 +116,8 @@ asciiBoardState frame board =
 	addAppendageOT st (pos,(-1,SpringTile extn dir)) =
 	    let rpos = (neg dir<+>pos)
 	    in case Map.lookup rpos baseBoard of
-		Just (ridx,BlockTile _) -> do
+		Just (_,SpringTile _ _) -> Just st
+		Just (ridx,tile) -> do
 		    (_,epos) <- castRay pos dir baseBoard
 		    let twiceNatLen = sum [ extnValue extn
 			    | i <- [1..hexLen (epos<->rpos)-1]
