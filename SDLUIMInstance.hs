@@ -271,11 +271,11 @@ instance UIMonad (StateT UIState IO) where
 			++ [ (modify $ \s -> s {paintTileIndex = i}) >> return []
 			    | i <- take (length paintTiles) [0..]
 			    , mPos == paintButtonStart <+> i<*>hv ]
-			++ [ toggleUIOption uiOB1 >> return []
+			++ [ toggleUIOption uiOB1 >> updateHoverStr >> return []
 			    | mPos == uiOptPos uiOB1 ]
-			++ [ toggleUIOption uiOB2 >> return []
+			++ [ toggleUIOption uiOB2 >> updateHoverStr >> return []
 			    | mPos == uiOptPos uiOB2 ]
-			++ [ toggleUIOption uiOB3 >> return []
+			++ [ toggleUIOption uiOB3 >> updateHoverStr >> return []
 			    | mPos == uiOptPos uiOB3 ]
 
 		if rb
@@ -357,8 +357,17 @@ instance UIMonad (StateT UIState IO) where
 		let newPos = (mPos,isCentral)
 		oldPos <- gets mousePos
 		when (newPos /= oldPos) $ do
-		    hstr <- (describeCommand<$>) <$> cmdAtMousePos newPos mode Nothing
-		    modify $ \ds -> ds { mousePos = newPos, hoverStr = hstr }
+		    modify $ \ds -> ds { mousePos = newPos }
+		    updateHoverStr
+
+	    updateHoverStr = do
+		p@(mPos,isCentral) <- gets mousePos
+		hstr <- runMaybeT $ msum
+		    [ MaybeT $ (describeCommand<$>) <$> cmdAtMousePos p mode Nothing
+		    , guard (mPos == uiOptPos uiOB1) >> describeUIOptionButton uiOB1
+		    , guard (mPos == uiOptPos uiOB2) >> describeUIOptionButton uiOB2
+		    , guard (mPos == uiOptPos uiOB3) >> describeUIOptionButton uiOB3 ]
+		modify $ \ds -> ds { hoverStr = hstr }
 
 fillArea :: HexVec -> [HexVec] -> [HexVec -> StateT MainState UIM ()] -> StateT MainState UIM () 
 fillArea centre area draws = do

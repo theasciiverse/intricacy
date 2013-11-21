@@ -214,15 +214,23 @@ cmdAtMousePos pos@(mPos,central) im selMode = do
 	    | Just sel <- [Map.lookup mPos sels] ]) selMode
 
 data UIOptButton a = UIOptButton { getUIOpt::UIOptions->a, setUIOpt::a->UIOptions->UIOptions,
-    uiOptVals::[a], uiOptPos::HexVec, uiOptGlyph::a->Glyph }
+    uiOptVals::[a], uiOptPos::HexVec, uiOptGlyph::a->Glyph, uiOptDescr::a->String }
 
 -- non-uniform type, so can't use a list...
 uiOB1 = UIOptButton useFiveColouring (\v o -> o {useFiveColouring=v}) [True,False]
 	(periphery 0 <+> 2 <*> neg hw <+> neg hv) useFiveColourButton
+	(\v -> if v then "Adjacent pieces get different colours" else
+	"Pieces are coloured according to type")
 uiOB2 = UIOptButton showBlocks (\v o -> o {showBlocks=v}) [True,False]
 	(periphery 0 <+> 2 <*> neg hw <+> 3 <*> neg hv) showBlocksButton
+	(\v -> if v then "Blocked and blocking forces are annotated" else
+	"Blockage annotations disabled")
 uiOB3 = UIOptButton whsButtons (\v o -> o {whsButtons=v}) [WHSSelected, WHSWrench, WHSHook]
 	(periphery 3 <+> 3 <*> hv) whsButtonsButton
+	(\v -> "Showing buttons for controlling " ++ case v of
+	    WHSSelected -> "selected tool"
+	    WHSWrench -> "wrench"
+	    WHSHook -> "hook")
 
 drawUIOptionButtons :: InputMode -> UIM ()
 drawUIOptionButtons mode = when (mode `elem` [IMPlay, IMEdit]) $ do
@@ -233,8 +241,11 @@ drawUIOptionButton b = do
     value <- gets $ (getUIOpt b).uiOptions
     renderToMain $ mapM_ (\g -> drawAtRel g (uiOptPos b))
 	[hollowGlyph $ obscure $ colourWheel 5, uiOptGlyph b value]
+describeUIOptionButton b = do
+    value <- gets $ (getUIOpt b).uiOptions
+    return $ uiOptDescr b value
 -- XXX: hand-hacking lenses...
-toggleUIOption (UIOptButton getopt setopt vals _ _) = do
+toggleUIOption (UIOptButton getopt setopt vals _ _ _) = do
     value <- gets $ getopt.uiOptions
     let value' = head $ drop (1 + (fromMaybe 0 $ elemIndex value vals)) $ cycle vals
     modifyUIOptions $ setopt value'

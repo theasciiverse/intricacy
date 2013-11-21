@@ -223,7 +223,7 @@ useFiveColourButton using centre size surf = do
 
 showBlocksButton :: Bool -> Glyph
 showBlocksButton showing centre size surf = do
-    tileGlyph (BlockTile []) (dim $ colourWheel 0) centre size surf
+    tileGlyph (BlockTile []) (dim red) centre size surf
     when showing $ blockedPush hu (bright orange) centre size surf
 
 whsButtonsButton :: WrHoSel -> Glyph
@@ -242,7 +242,7 @@ cursor :: Glyph
 cursor = hollowGlyph $ bright white
 
 unfreshGlyph centre@(SVec x y) size surf = do
-    let col = bright $ colourWheel 0
+    let col = bright red
     hollowInnerGlyph col centre size surf
     sequence_ [pixel surf (fromIntegral $ x+(i*size`div`4)) (fromIntegral y) col
 	| i <- [-1..1] ]
@@ -267,6 +267,13 @@ colourWheel n = Pixel $ (((((r * 0x100) + g) * 0x100) + b) * 0x100) + a
 	  colourWheel' 0 = [True, False, False]
 	  colourWheel' 1 = [True, True, False]
 	  colourWheel' n = let [a,b,c] = colourWheel' $ n-2 in [c,a,b]
+
+red = colourWheel 0
+yellow = colourWheel 1
+green = colourWheel 2
+cyan = colourWheel 3
+blue = colourWheel 4
+purple = colourWheel 5
 
 colourOf colouring idx = 
     case Map.lookup idx colouring of
