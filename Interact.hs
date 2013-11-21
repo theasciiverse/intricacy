@@ -82,7 +82,7 @@ processCommand im CmdQuit = do
     case im of
 	IMReplay -> throwError $ InteractSuccess False
 	IMPlay -> lift (gets psIsSub) >>= flip when (throwError $ InteractSuccess False)
-	IMEdit -> editStateUnsaved <$> get >>= flip unless (throwError $ InteractSuccess True)
+	IMEdit -> lift editStateUnsaved >>= flip unless (throwError $ InteractSuccess True)
 	_ -> return ()
     really <- lift $ lift $ confirm "Really quit?"
     when really $ throwError $ InteractSuccess False
@@ -522,7 +522,7 @@ processCommand' IMEdit CmdWriteState = void.runMaybeT $ do
 	msoln <- getCurTestSoln
 	merr <- liftIO $ ((writeAsciiLockFile fullPath msoln $ canonify (frame, st)) >> return Nothing)
 	    `catchIO` (return . Just . show)
-	modify $ \es -> es {lastSavedState = Just st}
+	modify $ \es -> es {lastSavedState = Just (st,isJust msoln)}
 	case merr of
 	    Nothing -> modify $ \es -> es {esPath = Just newPath}
 	    Just err -> lift $ drawError $ "Write failed: "++err

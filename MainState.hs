@@ -79,7 +79,7 @@ data MainState
 	, esFrame::Frame
 	, esPath::Maybe FilePath
 	, esTested::Maybe (GameState,Solution)
-	, lastSavedState::Maybe GameState
+	, lastSavedState::Maybe (GameState, Bool)
 	, selectedPiece::Maybe PieceIdx
 	, selectedPos::HexPos
 	, lastModPos::HexPos
@@ -105,7 +105,7 @@ data MainState
 newPlayState (frame,st) title sub = PlayState st frame [] False False [] [] title sub Map.empty
 newReplayState st soln title = ReplayState st soln [] title Map.empty
 newEditState (frame,st) msoln mpath = EditState [st] [] frame mpath
-    ((\s->(st,s))<$>msoln) (Just st) Nothing (PHS zero) (PHS zero) Map.empty
+    ((\s->(st,s))<$>msoln) (Just (st, isJust msoln)) Nothing (PHS zero) (PHS zero) Map.empty
 initMetaState = do
     flag <- atomically $ newTVar False
     errtvar <- atomically $ newTVar Nothing
@@ -148,7 +148,7 @@ getTitle :: UIMonad uiM => StateT MainState uiM (Maybe String)
 getTitle = ms2im <$> get >>= \im -> case im of
     IMEdit -> do
 	mpath <- gets esPath
-	unsaved <- editStateUnsaved <$> get
+	unsaved <- editStateUnsaved
 	isTested <- isJust <$> getCurTestSoln
 	return $ Just $ "editing " ++ fromMaybe "[unnamed lock]" mpath ++ 
 	    (if isTested then " (Tested)" else "") ++
@@ -157,8 +157,13 @@ getTitle = ms2im <$> get >>= \im -> case im of
     IMReplay -> gets rsTitle
     _ -> return Nothing
 
-editStateUnsaved (EditState { lastSavedState=Just st, esGameStateStack=st':_ }) = st /= st'
-editStateUnsaved (EditState { lastSavedState=Nothing }) = True
+editStateUnsaved :: UIMonad uiM => StateT MainState uiM Bool
+editStateUnsaved = (isNothing <$>) $ runMaybeT $ do
+    (sst,tested) <- MaybeT $ gets lastSavedState
+    st <- lift $ gets $ head.esGameStateStack
+    guard $ sst == st
+    nowTested <- isJust <$> lift getCurTestSoln
+    guard $ tested == nowTested
 
 getCurTestSoln :: UIMonad uiM => StateT MainState uiM (Maybe Solution)
 getCurTestSoln = runMaybeT $ do
