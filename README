@@ -1,10 +1,11 @@
 Intricacy
 =========
-
 A game of competitive puzzle-design.
 
 http://mbays.freeshell.org/intricacy/
 
+Compiling
+=========
 Dependencies:
     EITHER
 	sdl
@@ -38,4 +39,158 @@ To compile for windows:
     properly. Good luck with that. The mingw32-compiled libraries in winlibs
     may or may not help.
 
-mbays@sdf.org
+To compile for OSX, or android or whatever else wacky system:
+    No idea, sorry. But please tell me if you manage!
+
+Playing
+=======
+Press 'T' on the starting screen to play the tutorials, which should lead you
+to discover the main game mechanics. Then select a codename with 'C', and
+register it with 'R'. The rest you can hopefully figure out, but see below if
+you'd rather read about it.
+
+Configuration
+=============
+You can change keybindings in SDL mode by right-clicking on the corresponding
+button and pressing a key.
+
+The buttons in the top right when solving/editing locks in SDL mode are as
+follows:
+    * The three hexes toggles between two modes for colouring pieces; in one
+	mode (three yellow hexes), the colours are determined by the nature of
+	the pieces; in the other mode, adjacent pieces always get different
+	colours.
+    * The lone hex with optional arrow toggles "blockage annotations". These
+	are there to help you figure out what's going on when you can't
+	understand why a piece refuses to move. An orange arrow indicates a
+	blocked forces, and a purple arrow a force which blocked another
+	force.
+
+Config files are saved in ~/.intricacy/ on unixoids, or something like
+"...\Application Data\intricacy" on windows. In particular, the locks you
+create in the lock editor are saved in there (and you can organise them into
+directories by including (back)slashs in the lock name). You can edit them in
+a text editor if you want - see AsciiLock.hs for what the characters mean.
+
+Full details of the metagame mechanics
+======================================
+(Where by the 'game' I mean the lock-picking bit, and by the 'metagame' I mean
+the bit with the 3-letter codenames and the three lock slots and notes and so
+on.)
+
+Scoring is always relative - each player has a score relative to each second
+player. That score is the number of the second player's lock slots to which
+the first player has access, minus the number of the first player's lock slots
+to which the second player has access.
+
+A player accesses a lock slot when one of the following holds
+    * there's no lock in the slot;
+    * the player has solved the lock in the slot, and declared the solution;
+    * the player has read three notes on the lock in the slot.
+
+A player reads every note in every lock the player accesses. When a lock is
+replaced ('retired'), each note secured by the lock becomes 'public', and is
+read by every player.
+
+Note this means that once three notes on a lock become public, every player
+accesses the lock. The lock is then 'public' (and its owner should replace
+it!).
+
+To declare a solution, you must secure a note on it behind a non-public lock
+in one of your three lock slots. Once the note is placed, it can't be moved.
+
+Full details of the game mechanics
+==================================
+Locks consist of blocks, pivots and balls. Blocks can be connected to other
+blocks by springs. Pivots have arms. When picking a lock, you control two
+tools - a hook, which acts as a mobile one-armed pivot, and a wrench, which
+acts as a mobile block with momentum.
+
+To open a lock, the "bolthole" (the area in the top-right) must be empty.
+
+Springs are directed; one of the blocks it is connected to is the 'root', the
+other the 'end'. A block is stationary if it is not the end of any spring. The
+directed graph whose nodes are the blocks and whose edges are the springs is
+required to be acyclic.
+
+I will now attempt to describe in full excrutiating detail the game physics,
+i.e. the algorithm used to determine what happens on a turn. You shouldn't
+need to read this to play the game! Experimenting and turning on blockage
+annotations should be enough.
+
+The following description corresponds to the code in Physics.hs. The algorithm
+is the result of an extended process of experiment and iterated
+simplification; see notes/game in the source distribution if you're perverse
+enough to want to read a scattered stream-of-consciousness account of the
+process.
+
+Each turn is separated into two phases. In the first phase, the forces arising
+from the player's move are 'resolved', possibly resulting in some movement. In
+the second phase, forces arising from stretched or compressed springs are
+resolved, possibly resulting in some movement.
+
+Here we abuse physics terminology, and use the term 'force' to refer to either
+a directional force in the usual sense, which we call a 'push', or a
+rotational force, which we call a 'torque'. A force is always on a piece, in
+some direction. Only the obvious six hex directions and the two obvious
+rotational directions occur; the magnitude is always 1. 
+
+Player moves result in forces on the tools in the obvious way. A wrench which
+is moving gets a push in that direction each turn (sorry, Newton!). A spring
+which is not at its relaxed length results in a push on the end piece.
+
+To _resolve_ these initial forces:
+    * each initial force is 'propagated to a force group'
+    * if a group is 'inconsistent' with another group: if one of the group is
+	'dominated' by the other, it is 'blocked'; else both are blocked
+    * each force in each unblocked force group is 'applied'
+
+To _apply_ a push: move the piece in the given direction.
+To _apply_ a torque: rotate the piece in the given direction.
+
+To _propagate_ a force:
+    * If applying the force would result in an overlap with another piece,
+	push that piece - but if it's an arm, twist the pivot instead when
+	that makes sense.
+    * If the force is a torque and an arm is pushing on another piece, we have
+	a special rule: if the obvious push ends up propagating to a resisted
+	force (see below), then it is replaced with a 'clawing' push. e.g. in
+	the following situation:
+	    \ O #
+	     o
+	if the pivot is twisted clockwise, the ball will first be pushed east,
+	but when that force propagates to a push on the stationary block to
+	its east which is resisted, processing will back up and a push on the
+	ball southeast will be tried instead.
+    * If a spring between two blocks is fully compressed or fully extended,
+	and one block is pushed, then if the direction is appropriate the push
+	will propagate to a push in the same direction on the other block.
+
+A force is _resisted_ if it is a push on a pivot or on a block which isn't the
+    end of a spring in plus-or-minus the direction of the push, or it's a
+    torque on a block, or it's a force on a hook which isn't already getting
+    that force this phase as the result of a player move, or it's a force on a
+    wrench which isn't a push in the direction it's already moving.
+
+To _propagate an initial force to a force group_:
+    * Propagate the force as above, then recursively propagate the resulting
+	forces, checking for resistance as we go. The force group consists of
+	all the resulting propagated forces.
+    * On resistance: back up to try clawing as described above if appropriate,
+	else consider the whole force group resisted - so the resulting force
+	group is empty.
+
+Two forces are _inconsistent_ when
+    * they act on the same piece in different directions, or
+    * applying both at once results in overlapping pieces.
+
+Two force groups are _inconsistent_ iff there is some force from the first
+    which is inconsistent with some force from the second.
+
+A force group _dominates_ another iff their initial forces are spring forces,
+    and the root of the first spring is an ancestor of the root of the second
+    spring, where an ancestor of a block B is recursively defined to be a block
+    which is the root of a spring which ends at B, or an ancestor of such a
+    block.
+
+-- mbays@sdf.org 2013
