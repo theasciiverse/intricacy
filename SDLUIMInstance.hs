@@ -218,8 +218,14 @@ instance UIMonad (StateT UIState IO) where
 
     getInput mode = do
 	events <- liftIO $ getEvents
-	concat <$> mapM processEvent events
+	oldUIState <- get
+	cmds <- concat <$> mapM processEvent events
+	newUIState <- get
+	return $ cmds ++ if uistatesMayVisiblyDiffer oldUIState newUIState then [CmdRedraw] else []
 	where
+	    uistatesMayVisiblyDiffer uis1 uis2 =
+		uis1 { mousePos = (zero,False), lastFrameTicks=0 }
+		/= uis2 {mousePos = (zero,False), lastFrameTicks=0 }
 	    processEvent (KeyDown (Keysym _ _ ch)) = case mode of
 		IMTextInput -> return [CmdInputChar ch]
 		_ -> do
@@ -401,7 +407,7 @@ drawRelScore name pos = do
     col <- nameCol name
     relScore <- getRelScore name
     flip (maybe (return ())) relScore $ \score ->
-	lift.renderToMain $ renderStrColAt (pixelToColor col)
+	lift.renderToMain $ renderStrColAt col
 	    ((if score > 0 then "+" else "") ++ show score) pos
 
 drawNote note pos = case noteBehind note of
@@ -424,9 +430,9 @@ drawNameWithCharAndCol name charcol char col pos = do
 	displaceRender up $ 
 	    renderStrColAt messageCol name pos
 	displaceRender down $ withFont smallFont $
-	    renderStrColAt (pixelToColor charcol) [char] pos
+	    renderStrColAt charcol [char] pos
 pubWheelAngle = 5
-pubColour = colourWheel pubWheelAngle
+pubColour = colourWheel pubWheelAngle -- ==purple
 nameCol name = do
     ourName <- (authUser <$>) <$> gets curAuth
     relScore <- getRelScore name
@@ -468,7 +474,7 @@ drawLockInfo al@(ActiveLock name i) (Just lockinfo) = do
 
     lift.renderToMain $ renderStrColAt dimWhiteCol "Accessed by:" $ accessedByPos <+> hv
     if public lockinfo
-    then lift.renderToMain $ renderStrColAt (pixelToColor pubColour) "Everyone!" accessedByPos
+    then lift.renderToMain $ renderStrColAt pubColour "Everyone!" accessedByPos
     else if null $ accessedBy lockinfo
 	then lift.renderToMain $ renderStrColAt messageCol "No-one" accessedByPos
 	else fillArea accessedByPos
@@ -484,11 +490,11 @@ drawLockInfo al@(ActiveLock name i) (Just lockinfo) = do
     if isJust $ guard . (|| public lockinfo) . (`elem` map noteAuthor (lockSolutions lockinfo)) =<< ourName
     then lift.renderToMain $ 
 	(if public lockinfo
-	    then renderStrColAt (pixelToColor pubColour) "Accessed!"
-	    else renderStrColAt (Color 0 0xff 0) "Solved!")
+	    then renderStrColAt pubColour "Accessed!"
+	    else renderStrColAt green "Solved!")
 	accessedPos
     else if any (\(Undeclared _ ls _) -> ls == lockSpec lockinfo) undecls
-    then lift.renderToMain $ renderStrColAt (Color 0xff 0xff 0) "Undeclared" accessedPos
+    then lift.renderToMain $ renderStrColAt yellow "Undeclared" accessedPos
     else do
 	read <- take 3 <$> getNotesReadOn lockinfo
 	unless (ourName == Just name) $ do
@@ -496,7 +502,7 @@ drawLockInfo al@(ActiveLock name i) (Just lockinfo) = do
 		"Read:" $ accessedPos <+> (-3)<*>hu
 	    fillArea (accessedPos<+>neg hu) [ accessedPos <+> i<*>hu | i <- [-1..1] ]
 		$ take 3 $ [ \pos -> (lift $ registerSelectable pos 0 (SelReadNote note)) >> drawName (noteAuthor note) pos
-		    | note <- read ] ++ (repeat $ lift . renderToMain . drawAtRel (hollowGlyph $ dim $ colourWheel 2))
+		    | note <- read ] ++ (repeat $ lift . renderToMain . drawAtRel (hollowGlyph $ dim green))
 
     lift.renderToMain $ renderStrColAt dimWhiteCol "Holds notes:" $ notesPos <+> hv
     if null $ notesSecured lockinfo

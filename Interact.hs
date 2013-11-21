@@ -60,7 +60,7 @@ interactUI = do
 	    when (im == IMPlay && not (psSolved mainSt)) checkWon
 	    when (im == IMMeta) checkAsyncErrors
 	    drawMainState
-	    cmds <- lift $ getInput im
+	    cmds <- lift $ getSomeInput im
 	    runErrorT (mapM_ (processCommand im) cmds) >>= \x -> case x of
 		Left ret -> do
 		    lift $ drawMessage ""

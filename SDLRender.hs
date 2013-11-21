@@ -360,11 +360,11 @@ drawAtRel gl v = do
 	let cpos = scrCentre <+> (hexVec2SVec size v)
 	liftIO $ gl cpos size surf
 
-messageCol = Color 0xff 0xff 0xff
-accessedCol = Color 0 0xff 0
-dimWhiteCol = Color 0xa0 0xa0 0xa0
-buttonTextCol = Color 0xff 0xff 0xff
-errorCol = Color 0xff 0 0
+messageCol = white
+accessedCol = green
+dimWhiteCol = Pixel 0xa0a0a000
+buttonTextCol = white
+errorCol = red
 
 pixelToColor (Pixel p) =
     let (r,p') = divMod p 0x1000000
@@ -374,10 +374,10 @@ pixelToColor (Pixel p) =
 
 renderStrColAtLeft = renderStrColAt' False
 renderStrColAt = renderStrColAt' True
-renderStrColAt' :: Bool -> Color -> String -> HexVec -> RenderM ()
+renderStrColAt' :: Bool -> Pixel -> String -> HexVec -> RenderM ()
 renderStrColAt' centred c str v = void $ runMaybeT $ do
     font <- MaybeT $ asks renderFont
-    fsurf <- MaybeT $ liftIO $ TTF.tryRenderTextBlended font str c
+    fsurf <- MaybeT $ liftIO $ TTF.tryRenderTextBlended font str $ pixelToColor c
     (surf, scrCentre, size) <- lift $ asks $
 	liftM3 (,,) renderSurf renderSCentre renderSize
     let SVec x y = scrCentre <+> (hexVec2SVec size v)
@@ -408,13 +408,13 @@ drawBlocked st colouring blocking (Torque idx dir) = do
 	    PlacedPiece pos (Pivot arms) -> (pos,arms)
 	    PlacedPiece pos (Hook arm _) -> (pos,[arm])
 	    _ -> (pos,[])
-	col = if blocking then bright $ colourWheel 5 else dim $ colourOf colouring idx
+	col = if blocking then bright $ purple else dim $ colourOf colouring idx
     sequence_ [ drawAt (blockedArm arm dir col) (arm <+> pos) |
 	arm <- arms ]
 drawBlocked st colouring blocking (Push idx dir) = do
     let footprint = plPieceFootprint $ getpp st idx
 	fullfootprint = fullFootprint st idx
-	col = bright $ if blocking then colourWheel 5 else orange
+	col = bright $ if blocking then purple else orange
     sequence_ [ drawAt (blockedPush dir col) pos
 	| pos <- footprint
 	, (dir<+>pos) `notElem` fullfootprint ]

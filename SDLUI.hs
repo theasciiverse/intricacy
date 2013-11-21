@@ -47,10 +47,11 @@ data UIState = UIState { scrHeight::Int, scrWidth::Int
     , paintTileIndex::Int
     , leftButtonDown::Bool, middleButtonDown::Bool, rightButtonDown::Bool
     , mousePos::(HexVec,Bool)
-    , message::Maybe (Color, String)
+    , message::Maybe (Pixel, String)
     , hoverStr :: Maybe String
     , dispCentre::HexPos
     , dispLastCol::PieceColouring }
+    deriving (Eq, Ord, Show)
 type UIM = StateT UIState IO
 nullUIState = UIState 0 0 Nothing Nothing Map.empty Map.empty []
     defaultUIOptions Nothing Map.empty Nothing Nothing 0 0 False False False
@@ -94,6 +95,7 @@ waitFrame = do
 
 
 data Button = Button { buttonPos::HexVec, buttonCmd::Command }
+    deriving (Eq, Ord, Show)
 type ButtonGroup = ([Button],(Int,Int))
 singleButton :: HexVec -> Command -> Int -> ButtonGroup
 singleButton pos cmd col = ([Button pos cmd], (col,0))
@@ -165,6 +167,7 @@ data Selectable = SelOurLock
     | SelRandom Codename
     | SelSecured NoteInfo
     | SelOldLock LockSpec
+    deriving (Eq, Ord, Show)
 
 registerSelectable v r s =
     modify $ \ds -> ds {metaSelectables = foldr
@@ -240,7 +243,7 @@ drawUIOptionButtons mode = when (mode `elem` [IMPlay, IMEdit]) $ do
 drawUIOptionButton b = do
     value <- gets $ (getUIOpt b).uiOptions
     renderToMain $ mapM_ (\g -> drawAtRel g (uiOptPos b))
-	[hollowGlyph $ obscure $ colourWheel 5, uiOptGlyph b value]
+	[hollowGlyph $ obscure purple, uiOptGlyph b value]
 describeUIOptionButton b = do
     value <- gets $ (getUIOpt b).uiOptions
     return $ uiOptDescr b value
@@ -306,8 +309,8 @@ drawPaintButtons = do
     renderToMain $ sequence_ [ 
 	do
 	    let gl = case paintTiles!!i of
-		    Nothing -> hollowInnerGlyph $ dim $ colourWheel 5
-		    Just t -> tileGlyph t $ dim $ colourWheel 5
+		    Nothing -> hollowInnerGlyph $ dim purple
+		    Just t -> tileGlyph t $ dim purple
 	    drawAtRel gl pos
 	    when selected $ drawAtRel cursor pos
 	| i <- take (length paintTiles) [0..]
