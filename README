@@ -72,13 +72,34 @@ create in the lock editor are saved in there (and you can organise them into
 directories by including (back)slashs in the lock name). You can edit them in
 a text editor if you want - see AsciiLock.hs for what the characters mean.
 
+Rough description of the game mechanics
+=======================================
+* Locks consist of blocks, pivots and balls. Blocks can be connected to other
+    blocks by springs. Pivots have arms. When picking a lock, you control two
+    tools - a hook, which acts as a mobile one-armed pivot, and a wrench,
+    which acts as a mobile block with momentum.
+* To open a lock, the "bolthole" (the area in the top-right) must be empty.
+* Each turn, the tools push and rotate according to the player's commands, and
+    then each spring which is compressed or extended beyond its natural length
+    pushes/pulles on the block at its end.
+* If two forces try to move a piece in two different directions, or try to
+    move two pieces into the same hex, one or both is blocked.
+* If a pivot/hook is trying to turn and there's a piece in the way of one of
+    its arms, it will first try to push the piece away - but if that force is
+    blocked, it will try instead to pull the piece round with the arm as it
+    turns.
+* If two springs are trying to push two blocks into the same hex, they will
+    generally both be blocked. However, if one of the forces is also pushing
+    against a fixed piece such as a tool, it won't block the other force.
+
+
 Full details of the metagame mechanics
 ======================================
 (Where by the 'game' I mean the lock-picking bit, and by the 'metagame' I mean
 the bit with the 3-letter codenames and the three lock slots and notes and so
 on.)
 
-Scoring is always relative - each player has a score relative to each second
+Scoring is always relative - each player has a score relative to each other
 player. That score is the number of the second player's lock slots to which
 the first player has access, minus the number of the first player's lock slots
 to which the second player has access.
@@ -101,17 +122,10 @@ in one of your three lock slots. Once the note is placed, it can't be moved.
 
 Full details of the game mechanics
 ==================================
-Locks consist of blocks, pivots and balls. Blocks can be connected to other
-blocks by springs. Pivots have arms. When picking a lock, you control two
-tools - a hook, which acts as a mobile one-armed pivot, and a wrench, which
-acts as a mobile block with momentum.
-
-To open a lock, the "bolthole" (the area in the top-right) must be empty.
-
 Springs are directed; one of the blocks it is connected to is the 'root', the
 other the 'end'. A block is stationary if it is not the end of any spring. The
 directed graph whose nodes are the blocks and whose edges are the springs is
-required to be acyclic.
+required to be acyclic. A spring may also be rooted in a pivot.
 
 I will now attempt to describe in full excrutiating detail the game physics,
 i.e. the algorithm used to determine what happens on a turn. You shouldn't
