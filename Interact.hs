@@ -84,7 +84,8 @@ processCommand im CmdQuit = do
 	IMPlay -> lift (gets psIsSub) >>= flip when (throwError $ InteractSuccess False)
 	IMEdit -> lift editStateUnsaved >>= flip unless (throwError $ InteractSuccess True)
 	_ -> return ()
-    really <- lift $ lift $ confirm "Really quit?"
+    title <- lift $ getTitle
+    really <- lift $ lift $ confirm $ "Really quit" ++ maybe "" (" from "++) title ++ "?"
     when really $ throwError $ InteractSuccess False
 processCommand IMPlay CmdOpen = do
     st <- gets psCurrentState
@@ -202,7 +203,7 @@ processCommand' IMMeta (CmdSolve midx) = void.runMaybeT $ do
 	, do
 	    RCLock lock <- MaybeT $ getFreshRecBlocking $ RecLock ls
 	    soln <- solveLock lock $ Just $
-		"Solving " ++ name ++ ":" ++ [lockIndexChar idx] ++ "  (#" ++ show ls ++")"
+		"solving " ++ name ++ ":" ++ [lockIndexChar idx] ++ "  (#" ++ show ls ++")"
 	    mourName <- lift $ (authUser <$>) <$> gets curAuth
 	    guard $ mourName /= Just name
 	    let undecl = Undeclared soln ls (ActiveLock name idx) 
@@ -221,7 +222,7 @@ processCommand' IMMeta (CmdPlayLockSpec mls) = void.runMaybeT $ do
 	    MaybeT . return $ fst <$> (listToMaybe $ (reads :: ReadS Int) tls)
 	]
     RCLock lock <- MaybeT $ getFreshRecBlocking $ RecLock ls
-    solveLock lock $ Just $ "Solving " ++ show ls
+    solveLock lock $ Just $ "solving " ++ show ls
     
 processCommand' IMMeta (CmdDeclare mundecl) = void.runMaybeT $ do
     name <- mgetCurName
@@ -281,7 +282,7 @@ processCommand' IMMeta (CmdViewSolution mnote) = void.runMaybeT $ do
     RCLock lock <- MaybeT $ getFreshRecBlocking $ RecLock ls
     RCSolution soln <- MaybeT $ getFreshRecBlocking $ RecNote note
     lift.lift $ execStateT interactUI $ newReplayState (snd.reframe$lock) soln $ Just $
-	"Viewing solution by " ++ noteAuthor note ++ " to " ++ name ++ [':',lockIndexChar idx]
+	"viewing solution by " ++ noteAuthor note ++ " to " ++ name ++ [':',lockIndexChar idx]
 
 processCommand' IMMeta (CmdPlaceLock midx) = void.runMaybeT $ do
     ourName <- mgetOurName
@@ -294,7 +295,7 @@ processCommand' IMMeta (CmdPlaceLock midx) = void.runMaybeT $ do
     when (isJust $ userLocks ourUInfo ! idx) $
 	confirmOrBail "Really retire existing lock?"
     soln <- msum [ MaybeT $ return msoln,
-	solveLock lock $ Just $ "Prove your lock is solvable." ]
+	solveLock lock $ Just $ "testing lock" ]
     lift $ do 
 	curServerActionAsync $ SetLock lock idx soln
 	invalidateUInfo ourName
@@ -346,7 +347,7 @@ processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
     let dotut i = do
 	let name = tuts !! (i-1)
 	(lock,_) <- MaybeT $ liftIO $ readLock (tutdir ++ [pathSeparator] ++ name)
-	_ <- solveLock lock $ Just $ "Tutorial: "++ name
+	_ <- solveLock lock $ Just $ "tutorial: "++ name
 	guard $ i+1 <= length tuts
 	confirmOrBail $ "Tutorial level completed! Play next tutorial level (" ++ show (i+1) ++ ")?"
 	dotut $ i+1
@@ -434,7 +435,7 @@ processCommand' IMEdit CmdTest = do
     mpath <- gets esPath
     st <- gets $ head.esGameStateStack
     void.runMaybeT $ do
-	soln <- solveLock (frame,st) $ Just $ "Testing " ++ fromMaybe "[unnamed lock]" mpath
+	soln <- solveLock (frame,st) $ Just $ "testing " ++ fromMaybe "[unnamed lock]" mpath
 	lift $ modify $ \es -> es { esTested = Just (st, soln) }
 processCommand' IMEdit CmdUndo = do
     st:sts <- gets esGameStateStack
