@@ -95,10 +95,13 @@ showRequest (ClientRequest ver mauth act) = show ver ++ " "
 showAction :: Action -> String
 showAction (SetLock lock idx soln) = "SetLock " ++ show idx ++ " lock:"
     ++ (if not $ validLock $ reframe lock then " [INVALID LOCK] " else "\n" ++ unlines (lockToAscii lock))
-    ++ "soln: " ++ "[SOLN]" -- show soln
+    ++ "[SOLN]"
+showAction (DeclareSolution soln ls target idx) = "DeclareSolution [SOLN] "
+    ++ (concat $ intersperse " " $ [show ls,show target,show idx])
 showAction act = show act
 showResponse :: ServerResponse -> String
 showResponse (ServedLock lock) = "ServedLock lock:\n" ++ unlines (lockToAscii lock)
+showResponse (ServedSolution soln) = "ServedSolution [SOLN]"
 showResponse resp = show resp
 
 -- | We lock the whole database during each request, using haskell's native
