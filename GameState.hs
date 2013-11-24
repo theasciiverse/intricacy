@@ -304,19 +304,21 @@ validGameState st@(GameState pps conns) = and
 		(stateBoard $ GameState pps (conns \\ [c]))
 		== Just (eidx, epos)
 	    && springExtensionValid st c
-	    && (validRootPiece $ placedPiece $ pps ! ridx)
-	    && (validEndPiece $ placedPiece $ pps ! eidx)
+	    && (validRoot st root)
+	    && (validEnd st end)
 	    | c@(Connection root@(ridx,_) end@(eidx,_) (Spring dir _)) <- conns
 	    , let [rpos,epos] = map (locusPos st) [root,end] ]
     , and [ 1 == length (components $ Set.fromList patt) 
 	    | Block patt <- map placedPiece $ Vector.toList pps ]
     ]
 
-validRootPiece (Block _) = True
-validRootPiece (Pivot _) = True
-validRootPiece _ = False
-validEndPiece (Block _) = True
-validEndPiece _ = False
+validRoot st (idx,v) = case placedPiece $ getpp st idx of
+    (Block _) -> True
+    (Pivot _) -> v==zero
+    _ -> False
+validEnd st (idx,_) = case placedPiece $ getpp st idx of
+    (Block _) -> True
+    _ -> False
 
 checkValidHex (GameState pps conns) = and
     [ all validPP $ Vector.toList pps

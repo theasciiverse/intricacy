@@ -94,8 +94,8 @@ showRequest (ClientRequest ver mauth act) = show ver ++ " "
     ++ showAction act
 showAction :: Action -> String
 showAction (SetLock lock idx soln) = "SetLock " ++ show idx ++ " lock:"
-    ++ (if not $ validLock lock then " [INVALID LOCK] " else "\n" ++ unlines (lockToAscii lock))
-    ++ "soln: " ++ show soln
+    ++ (if not $ validLock $ reframe lock then " [INVALID LOCK] " else "\n" ++ unlines (lockToAscii lock))
+    ++ "soln: " ++ "[SOLN]" -- show soln
 showAction act = show act
 showResponse :: ServerResponse -> String
 showResponse (ServedLock lock) = "ServedLock lock:\n" ++ unlines (lockToAscii lock)
