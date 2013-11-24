@@ -1,3 +1,15 @@
+0.2.2:
+    Visible changes:
+	scoring tweak: empty slots are accessed iff all non-empty slots are;
+	'q'uit confirmation now reminds you what you're quitting from;
+	we now consider testedness when deciding if a lock is modified;
+	added detailed game info to the README;
+	added hover text for UI buttons.
+    Bugs fixed:
+	editor, lockfile reader, and validity checker were not in accordance
+	    on what is allowed as the root of a spring;
+	SDL UI was redrawing the screen on every mouse movement;
+	curses UI wasn't refreshing properly on async flag.
 0.2.1:
     New features:
 	The "reset tools" command has become a "test lock" command. Successful
