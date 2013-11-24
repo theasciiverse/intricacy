@@ -28,6 +28,15 @@ data LockInfo = LockInfo {lockSpec::LockSpec, public::Bool, notesSecured::[NoteI
 
 initLockInfo ls = LockInfo ls False [] [] []
 
+getAccessInfo :: UserInfo -> Codename -> [(Bool,Bool)]
+-- | getAccessInfo ui name = [(ith lock is public, ith lock is accessed by name) | i]
+getAccessInfo ui name =
+    let mlinfos = elems $ userLocks ui
+	accessedSlot = maybe accessedAllExisting accessedLock
+	accessedAllExisting = all (maybe True accessedLock) mlinfos
+	accessedLock linfo = public linfo || name `elem` accessedBy linfo 
+    in map (\mlinfo -> (maybe False public mlinfo, accessedSlot mlinfo)) mlinfos
+
 data UserInfoDelta
     = AddRead NoteInfo
     | DelRead NoteInfo

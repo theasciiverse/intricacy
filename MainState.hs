@@ -311,10 +311,7 @@ getRelScore name = runMaybeT $ do
     ourUInfo <- mgetUInfo ourName
     return $ countUnaccessedBy ourUInfo name - countUnaccessedBy uinfo ourName
     where
-	countUnaccessedBy (UserInfo _ locks _) name =
-	    length $ filter (unaccessedBy name) $ elems locks
-	unaccessedBy name Nothing = False
-	unaccessedBy name (Just linfo) = not $ public linfo || name `elem` accessedBy linfo 
+	countUnaccessedBy ui name = length $ filter (not.snd) $ getAccessInfo ui name 
 
 getNotesReadOn :: UIMonad uiM => LockInfo -> StateT MainState uiM [NoteInfo]
 getNotesReadOn lockinfo = (fromMaybe [] <$>) $ runMaybeT $ do

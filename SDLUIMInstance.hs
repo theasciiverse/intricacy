@@ -155,10 +155,7 @@ instance UIMonad (StateT UIState IO) where
 		us <- MaybeT $ return ourName
 		ourUInfo <- mgetUInfo us
 		selUInfo <- mgetUInfo sel
-		let accesses = map (\(name,ui) -> [ maybe (False,True)
-			    (\lock -> (public lock, name `elem` accessedBy lock)) $ userLocks ui ! i
-			    | i<-[0..2] ])
-			[(sel,ourUInfo),(us,selUInfo)]
+		let accesses = map (uncurry getAccessInfo) [(ourUInfo,sel),(selUInfo,us)]
 		lift $ do 
 		    fillArea (codenamePos<+>3<*>hv<+>hw) (map ((codenamePos<+>3<*>hv)<+>) [zero,hw,neg hv])
 			[ \pos -> (lift $ registerSelectable pos 0 SelOurAL) >>
