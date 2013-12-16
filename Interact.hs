@@ -47,6 +47,10 @@ interactUI = do
 	_ <- liftIO $ forkIO $ forever $ do
 	    atomically $ readTVar flag >>= check >> writeTVar flag False
 	    unblock
+
+	-- draw before testing auth, lest a timeout mean a blank screen
+	drawMainState
+
 	testAuth
 	refreshUInfoUI
 	)

@@ -92,10 +92,14 @@ tileGlyph (BlockTile adjs) col centre size surf =
     rimmedPolygon surf corners col $ bright col
 	where 
 	    corners = concat [
-		if dir `elem` adjs
-		then [corner centre size $ (hextant dir) + n | n <- [-1,0]]
-		else [innerCorner centre size dir]
-		| dir <- hexDirs ]
+		if or $ map adjAt [0,1]
+		then [corner centre size $ hextant dir]
+		else if adjAt $ -1
+		    then []
+		    else [innerCorner centre size dir]
+		| dir <- hexDirs
+		, let adjAt r = rotate r dir `elem` adjs
+		]
 
 tileGlyph (SpringTile extn dir) col centre size surf =
     aaLines surf points $ bright col
