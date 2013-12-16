@@ -34,12 +34,12 @@ aaLines surf verts col =
 
 rimmedPolygon surf verts fillCol rimCol = do
     filledPolygon surf verts fillCol
-    aaPolygon' surf verts rimCol
+    aaPolygon' surf verts $ opaquify rimCol
     return ()
 
 rimmedCircle surf centre@(SVec x y) rad fillCol rimCol = do
     filledCircle surf (fromIntegral x) (fromIntegral y) (fromIntegral rad) fillCol
-    aaCircle' surf (fromIntegral x) (fromIntegral y) (fromIntegral rad) rimCol
+    aaCircle' surf (fromIntegral x) (fromIntegral y) (fromIntegral rad) $ opaquify rimCol
     return ()
 
 type Glyph = SVec -> Int -> Surface -> IO ()
@@ -199,10 +199,10 @@ collisionMarker centre size surf =
 
 hollowGlyph :: Pixel -> Glyph
 hollowGlyph col centre size surf =
-    aaPolygon' surf corners col
+    aaPolygon' surf corners $ opaquify col
     where corners = map (corner centre size) [0..5]
 hollowInnerGlyph col centre size surf =
-    aaPolygon' surf corners col
+    aaPolygon' surf corners $ opaquify col
     where corners = [ innerCorner centre size dir | dir <- hexDirs ]
 
 filledHexGlyph :: Pixel -> Glyph
@@ -250,10 +250,22 @@ playerGlyph col centre size surf = filledHexGlyph col centre (size-1) surf
 
 setPixelAlpha alpha (Pixel v) = Pixel $ v `div` 0x100 * 0x100 + alpha
 bright = setPixelAlpha 0xff
+brightish = setPixelAlpha 0xc0
 dim = setPixelAlpha 0xa0
 obscure = setPixelAlpha 0x80
 faint = setPixelAlpha 0x40
 invisible = setPixelAlpha 0x00
+
+pixelToRGBA (Pixel v) =
+    let (r,v') = divMod v 0x1000000
+	(g,v'') = divMod v' 0x10000
+	(b,a) = divMod v'' 0x100
+    in (r,g,b,a)
+rgbaToPixel (r,g,b,a) = Pixel $ a+0x100*(b+0x100*(g+0x100*r))
+opaquify p =
+    let (r,g,b,a) = pixelToRGBA p
+	[r',g',b'] = map (\v -> (v*a)`div`0xff) [r,g,b]
+    in rgbaToPixel (r',g',b',0xff)
 
 black = Pixel 0x01000000
 white = Pixel 0xffffff00
@@ -365,10 +377,8 @@ dimWhiteCol = Pixel 0xa0a0a000
 buttonTextCol = white
 errorCol = red
 
-pixelToColor (Pixel p) =
-    let (r,p') = divMod p 0x1000000
-	(g,p'') = divMod p' 0x10000
-	(b,_) = divMod p'' 0x100
+pixelToColor p =
+    let (r,g,b,_) = pixelToRGBA p
     in Color (fromIntegral r) (fromIntegral g) (fromIntegral b)
 
 renderStrColAtLeft = renderStrColAt' False
