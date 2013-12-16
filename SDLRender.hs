@@ -390,7 +390,7 @@ renderStrColAt' centred c str v = void $ runMaybeT $ do
     (surf, scrCentre, size) <- lift $ asks $
 	liftM3 (,,) renderSurf renderSCentre renderSize
     let SVec x y = scrCentre <+> (hexVec2SVec size v)
-	    <+> neg (SVec 0 ((surfaceGetHeight fsurf)`div`2) <+>
+	    <+> neg (SVec 0 ((surfaceGetHeight fsurf-1)`div`2) <+>
 		if centred
 		    then SVec ((surfaceGetWidth fsurf)`div`2) 0
 		    else SVec 0 0)

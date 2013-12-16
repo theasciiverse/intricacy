@@ -419,8 +419,8 @@ drawNameWithChar name charcol char pos = do
     drawNameWithCharAndCol name charcol char col pos
 drawNameWithCharAndCol name charcol char col pos = do
     size <- fromIntegral.snd <$> lift getGeom
-    let up = SVec 0 $ - floor (size * sqrt 3 / 6)
-    let down = SVec 0 $ ceiling $ size * sqrt 3 / 3
+    let up = SVec 0 $ - (ysize size - size`div`2)
+    let down = SVec 0 $ ysize size
     smallFont <- lift $ gets dispFontSmall
     lift.renderToMain $ do
 	drawAtRel (playerGlyph col) pos
