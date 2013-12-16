@@ -333,7 +333,12 @@ getGeom = do
     h <- gets scrHeight 
     w <- gets scrWidth
     let scrCentre = SVec (w`div`2) (h`div`2)
-    let size = minimum [ w`div`(2*fromIntegral screenWidthHexes), floor $ (fromIntegral h) / ((sqrt 3) * fromIntegral screenHeightHexes) ]
+    -- |size is the greatest integer such that
+    -- and [2*size*screenWidthHexes <= width
+    --	, 3*ysize size*screenHeightHexes <= height]
+    --	where ysize size = round $ fromIntegral size / sqrt 3
+    let size = max 1 $ minimum [ w`div`(2*screenWidthHexes)
+	    , floor $ sqrt 3 * (0.5 + (fromIntegral $ h`div`(3*screenHeightHexes)))]
     return (scrCentre, size)
 
 data DrawArgs = DrawArgs [PieceIdx] Bool [Alert] GameState UIOptions

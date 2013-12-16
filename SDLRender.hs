@@ -44,47 +44,42 @@ rimmedCircle surf centre@(SVec x y) rad fillCol rimCol = do
 
 type Glyph = SVec -> Int -> Surface -> IO ()
 
+ysize :: Int -> Int
+ysize size = round $ fromIntegral size / sqrt 3
+
 corner :: Integral i => SVec -> Int -> Int -> (i,i)
 corner (SVec x y) size hextant = (fromIntegral $ x+dx, fromIntegral $ y+dy)
     where
-	[dx,dy] = map round $ f hextant
-	f 0 = [sizeFloat, -(1 / (sqrt 3)) * sizeFloat]
-	f 1 = [0, -(2 / (sqrt 3)) * sizeFloat]
-	f 2 = [-sizeFloat, -(1 / (sqrt 3)) * sizeFloat]
+	[dx,dy] = f hextant
+	f 0 = [size, -ysize size]
+	f 1 = [0, -2*ysize size]
+	f 2 = [-size, -ysize size]
 	f n | n < 6 = let [x,y] = f (5-n) in [x,-y]
 	    | n < 0 = f (6-n)
 	    | otherwise = f (n`mod`6)
-	sizeFloat :: Double
-	sizeFloat = fromIntegral size
 
 innerCorner :: Integral i => SVec -> Int -> HexDir -> (i,i)
 innerCorner (SVec x y) size dir = (fromIntegral $ x+dx, fromIntegral $ y+dy)
     where
-	[dx,dy] = map round $ f dir
+	[dx,dy] = f dir
 	f dir
-	    | dir == hu = [2*sizeFloat/3, 0]
-	    | dir == hv = [-sizeFloat/3, - (1 / (sqrt 3)) * sizeFloat]
-	    | dir == hw = [-sizeFloat/3, (1 / (sqrt 3)) * sizeFloat]
+	    | dir == hu = [2*isize, 0]
+	    | dir == hv = [-isize, -ysize size]
+	    | dir == hw = [-isize, ysize size]
 	    | not (isHexDir dir) = error "innerCorner: not a hexdir"
 	    | otherwise = map (\z -> -z) $ f $ neg dir
-	sizeFloat :: Double
-	sizeFloat = fromIntegral size
-
+	isize = size `div` 3
 
 edge :: Integral i => SVec -> Int -> HexDir -> (i,i)
 edge (SVec x y) size dir = (fromIntegral $ x+dx, fromIntegral $ y+dy)
     where
-	[dx,dy] = map round $ f dir
-	y' = ((sqrt 3) / 2) * sizeFloat
-	x' = sizeFloat / 2
+	[dx,dy] = f dir
 	f dir
-	    | dir == hu = [sizeFloat, 0]
-	    | dir == hv = [-x', -y']
-	    | dir == hw = [-x', y']
+	    | dir == hu = [size, 0]
+	    | dir == hv = [-size`div`2, -3*ysize size`div`2]
+	    | dir == hw = [-size`div`2, 3*ysize size`div`2]
 	    | not (isHexDir dir) = error "edge: not a hexdir"
 	    | otherwise = map (\z -> -z) $ f $ neg dir
-	sizeFloat :: Double
-	sizeFloat = fromIntegral $ size - 1
 
 tileGlyph :: Tile -> Pixel -> Glyph
 
@@ -300,13 +295,13 @@ type CCoord = PHS SVec
 
 hexVec2SVec :: Int -> HexVec -> SVec
 hexVec2SVec size (HexVec x y z) =
-    SVec ((x-z) * size) (floor $ -(fromIntegral $ y * size) * (sqrt 3))
+    SVec ((x-z) * size) (-y * 3 * ysize size)
 
 sVec2dHV :: Int -> SVec -> (Double,Double,Double)
 sVec2dHV size (SVec sx sy) =
     let sx',sy',size' :: Double
-	[sx',sy',size'] = map fromIntegral [sx,sy,size]
-	y' = -sy' / size' / (sqrt 3)
+	[sx',sy',size',ysize'] = map fromIntegral [sx,sy,size,ysize size]
+	y' = -sy' / ysize' / 3
 	x' = ((sx' / size') - y') / 2
 	z' = -((sx' / size') + y') / 2
     in (x',y',z')
