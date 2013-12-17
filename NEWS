@@ -1,3 +1,5 @@
+0.2.3:
+    Minor graphical improvements.
 0.2.2:
     Visible changes:
 	scoring tweak: empty slots are accessed iff all non-empty slots are;

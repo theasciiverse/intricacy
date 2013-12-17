@@ -10,14 +10,14 @@ Free software, released under the GPLv3.
 
 ##Download
 
-Latest version is 0.2.2 [NEWS](NEWS)
+Latest version is 0.2.3 [NEWS](NEWS)
 
 * Source:
      - ` git clone http://mbays.freeshell.org/intricacy/.git && cd intricacy `
      - see README for compilation instructions
      - please mail me <mbays@sdf.org> if it fails!
-* [Windows binary](intricacy-latest-win32.zip)
-* [Linux binary](intricacy-latest-linux-i686-glibc-2.14.tgz)
+* [Windows binary](intricacy-0.2.3-win32.zip)
+* [Linux binary](intricacy-0.2.3-linux-i686-glibc-2.14.tgz)
 * [Old versions](old)
 
 ##Screenshots
