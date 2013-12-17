@@ -207,7 +207,7 @@ hollowInnerGlyph col centre size surf =
 
 filledHexGlyph :: Pixel -> Glyph
 filledHexGlyph col centre size surf =
-    rimmedPolygon surf corners col $ bright col
+    rimmedPolygon surf corners col $ brightish col
     where corners = map (corner centre size) [0..5]
 
 buttonGlyph :: Pixel -> Glyph
@@ -246,7 +246,7 @@ unfreshGlyph centre@(SVec x y) size surf = do
     sequence_ [pixel surf (fromIntegral $ x+(i*size`div`4)) (fromIntegral y) col
 	| i <- [-1..1] ]
 
-playerGlyph col centre size surf = filledHexGlyph col centre (size-1) surf
+playerGlyph col centre size surf = filledHexGlyph col centre size surf
 
 setPixelAlpha alpha (Pixel v) = Pixel $ v `div` 0x100 * 0x100 + alpha
 bright = setPixelAlpha 0xff
