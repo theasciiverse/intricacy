@@ -112,7 +112,6 @@ declare undecl@(Undeclared soln ls al) = do
     guard $ isJust $ userLocks ourUInfo ! idx
     lift $ do
 	curServerActionAsync $ DeclareSolution soln ls al idx
-	modify $ \ms -> ms {undeclareds = delete undecl $ undeclareds ms}
 	mapM_ invalidateUInfo [lockOwner al, ourName]
 	refreshUInfoUI
 

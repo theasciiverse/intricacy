@@ -491,6 +491,7 @@ sayError = setMsgLine errorCol
 miniLockPos = (-9)<*>hw <+> hu
 lockLinePos = 2<*>(hu <+> neg hw) <+> miniLockPos
 serverPos = 12<*>hv <+> 6<*>neg hu
+serverWaitPos = serverPos <+> hw <+> neg hu
 nextPagePos = serverPos <+> 4<*>neg hv
 randomNamesPos = 9<*>hv <+> neg hu
 codenamePos = (-4)<*>hw <+> 4<*>hv

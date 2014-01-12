@@ -55,6 +55,7 @@ class (Applicative m, MonadIO m) => UIMonad m where
     showHelp :: InputMode -> m ()
     getInput :: InputMode -> m [ Command ]
     unblockInput :: m (IO ())
+    getDrawImpatience :: m ( Int -> IO () )
     suspend,redraw :: m ()
 
     doUI :: m a -> IO (Maybe a)
@@ -270,7 +271,7 @@ curServerAction :: UIMonad uiM => Protocol.Action -> StateT MainState uiM Server
 curServerAction act = do
     saddr <- gets curServer
     auth <- gets curAuth
-    liftIO $ makeRequest saddr $ ClientRequest protocolVersion auth act
+    lift $ withImpatience $ liftIO $ makeRequest saddr $ ClientRequest protocolVersion auth act
 
 curServerActionAsync :: UIMonad uiM => Protocol.Action -> StateT MainState uiM ()
 curServerActionAsync act = do
@@ -305,13 +306,30 @@ getFreshRecBlocking :: UIMonad uiM => Record -> StateT MainState uiM (Maybe Reco
 getFreshRecBlocking rec = do
     tvar <- getRecordCachedFromCur False rec
     cOnly <- gets cacheOnly
-    fetched <- liftIO $ atomically $ do
+    fetched <- lift $ withImpatience $ liftIO $ atomically $ do
 	fetched@(FetchedRecord fresh _ _) <- readTVar tvar
 	check $ fresh || cOnly
 	return fetched
     case fetchError fetched of
 	Nothing -> return $ fetchedRC fetched
 	Just err -> lift (drawError err) >> return Nothing
+
+-- |draw indication that we're waiting for the server while we do so
+withImpatience :: UIMonad uiM => uiM a -> uiM a
+withImpatience m = do
+    drawImpatience <- getDrawImpatience
+    finishedTV <- liftIO $ atomically $ newTVar False
+    let waitImpatiently ticks = do
+	    wakeTV <- atomically $ newTVar False
+	    forkIO $ threadDelay (10^6) >> atomically (writeTVar wakeTV True)
+	    finished <- atomically $ do
+		wake <- readTVar wakeTV
+		finished <- readTVar finishedTV
+		check $ wake || finished
+		return finished
+	    when (not finished) $ drawImpatience (ticks+1) >> waitImpatiently (ticks+1)
+    liftIO $ forkIO $ waitImpatiently 0
+    m <* (liftIO $ atomically $ writeTVar finishedTV True)
 
 getRelScore :: (UIMonad uiM) => Codename -> StateT MainState uiM (Maybe Int)
 getRelScore name = runMaybeT $ do

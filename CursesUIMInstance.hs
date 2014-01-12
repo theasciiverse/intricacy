@@ -279,6 +279,8 @@ instance UIMonad (StateT UIState IO) where
 	Curses.endWin
 	Curses.refresh
 
+    getDrawImpatience = return $ \_ -> return ()
+
     getInput mode = do
 	-- FIXME: SIGWINCH isn't being handled properly
 	key <- liftIO $ CursesH.getKey Curses.refresh

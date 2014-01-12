@@ -114,8 +114,8 @@ instance UIMonad (StateT UIState IO) where
 		lift $ do
 		    lift $ do
 			unless fresh $ do
-			    let unfreshPos = serverPos <+> hv
-			    renderToMain $ drawAtRel unfreshGlyph unfreshPos 
+			    smallFont <- gets dispFontSmall
+			    renderToMain $ withFont smallFont $ renderStrColAtLeft (opaquify $ dim errorCol) "(stale)" $ serverWaitPos
 			maybe (return ()) (setMsgLineNoRefresh errorCol) err
 			when (fresh && (isNothing ourName || home)) $
 			    registerButtonGroup $ singleButton (codenamePos <+> 2<*>hu)
@@ -222,6 +222,16 @@ instance UIMonad (StateT UIState IO) where
     unblockInput = return $ pushEvent VideoExpose
     suspend = return ()
     redraw = return ()
+
+    getDrawImpatience = do
+	curState <- get
+	let pos = serverWaitPos
+	return $ \ticks -> void $ flip runStateT curState $ do 
+	    when (ticks>2) $ renderToMain $ do
+		mapM (drawAtRel (filledHexGlyph $ bright black)) [ pos <+> i<*>hu | i <- [0..3] ]
+		withFont (dispFontSmall curState) $
+		    renderStrColAtLeft errorCol ("waiting..."++replicate (ticks`mod`3) '.') $ pos
+	    refresh
 
     getInput mode = do
 	events <- liftIO $ getEvents
