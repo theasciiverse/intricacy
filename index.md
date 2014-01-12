@@ -25,3 +25,8 @@ Latest version is 0.2.3 [NEWS](NEWS)
 [![Picking a lock](screenshots/playing.small.png)](screenshots/playing.png)
 [![Editing a lock](screenshots/editing.small.png)](screenshots/editing.png)
 [![Curses mode](screenshots/curses.small.png)](screenshots/curses.png)
+
+##Mailing list
+To join the discussion mailing list, please mail
+intricacy@gonzales.homelinux.org with subject line
+'[intricacy-discuss] subscribe'.
