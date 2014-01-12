@@ -146,7 +146,8 @@ getButtons mode = do
 	IMReplay -> [ ([quitButton],(0,2))
 	    , markGroup ]
 	IMMeta ->
-	    [ singleButton serverPos CmdSetServer 2
+	    [ ([quitButton],(0,2))
+	    , singleButton serverPos CmdSetServer 2
 	    , singleButton (serverPos<+>neg hu) CmdToggleCacheOnly 0
 	    , singleButton lockLinePos CmdSelectLock 4
 	    , singleButton (miniLockPos <+> 2<*>hv <+> neg hu <+> hw) CmdEdit 2

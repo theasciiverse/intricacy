@@ -130,7 +130,7 @@ instance UIMonad (StateT UIState IO) where
 				    [ \pos -> (lift $ registerSelectable pos 1 (SelOldLock ls)) >> drawOldLock ls pos
 				    | ls <- retired ]
 				lift $ registerButtonGroup $ singleButton retiredPos CmdShowRetired pubWheelAngle
-				lift $ registerButtonGroup $ singleButton (retiredPos <+> 2<*>hw <+> hu) (CmdPlayLockSpec Nothing) 4
+				lift $ registerButtonGroup $ singleButton (retiredPos <+> hw) (CmdPlayLockSpec Nothing) 4
 			    Nothing -> do
 				sequence_ [ drawLockInfo (ActiveLock (codename uinfo) i) mlockinfo |
 				    (i,mlockinfo) <- assocs $ userLocks uinfo ]
