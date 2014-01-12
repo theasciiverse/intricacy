@@ -275,7 +275,9 @@ curServerAction :: UIMonad uiM => Protocol.Action -> StateT MainState uiM Server
 curServerAction act = do
     saddr <- gets curServer
     auth <- gets curAuth
-    lift $ withImpatience $ liftIO $ makeRequest saddr $ ClientRequest protocolVersion auth act
+    cOnly <- gets cacheOnly
+    if cOnly then return $ ServerError "Can't contact server in cache-only mode"
+	else lift $ withImpatience $ liftIO $ makeRequest saddr $ ClientRequest protocolVersion auth act
 
 curServerActionAsync :: UIMonad uiM => Protocol.Action -> StateT MainState uiM ()
 curServerActionAsync act = do
@@ -283,12 +285,14 @@ curServerActionAsync act = do
     auth <- gets curAuth
     flag <- gets newAsync
     errtvar <- gets asyncError
+    cOnly <- gets cacheOnly
     void $ liftIO $ forkIO $ do
-	resp <- makeRequest saddr $ ClientRequest protocolVersion auth act
-	atomically $ writeTVar flag True
+	resp <- if cOnly then return $ ServerError "Can't contact server in cache-only mode"
+		else makeRequest saddr $ ClientRequest protocolVersion auth act
 	case resp of
 	    ServerError err -> atomically $ writeTVar errtvar $ Just err
 	    _ -> return ()
+	atomically $ writeTVar flag True
 
 checkAsyncErrors :: UIMonad uiM => StateT MainState uiM ()
 checkAsyncErrors = void.runMaybeT $ do

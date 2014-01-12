@@ -174,7 +174,7 @@ processCommand' IMMeta CmdRegister = void.runMaybeT $ do
 		ServerAck -> do
 		    lift $ drawMessage "New password set."
 		    modify $ \ms -> ms {curAuth = Just $ Auth newName passwd}
-		ServerError err -> lift $ drawMessage err
+		ServerError err -> lift $ drawError err
 		_ -> lift $ drawMessage $ "Bad server response: " ++ show resp
 	else do
 	    modify $ \ms -> ms {curAuth = Just $ Auth newName passwd}
@@ -185,7 +185,7 @@ processCommand' IMMeta CmdRegister = void.runMaybeT $ do
 		    refreshUInfoUI
 		    lift $ drawMessage "Registered!"
 		ServerError err -> do
-		    lift $ drawMessage err
+		    lift $ drawError err
 		    modify $ \ms -> ms {curAuth = Nothing}
 		_ -> lift $ drawMessage $ "Bad server response: " ++ show resp
 processCommand' IMMeta CmdAuth = void.runMaybeT $ do
@@ -200,7 +200,7 @@ processCommand' IMMeta CmdAuth = void.runMaybeT $ do
 	    ServerAck -> (lift $ drawMessage "Authenticated.")
 	    ServerMessage msg -> (lift $ drawMessage $ "Server: " ++ msg)
 	    ServerError err -> do
-		lift $ drawMessage err
+		lift $ drawError err
 		modify $ \ms -> ms {curAuth = auth}
 	    _ -> lift $ drawMessage $ "Bad server response: " ++ show resp
 processCommand' IMMeta (CmdSolve midx) = void.runMaybeT $ do
