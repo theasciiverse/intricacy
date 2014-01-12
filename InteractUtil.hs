@@ -165,6 +165,8 @@ confirm prompt = do
 		Nothing -> waitConfirm
 	ansOfCmd (CmdInputChar 'y') = Just True
 	ansOfCmd (CmdInputChar 'Y') = Just True
+	ansOfCmd CmdRedraw = Nothing
+	ansOfCmd CmdRefresh = Nothing
 	ansOfCmd _ = Just False
 
 -- | TODO: draw cursor
@@ -219,5 +221,6 @@ textInput prompt maxlen hidden endOnMax mposss init = getText (fromMaybe "" init
 		applyCmd x (CmdInputCodename name) =
 		    Right $ (name, Nothing)
 		applyCmd x CmdRedraw = Right x
+		applyCmd x CmdRefresh = Right x
 		applyCmd _ _ = Left False
 	completes s s' = take (length s) s' == s
