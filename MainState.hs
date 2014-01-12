@@ -233,10 +233,8 @@ mgetLock ls = do
 
 refreshUInfoUI :: (UIMonad uiM) => StateT MainState uiM ()
 refreshUInfoUI = void.runMaybeT $ do
-    name <- mgetCurName
-    ourName <- mgetOurName
     modify $ \ms -> ms { listOffset = 0 }
-    when (ourName == name) $ getRandomNames >> lift purgeInvalidUndecls
+    mourNameSelected >>= flip when getRandomNames
     lift $ modify $ \ms -> ms {retiredLocks = Nothing}
     lift.lift $ drawMessage ""
     where
@@ -244,7 +242,7 @@ refreshUInfoUI = void.runMaybeT $ do
 	    rnamestvar <- gets randomCodenames
 	    flag <- gets newAsync
 	    saddr <- gets curServer
-	    liftIO $ forkIO $ do
+	    void $ liftIO $ forkIO $ do
 		resp <- makeRequest saddr $
 		    ClientRequest protocolVersion Nothing $ GetRandomNames 19
 		case resp of
@@ -252,9 +250,15 @@ refreshUInfoUI = void.runMaybeT $ do
 			    writeTVar rnamestvar names
 			    writeTVar flag True
 		    _ -> return ()
-	purgeInvalidUndecls = do
-	    undecls' <- gets undeclareds >>= filterM ((not<$>).invalid)
-	    modify $ \ms -> ms { undeclareds = undecls' }
+
+mourNameSelected :: (UIMonad uiM) => MaybeT (StateT MainState uiM) Bool
+mourNameSelected = liftM2 (==) mgetCurName mgetOurName
+
+purgeInvalidUndecls :: (UIMonad uiM) => StateT MainState uiM ()
+purgeInvalidUndecls = do
+    undecls' <- gets undeclareds >>= filterM ((not<$>).invalid)
+    modify $ \ms -> ms { undeclareds = undecls' }
+    where
 	invalid (Undeclared _ ls (ActiveLock name idx)) =
 	    (fromMaybe False <$>) $ runMaybeT $ do
 		uinfo <- mgetUInfo name

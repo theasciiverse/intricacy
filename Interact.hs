@@ -72,7 +72,9 @@ interactUI = do
 	    mainSt <- get
 	    let im = ms2im mainSt
 	    when (im == IMPlay && not (psSolved mainSt)) checkWon
-	    when (im == IMMeta) checkAsyncErrors
+	    when (im == IMMeta) $ (checkAsyncErrors >>) $ void.runMaybeT $ 
+		mourNameSelected >>=
+		    flip when (lift purgeInvalidUndecls)
 	    drawMainState
 	    cmds <- lift $ getSomeInput im
 	    runErrorT (mapM_ (processCommand im) cmds) >>= \x -> case x of
@@ -239,9 +241,8 @@ processCommand' IMMeta (CmdPlayLockSpec mls) = void.runMaybeT $ do
     solveLock lock $ Just $ "solving " ++ show ls
     
 processCommand' IMMeta (CmdDeclare mundecl) = void.runMaybeT $ do
+    mourNameSelected >>= guard
     name <- mgetCurName
-    ourName <- mgetOurName
-    guard $ name == ourName
     undecls <- lift $ gets undeclareds
     guard $ not $ null undecls
     declare =<< msum [ MaybeT $ return mundecl
@@ -299,8 +300,8 @@ processCommand' IMMeta (CmdViewSolution mnote) = void.runMaybeT $ do
 	"viewing solution by " ++ noteAuthor note ++ " to " ++ name ++ [':',lockIndexChar idx]
 
 processCommand' IMMeta (CmdPlaceLock midx) = void.runMaybeT $ do
+    mourNameSelected >>= guard
     ourName <- mgetOurName
-    mgetCurName >>= guard . (== ourName)
     (lock,msoln) <- MaybeT $ gets curLock
     ourUInfo <- mgetUInfo ourName
     idx <- msum [ MaybeT $ return midx
