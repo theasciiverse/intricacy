@@ -198,6 +198,7 @@ instance UIMonad (StateT UIState IO) where
 	catchIOErrorMT $ SDL.init [InitVideo]
 	catchIOErrorMT TTF.init
 	lift $ do
+	    readUIConfigFile
 	    modes <- liftIO $ listModes Nothing [Resizable]
 	    let Rect _ _ w h = case modes of
 		    Modes (mode:_) -> mode
@@ -208,7 +209,6 @@ instance UIMonad (StateT UIState IO) where
 	    renderToMain $ erase
 	    liftIO $ enableUnicode True
 	    liftIO $ enableKeyRepeat 250 30
-	    readUIConfigFile
 	    readBindings
 	)
 	where

@@ -89,7 +89,7 @@ hextant (HexVec x y z)
     | -x > 0 && -y >= 0 = 3
     | z > 0 && x >= 0 = 4
     | -y > 0 && -z >= 0 = 5
-    | otherwise = undefined
+    | otherwise = error $ "Tried to take hextant of zero"
 
 -- hextant (rotate n hu) == n
 rotate :: Int -> HexVec -> HexVec

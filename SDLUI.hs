@@ -44,6 +44,7 @@ import Maxlocksize
 
 data UIState = UIState { scrHeight::Int, scrWidth::Int
     , gsSurface::Maybe Surface
+    , bgSurface::Maybe Surface
     , lastDrawArgs::Maybe DrawArgs
     , miniLocks::Map Lock Surface
     , metaSelectables::Map HexVec Selectable
@@ -63,7 +64,7 @@ data UIState = UIState { scrHeight::Int, scrWidth::Int
     , dispLastCol::PieceColouring }
     deriving (Eq, Ord, Show)
 type UIM = StateT UIState IO
-nullUIState = UIState 0 0 Nothing Nothing Map.empty Map.empty []
+nullUIState = UIState 0 0 Nothing Nothing Nothing Map.empty Map.empty []
     defaultUIOptions Nothing Map.empty Nothing Nothing 0 0 False False False
     (zero,False) Nothing Nothing (PHS zero) Map.empty
 
@@ -71,9 +72,10 @@ data UIOptions = UIOptions
     { useFiveColouring::Bool
     , showBlocks::Bool
     , whsButtons::WrHoSel
+    , useBackground::Bool
     }
     deriving (Eq, Ord, Show, Read)
-defaultUIOptions = UIOptions False False WHSSelected
+defaultUIOptions = UIOptions False False WHSSelected True
 modifyUIOptions f = modify $ \s -> s { uiOptions = f $ uiOptions s }
 
 renderToMain :: RenderM a -> UIM a
@@ -85,7 +87,8 @@ renderToMainWithSurf surf m = do
     (scrCentre, size) <- getGeom
     centre <- gets dispCentre
     mfont <- gets dispFont
-    liftIO $ runReaderT m $ RenderContext surf centre scrCentre size mfont
+    bgsurf <- gets bgSurface
+    liftIO $ runReaderT m $ RenderContext surf bgsurf centre scrCentre size mfont
 
 
 refresh :: UIM ()
@@ -417,7 +420,7 @@ drawMiniLock lock v = do
 		draw = sequence_ [ drawAt glyph pos | 
 		    (pos,glyph) <- Map.toList $ fmap (ownedTileGlyph colouring []) $ stateBoard st ]
 	    liftIO $ runReaderT draw $
-		RenderContext surf (PHS zero) (SVec (width`div`2) (height`div`2)) minisize Nothing
+		RenderContext surf Nothing (PHS zero) (SVec (width`div`2) (height`div`2)) minisize Nothing
 	    clearOldMiniLocks
 	    modify $ \ds -> ds { miniLocks = Map.insert lock surf $ miniLocks ds }
 	    return surf
@@ -455,13 +458,23 @@ initVideo w h = do
     liftIO $ setVideoMode w h 0 [Resizable]
     modify $ \ds -> ds { scrWidth = w }
     modify $ \ds -> ds { scrHeight = h }
-    surf <- liftIO $ createRGBSurface [] w h 16 0 0 0 0
-    modify $ \ds -> ds { gsSurface = Just surf, lastDrawArgs = Nothing }
+    gssurf <- liftIO $ createRGBSurface [] w h 16 0 0 0 0
+    modify $ \ds -> ds { gsSurface = Just gssurf, lastDrawArgs = Nothing }
+
     (_,size) <- getGeom
     fontpath <- liftIO $ getDataPath "VeraMono.ttf"
     font <- liftIO $ TTF.tryOpenFont fontpath size
     smallFont <- liftIO $ TTF.tryOpenFont fontpath (2*size`div`3)
     modify $ \ds -> ds { dispFont = font, dispFontSmall = smallFont }
+
+    useBG <- gets $ useBackground.uiOptions
+    mbg <- if useBG then do
+	    bgsurf <- liftIO $ createRGBSurface [] w h 16 0 0 0 0
+	    renderToMainWithSurf bgsurf $ drawBasicBG $ 2*(max screenWidthHexes screenHeightHexes)`div`3
+	    return $ Just bgsurf
+	else return Nothing
+    modify $ \ds -> ds { bgSurface = mbg }
+
     clearMiniLocks
 
 drawMsgLine = void.runMaybeT $ do

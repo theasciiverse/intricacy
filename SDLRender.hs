@@ -343,6 +343,7 @@ sVec2HexVec size sv =
 
 data RenderContext = RenderContext
     { renderSurf :: Surface
+    , renderBGSurf :: Maybe Surface
     , renderHCentre :: HexPos
     , renderSCentre :: SVec
     , renderSize :: Int
@@ -368,10 +369,24 @@ withFont font = local refont
     where refont rc = rc { renderFont = font }
 
 erase :: RenderM ()
-erase = do
-    surf <- asks renderSurf
-    void $ liftIO $ fillRect surf Nothing black
+erase = fillRectBG Nothing
 
+fillRectBG :: Maybe Rect -> RenderM ()
+fillRectBG mrect = do
+    surf <- asks renderSurf
+    mbgsurf <- asks renderBGSurf
+    void $ liftIO $ maybe
+	(fillRect surf mrect black)
+	(\bgsurf -> blitSurface bgsurf mrect surf mrect)
+	mbgsurf
+
+drawBasicBG :: Int -> RenderM ()
+drawBasicBG maxR = sequence_ [ drawAtRel (hollowGlyph $ colAt v) v | v <- hexDisc maxR ]
+    where
+	colAt v@(HexVec hx hy hz) = let
+		[r,g,b] = map (\h -> fromIntegral $ ((0xff*)$ abs h)`div`maxR) [hx,hy,hz]
+		a = fromIntegral $ (0xb0 * (maxR - abs (hexLen v)))`div`maxR
+	    in rgbaToPixel (r,g,b,a)
 
 drawAt :: Glyph -> HexPos -> RenderM ()
 drawAt gl pos = do
@@ -413,10 +428,7 @@ blankRow v = do
     let SVec _ y = scrCentre <+> (hexVec2SVec size v)
 	w = surfaceGetWidth surf
 	h = ceiling $ fromIntegral size * 2 * sqrt 3
-    void $ liftIO $ fillRect surf (Just $
-	Rect 0 (y-h`div`2)
-	    w h
-	) black
+    fillRectBG $ Just $ Rect 0 (y-h`div`2) w h
 
 drawCursorAt :: Maybe HexPos -> RenderM ()
 drawCursorAt (Just pos) = drawAt cursor pos
