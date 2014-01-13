@@ -4,6 +4,7 @@ A game of competitive puzzle-design.
 
 http://mbays.freeshell.org/intricacy/
 
+
 Compiling
 =========
 Dependencies:
@@ -42,12 +43,14 @@ To compile for windows:
 To compile for OSX, or android or whatever else wacky system:
     No idea, sorry. But please tell me if you manage!
 
+
 Playing
 =======
 Press 'T' on the starting screen to play the tutorials, which should lead you
-to discover the main game mechanics. Then select a codename with 'C', and
-register it with 'R'. The rest you can hopefully figure out, but see below if
-you'd rather read about it.
+to discover the main game mechanics. When you've finished or had enough of the
+tutorials, select a codename with 'C' and register it with 'R'. The rest you
+can hopefully figure out, but see below if you'd rather read about it.
+
 
 Configuration
 =============
@@ -63,14 +66,14 @@ follows:
     * The lone hex with optional arrow toggles "blockage annotations". These
 	are there to help you figure out what's going on when you can't
 	understand why a piece refuses to move. An orange arrow indicates a
-	blocked forces, and a purple arrow a force which blocked another
-	force.
+	blocked force, and a purple arrow a force which blocked another force.
 
 Config files are saved in ~/.intricacy/ on unixoids, or something like
-"...\Application Data\intricacy" on windows. In particular, the locks you
+"...\Application Data\intricacy\" on windows. In particular, the locks you
 create in the lock editor are saved in there (and you can organise them into
 directories by including (back)slashs in the lock name). You can edit them in
 a text editor if you want - see AsciiLock.hs for what the characters mean.
+
 
 Rough description of the game mechanics
 =======================================
@@ -81,12 +84,12 @@ Rough description of the game mechanics
 * To open a lock, the "bolthole" (the area in the top-right) must be empty.
 * Each turn, the tools push and rotate according to the player's commands, and
     then each spring which is compressed or extended beyond its natural length
-    pushes/pulles on the block at its end.
+    pushes/pulls on the block at its end.
 * If two forces try to move a piece in two different directions, or try to
     move two pieces into the same hex, one or both is blocked.
 * If a pivot/hook is trying to turn and there's a piece in the way of one of
-    its arms, it will first try to push the piece away - but if that force is
-    blocked, it will try instead to pull the piece round with the arm as it
+    its arms, it will at first try to push the piece away - but if that force
+    is blocked, it will try instead to pull the piece round with the arm as it
     turns.
 * If two springs are trying to push two blocks into the same hex, they will
     generally both be blocked. However, if one of the forces is also pushing
@@ -120,6 +123,7 @@ it!).
 
 To declare a solution, you must secure a note on it behind a non-public lock
 in one of your three lock slots. Once the note is placed, it can't be moved.
+
 
 Full details of the game mechanics
 ==================================
@@ -182,10 +186,10 @@ To _propagate_ a force:
 	will propagate to a push in the same direction on the other block.
 
 A force is _resisted_ if it is a push on a pivot or on a block which isn't the
-    end of a spring in plus-or-minus the direction of the push, or it's a
-    torque on a block, or it's a force on a hook which isn't already getting
-    that force this phase as the result of a player move, or it's a force on a
-    wrench which isn't a push in the direction it's already moving.
+    end of a spring aligned in plus-or-minus the direction of the push, or
+    it's a torque on a block, or it's a force on a hook which isn't already
+    getting that force this phase as the result of a player move, or it's a
+    force on a wrench which isn't a push in the direction it's already moving.
 
 To _propagate an initial force to a force group_:
     * Propagate the force as above, then recursively propagate the resulting
