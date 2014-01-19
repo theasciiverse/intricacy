@@ -363,9 +363,14 @@ processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
 	let name = tuts !! (i-1)
 	(lock,_) <- MaybeT $ liftIO $ readLock (tutdir ++ [pathSeparator] ++ name)
 	_ <- solveLock lock $ Just $ "tutorial: "++ name
-	guard $ i+1 <= length tuts
-	confirmOrBail $ "Tutorial level completed! Play next tutorial level (" ++ show (i+1) ++ ")?"
-	dotut $ i+1
+	if i+1 <= length tuts then do
+		confirmOrBail $ "Tutorial level completed! Play next tutorial level (" ++ show (i+1) ++ ")?"
+		dotut $ i+1
+	    else lift $ do 
+		mauth <- gets curAuth
+		lift $ drawMessage $ if isNothing mauth
+		    then "Tutorial completed! To play on the server, pick a codename ('C') and register it ('R')."
+		    else "Tutorial completed!"
     dotut i
 processCommand' IMMeta CmdShowRetired = void.runMaybeT $ do
     name <- mgetCurName
