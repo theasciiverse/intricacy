@@ -456,9 +456,14 @@ drawButtons mode = do
 initVideo :: Int -> Int -> UIM ()
 initVideo w h = do
     liftIO $ setVideoMode w h 0 [Resizable]
-    modify $ \ds -> ds { scrWidth = w }
-    modify $ \ds -> ds { scrHeight = h }
-    gssurf <- liftIO $ createRGBSurface [] w h 16 0 0 0 0
+    
+    -- see what size we actually got:
+    vinfo <- liftIO $ getVideoInfo
+    let [w',h'] = map ($vinfo) [videoInfoWidth,videoInfoHeight]
+
+    modify $ \ds -> ds { scrWidth = w' }
+    modify $ \ds -> ds { scrHeight = h' }
+    gssurf <- liftIO $ createRGBSurface [] w' h' 16 0 0 0 0
     modify $ \ds -> ds { gsSurface = Just gssurf, lastDrawArgs = Nothing }
 
     (_,size) <- getGeom
@@ -469,7 +474,7 @@ initVideo w h = do
 
     useBG <- gets $ useBackground.uiOptions
     mbg <- if useBG then do
-	    bgsurf <- liftIO $ createRGBSurface [] w h 16 0 0 0 0
+	    bgsurf <- liftIO $ createRGBSurface [] w' h' 16 0 0 0 0
 	    renderToMainWithSurf bgsurf $ drawBasicBG $ 2*(max screenWidthHexes screenHeightHexes)`div`3
 	    return $ Just bgsurf
 	else return Nothing

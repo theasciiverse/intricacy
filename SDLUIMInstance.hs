@@ -199,12 +199,10 @@ instance UIMonad (StateT UIState IO) where
 	catchIOErrorMT TTF.init
 	lift $ do
 	    readUIConfigFile
-	    modes <- liftIO $ listModes Nothing [Resizable]
-	    let Rect _ _ w h = case modes of
-		    Modes (mode:_) -> mode
-		    AnyOK -> Rect 0 0 1024 768
-		    _ -> error "SDL says no resolution available"
-	    initVideo w h
+	    initVideo 0 0
+	    liftIO $ setCaption "intricacy" "intricacy"
+	    w <- gets scrWidth
+	    h <- gets scrHeight
 	    liftIO $ warpMouse (fromIntegral $ w`div`2) (fromIntegral $ h`div`2)
 	    renderToMain $ erase
 	    liftIO $ enableUnicode True
