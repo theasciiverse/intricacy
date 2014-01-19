@@ -15,6 +15,7 @@ import Control.Concurrent.STM
 import Control.Concurrent
 import Control.Applicative
 import Control.Exception
+import Control.Monad.Trans.Reader
 import System.Directory
 import Control.Monad
 import Data.Maybe
@@ -35,11 +36,11 @@ data FetchedRecord = FetchedRecord {fresh :: Bool, fetchError :: Maybe String, f
 
 
 getRecordCached :: ServerAddr -> Maybe Auth -> Maybe (TVar Bool) -> Bool -> Record -> IO (TVar FetchedRecord)
-getRecordCached saddr auth mflag cOnly rec = withCacheDir saddr $ do
-    fromCache <- getRecord rec
+getRecordCached saddr auth mflag cOnly rec = do
+    fromCache <- withCache saddr $ getRecord rec
     let fresh = isJust fromCache && invariantRecord rec
     tvar <- atomically $ newTVar $ FetchedRecord fresh Nothing fromCache
-    unless (cOnly || fresh) $ void $ forkIO $ withCacheDir saddr $ getRecordFromServer fromCache tvar
+    unless (cOnly || fresh) $ void $ forkIO $ getRecordFromServer fromCache tvar
     return tvar
     where
 	getRecordFromServer fromCache tvar = do
@@ -57,11 +58,11 @@ getRecordCached saddr auth mflag cOnly rec = withCacheDir saddr $ do
 		ServedUserInfoDeltas deltas -> do
 		    let Just (RCUserInfo (v,info)) = fromCache
 		    let rc = RCUserInfo (v+length deltas, applyDeltas info deltas)
-		    putRecord rec rc
+		    withCache saddr $ putRecord rec rc
 		    tellRec $ FetchedRecord True Nothing (Just rc)
 		_ -> do
 		    let rc = rcOfServerResp resp
-		    putRecord rec rc
+		    withCache saddr $ putRecord rec rc
 		    tellRec $ FetchedRecord True Nothing (Just rc)
 	    where
 		tellRec fr = atomically $ do
@@ -86,14 +87,10 @@ knownServers :: IO [ServerAddr]
 knownServers = flip catchIO (const $ return []) $ do
     cachedir <- confFilePath "cache"
     saddrstrs <- getDirectoryContents cachedir >>= filterM (\dir ->
-	doesDirectoryExist $ cachedir++[pathSeparator]++dir++[pathSeparator]++dbpath)
+	doesDirectoryExist $ cachedir++[pathSeparator]++dir++[pathSeparator]++"intricacydb"++[pathSeparator])
     return $ concat $ map (maybeToList . strToSaddr) saddrstrs
 
--- | cheap way to get around having to pass the server address to the database
--- functions - we just cd to the right place before using them.
-withCacheDir saddr m = do
-    dir <- getCurrentDirectory
-    confdir <- (++[pathSeparator]++saddrStr saddr) `liftM` confFilePath "cache"
-    mkdirhier confdir
-    setCurrentDirectory confdir
-    m <* setCurrentDirectory dir
+withCache :: ServerAddr -> DBM a -> IO a
+withCache saddr m = do
+    cachedir <- (++[pathSeparator]++saddrStr saddr) `liftM` confFilePath "cache"
+    runReaderT m cachedir

@@ -17,6 +17,8 @@ import Control.Monad
 import System.IO
 import System.FilePath
 import System.Directory
+import Control.Monad.Trans.Reader
+import Control.Monad.IO.Class
 import qualified Data.ByteString.Lazy.Char8 as CL
 import qualified Data.ByteString.Char8 as CS
 
@@ -80,14 +82,18 @@ askForRecord (RecLock ls) = GetLock ls
 askForRecord (RecNote note) = GetSolution note
 askForRecord (RecRetiredLocks name) = GetRetired name
 askForRecord _ = error "no corresponding request"
-	    
-recordExists :: Record -> IO Bool
-recordExists = doesFileExist . recordPath
 
-getRecord :: Record -> IO (Maybe RecordContents)
-getRecord rec = flip catchIO (const $ return Nothing) $ do
-    h <- openFile (recordPath rec) ReadMode
-    getRecordh rec h <* hClose h
+type DBM = ReaderT FilePath IO
+	    
+recordExists :: Record -> DBM Bool
+recordExists rec = recordPath rec >>= liftIO . doesFileExist
+
+getRecord :: Record -> DBM (Maybe RecordContents)
+getRecord rec = do
+    path <- recordPath rec
+    liftIO $ flip catchIO (const $ return Nothing) $ do
+	h <- openFile path ReadMode
+	getRecordh rec h <* hClose h
 getRecordh (RecPassword _) h = ((RCPassword <$>) . tryRead) <$> hGetStrict h
 getRecordh (RecUserInfo _) h = ((RCUserInfo <$>) . tryRead) <$> hGetStrict h
 getRecordh (RecUserInfoLog _) h = ((RCUserInfoDeltas <$>) . tryRead) <$> hGetStrict h
@@ -104,13 +110,14 @@ hGetStrict h = CS.unpack `liftM` concatMWhileNonempty (repeat $ CS.hGet h 1024)
 		then return bs
 		else (bs `CS.append`) `liftM` concatMWhileNonempty ms
 
-putRecord :: Record -> RecordContents -> IO ()
+putRecord :: Record -> RecordContents -> DBM ()
 putRecord rec rc = do
-    let path = recordPath rec
-    mkdirhierto path 
-    h <- openFile path WriteMode 
-    putRecordh rc h
-    hClose h
+    path <- recordPath rec
+    liftIO $ do
+	mkdirhierto path 
+	h <- openFile path WriteMode 
+	putRecordh rc h
+	hClose h
 putRecordh (RCPassword hpw) h = hPutStr h $ show hpw
 putRecordh (RCUserInfo info) h = hPutStr h $ show info
 putRecordh (RCUserInfoDeltas deltas) h = hPutStr h $ show deltas
@@ -120,35 +127,41 @@ putRecordh (RCLockHashes hashes) h = hPutStr h $ show hashes
 putRecordh (RCLockSpecs lss) h = hPutStr h $ show lss
 putRecordh (RCServerInfo sinfo) h = hPutStr h $ show sinfo
 
-modifyRecord :: Record -> (RecordContents -> RecordContents) -> IO ()
+modifyRecord :: Record -> (RecordContents -> RecordContents) -> DBM ()
 modifyRecord rec f = do
-    h <- openFile (recordPath rec) ReadWriteMode 
-    Just rc <- getRecordh rec h
-    hSeek h AbsoluteSeek 0
-    putRecordh (f rc) h
-    hTell h >>= hSetFileSize h 
-    hClose h
+    h <- recordPath rec >>= liftIO . flip openFile ReadWriteMode 
+    liftIO $ do
+	Just rc <- getRecordh rec h
+	hSeek h AbsoluteSeek 0
+	putRecordh (f rc) h
+	hTell h >>= hSetFileSize h 
+	hClose h
 
-delRecord :: Record -> IO ()
-delRecord rec = removeFile $ recordPath rec
+delRecord :: Record -> DBM ()
+delRecord rec = recordPath rec >>= liftIO . removeFile
 
-newLockRecord :: Lock -> IO LockSpec
+newLockRecord :: Lock -> DBM LockSpec
 newLockRecord lock = do
-    let path = dbpath++"lastlock"
-    h <- openFile path ReadWriteMode
-    contents <- hGetStrict h
+    dbpath <- ask
+    let path = dbpath++[pathSeparator]++"lastlock"
+    h <- liftIO $ openFile path ReadWriteMode
+    contents <- liftIO $ hGetStrict h
     let ls = if null contents then 0 else 1 + read contents
-    hSeek h AbsoluteSeek 0
-    hPutStr h $ show ls
-    hClose h
+    liftIO $ hSeek h AbsoluteSeek 0
+    liftIO $ hPutStr h $ show ls
+    liftIO $ hClose h
     putRecord (RecLock ls) (RCLock lock)
     return ls
 
-listUsers :: IO [Codename]
-listUsers = (map unpathifyName . filter ((==3).length)) <$> getDirectoryContents (dbpath++"users")
+listUsers :: DBM [Codename]
+listUsers = do
+    dbpath <- ask
+    liftIO $ (map unpathifyName . filter ((==3).length)) <$> getDirectoryContents (dbpath++[pathSeparator]++"users")
 
-recordPath :: Record -> FilePath
-recordPath = (dbpath++) . recordPath'
+recordPath :: Record -> DBM FilePath
+recordPath rec = do
+	dbpath <- ask
+	return $ dbpath ++ [pathSeparator] ++ recordPath' rec
     where
 	recordPath' (RecPassword name) = userDir name ++ "passwd"
 	recordPath' (RecUserInfo name) = userDir name ++ "info"
@@ -162,7 +175,6 @@ recordPath = (dbpath++) . recordPath'
 	userDir name = "users" ++ [pathSeparator] ++ pathifyName name ++ [pathSeparator]
 	alockFN (ActiveLock name idx) = pathifyName name ++":"++ show idx
 	locksDir = "locks"++[pathSeparator]
-dbpath = "intricacydb"++[pathSeparator]
 
 -- dummy out characters which are disallowed on unix or windows:
 pathifyName = map $ \c -> case c of 

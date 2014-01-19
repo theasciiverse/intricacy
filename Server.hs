@@ -18,6 +18,7 @@ import Control.Monad
 import Control.Monad.Trans.State
 import Control.Monad.Trans.Error
 import Control.Monad.Trans.Maybe
+import Control.Monad.Trans.Reader
 import Control.Monad.Trans
 import Control.Monad.IO.Class
 import System.Random
@@ -26,6 +27,7 @@ import Data.Word
 import Data.Foldable (for_)
 import Data.Time.Clock
 import System.IO
+import System.FilePath
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Binary as B
 import Data.Array
@@ -66,10 +68,14 @@ main = do
     argv <- getArgs
     (opts,_) <- parseArgs argv
     let delay = fromMaybe 0 $ listToMaybe [ d | RequestDelay d <- opts ]
-    setDefaultServerInfo
+    withDB setDefaultServerInfo
     writeFile lockFilePath ""
     streamServer serverSpec{address = IPv4 "" port, threading=Inline} $ handler delay
     sleepForever
+
+-- database path is relative to current directory: ./intricacydb/
+dbpath = "intricacydb"
+withDB = flip runReaderT dbpath
 
 setDefaultServerInfo = do
     alreadySet <- recordExists RecServerInfo
@@ -124,7 +130,7 @@ withDBLock lockMode m = do
     return ret
     where getDBLock lockMode =
 	    catchIO (openFile lockFilePath lockMode) (\_ -> threadDelay (50*10^3) >> getDBLock lockMode)
-lockFilePath = dbpath ++ "lockfile"
+lockFilePath = dbpath ++ [pathSeparator] ++ "lockfile"
 
 handleRequest :: ClientRequest -> IO ServerResponse
 handleRequest req@(ClientRequest pv auth action) = do
@@ -188,7 +194,7 @@ handleRequest req@(ClientRequest pv auth action) = do
 		    behindLock <- getALock behind
 		    when (public behindLock) $ throwError "Your lock is cracked!"
 		    unless (checkSolution lock soln) $ throwError "Bad solution"
-		    erroredIO $ putRecord (RecNote note) (RCSolution soln)
+		    erroredDB $ putRecord (RecNote note) (RCSolution soln)
 		    execStateT (declareNote note behind) [] >>= applyDeltasToRecords
 		    return ServerAck
 		SetLock lock@(frame,_) idx soln -> do
@@ -205,8 +211,8 @@ handleRequest req@(ClientRequest pv auth action) = do
 			    `catchError` const (return (RCLockHashes []))
 		    let hashed = hash $ show lock
 		    when (hashed `elem` hashes) $ throwError "Lock has already been used"
-		    ls <- erroredIO $ newLockRecord lock
-		    erroredIO $ putRecord RecLockHashes $ RCLockHashes $ hashed:hashes
+		    ls <- erroredDB $ newLockRecord lock
+		    erroredDB $ putRecord RecLockHashes $ RCLockHashes $ hashed:hashes
 
 		    let oldLockInfo = userLocks info ! idx
 		    execStateT (do
@@ -217,10 +223,10 @@ handleRequest req@(ClientRequest pv auth action) = do
 
 		    for_ oldLockInfo $ \oldui -> do
 			lss <- getRetired name
-			erroredIO $ putRecord (RecRetiredLocks name) $ RCLockSpecs $ (lockSpec oldui):lss
+			erroredDB $ putRecord (RecRetiredLocks name) $ RCLockSpecs $ (lockSpec oldui):lss
 		    return ServerAck
 		GetRandomNames n -> do
-		    names <- erroredIO $ listUsers
+		    names <- erroredDB $ listUsers
 		    gen <- erroredIO $ getStdGen
 		    let l = length names
 			namesArray = listArray (0,l-1) names
@@ -244,9 +250,11 @@ handleRequest req@(ClientRequest pv auth action) = do
 	    case ret of
 		Left e -> throwError $ "Server IO error: " ++ show e
 		Right x -> return x
+	erroredDB :: DBM a -> ErrorT String IO a
+	erroredDB = erroredIO . withDB
 	getRecordErrored :: Record -> ErrorT String IO RecordContents
 	getRecordErrored rec = do
-	    mrc <- lift $ getRecord rec
+	    mrc <- lift $ withDB $ getRecord rec 
 	    case mrc of
 		Just rc -> return rc
 		Nothing -> throwError $ "Bad record on server! Record was: " ++ show rec
@@ -260,7 +268,7 @@ handleRequest req@(ClientRequest pv auth action) = do
 	    RCServerInfo sinfo <- getRecordErrored $ RecServerInfo
 	    return sinfo
 	getRetired name = do
-	    RCLockSpecs lss <- fromMaybe (RCLockSpecs []) <$> (erroredIO $ getRecord $ RecRetiredLocks name)
+	    RCLockSpecs lss <- fromMaybe (RCLockSpecs []) <$> (erroredDB $ getRecord $ RecRetiredLocks name)
 	    return lss
 	getALock (ActiveLock name idx) = do
 	    info <- getUserInfo name
@@ -290,17 +298,17 @@ handleRequest req@(ClientRequest pv auth action) = do
 	newUser (Just (Auth name pw)) = do
 	    exists <- checkCodeName name
 	    when exists $ throwError "Codename taken"
-	    erroredIO $ putRecord (RecPassword name) (RCPassword pw)
-	    erroredIO $ putRecord (RecUserInfo name) (RCUserInfo $ (1,initUserInfo name))
-	    erroredIO $ putRecord (RecUserInfoLog name) (RCUserInfoDeltas [])
+	    erroredDB $ putRecord (RecPassword name) (RCPassword pw)
+	    erroredDB $ putRecord (RecUserInfo name) (RCUserInfo $ (1,initUserInfo name))
+	    erroredDB $ putRecord (RecUserInfoLog name) (RCUserInfoDeltas [])
 	resetPassword Nothing pw = throwError "Authentication required"
 	resetPassword auth@(Just (Auth name _)) newpw = do
 	    checkAuth auth
-	    erroredIO $ putRecord (RecPassword name) (RCPassword newpw)
+	    erroredDB $ putRecord (RecPassword name) (RCPassword newpw)
 	checkCodeName :: Codename -> ErrorT String IO Bool
 	checkCodeName name = do
 	    unless (validCodeName name) $ throwError "Invalid codename"
-	    liftIO $ recordExists $ RecPassword name
+	    liftIO $ withDB $ recordExists $ RecPassword name
 	--- | TODO: journalling so we can survive death during database writes?
 	applyDeltasToRecords :: [(Codename, UserInfoDelta)] -> ErrorT String IO ()
 	applyDeltasToRecords nds = sequence_ $ [applyDeltasToRecord name deltas
@@ -308,9 +316,9 @@ handleRequest req@(ClientRequest pv auth action) = do
 		, let name = fst $ head group
 		, let deltas = map snd group ]
 	applyDeltasToRecord name deltas = do
-	    erroredIO $ modifyRecord (RecUserInfoLog name) $
+	    erroredDB $ modifyRecord (RecUserInfoLog name) $
 		\(RCUserInfoDeltas deltas') -> RCUserInfoDeltas $ deltas ++ deltas'
-	    erroredIO $ modifyRecord (RecUserInfo name) $
+	    erroredDB $ modifyRecord (RecUserInfo name) $
 		\(RCUserInfo (v,info)) -> RCUserInfo $
 		    (v+length deltas, applyDeltas info deltas)
 	declareNote note@(NoteInfo _ _ target) behind@(ActiveLock name idx) = do
