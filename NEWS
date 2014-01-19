@@ -1,3 +1,7 @@
+0.2.5:
+    Shortened tutorial drastically. Other levels now in 'tutorial-extra/'.
+    Improved video setup handling.
+    Fixed bug with text disappearing on resize.
 0.2.4:
     Improve handling inaccessible servers.
     Added background.
