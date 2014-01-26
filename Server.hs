@@ -139,6 +139,9 @@ handleRequest req@(ClientRequest pv auth action) = do
 	    GetServerInfo -> ReadMode
 	    GetLock _ -> ReadMode
 	    GetUserInfo _ _ -> ReadMode
+	    GetRetired _ -> ReadMode
+	    GetSolution _ -> ReadMode
+	    GetRandomNames _ -> ReadMode
 	    _ -> ReadWriteMode
     eresp <- withDBLock lockMode $ runErrorT handleRequest'
     case eresp of
