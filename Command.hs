@@ -49,7 +49,7 @@ data WrHoSel = WHSWrench | WHSHook | WHSSelected
 describeCommand :: Command -> String
 describeCommand (CmdDir whs dir) = "Move " ++ whsStr whs ++ " " ++ dirStr dir
 describeCommand (CmdRotate dir) = "Rotate " ++ (if dir == 1 then "counter" else "") ++ "clockwise"
-describeCommand CmdWait = "nothing"
+describeCommand CmdWait = "wait"
 describeCommand CmdToggle = "toggle tool"
 describeCommand CmdOpen = "open lock"
 describeCommand (CmdTile tile) = tileStr tile
