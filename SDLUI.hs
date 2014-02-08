@@ -141,7 +141,7 @@ getButtons mode = do
 		    ], (4,0) )
 	    ]) ++
 	    (if whs /= WHSSelected then [] else
-		[ ( [ Button (bl<+>(2<*>hv)<+>hw) (CmdTile $ ArmTile zero False)
+		[ ( [ Button (bl<+>(2<*>hv)<+>hw) (CmdTile $ HookTile)
 		    , Button (bl<+>(2<*>hv)) (CmdTile $ WrenchTile zero)
 		    ], (2,0) )
 	    ]) ++
