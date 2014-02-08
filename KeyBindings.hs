@@ -8,10 +8,11 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
-module KeyBindings (KeyBindings, bindings, findBinding, showKey) where
+module KeyBindings (KeyBindings, bindings, findBindings, findBinding, showKey) where
 
 import Data.Maybe
 import Data.Char
+import Data.List
 
 import Command
 import Hex
@@ -186,8 +187,11 @@ bindings IMMeta = metaBindings
 bindings IMReplay = replayBindings
 bindings _ = []
 
+findBindings :: KeyBindings -> Command -> [Char]
+findBindings bdgs cmd = nub [ ch | (ch,cmd') <- bdgs, cmd'==cmd ]
+
 findBinding :: KeyBindings -> Command -> Maybe Char
-findBinding bdgs cmd = listToMaybe [ ch | (ch,cmd') <- bdgs, cmd'==cmd ]
+findBinding = (listToMaybe.) . findBindings
 
 showKey ch | isPrint ch = [ch]
 showKey ch | isPrint (unctrl ch) = ('^':[unctrl ch])

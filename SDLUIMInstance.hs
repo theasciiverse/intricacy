@@ -379,16 +379,23 @@ instance UIMonad (StateT UIState IO) where
 		oldPos <- gets mousePos
 		when (newPos /= oldPos) $ do
 		    modify $ \ds -> ds { mousePos = newPos }
-		    updateHoverStr
+		    updateHoverStr 
 
 	    updateHoverStr = do
 		p@(mPos,isCentral) <- gets mousePos
 		hstr <- runMaybeT $ msum
-		    [ MaybeT $ (describeCommand<$>) <$> cmdAtMousePos p mode Nothing
+		    [ MaybeT ( cmdAtMousePos p mode Nothing ) >>= lift . describeCommandAndKeys
 		    , guard (mPos == uiOptPos uiOB1) >> describeUIOptionButton uiOB1
 		    , guard (mPos == uiOptPos uiOB2) >> describeUIOptionButton uiOB2
 		    , guard (mPos == uiOptPos uiOB3) >> describeUIOptionButton uiOB3 ]
 		modify $ \ds -> ds { hoverStr = hstr }
+	    describeCommandAndKeys :: Command -> UIM String
+	    describeCommandAndKeys cmd = do
+		uibdgs <- Map.findWithDefault [] mode `liftM` gets uiKeyBindings
+		return $ describeCommand cmd ++ " ["
+		    ++ concat (intersperse ","
+			(map showKey $ findBindings (uibdgs ++ bindings mode) cmd))
+		    ++ "]"
 
 fillArea :: HexVec -> [HexVec] -> [HexVec -> StateT MainState UIM ()] -> StateT MainState UIM () 
 fillArea centre area draws = do
