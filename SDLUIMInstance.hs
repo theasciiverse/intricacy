@@ -94,7 +94,12 @@ instance UIMonad (StateT UIState IO) where
 	    let home = isJust ourName && ourName == selName
 	    lift $ renderToMain $ (erase >> drawCursorAt Nothing)
 	    lift $ maybe (drawEmptyMiniLock miniLockPos)
-		((registerSelectable miniLockPos 3 SelOurLock >>) . flip drawMiniLock miniLockPos)
+		(\lock -> do
+		    drawMiniLock lock miniLockPos
+		    registerSelectable miniLockPos 3 SelOurLock
+		    registerButtonGroup $ singleButton (miniLockPos <+> 2<*>neg hv <+> hu) CmdPrevLock 4
+		    registerButtonGroup $ singleButton (miniLockPos <+> 2<*>neg hv <+> hu <+> neg hw) CmdNextLock 4
+		    )
 		(fst<$>mlock)
 	    lift $ do
 		smallFont <- gets dispFontSmall

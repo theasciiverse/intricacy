@@ -154,8 +154,6 @@ getButtons mode = do
 	    , singleButton (serverPos<+>neg hu) CmdToggleCacheOnly 0
 	    , singleButton lockLinePos CmdSelectLock 4
 	    , singleButton (miniLockPos <+> 2<*>hv <+> neg hu <+> hw) CmdEdit 2
-	    , singleButton (miniLockPos <+> 2<*>neg hv <+> hu) CmdPrevLock 4
-	    , singleButton (miniLockPos <+> 2<*>neg hv <+> hu <+> neg hw) CmdNextLock 4
 	    , singleButton (codenamePos <+> neg hu) (CmdSelCodename Nothing) 2
 	    , singleButton (serverPos <+> 2<*>neg hv <+> hw) CmdTutorials 1
 	    ]
