@@ -340,6 +340,7 @@ instance UIMonad (StateT UIState IO) where
 		initVideo w h
 		return [ CmdRedraw ]
 	    processEvent VideoExpose = return [ CmdRedraw ]
+	    processEvent Quit = return [ CmdForceQuit ]
 		
 	    processEvent _ = return []
 

@@ -39,7 +39,7 @@ data Command = CmdDir WrHoSel HexDir | CmdRotate TorqueDir | CmdWait
 	| CmdRegister | CmdAuth
 	| CmdNextPage | CmdPrevPage
 	| CmdRedraw | CmdRefresh | CmdSuspend
-	| CmdQuit 
+	| CmdQuit | CmdForceQuit
 	| CmdHelp
 	| CmdNone
     deriving (Eq, Ord, Show, Read)

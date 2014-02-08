@@ -103,6 +103,7 @@ processCommand im CmdQuit = do
     title <- lift $ getTitle
     really <- lift $ lift $ confirm $ "Really quit" ++ maybe "" (" from "++) title ++ "?"
     when really $ throwError $ InteractSuccess False
+processCommand im CmdForceQuit = throwError $ InteractSuccess False
 processCommand IMPlay CmdOpen = do
     st <- gets psCurrentState
     frame <- gets psFrame
