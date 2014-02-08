@@ -11,7 +11,7 @@ maintainer:          mbays@sdf.org
 category:            Game
 build-type:          Simple
 cabal-version:       >=1.8
-data-files: VeraMono.ttf tutorial/*.lock
+data-files: VeraMono.ttf tutorial/*.lock tutorial/*.text
 
 Flag SDL 
     Description: Enable SDL UI

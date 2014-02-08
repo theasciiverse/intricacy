@@ -351,7 +351,8 @@ processCommand' IMMeta CmdEdit = void.runMaybeT $ do
     lift $ setLockPath newPath
 processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
     tutdir <- liftIO $ getDataPath "tutorial"
-    tuts <- liftIO $ (sort . filter ((>2).length)) <$> getDirectoryContents tutdir `catchIO` (const $ return [])
+    tuts <- liftIO $ (sort . map (takeWhile (/='.')) . filter (isSuffixOf ".lock")) <$>
+	getDirectoryContents tutdir `catchIO` (const $ return [])
     when (null tuts) $ do
 	lift.lift $ drawError "No tutorial levels found"
 	mzero
@@ -361,8 +362,10 @@ processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
     guard $ 1 <= i && i <= length tuts
     let dotut i = do
 	let name = tuts !! (i-1)
-	(lock,_) <- MaybeT $ liftIO $ readLock (tutdir ++ [pathSeparator] ++ name)
-	_ <- solveLock lock $ Just $ "tutorial: "++ name
+	let pref = tutdir ++ [pathSeparator] ++ name
+	(lock,_) <- MaybeT $ liftIO $ readLock (pref ++ ".lock")
+	text <- MaybeT $ liftIO $ listToMaybe <$> readStrings (pref ++ ".text")
+	_ <- solveLock lock $ Just $ "Tutorial " ++ show i ++ ": " ++ text
 	if i+1 <= length tuts then do
 		confirmOrBail $ "Tutorial level completed! Play next tutorial level (" ++ show (i+1) ++ ")?"
 		dotut $ i+1
