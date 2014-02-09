@@ -14,7 +14,7 @@ import GameStateTypes
 import Metagame
 
 data Command = CmdDir WrHoSel HexDir | CmdRotate TorqueDir | CmdWait
-	| CmdMoveTo HexPos
+	| CmdMoveTo HexPos | CmdManipulateToolAt HexPos
 	| CmdToggle
 	| CmdOpen
 	| CmdTile Tile | CmdPaint (Maybe Tile)

@@ -400,6 +400,20 @@ processCommand' IMPlay CmdRedo = do
 	ustm:ustms' -> do
 	    pushPState ustm
 	    modify $ \ps -> ps {psUndoneStack = ustms'}
+processCommand' IMPlay (CmdManipulateToolAt pos) = do
+    st <- gets psCurrentState
+    let board = stateBoard st
+    wsel <- gets wrenchSelected
+    void.runMaybeT $ msum $ [ do
+	    tile <- MaybeT $ return $ snd <$> Map.lookup pos board
+	    guard $ case tile of {WrenchTile _ -> True; HookTile -> True; _ -> False}
+	    lift $ processCommand' IMPlay $ CmdTile tile
+	] ++ [ do
+	    tile <- MaybeT $ return $ snd <$> Map.lookup (d<+>pos) board
+	    guard $ tileType tile == if wsel then WrenchTile zero else HookTile
+	    lift $ processCommand' IMPlay $ CmdDir WHSSelected $ neg d
+	| d <- hexDirs ]
+
 processCommand' IMPlay cmd = do
     wsel <- gets wrenchSelected
     st <- gets psCurrentState

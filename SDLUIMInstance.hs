@@ -306,9 +306,13 @@ instance UIMonad (StateT UIState IO) where
 
 		if rb
 		then return [ CmdWait ]
-		else flip fromMaybe hotspotAction $ do
-		    pti <- getEffPaintTileIndex
-		    return $ [ drawCmd (paintTiles!!pti) False ]
+		else flip fromMaybe hotspotAction $ case mode of
+		    IMEdit -> do
+			pti <- getEffPaintTileIndex
+			return $ [ drawCmd (paintTiles!!pti) False ]
+		    IMPlay -> do
+			centre <- gets dispCentre
+			return $ [ CmdManipulateToolAt $ mPos <+> centre ]
 	    processEvent (MouseButtonUp _ _ ButtonLeft) = do
 		modify $ \s -> s { leftButtonDown = False }
 		return []
@@ -347,7 +351,7 @@ instance UIMonad (StateT UIState IO) where
 	    doWheel dw = do
 		rb <- gets rightButtonDown
 		mb <- gets middleButtonDown
-		if rb
+		if rb || mode == IMPlay
 		    then return [ CmdRotate dw ]
 		    else if mb 
 			then return [ if dw == 1 then CmdUndo else CmdRedo ]
