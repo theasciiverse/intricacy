@@ -29,7 +29,7 @@ Latest version is 0.2.6 [NEWS](NEWS)
      - see README for compilation instructions
      - please mail me <mbays@sdf.org> if it fails!
 * [Windows binary](intricacy-0.2.6-win32.zip)
-* [Linux binary](intricacy-0.2.6-linux-i686-glibc-2.14.tgz)
+* [Linux binary](intricacy-0.2.6-linux-i686-glibc-2.13.tgz)
 * [Old versions](old)
 
 ##Mailing list
