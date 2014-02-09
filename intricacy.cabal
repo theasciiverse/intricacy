@@ -42,6 +42,7 @@ executable intricacy
           if os(windows)
               Extra-Lib-Dirs:    winlibs
               Extra-Libraries:   SDL_ttf SDL SDL_gfx freetype
+              ghc-options: -optl-mwindows
   else
       Buildable: False
   if flag(Curses)
