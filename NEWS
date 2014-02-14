@@ -1,3 +1,5 @@
+0.2.6.2:
+    Fix silly crash bug introduced by 0.2.6.1
 0.2.6.1:
     Add mouse control of tools
 0.2.6:
