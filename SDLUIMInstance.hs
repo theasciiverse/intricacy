@@ -313,6 +313,7 @@ instance UIMonad (StateT UIState IO) where
 		    IMPlay -> do
 			centre <- gets dispCentre
 			return $ [ CmdManipulateToolAt $ mPos <+> centre ]
+		    _ -> return []
 	    processEvent (MouseButtonUp _ _ ButtonLeft) = do
 		modify $ \s -> s { leftButtonDown = False }
 		return []
