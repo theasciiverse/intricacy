@@ -181,15 +181,16 @@ To _propagate_ a force:
 	but when that force propagates to a push on the stationary block to
 	its east which is resisted, processing will back up and a push on the
 	ball southeast will be tried instead.
-    * If a spring between two blocks is fully compressed or fully extended,
-	and one block is pushed, then if the direction is appropriate the push
-	will propagate to a push in the same direction on the other block.
+    * A spring connecting two blocks transmits a push on one block to the
+	other unless the direction is such that the push is tending to
+	compress/extend the spring and the spring isn't already fully
+	compressed/extended.
 
 A force is _resisted_ if it is a push on a pivot or on a block which isn't the
-    end of a spring aligned in plus-or-minus the direction of the push, or
-    it's a torque on a block, or it's a force on a hook which isn't already
-    getting that force this phase as the result of a player move, or it's a
-    force on a wrench which isn't a push in the direction it's already moving.
+    end of a spring, or it's a torque on a block, or it's a force on a hook
+    which isn't already getting that force this phase as the result of a
+    player move, or it's a force on a wrench which isn't a push in the
+    direction it's already moving.
 
 To _propagate an initial force to a force group_:
     * Propagate the force as above, then recursively propagate the resulting
