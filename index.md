@@ -22,14 +22,14 @@ Written in Haskell, with SDL and Curses user interfaces.
 
 ##Download
 
-Latest version is 0.2.6.2 [NEWS](NEWS)
+Latest version is 0.2.6.3 [NEWS](NEWS)
 
 * Source:
      - ` git clone http://mbays.freeshell.org/intricacy/.git && cd intricacy `
      - see README for compilation instructions
      - please mail me <mbays@sdf.org> if it fails!
-* [Windows binary](intricacy-0.2.6.2-win32.zip)
-* [Linux binary](intricacy-0.2.6.2-linux-i686-glibc-2.13.tgz)
+* [Windows binary](intricacy-0.2.6.3-win32.zip)
+* [Linux binary](intricacy-0.2.6.3-linux-i686-glibc-2.13.tgz)
 * [Old versions](old)
 
 ##Mailing list
