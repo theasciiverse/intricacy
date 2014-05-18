@@ -19,7 +19,7 @@ data ServerAddr = ServerAddr {hostname::String, port::Int}
 nullSaddr (ServerAddr host _) = null host
 
 defaultPort=27001 -- == ('i'<<8) + 'y'
-defaultServerAddr = ServerAddr "gonzales.homelinux.org" defaultPort
+defaultServerAddr = ServerAddr "mbays.mdns.org" defaultPort
 
 saddrStr (ServerAddr h p) = h ++ if p==defaultPort then "" else ':':show p
 
