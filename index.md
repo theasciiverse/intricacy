@@ -20,6 +20,11 @@ Written in Haskell, with SDL and Curses user interfaces.
 [![Editing a lock](screenshots/editing.small.png)](screenshots/editing.png)
 [![Curses mode](screenshots/curses.small.png)](screenshots/curses.png)
 
+##Server move
+The server has moved from *gonzales.homelinux.org* to *mbays.mdns.org*.
+If you have played with an old version (0.2.6.2 or earlier), you should set
+the new server address with the '$' command.
+
 ##Download
 
 Latest version is 0.2.6.3 [NEWS](NEWS)
@@ -34,5 +39,5 @@ Latest version is 0.2.6.3 [NEWS](NEWS)
 
 ##Mailing list
 To join the discussion mailing list, please mail
-intricacy@gonzales.homelinux.org with subject line
+intricacy@mbays.mdns.org with subject line
 '[intricacy-discuss] subscribe'.
