@@ -412,7 +412,7 @@ processCommand' IMPlay (CmdManipulateToolAt pos) = do
 	    tile <- MaybeT $ return $ snd <$> Map.lookup (d<+>pos) board
 	    guard $ tileType tile == if wsel then WrenchTile zero else HookTile
 	    lift $ processCommand' IMPlay $ CmdDir WHSSelected $ neg d
-	| d <- hexDirs ]
+	    | d <- hexDirs ]
 
 processCommand' IMPlay cmd = do
     wsel <- gets wrenchSelected
