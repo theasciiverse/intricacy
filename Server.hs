@@ -174,13 +174,20 @@ handleRequest req@(ClientRequest pv auth action) = do
 		    ) `catchError` \_ -> return ServerCodenameFree
 		GetSolution note -> do 
 		    uinfo <- getUserInfoOfAuth auth
-		    lockinfo <- getALock $ noteOn note
-		    if codename uinfo == lockOwner (noteOn note)
-			|| codename uinfo == noteAuthor note 
-			|| 3 <= length (filter (\n -> isNothing (noteBehind n)
-			    || n `elem` notesRead uinfo) $ lockSolutions lockinfo)
-			then ServedSolution <$> getSolution note
-			else throwError "You are not permitted to read that note."
+		    let uname = codename uinfo
+		    onLinfo <- getALock $ noteOn note
+		    behindMLinfo <- maybe (return Nothing) ((Just<$>).getALock) $ noteBehind note
+		    if uname == lockOwner (noteOn note)
+			|| uname == noteAuthor note
+		    then ServedSolution <$> getSolution note
+		    else if case behindMLinfo of
+				Nothing -> True
+				Just behindInfo -> uname `elem` accessedBy behindInfo
+			    || note `elem` notesRead uinfo
+			then if public onLinfo || uname `elem` accessedBy onLinfo
+			    then ServedSolution <$> getSolution note
+			    else throwError "You can't wholly decipher that note."
+			else throwError "You don't have access to that note."
 		DeclareSolution soln ls target idx -> do
 		    info <- getUserInfoOfAuth auth
 		    lock <- getLock ls
