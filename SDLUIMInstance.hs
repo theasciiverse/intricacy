@@ -273,16 +273,13 @@ instance UIMonad (StateT UIState IO) where
 		(oldMPos,_) <- gets mousePos
 		updateMousePos mode
 		(mPos,_) <- gets mousePos
-		lb <- gets leftButtonDown
-		if mPos /= oldMPos && mode == IMEdit then do
+		if mode == IMEdit && mPos /= oldMPos then do
 			relMoves <- mouseFromTo oldMPos mPos
+			lb <- gets leftButtonDown
 			pti <- getEffPaintTileIndex
 			centre <- gets dispCentre
 			return $ relMoves ++ [ CmdMoveTo $ mPos <+> centre ] ++
 			    (if lb then [ CmdPaintFromTo (paintTiles!!pti) (oldMPos<+>centre) (mPos<+>centre) ] else [])
-		    else if lb && mode == IMPlay then do
-			centre <- gets dispCentre
-			return $ [ CmdManipulateToolAt $ mPos <+> centre ]
 		    else return []
 		where
 		    mouseFromTo from to = do
