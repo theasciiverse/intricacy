@@ -352,7 +352,7 @@ instance UIMonad (StateT UIState IO) where
 	    doWheel dw = do
 		rb <- gets rightButtonDown
 		mb <- gets middleButtonDown
-		if rb || mode == IMPlay
+		if rb || mode == IMPlay && not mb
 		    then return [ CmdRotate dw ]
 		    else if mb 
 			then return [ if dw == 1 then CmdUndo else CmdRedo ]
