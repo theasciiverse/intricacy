@@ -95,7 +95,7 @@ fillBox (CVec t l) (CVec b r) width grav draws = do
 	    return $ drop (max 0 $ min (nd - na) (na*offset)) $ draws
     let zipped = zip locs selDraws
     sequence_ $ map (uncurry ($)) $ zip selDraws locs
-    return $ (if grav==GravDown then minimum else maximum) [ y | (CVec y x,_) <- zipped ]
+    return $ (if grav==GravDown then (minimum.(b:)) else (maximum.(t:))) [ y | (CVec y x,_) <- zipped ]
 
 drawLockInfo al@(ActiveLock name i) lockinfo = do
     (h,w) <- liftIO Curses.scrSize
@@ -177,6 +177,7 @@ instance UIMonad (StateT UIState IO) where
 	    let ourName = liftM authUser auth
 	    let selName = listToMaybe names
 	    (h,w) <- liftIO Curses.scrSize
+	    when (h<20 || w<40) $ liftIO CursesH.end >> error "Terminal too small!"
 	    lift $ do
 		drawCursorAt Nothing
 		drawStrGrey (CVec 0 0) $ "Server: " ++ saddrStr saddr 
@@ -282,22 +283,27 @@ instance UIMonad (StateT UIState IO) where
     getDrawImpatience = return $ \_ -> return ()
 
     getInput mode = do
-	-- FIXME: SIGWINCH isn't being handled properly
-	key <- liftIO $ CursesH.getKey Curses.refresh
-	let mch = case key of
-		Curses.KeyChar ch -> Just ch
-		Curses.KeyBackspace -> Just '\b'
-		Curses.KeyLeft -> Just '4'
-		Curses.KeyRight -> Just '6'
-		Curses.KeyDown -> Just '2'
-		Curses.KeyUp -> Just '8'
-		Curses.KeyHome -> Just '7'
-		Curses.KeyNPage -> Just '3'
-		Curses.KeyPPage -> Just '9'
-		Curses.KeyEnd -> Just '1'
-		_ -> Nothing
-	    unblockBinding = (toEnum 0, CmdRefresh) -- c.f. unblockInput above
-	flip (maybe $ return []) mch $ \ch ->
-	    if mode == IMTextInput
-	    then return [CmdInputChar ch]
-	    else (maybeToList . lookup ch . (unblockBinding:)) <$> getBindings mode
+	let userResizeCode = 1337  -- XXX: chosen not to conflict with HSCurses codes
+	key <- liftIO $ CursesH.getKey (Curses.ungetCh userResizeCode)
+	if key == Curses.KeyUnknown userResizeCode
+	    then do
+		liftIO Curses.scrSize
+		return [CmdRedraw]
+	    else do
+		let mch = case key of
+			Curses.KeyChar ch -> Just ch
+			Curses.KeyBackspace -> Just '\b'
+			Curses.KeyLeft -> Just '4'
+			Curses.KeyRight -> Just '6'
+			Curses.KeyDown -> Just '2'
+			Curses.KeyUp -> Just '8'
+			Curses.KeyHome -> Just '7'
+			Curses.KeyNPage -> Just '3'
+			Curses.KeyPPage -> Just '9'
+			Curses.KeyEnd -> Just '1'
+			_ -> Nothing
+		    unblockBinding = (toEnum 0, CmdRefresh) -- c.f. unblockInput above
+		flip (maybe $ return []) mch $ \ch ->
+		    if mode == IMTextInput
+		    then return [CmdInputChar ch]
+		    else (maybeToList . lookup ch . (unblockBinding:)) <$> getBindings mode
