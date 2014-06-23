@@ -180,7 +180,11 @@ instance UIMonad (StateT UIState IO) where
 	    when (h<20 || w<40) $ liftIO CursesH.end >> error "Terminal too small!"
 	    lift $ do
 		drawCursorAt Nothing
-		drawStrGrey (CVec 0 0) $ "Server: " ++ saddrStr saddr 
+		let sstr = "Server: "
+		    hstr = " '?' for keys"
+		    in drawStrGrey (CVec 0 0) $ sstr ++
+			take (w - length sstr - length hstr) (saddrStr saddr ++ repeat ' ') ++
+			hstr
 		drawStrGrey (CVec 1 0) $ "Lock: " ++ path
 	    maybe (return ()) (drawName True (CVec 2 (w`div`2))) selName
 	    void.runMaybeT $ MaybeT (return selName) >>= lift . getUInfoFetched 300 >>=
@@ -246,15 +250,20 @@ instance UIMonad (StateT UIState IO) where
 	erase
 	(h,w) <- liftIO Curses.scrSize
 	let bdgWidth = 35
+	    showKeys chs = intercalate "/" (map showKey chs)
+	    maxkeyslen = maximum $ map (length.showKeys.map fst) $ groupBy ((==) `on` snd) bdgs
 	drawStrCentred a0 white (CVec 0 (w`div`2)) "Bindings:"
 	sequence_ [ drawStr a0 white (CVec (y+2) (x*bdgWidth) ) $
-		intercalate " / " (map showKey chs) ++ " : " ++ desc |
-	    ((chs,cmd,desc),(x,y)) <- zip [(chs,cmd,desc)
+		keysStr ++ replicate pad ' ' ++ ": " ++ desc |
+	    ((keysStr,pad,desc),(x,y)) <- zip [(keysStr,pad,desc)
 		    | group <- groupBy ((==) `on` snd) $ sortBy (compare `on` snd) bdgs
 		    , let cmd = snd $ head group
-		    , let chs = map fst group
 		    , let desc = describeCommand cmd
 		    , not $ null desc
+		    , let chs = map fst group
+		    , let keysStr = showKeys chs
+		    , let pad = max 0 $ minimum [maxkeyslen + 1 - length keysStr,
+			    bdgWidth - length desc - length keysStr - 1]
 		    ]
 		(map (`divMod` (h-3)) [0..])
 	    , (x+1)*bdgWidth < w]
