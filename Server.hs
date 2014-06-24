@@ -215,6 +215,7 @@ handleRequest req@(ClientRequest pv auth action) = do
 		    when (frame /= BasicFrame serverSize) $ throwError $
 			"Server only accepts size "++show serverSize++" locks."
 		    unless (validLock $ reframe lock) $ throwError "Invalid lock!"
+		    unless (not.checkSolved $ reframe lock) $ throwError "Lock not locked!"
 		    unless (checkSolution lock soln) $ throwError "Bad solution"
 
 		    RCLockHashes hashes <- getRecordErrored RecLockHashes
