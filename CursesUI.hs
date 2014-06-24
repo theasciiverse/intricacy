@@ -47,6 +47,12 @@ readBindings = do
     case mbdgs of
 	Just bdgs -> modify $ \s -> s {uiKeyBindings = bdgs}
 	Nothing -> return ()
+writeBindings :: UIM ()
+writeBindings = do
+    path <- liftIO $ confFilePath "bindings"
+    bdgs <- gets uiKeyBindings
+    liftIO makeConfDir
+    liftIO $ writeFile path $ show bdgs
 
 getBindings mode = do
     uibdgs <- Map.findWithDefault [] mode `liftM` gets uiKeyBindings

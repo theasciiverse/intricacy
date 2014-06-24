@@ -150,6 +150,19 @@ drawLockInfo al@(ActiveLock name i) lockinfo = do
 	    void $ fillBox (CVec (lockBottom+3) (left+1)) (CVec bottom (right-1)) 5 GravUp
 		[ (`drawActiveLock` al) | al <- map noteOn $ notesSecured lockinfo ]
 
+charify :: Curses.Key -> Maybe Char
+charify key = case key of
+    Curses.KeyChar ch -> Just ch
+    Curses.KeyBackspace -> Just '\b'
+    Curses.KeyLeft -> Just '4'
+    Curses.KeyRight -> Just '6'
+    Curses.KeyDown -> Just '2'
+    Curses.KeyUp -> Just '8'
+    Curses.KeyHome -> Just '7'
+    Curses.KeyNPage -> Just '3'
+    Curses.KeyPPage -> Just '9'
+    Curses.KeyEnd -> Just '1'
+    _ -> Nothing
 
 instance UIMonad (StateT UIState IO) where
     runUI m = evalStateT m nullUIState
@@ -270,6 +283,12 @@ instance UIMonad (StateT UIState IO) where
 	refresh
 	void $ getInput mode
 
+    getChRaw = (charify<$>) $ liftIO $ CursesH.getKey (return ())
+    setUIBinding mode cmd ch =
+	modify $ \s -> s { uiKeyBindings =
+		Map.insertWith (\[bdg] -> \bdgs -> if bdg `elem` bdgs then delete bdg bdgs else bdgs ++ [bdg])
+		    mode [(ch,cmd)] $ uiKeyBindings s }
+
     initUI = 
 	do liftIO CursesH.start 
 	   cpairs <- liftIO $ colorsToPairs [ (f, CursesH.black) | f <-
@@ -278,7 +297,9 @@ instance UIMonad (StateT UIState IO) where
 	   readBindings
 	   return True
 
-    endUI = liftIO CursesH.end
+    endUI = do
+	writeBindings
+	liftIO CursesH.end
     unblockInput = return $ Curses.ungetCh 0
     suspend = do
 	liftIO $ do
@@ -299,18 +320,7 @@ instance UIMonad (StateT UIState IO) where
 		liftIO Curses.scrSize
 		return [CmdRedraw]
 	    else do
-		let mch = case key of
-			Curses.KeyChar ch -> Just ch
-			Curses.KeyBackspace -> Just '\b'
-			Curses.KeyLeft -> Just '4'
-			Curses.KeyRight -> Just '6'
-			Curses.KeyDown -> Just '2'
-			Curses.KeyUp -> Just '8'
-			Curses.KeyHome -> Just '7'
-			Curses.KeyNPage -> Just '3'
-			Curses.KeyPPage -> Just '9'
-			Curses.KeyEnd -> Just '1'
-			_ -> Nothing
+		let mch = charify key
 		    unblockBinding = (toEnum 0, CmdRefresh) -- c.f. unblockInput above
 		flip (maybe $ return []) mch $ \ch ->
 		    if mode == IMTextInput

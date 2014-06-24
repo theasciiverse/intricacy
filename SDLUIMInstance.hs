@@ -199,6 +199,17 @@ instance UIMonad (StateT UIState IO) where
 
     showHelp _ = return ()
 
+    getChRaw = do
+	events <- liftIO getEvents
+	case listToMaybe $ [ key | KeyDown key <- events ] of
+	    Nothing -> getChRaw
+	    Just (Keysym _ _ ch) -> return $ Just ch
+
+    setUIBinding mode cmd ch =
+	modify $ \s -> s { uiKeyBindings =
+		Map.insertWith (\[bdg] -> \bdgs -> if bdg `elem` bdgs then delete bdg bdgs else bdgs ++ [bdg])
+		    mode [(ch,cmd)] $ uiKeyBindings s }
+
     initUI = liftM isJust (runMaybeT $ do
 	catchIOErrorMT $ SDL.init [InitVideo]
 	catchIOErrorMT TTF.init
@@ -253,9 +264,7 @@ instance UIMonad (StateT UIState IO) where
 		    if isJust setting && ch /= '\0'
 		    then do
 			modify $ \s -> s {settingBinding = Nothing}
-			when (ch /= '\ESC') $
-			    modify $ \s -> s { uiKeyBindings =
-				Map.insertWith (++) mode [(ch,fromJust setting)] $ uiKeyBindings s }
+			when (ch /= '\ESC') $ setUIBinding mode (fromJust setting) ch
 			return []
 		    else do
 			uibdgs <- Map.findWithDefault [] mode `liftM` gets uiKeyBindings
@@ -365,19 +374,6 @@ instance UIMonad (StateT UIState IO) where
 	    drawCmd (Just t) False = CmdTile t
 	    drawCmd Nothing _ = CmdWait
 
-	    getEvents = do
-		e <- waitEvent
-		es <- pollEvents
-		return $ e:es
-
-	    pollEvents = do
-		e <- pollEvent
-		case e of
-		    NoEvent -> return []
-		    _ -> do
-			es <- pollEvents
-			return $ e:es
-
 	    updateMousePos mode = do
 		(scrCentre, size) <- getGeom
 		(x,y,_) <- lift getMouseState
@@ -407,6 +403,20 @@ instance UIMonad (StateT UIState IO) where
 		    ++ concat (intersperse ","
 			(map showKey $ findBindings (uibdgs ++ bindings mode) cmd))
 		    ++ "]"
+
+getEvents = do
+    e <- waitEvent
+    es <- pollEvents
+    return $ e:es
+
+pollEvents = do
+    e <- pollEvent
+    case e of
+	NoEvent -> return []
+	_ -> do
+	    es <- pollEvents
+	    return $ e:es
+
 
 fillArea :: HexVec -> [HexVec] -> [HexVec -> StateT MainState UIM ()] -> StateT MainState UIM () 
 fillArea centre area draws = do

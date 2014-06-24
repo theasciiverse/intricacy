@@ -112,6 +112,14 @@ processCommand im cmd = lift $ processCommand' im cmd
 
 processCommand' :: UIMonad uiM => InputMode -> Command -> StateT MainState uiM ()
 processCommand' im CmdHelp = lift $ showHelp im
+processCommand' im CmdBind = lift $ flip (>>) (drawMessage "") $ void $ runMaybeT $ do
+	lift $ drawMessage "Command to bind: "
+	cmd <- MaybeT $ listToMaybe <$> getSomeInput im
+	lift $ drawMessage ("key to bind to \"" ++ describeCommand cmd ++ "\" (repeat binding to delete): ")
+	ch <- MaybeT getChRaw
+	guard $ ch /= '\ESC'
+	lift $ setUIBinding im cmd ch
+
 processCommand' _ CmdSuspend = lift $ suspend
 processCommand' _ CmdRedraw = lift $ redraw
 processCommand' im CmdMark = void.runMaybeT $ do

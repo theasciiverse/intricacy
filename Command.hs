@@ -40,7 +40,7 @@ data Command = CmdDir WrHoSel HexDir | CmdRotate TorqueDir | CmdWait
 	| CmdNextPage | CmdPrevPage
 	| CmdRedraw | CmdRefresh | CmdSuspend
 	| CmdQuit | CmdForceQuit
-	| CmdHelp
+	| CmdHelp | CmdBind
 	| CmdNone
     deriving (Eq, Ord, Show, Read)
 data WrHoSel = WHSWrench | WHSHook | WHSSelected
@@ -86,6 +86,7 @@ describeCommand CmdEdit = "edit lock"
 describeCommand (CmdPlaceLock _) = "place lock"
 describeCommand CmdRegister = "register codename"
 describeCommand CmdAuth = "authenticate"
+describeCommand CmdBind = "bind key"
 describeCommand CmdQuit = "quit"
 describeCommand CmdHelp = "help"
 describeCommand _ = ""

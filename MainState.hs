@@ -54,7 +54,9 @@ class (Applicative m, MonadIO m) => UIMonad m where
     drawError :: String -> m ()
     showHelp :: InputMode -> m ()
     getInput :: InputMode -> m [ Command ]
+    getChRaw :: m ( Maybe Char )
     unblockInput :: m (IO ())
+    setUIBinding :: InputMode -> Command -> Char -> m ()
     getDrawImpatience :: m ( Int -> IO () )
     suspend,redraw :: m ()
 
