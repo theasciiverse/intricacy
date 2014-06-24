@@ -282,9 +282,7 @@ processCommand' IMMeta (CmdViewSolution mnote) = void.runMaybeT $ do
 	noteses <- lift $ sequence
 	    [ case mlockinfo of
 		Nothing -> return []
-		Just lockinfo -> if ourName == name
-		    then return $ lockSolutions lockinfo
-		    else do
+		Just lockinfo -> (++lockSolutions lockinfo) <$> do
 			ns <- getNotesReadOn lockinfo 
 			return $ if length ns < 3 then [] else ns
 	    | mlockinfo <- elems $ userLocks uinfo ]
