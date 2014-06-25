@@ -1,3 +1,6 @@
+0.2.7:
+    Improvements to curses UI - handle resizing; show keys; allow rebinding.
+    Fixed some bugs with viewing notes.
 0.2.6.3:
     Update default server address
 0.2.6.2:

@@ -27,7 +27,9 @@ the new server address with the '$' command.
 
 ##Download
 
-Latest version is 0.2.6.3 [NEWS](NEWS)
+Latest version is 0.2.7 [NEWS](NEWS)
+    but my build system broke, so the binaries below are still for the
+    previous version. Will fix soon!
 
 * Source:
      - ` git clone http://mbays.freeshell.org/intricacy/.git && cd intricacy `
