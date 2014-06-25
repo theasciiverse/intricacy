@@ -28,6 +28,7 @@ import GameStateTypes
 import BoardColouring
 import Frame
 import KeyBindings
+import Command
 import Mundanities
 import ServerAddr
 import InputMode
@@ -57,6 +58,14 @@ writeBindings = do
 getBindings mode = do
     uibdgs <- Map.findWithDefault [] mode `liftM` gets uiKeyBindings
     return $ uibdgs ++ bindings mode
+
+bindingsStr :: InputMode -> [Command] -> UIM String
+bindingsStr mode cmds = do
+    uibdgs <- Map.findWithDefault [] mode `liftM` gets uiKeyBindings
+    return $ (\x -> "["++x++"]") $ intercalate "," $
+	[ maybe "" showKey $ findBinding (uibdgs ++ bindings mode) cmd
+	    | cmd <- cmds ]
+
 
 erase :: UIM ()
 erase = liftIO Curses.erase

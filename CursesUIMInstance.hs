@@ -193,12 +193,20 @@ instance UIMonad (StateT UIState IO) where
 	    when (h<20 || w<40) $ liftIO CursesH.end >> error "Terminal too small!"
 	    lift $ do
 		drawCursorAt Nothing
-		let sstr = "Server: "
-		    hstr = " '?' for keys"
-		    in drawStrGrey (CVec 0 0) $ sstr ++
-			take (w - length sstr - length hstr) (saddrStr saddr ++ repeat ' ') ++
-			hstr
-		drawStrGrey (CVec 1 0) $ "Lock: " ++ path
+		sstr <- (++"   Server: ") <$> bindingsStr IMMeta [CmdSetServer, CmdToggleCacheOnly]
+		hstr <- (\[ks,ts] -> ts++" tut   "++ks++" keys") <$>
+		    bindingsStr IMMeta `mapM` [[CmdHelp],[CmdTutorials]]
+		drawStrGrey (CVec 0 0) $ sstr ++
+		    take (w - length sstr - length hstr)
+			(saddrStr saddr ++ (if cOnly then "  (cache only) " else "") ++ repeat ' ') ++
+		    hstr
+		drawStrGrey (CVec 1 0) =<<
+		    (\[es,ls] -> take 5 (es ++ repeat ' ') ++ "   Lock: " ++ path ++ "     " ++ ls) <$>
+			bindingsStr IMMeta `mapM`
+			    [ [CmdEdit] ++ if path == "" then [] else [CmdPlaceLock Nothing]
+			    , [CmdSelectLock] ++ if path == "" then [] else [CmdNextLock, CmdPrevLock]
+			    ]
+	    lift $ drawStrGrey (CVec 2 (maximum [w`div`3+1, w`div`2 - 13])) =<< bindingsStr IMMeta [CmdSelCodename Nothing]
 	    maybe (return ()) (drawName True (CVec 2 (w`div`2))) selName
 	    void.runMaybeT $ MaybeT (return selName) >>= lift . getUInfoFetched 300 >>=
 		\(FetchedRecord fresh err muirc) -> lift $ do
@@ -206,18 +214,21 @@ instance UIMonad (StateT UIState IO) where
 			unless fresh $ drawAtCVec (Glyph '*' red bold) $ CVec 2 (w`div`2+7)
 			maybe (return ()) sayError err
 			when (fresh && isNothing ourName) $
-			    drawStrGrey (CVec 2 (w`div`2+1+9)) (if isNothing muirc then "(R)" else "(A)")
+			    drawStrGrey (CVec 2 (w`div`2+1+9)) =<<
+				(bindingsStr IMMeta $ if isNothing muirc then [CmdRegister] else [CmdAuth])
 		    for_ muirc $ \(RCUserInfo (_,uinfo)) -> case mretired of
 			Just retired -> do
 			    (h,w) <- liftIO Curses.scrSize
 			    void $ fillBox (CVec 6 2) (CVec (h-1) (w-2)) 5 GravCentre
 				[ \pos -> lift $ drawStrGrey pos $ show ls | ls <- retired ]
-			Nothing ->
+			Nothing -> do
 			    sequence_ [ drawLockInfo (ActiveLock (codename uinfo) i) lockinfo |
 				(i,Just lockinfo) <- assocs $ userLocks uinfo ]
+			    unless (null $ elems $ userLocks uinfo) $ lift $
+				drawStrGrey (CVec 5 (w`div`3)) =<< bindingsStr IMMeta [CmdSolve Nothing, CmdViewSolution Nothing]
 	    when (isJust ourName && ourName == selName) $ do
 		unless (null undecls) $ do
-		    let str = "Undeclared solutions:"
+		    str <- lift $ (++" Undeclared solutions:") <$> bindingsStr IMMeta [CmdDeclare Nothing]
 		    let s = max 1 $ (w-(length str + 6*length undecls))`div`2
 		    let y = 4
 		    lift $ drawStr bold white (CVec y s) str
