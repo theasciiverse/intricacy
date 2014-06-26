@@ -310,9 +310,10 @@ processCommand' IMMeta (CmdPlaceLock midx) = void.runMaybeT $ do
     mourNameSelected >>= guard
     ourName <- mgetOurName
     (lock,msoln) <- MaybeT $ gets curLock
+    lockpath <- lift $ gets curLockPath
     ourUInfo <- mgetUInfo ourName
     idx <- msum [ MaybeT $ return midx
-	, askLockIndex "Place where?" "bug" $ const True
+	, askLockIndex ("Place " ++ show lockpath ++ " in which slot?") "bug" $ const True
 	]
     when (isJust $ userLocks ourUInfo ! idx) $
 	confirmOrBail "Really retire existing lock?"
