@@ -41,5 +41,5 @@ Latest version is 0.2.7 [NEWS](NEWS)
 
 ##Mailing list
 To join the discussion mailing list, please mail
-intricacy@mbays.mdns.org with subject line
+mbays@sdf.org with subject line
 '[intricacy-discuss] subscribe'.
