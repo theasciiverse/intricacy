@@ -221,6 +221,8 @@ instance UIMonad (StateT UIState IO) where
 			    (h,w) <- liftIO Curses.scrSize
 			    void $ fillBox (CVec 6 2) (CVec (h-1) (w-2)) 5 GravCentre
 				[ \pos -> lift $ drawStrGrey pos $ show ls | ls <- retired ]
+			    lift $ drawStrGrey (CVec 5 (w`div`3)) =<< bindingsStr IMMeta
+				([CmdShowRetired] ++ if null retired then [] else [CmdPlayLockSpec Nothing])
 			Nothing -> do
 			    sequence_ [ drawLockInfo (ActiveLock (codename uinfo) i) lockinfo |
 				(i,Just lockinfo) <- assocs $ userLocks uinfo ]
