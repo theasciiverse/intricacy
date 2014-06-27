@@ -28,15 +28,16 @@ the new server address with the '$' command.
 ##Download
 
 Latest version is 0.2.7 [NEWS](NEWS)
-    but my build system broke, so the binaries below are still for the
-    previous version. Will fix soon!
 
 * Source:
      - ` git clone http://mbays.freeshell.org/intricacy/.git && cd intricacy `
      - see README for compilation instructions
      - please mail me <mbays@sdf.org> if it fails!
-* [Windows binary](intricacy-0.2.6.3-win32.zip)
-* [Linux binary](intricacy-0.2.6.3-linux-i686-glibc-2.13.tgz)
+* [Windows binary](intricacy-0.2.7-win32.zip)
+* [Linux binary](intricacy-0.2.7-linux-i686-glibc-2.16.tgz)
+* [Linux binary for older systems](intricacy-0.2.6.3-linux-i686-glibc-2.13.tgz)
+    (note this is an older version of the game, because my old build system
+    isn't available right now)
 * [Old versions](old)
 
 ##Mailing list
