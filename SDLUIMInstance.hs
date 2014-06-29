@@ -247,6 +247,12 @@ instance UIMonad (StateT UIState IO) where
 		    renderStrColAtLeft errorCol ("waiting..."++replicate (ticks`mod`3) '.') $ pos
 	    refresh
 
+    warpPointer pos = do
+	(scrCentre, size) <- getGeom
+	centre <- gets dispCentre
+	let SVec x y = hexVec2SVec size (pos<->centre) <+> scrCentre
+	liftIO $ warpMouse (fromIntegral x) (fromIntegral y)
+
     getInput mode = do
 	events <- liftIO $ getEvents
 	oldUIState <- get

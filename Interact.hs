@@ -419,7 +419,14 @@ processCommand' IMPlay (CmdManipulateToolAt pos) = do
 	    tile <- MaybeT $ return $ snd <$> Map.lookup (d<+>pos) board
 	    guard $ tileType tile == if wsel then WrenchTile zero else HookTile
 	    lift $ processCommand' IMPlay $ CmdDir WHSSelected $ neg d
+	    board' <- lift $ stateBoard <$> gets psCurrentState
+	    msum [ do
+		    tile' <- MaybeT $ return $ snd <$> Map.lookup pos' board'
+		    guard $ tileType tile' == if wsel then WrenchTile zero else HookTile
+		    lift.lift $ warpPointer $ pos'
+		| d' <- hexDirs++[zero], let pos' = d'<+>d<+>pos ]
 	    | d <- hexDirs ]
+    
 
 processCommand' IMPlay cmd = do
     wsel <- gets wrenchSelected

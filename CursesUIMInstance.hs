@@ -323,6 +323,8 @@ instance UIMonad (StateT UIState IO) where
 	Curses.endWin
 	Curses.refresh
 
+    warpPointer _ = return ()
+
     getDrawImpatience = return $ \_ -> return ()
 
     getInput mode = do
