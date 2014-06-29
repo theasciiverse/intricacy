@@ -408,8 +408,7 @@ processCommand' IMPlay CmdRedo = do
 	    pushPState ustm
 	    modify $ \ps -> ps {psUndoneStack = ustms'}
 processCommand' IMPlay (CmdManipulateToolAt pos) = do
-    st <- gets psCurrentState
-    let board = stateBoard st
+    board <- stateBoard <$> gets psCurrentState
     wsel <- gets wrenchSelected
     void.runMaybeT $ msum $ [ do
 	    tile <- MaybeT $ return $ snd <$> Map.lookup pos board
@@ -419,14 +418,20 @@ processCommand' IMPlay (CmdManipulateToolAt pos) = do
 	    tile <- MaybeT $ return $ snd <$> Map.lookup (d<+>pos) board
 	    guard $ tileType tile == if wsel then WrenchTile zero else HookTile
 	    lift $ processCommand' IMPlay $ CmdDir WHSSelected $ neg d
-	    board' <- lift $ stateBoard <$> gets psCurrentState
-	    msum [ do
-		    tile' <- MaybeT $ return $ snd <$> Map.lookup pos' board'
-		    guard $ tileType tile' == if wsel then WrenchTile zero else HookTile
-		    lift.lift $ warpPointer $ pos'
-		| d' <- hexDirs++[zero], let pos' = d'<+>d<+>pos ]
 	    | d <- hexDirs ]
-    
+processCommand' IMPlay (CmdDrag pos dir) = do
+    board <- stateBoard <$> gets psCurrentState
+    wsel <- gets wrenchSelected
+    void.runMaybeT $ do
+	tile <- MaybeT $ return $ snd <$> Map.lookup pos board
+	guard $ case tile of {WrenchTile _ -> True; HookTile -> True; _ -> False}
+	lift $ processCommand' IMPlay $ CmdDir WHSSelected $ dir
+	board' <- stateBoard <$> gets psCurrentState
+	msum [ do
+		tile' <- MaybeT $ return $ snd <$> Map.lookup pos' board'
+		guard $ tileType tile' == if wsel then WrenchTile zero else HookTile
+		lift.lift $ warpPointer $ pos'
+	    | pos' <- [dir<+>pos, pos] ]
 
 processCommand' IMPlay cmd = do
     wsel <- gets wrenchSelected
@@ -521,6 +526,19 @@ processCommand' IMEdit (CmdDir _ dir) = do
 processCommand' IMEdit (CmdMoveTo newPos) = do
     frame <- gets esFrame
     modify $ \es -> es {selectedPos = truncateToEditable frame newPos}
+processCommand' IMEdit (CmdDrag pos dir) = do
+    board <- stateBoard.head <$> gets esGameStateStack
+    void.runMaybeT $ do
+	selIdx <- MaybeT $ gets selectedPiece
+	idx <- MaybeT $ return $ fst <$> Map.lookup pos board
+	guard $ idx == selIdx
+	lift $ processCommand' IMEdit $ CmdDir WHSSelected $ dir
+	board' <- stateBoard.head <$> gets esGameStateStack
+	msum [ do
+		idx' <- MaybeT $ return $ fst <$> Map.lookup pos' board'
+		guard $ idx' == selIdx
+		lift.lift $ warpPointer $ pos'
+	    | pos' <- [dir<+>pos, pos] ]
 processCommand' IMEdit (CmdRotate dir) = do
     selPiece <- gets selectedPiece
     case selPiece of

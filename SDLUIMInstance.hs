@@ -252,6 +252,10 @@ instance UIMonad (StateT UIState IO) where
 	centre <- gets dispCentre
 	let SVec x y = hexVec2SVec size (pos<->centre) <+> scrCentre
 	liftIO $ warpMouse (fromIntegral x) (fromIntegral y)
+	lbp <- gets leftButtonDown
+	rbp <- gets rightButtonDown
+	let [lbp',rbp'] = fmap (fmap (\_ -> (pos<->centre))) [lbp,rbp]
+	modify $ \s -> s {leftButtonDown = lbp', rightButtonDown = rbp'}
 
     getInput mode = do
 	events <- liftIO $ getEvents
@@ -286,19 +290,30 @@ instance UIMonad (StateT UIState IO) where
 			return $ maybeToList mCmd
 	    processEvent (MouseMotion {}) = do
 		(oldMPos,_) <- gets mousePos
-		updateMousePos mode
-		(mPos,_) <- gets mousePos
-		lb <- gets leftButtonDown
-		if mPos /= oldMPos && mode == IMEdit then do
-			relMoves <- mouseFromTo oldMPos mPos
-			pti <- getEffPaintTileIndex
-			centre <- gets dispCentre
-			return $ relMoves ++ [ CmdMoveTo $ mPos <+> centre ] ++
-			    (if lb then [ CmdPaintFromTo (paintTiles!!pti) (oldMPos<+>centre) (mPos<+>centre) ] else [])
-		    else if lb && mode == IMPlay then do
-			centre <- gets dispCentre
-			return $ [ CmdManipulateToolAt $ mPos <+> centre ]
-		    else return []
+		(pos@(mPos,_),(sx,sy,sz)) <- getMousePos
+		updateMousePos mode pos
+		lbp <- gets leftButtonDown
+		rbp <- gets rightButtonDown
+		centre <- gets dispCentre
+		let drag :: Maybe HexVec -> Maybe Command
+		    drag bp = do
+			fromPos@(HexVec x y z) <- bp
+			-- check we've dragged at least a full hex's distance:
+			guard $ not.all (\(a,b) -> abs ((fromIntegral a) - b) < 1.0) $ [(x,sx),(y,sy),(z,sz)]
+			let dir = hexVec2HexDirOrZero $ mPos <-> fromPos
+			guard $ dir /= zero
+			return $ CmdDrag (fromPos<+>centre) dir
+		case mode of
+		    IMEdit -> case drag rbp of
+			Just cmd -> return [cmd]
+			Nothing -> if mPos /= oldMPos
+			    then do
+				pti <- getEffPaintTileIndex
+				return $ [ CmdMoveTo $ mPos <+> centre ] ++
+				    (if isJust lbp then [ CmdPaintFromTo (paintTiles!!pti) (oldMPos<+>centre) (mPos<+>centre) ] else [])
+			    else return []
+		    IMPlay -> return $ maybeToList $ drag lbp
+		    _ -> return []
 		where
 		    mouseFromTo from to = do
 			let dir = hexVec2HexDirOrZero $ to <-> from
@@ -306,9 +321,9 @@ instance UIMonad (StateT UIState IO) where
 			    then (CmdDir WHSSelected dir:) <$> mouseFromTo (from <+> dir) to
 			    else return []
 	    processEvent (MouseButtonDown _ _ ButtonLeft) = do
-		modify $ \s -> s { leftButtonDown = True }
 		pos@(mPos,central) <- gets mousePos
-		rb <- gets rightButtonDown
+		modify $ \s -> s { leftButtonDown = Just mPos }
+		rb <- isJust <$> gets rightButtonDown
 		mcmd <- cmdAtMousePos pos mode (Just False)
 		let hotspotAction = listToMaybe
 			$ map (\cmd -> return [cmd]) (maybeToList mcmd)
@@ -333,11 +348,11 @@ instance UIMonad (StateT UIState IO) where
 			return $ [ CmdManipulateToolAt $ mPos <+> centre ]
 		    _ -> return []
 	    processEvent (MouseButtonUp _ _ ButtonLeft) = do
-		modify $ \s -> s { leftButtonDown = False }
+		modify $ \s -> s { leftButtonDown = Nothing }
 		return []
 	    processEvent (MouseButtonDown _ _ ButtonRight) = do
-		modify $ \s -> s { rightButtonDown = True }
-		pos <- gets mousePos
+		pos@(mPos,_) <- gets mousePos
+		modify $ \s -> s { rightButtonDown = Just mPos }
 		(fromMaybe [] <$>) $ runMaybeT $ msum
 		    [ do
 			cmd <- MaybeT $ cmdAtMousePos pos mode Nothing
@@ -348,16 +363,17 @@ instance UIMonad (StateT UIState IO) where
 			return [cmd]
 		    , return [ CmdSelect ] ]
 	    processEvent (MouseButtonUp _ _ ButtonRight) = do
-		modify $ \s -> s { rightButtonDown = False }
+		modify $ \s -> s { rightButtonDown = Nothing }
 		return [ CmdUnselect ]
 	    processEvent (MouseButtonDown _ _ ButtonWheelUp) = doWheel 1
 	    processEvent (MouseButtonDown _ _ ButtonWheelDown) = doWheel $ -1
 	    processEvent (MouseButtonDown _ _ ButtonMiddle) = do
-		modify $ \s -> s { middleButtonDown = True }
-		rb <- gets rightButtonDown
+		(mPos,_) <- gets mousePos
+		modify $ \s -> s { middleButtonDown = Just mPos }
+		rb <- isJust <$> gets rightButtonDown
 		return $ if rb then [ CmdDelete ] else []
 	    processEvent (MouseButtonUp _ _ ButtonMiddle) = do
-		modify $ \s -> s { middleButtonDown = False }
+		modify $ \s -> s { middleButtonDown = Nothing }
 		return []
 	    processEvent (VideoResize w h) = do
 		initVideo w h
@@ -368,8 +384,8 @@ instance UIMonad (StateT UIState IO) where
 	    processEvent _ = return []
 
 	    doWheel dw = do
-		rb <- gets rightButtonDown
-		mb <- gets middleButtonDown
+		rb <- isJust <$> gets rightButtonDown
+		mb <- isJust <$> gets middleButtonDown
 		if rb || mode == IMPlay && not mb
 		    then return [ CmdRotate dw ]
 		    else if mb 
@@ -383,7 +399,8 @@ instance UIMonad (StateT UIState IO) where
 	    drawCmd (Just t) False = CmdTile t
 	    drawCmd Nothing _ = CmdWait
 
-	    updateMousePos mode = do
+	    getMousePos :: UIM ((HexVec,Bool),(Double,Double,Double))
+	    getMousePos = do
 		(scrCentre, size) <- getGeom
 		(x,y,_) <- lift getMouseState
 		let sv = (SVec (fromIntegral x) (fromIntegral y)) <+> neg scrCentre
@@ -391,7 +408,8 @@ instance UIMonad (StateT UIState IO) where
 		let (sx,sy,sz) = sVec2dHV size sv
 		let isCentral = all (\(a,b) -> abs ((fromIntegral a) - b) < 0.5) $
 			[(x,sx),(y,sy),(z,sz)]
-		let newPos = (mPos,isCentral)
+		return ((mPos,isCentral),(sx,sy,sz))
+	    updateMousePos mode newPos = do
 		oldPos <- gets mousePos
 		when (newPos /= oldPos) $ do
 		    modify $ \ds -> ds { mousePos = newPos }

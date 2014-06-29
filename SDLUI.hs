@@ -56,7 +56,7 @@ data UIState = UIState { scrHeight::Int, scrWidth::Int
     , dispFontSmall::Maybe TTF.Font
     , lastFrameTicks::Word32
     , paintTileIndex::Int
-    , leftButtonDown::Bool, middleButtonDown::Bool, rightButtonDown::Bool
+    , leftButtonDown::Maybe HexVec, middleButtonDown::Maybe HexVec, rightButtonDown::Maybe HexVec
     , mousePos::(HexVec,Bool)
     , message::Maybe (Pixel, String)
     , hoverStr :: Maybe String
@@ -65,7 +65,7 @@ data UIState = UIState { scrHeight::Int, scrWidth::Int
     deriving (Eq, Ord, Show)
 type UIM = StateT UIState IO
 nullUIState = UIState 0 0 Nothing Nothing Nothing Map.empty Map.empty []
-    defaultUIOptions Nothing Map.empty Nothing Nothing 0 0 False False False
+    defaultUIOptions Nothing Map.empty Nothing Nothing 0 0 Nothing Nothing Nothing
     (zero,False) Nothing Nothing (PHS zero) Map.empty
 
 data UIOptions = UIOptions

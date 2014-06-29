@@ -15,6 +15,7 @@ import Metagame
 
 data Command = CmdDir WrHoSel HexDir | CmdRotate TorqueDir | CmdWait
 	| CmdMoveTo HexPos | CmdManipulateToolAt HexPos
+	| CmdDrag HexPos HexDir
 	| CmdToggle
 	| CmdOpen
 	| CmdTile Tile | CmdPaint (Maybe Tile)
