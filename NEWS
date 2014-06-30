@@ -1,5 +1,5 @@
 0.2.8:
-    Implemented click-and-drag movement in play and edit modes
+    Implemented click-and-drag movement in play and edit modes.
 0.2.7:
     Improvements to curses UI - handle resizing; show keys; allow rebinding.
     Fixed some bugs with viewing notes.
