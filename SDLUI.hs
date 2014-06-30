@@ -481,7 +481,7 @@ initVideo w h = do
 
     clearMiniLocks
 
-    when (isNothing font) $ lift.putStr $ "Warning: failed to open font file \""++fontfn++"\".\n"
+    when (isNothing font) $ lift.putStr $ "Warning: font file not found at "++fontpath++".\n"
 
 drawMsgLine = void.runMaybeT $ do
     (col,str) <- msum
