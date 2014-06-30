@@ -312,7 +312,7 @@ instance UIMonad (StateT UIState IO) where
 				return $ [ CmdMoveTo $ mPos <+> centre ] ++
 				    (if isJust lbp then [ CmdPaintFromTo (paintTiles!!pti) (oldMPos<+>centre) (mPos<+>centre) ] else [])
 			    else return []
-		    IMPlay -> return $ maybeToList $ drag lbp
+		    IMPlay -> return $ maybeToList $ msum $ map drag [lbp, rbp]
 		    _ -> return []
 		where
 		    mouseFromTo from to = do
@@ -361,7 +361,11 @@ instance UIMonad (StateT UIState IO) where
 		    , do
 			cmd <- MaybeT $ cmdAtMousePos pos mode (Just True)
 			return [cmd]
-		    , return [ CmdSelect ] ]
+		    , case mode of
+			IMPlay -> do
+			    centre <- gets dispCentre
+			    return $ [ CmdManipulateToolAt $ mPos <+> centre ]
+			_ -> return [ CmdSelect ] ]
 	    processEvent (MouseButtonUp _ _ ButtonRight) = do
 		modify $ \s -> s { rightButtonDown = Nothing }
 		return [ CmdUnselect ]
