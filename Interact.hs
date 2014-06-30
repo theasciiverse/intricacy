@@ -63,6 +63,8 @@ interactUI = do
 
 	testAuth
 	refreshUInfoUI
+	(isNothing <$> gets curAuth >>=) $ flip when $
+	    lift $ drawMessage "Welcome. To play the tutorial levels, press 'T'."
 	)
     setMark '0'
     loop
