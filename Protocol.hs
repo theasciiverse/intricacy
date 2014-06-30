@@ -48,6 +48,8 @@ needsAuth :: Action -> Bool
 needsAuth GetServerInfo = False
 needsAuth (GetLock _) = False
 needsAuth (GetUserInfo _ _) = False
+needsAuth (GetRetired _) = False
+needsAuth (GetRandomNames _) = False
 needsAuth _ = True
 
 data ServerResponse
