@@ -465,7 +465,8 @@ initVideo w h = do
     modify $ \ds -> ds { gsSurface = Just gssurf, lastDrawArgs = Nothing }
 
     (_,size) <- getGeom
-    fontpath <- liftIO $ getDataPath "VeraMono.ttf"
+    let fontfn = "VeraMono.ttf"
+    fontpath <- liftIO $ getDataPath fontfn
     font <- liftIO $ TTF.tryOpenFont fontpath size
     smallFont <- liftIO $ TTF.tryOpenFont fontpath (2*size`div`3)
     modify $ \ds -> ds { dispFont = font, dispFontSmall = smallFont }
@@ -479,6 +480,8 @@ initVideo w h = do
     modify $ \ds -> ds { bgSurface = mbg }
 
     clearMiniLocks
+
+    when (isNothing font) $ lift.putStr $ "Warning: failed to open font file \""++fontfn++"\".\n"
 
 drawMsgLine = void.runMaybeT $ do
     (col,str) <- msum
