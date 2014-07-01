@@ -201,19 +201,23 @@ processCommand' IMMeta CmdRegister = void.runMaybeT $ do
 		_ -> lift $ drawMessage $ "Bad server response: " ++ show resp
 processCommand' IMMeta CmdAuth = void.runMaybeT $ do
     auth <- lift $ gets curAuth
-    name <- mgetCurName
-    passwd <- (hashPassword name <$>) $ MaybeT $ lift $
-	textInput ("Enter password for "++name++":") 64 True False Nothing Nothing
-    lift $ do
-	modify $ \ms -> ms {curAuth = Just $ Auth name passwd}
-	resp <- curServerAction $ Authenticate
-	case resp of
-	    ServerAck -> (lift $ drawMessage "Authenticated.")
-	    ServerMessage msg -> (lift $ drawMessage $ "Server: " ++ msg)
-	    ServerError err -> do
-		lift $ drawError err
-		modify $ \ms -> ms {curAuth = auth}
-	    _ -> lift $ drawMessage $ "Bad server response: " ++ show resp
+    if isJust auth then do
+	confirmOrBail "Log out?"
+	modify $ \ms -> ms {curAuth = Nothing}
+    else do
+	name <- mgetCurName
+	passwd <- (hashPassword name <$>) $ MaybeT $ lift $
+	    textInput ("Enter password for "++name++":") 64 True False Nothing Nothing
+	lift $ do
+	    modify $ \ms -> ms {curAuth = Just $ Auth name passwd}
+	    resp <- curServerAction $ Authenticate
+	    case resp of
+		ServerAck -> (lift $ drawMessage "Authenticated.")
+		ServerMessage msg -> (lift $ drawMessage $ "Server: " ++ msg)
+		ServerError err -> do
+		    lift $ drawError err
+		    modify $ \ms -> ms {curAuth = auth}
+		_ -> lift $ drawMessage $ "Bad server response: " ++ show resp
 processCommand' IMMeta (CmdSolve midx) = void.runMaybeT $ do
     name <- mgetCurName
     uinfo <- mgetUInfo name
