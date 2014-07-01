@@ -11,6 +11,7 @@ category:            Game
 build-type:          Simple
 cabal-version:       >=1.8
 data-files: VeraMono.ttf tutorial/*.lock tutorial/*.text
+extra-doc-files: README NEWS tutorial-extra/*.lock tutorial-extra/README
 
 description:
     A networked game with client-server architecture. The core game is a
@@ -27,7 +28,6 @@ description:
 source-repository head
    type:     git
    location: http://mbays.freeshell.org/intricacy/.git
-
 
 Flag SDL 
     Description: Enable SDL UI
