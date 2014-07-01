@@ -20,21 +20,22 @@ Written in Haskell, with SDL and Curses user interfaces.
 [![Editing a lock](screenshots/editing.small.png)](screenshots/editing.png)
 [![Curses mode](screenshots/curses.small.png)](screenshots/curses.png)
 
-##Server move
-The server has moved from *gonzales.homelinux.org* to *mbays.mdns.org*.
-If you have played with an old version (0.2.6.2 or earlier), you should set
-the new server address with the '$' command.
+##Server address change
+The server address has changed from *gonzales.homelinux.org* to
+*mbays.mdns.org*. If you have played with an old version (0.2.6.2 or earlier),
+you should set the new server address with the '$' command.
 
 ##Download
 
-Latest version is 0.2.8 [NEWS](NEWS)
+Latest version is 0.3 [NEWS](NEWS)
 
 * Source:
      - ` git clone http://mbays.freeshell.org/intricacy/.git && cd intricacy `
+     - or download [source tarball](intricacy-0.3.tar.gz)
      - see README for compilation instructions
      - please mail me <mbays@sdf.org> if it fails!
-* [Windows binary](intricacy-0.2.8-win32.zip)
-* [Linux binary](intricacy-0.2.8-linux-i686-glibc-2.16.tgz)
+* [Windows binary](intricacy-0.3-win32.zip)
+* [Linux binary](intricacy-0.3-linux-i686-glibc-2.16.tgz)
 * [Linux binary for older systems](intricacy-0.2.6.3-linux-i686-glibc-2.13.tgz)
     (note this is an older version of the game, because my old build system
     isn't available right now)

@@ -1,3 +1,5 @@
+0.3:
+    Minor fixes; first version uploaded to hackage
 0.2.8:
     Implemented click-and-drag movement in play and edit modes.
 0.2.7:
