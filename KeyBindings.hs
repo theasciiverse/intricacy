@@ -137,7 +137,7 @@ tilesPaintRow = lowerToo
     , ('D', CmdTile $ PivotTile zero)
     , ('S', CmdTile $ SpringTile Relaxed zero)
     , ('A', CmdTile $ BlockTile [])
-    , ('Z', CmdWait)
+    , ('Z', CmdDelete)
     ]
 tilesAscii =
     [ ('o', CmdTile $ PivotTile zero)
@@ -153,7 +153,7 @@ tilesAscii =
     , ('*', CmdTile $ WrenchTile zero)
     , ('#', CmdTile $ BlockTile [])
     ]
-editOnly = editMisc ++ tilesPaintRow ++ tilesAscii
+editOnly = tilesPaintRow ++ editMisc ++ tilesAscii
 
 playBindings = playOnly ++ lockGlobal
 replayBindings = replayOnly ++ lockGlobal

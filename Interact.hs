@@ -575,18 +575,16 @@ processCommand' IMEdit CmdMerge = do
 	    modify $ \es -> es {selectedPiece = Nothing}
 	_ -> return ()
 processCommand' IMEdit CmdWait = do
+    st:_ <- gets esGameStateStack
+    (st',_) <- lift $ doPhysicsTick NullPM st
+    pushEState st'
+
+processCommand' IMEdit CmdDelete = do
     selPos <- gets selectedPos
     selPiece <- gets selectedPiece
     st:_ <- gets esGameStateStack
     case selPiece of
 	Nothing -> drawTile selPos Nothing False
-	Just _ -> do (st',_) <- lift $ doPhysicsTick NullPM st
-		     pushEState st'
-processCommand' IMEdit CmdDelete = do
-    selPiece <- gets selectedPiece
-    st:_ <- gets esGameStateStack
-    case selPiece of
-	Nothing -> return ()
 	Just p -> do modify $ \es -> es {selectedPiece = Nothing}
 		     modifyEState $ delPiece p
 processCommand' IMEdit CmdWriteState = void.runMaybeT $ do

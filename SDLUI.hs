@@ -303,7 +303,7 @@ paintTiles =
     , Nothing
     ]
 
-paintTileCmds = map (maybe CmdWait CmdTile) paintTiles
+paintTileCmds = map (maybe CmdDelete CmdTile) paintTiles
 
 getEffPaintTileIndex :: UIM Int
 getEffPaintTileIndex = do

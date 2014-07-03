@@ -282,7 +282,7 @@ instance UIMonad (StateT UIState IO) where
 			sequence_
 			    [ modify $ \s -> s { paintTileIndex = pti }
 				| (pti,pt) <- zip [0..] paintTiles
-				, (isNothing pt && mCmd == Just CmdWait) ||
+				, (isNothing pt && mCmd == Just CmdDelete) ||
 				    (isJust $ do
 					pt' <- pt
 					CmdTile t <- mCmd
@@ -401,7 +401,7 @@ instance UIMonad (StateT UIState IO) where
 
 	    drawCmd mt True = CmdPaint mt
 	    drawCmd (Just t) False = CmdTile t
-	    drawCmd Nothing _ = CmdWait
+	    drawCmd Nothing _ = CmdDelete
 
 	    getMousePos :: UIM ((HexVec,Bool),(Double,Double,Double))
 	    getMousePos = do
