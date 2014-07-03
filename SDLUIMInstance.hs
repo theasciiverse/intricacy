@@ -432,7 +432,7 @@ instance UIMonad (StateT UIState IO) where
 		uibdgs <- Map.findWithDefault [] mode `liftM` gets uiKeyBindings
 		return $ describeCommand cmd ++ " ["
 		    ++ concat (intersperse ","
-			(map showKey $ findBindings (uibdgs ++ bindings mode) cmd))
+			(map showKeyFriendly $ findBindings (uibdgs ++ bindings mode) cmd))
 		    ++ "]"
 
 getEvents = do

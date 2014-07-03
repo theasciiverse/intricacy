@@ -8,7 +8,7 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
-module KeyBindings (KeyBindings, bindings, findBindings, findBinding, showKey) where
+module KeyBindings (KeyBindings, bindings, findBindings, findBinding, showKey, showKeyFriendly) where
 
 import Data.Maybe
 import Data.Char
@@ -197,3 +197,10 @@ findBinding = (listToMaybe.) . findBindings
 showKey ch | isPrint ch = [ch]
 showKey ch | isPrint (unctrl ch) = ('^':[unctrl ch])
 showKey _ = "[?]"
+
+showKeyFriendly ' ' = "space"
+showKeyFriendly '\r' = "return"
+showKeyFriendly '\n' = "newline"
+showKeyFriendly '\t' = "tab"
+showKeyFriendly '\b' = "bksp"
+showKeyFriendly ch = showKey ch
