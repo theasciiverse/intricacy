@@ -189,6 +189,7 @@ instance UIMonad (StateT UIState IO) where
 	drawMainState' (MetaState saddr undecls cOnly auth names _ _ rnamestvar _ _ mretired path lock _) = do
 	    let ourName = liftM authUser auth
 	    let selName = listToMaybe names
+	    let home = isJust ourName && ourName == selName
 	    (h,w) <- liftIO Curses.scrSize
 	    when (h<20 || w<40) $ liftIO CursesH.end >> error "Terminal too small!"
 	    lift $ do
@@ -213,9 +214,10 @@ instance UIMonad (StateT UIState IO) where
 		    lift $ do
 			unless fresh $ drawAtCVec (Glyph '*' red bold) $ CVec 2 (w`div`2+7)
 			maybe (return ()) sayError err
-			when (fresh && isNothing ourName) $
+			when (fresh && (isNothing ourName || home || isNothing muirc)) $
 			    drawStrGrey (CVec 2 (w`div`2+1+9)) =<<
-				(bindingsStr IMMeta $ if isNothing muirc then [CmdRegister] else [CmdAuth])
+				(bindingsStr IMMeta $
+				    if (isNothing muirc && isNothing ourName) || home then [CmdRegister] else [CmdAuth])
 		    for_ muirc $ \(RCUserInfo (_,uinfo)) -> case mretired of
 			Just retired -> do
 			    (h,w) <- liftIO Curses.scrSize

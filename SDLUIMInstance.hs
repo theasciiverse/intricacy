@@ -122,9 +122,9 @@ instance UIMonad (StateT UIState IO) where
 			    smallFont <- gets dispFontSmall
 			    renderToMain $ withFont smallFont $ renderStrColAtLeft (opaquify $ dim errorCol) "(stale)" $ serverWaitPos
 			maybe (return ()) (setMsgLineNoRefresh errorCol) err
-			when (fresh && (isNothing ourName || home)) $
+			when (fresh && (isNothing ourName || home || isNothing muirc)) $
 			    registerButtonGroup $ singleButton (codenamePos <+> 2<*>hu)
-				(if isNothing muirc || home then CmdRegister else CmdAuth) 2
+				(if (isNothing muirc && isNothing ourName) || home then CmdRegister else CmdAuth) 2
 		    (if isJust muirc then drawName else drawNullName) name codenamePos
 		    lift $ registerSelectable codenamePos 0 SelSelectedCodeName
 		    drawRelScore name (codenamePos<+>hu)
