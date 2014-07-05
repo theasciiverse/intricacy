@@ -1,3 +1,6 @@
+0.3.1:
+    Misc minor UI improvements;
+    Help screens in SDL mode.
 0.3:
     Minor fixes; first version uploaded to hackage
 0.2.8:
