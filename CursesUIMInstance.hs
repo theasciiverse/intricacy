@@ -296,7 +296,6 @@ instance UIMonad (StateT UIState IO) where
 		(map (`divMod` (h-3)) [0..])
 	    , (x+1)*bdgWidth < w]
 	refresh
-	void $ getInput mode
 
     getChRaw = (charify<$>) $ liftIO $ CursesH.getKey (return ())
     setUIBinding mode cmd ch =

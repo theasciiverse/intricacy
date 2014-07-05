@@ -116,7 +116,7 @@ getButtons :: InputMode -> UIM [ ButtonGroup ]
 getButtons mode = do
     whs <- gets $ whsButtons.uiOptions
     cntxtButtons <- gets contextButtons
-    return $ cntxtButtons ++ case mode of 
+    return $ cntxtButtons ++ global ++ case mode of 
 	IMEdit -> [
 	    singleButton (tl<+>hv) CmdTest 4
 	    , singleButton (tl<+>(neg hw)) CmdPlay 2
@@ -162,6 +162,7 @@ getButtons mode = do
 	where
 	    quitButton = Button br CmdQuit
 	    markGroup = ([Button (tl<+>hw) CmdMark, Button (tl<+>hw<+>neg hu) CmdJumpMark],(0,0))
+	    global = [ singleButton (tr <+> 4<*>hv <+> 3<*>hu) CmdHelp 3 ]
 	    tr = periphery 0
 	    tl = periphery 2
 	    bl = periphery 3
@@ -292,6 +293,10 @@ writeBindings = do
     bdgs <- gets uiKeyBindings
     liftIO makeConfDir
     liftIO $ writeFile path $ show bdgs
+
+getBindings mode = do
+    uibdgs <- Map.findWithDefault [] mode `liftM` gets uiKeyBindings
+    return $ uibdgs ++ bindings mode
 
 paintTiles :: [ Maybe Tile ]
 paintTiles =

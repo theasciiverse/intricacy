@@ -197,8 +197,6 @@ instance UIMonad (StateT UIState IO) where
 
     drawAlerts alerts = return ()
 
-    showHelp _ = return ()
-
     getChRaw = do
 	events <- liftIO getEvents
 	case listToMaybe $ [ key | KeyDown key <- events ] of
@@ -434,6 +432,52 @@ instance UIMonad (StateT UIState IO) where
 		    ++ concat (intersperse ","
 			(map showKeyFriendly $ findBindings (uibdgs ++ bindings mode) cmd))
 		    ++ "]"
+
+    showHelp mode = do
+	bdgs <- nub <$> getBindings mode
+	smallFont <- gets dispFontSmall
+	renderToMain $ do 
+	    erase
+	    let bdgWidth = (screenWidthHexes-6) `div` 3
+		showKeys chs = intercalate "/" (map showKeyFriendly chs)
+		maxkeyslen = maximum $ map (length.showKeys.map fst) $ groupBy ((==) `on` snd) bdgs
+		mouseHelpStrs = ["Mouse commands:", "Right-click on a button to set a keybinding;"] ++ case mode of
+		    IMPlay -> ["Click on tool to select, drag to move;",
+			"Click by tool to move;", "Scroll wheel to rotate hook;",
+			"Scroll wheel while held down to undo/redo."]
+		    IMEdit -> ["Left-click to draw selected; scroll to change selection;",
+			"Right-click on piece to select, drag to move;",
+			"While holding right-click: left-click to advance time, middle-click to delete;",
+			"Scroll wheel to rotate selected piece; scroll wheel while held down to undo/redo."]
+		    IMReplay -> ["Scroll wheel while held down to undo/redo."]
+		    IMMeta -> ["Left-clicking on something does most obvious thing;",
+			"Right-clicking does second-most obvious thing."]
+
+	    renderStrColAt messageCol "Keybindings:" $ (screenHeightHexes`div`4)<*>(hv<+>neg hw)
+	    sequence_ [ with $ renderStrColAtLeft messageCol
+			( keysStr ++ ": " ++ desc )
+			$ (x*bdgWidth-(screenWidthHexes-6)`div`2)<*>hu <+> neg hv <+>
+			  (screenHeightHexes`div`4 - y`div`2)<*>(hv<+>neg hw) <+>
+			  (y`mod`2)<*>hw
+		| ((keysStr,with,desc),(x,y)) <- zip [(keysStr,with,desc)
+			| group <- groupBy ((==) `on` snd) $ sortBy (compare `on` snd) bdgs
+			, let cmd = snd $ head group
+			, let desc = describeCommand cmd
+			, not $ null desc
+			, let chs = map fst group
+			, let keysStr = showKeys chs
+			, let with = if True -- 3*(bdgWidth-1) < length desc + length keysStr + 1
+				then withFont smallFont
+				else id
+			]
+		    (map (`divMod` (screenHeightHexes-9)) [0..])
+		, (x+1)*bdgWidth < screenWidthHexes]
+	    sequence_ [ renderStrColAt messageCol str
+			$ (3-screenHeightHexes`div`4-y`div`2)<*>(hv<+>neg hw)
+			  <+> hv
+			  <+> (y`mod`2)<*>hw
+		| (str,y) <- zip mouseHelpStrs [0..] ]
+	refresh
 
 getEvents = do
     e <- waitEvent

@@ -113,7 +113,9 @@ processCommand IMPlay CmdOpen = do
 processCommand im cmd = lift $ processCommand' im cmd
 
 processCommand' :: UIMonad uiM => InputMode -> Command -> StateT MainState uiM ()
-processCommand' im CmdHelp = lift $ showHelp im
+processCommand' im CmdHelp = lift $ do
+    showHelp im
+    void $ textInput "[press a key]" 1 False True Nothing Nothing
 processCommand' im CmdBind = lift $ flip (>>) (drawMessage "") $ void $ runMaybeT $ do
 	lift $ drawMessage "Command to bind: "
 	cmd <- msum $ repeat $ do
