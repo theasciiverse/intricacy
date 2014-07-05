@@ -85,7 +85,7 @@ instance UIMonad (StateT UIState IO) where
 	    registerUndoButtons (null sts) (null undostack)
 	    when (isJust selPiece) $ mapM_ registerButtonGroup
 		[ singleButton (periphery 2 <+> 3<*>hw<+>hu) CmdDelete 0
-		-- , singleButton (periphery 2 <+> 3<*>hw) CmdMerge 4
+		, singleButton (periphery 2 <+> 3<*>hw) CmdMerge 4
 		]
 	    drawPaintButtons
 	drawMainState' (MetaState saddr undecls cOnly auth names _ _ rnamestvar _ _ mretired path mlock offset) = do

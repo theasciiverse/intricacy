@@ -153,3 +153,4 @@ mergeTiles pos dir mergePiece st = fromMaybe st $ do
 	    (idx'',_) <- Map.lookup (dir<+>pos) $ stateBoard st'
 	    return $ addPivotArm idx'' pos st'
 
+	_ -> mzero

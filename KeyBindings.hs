@@ -128,7 +128,10 @@ editMisc = lowerToo
     , ('T', CmdTest)
     , ('W', CmdWriteState)
     , (ctrl 'S', CmdWriteState)
+    , ('=', CmdMerge)
+    , ('+', CmdMerge)
     , ('&', CmdMerge)
+    , ('0', CmdDelete)
     , ('E', CmdDelete)
     ]
 tilesPaintRow = lowerToo

@@ -566,14 +566,20 @@ processCommand' IMEdit CmdMerge = do
     selPos <- gets selectedPos
     st:_ <- gets esGameStateStack
     lift $ drawMessage "Merge in which direction?"
-    cmd <- lift $ head <$> getSomeInput IMEdit
-    lift $ drawMessage ""
-    case cmd of
-	CmdDir _ mergeDir -> do
-	    modifyEState $ mergeTiles selPos mergeDir True
-	    -- XXX: merging might invalidate selectedPiece
-	    modify $ \es -> es {selectedPiece = Nothing}
+    let getDir = do
+	cmd <- lift $ head <$> getSomeInput IMEdit
+	case cmd of
+	    CmdDir _ mergeDir -> return $ Just mergeDir
+	    CmdDrag _ mergeDir -> return $ Just mergeDir
+	    CmdMoveTo _ -> getDir
+	    _ -> return $ Nothing
+    mergeDir <- getDir
+    case mergeDir of
+	Just mergeDir -> modifyEState $ mergeTiles selPos mergeDir True
 	_ -> return ()
+    -- XXX: merging might invalidate selectedPiece
+    modify $ \es -> es {selectedPiece = Nothing}
+    lift $ drawMessage ""
 processCommand' IMEdit CmdWait = do
     st:_ <- gets esGameStateStack
     (st',_) <- lift $ doPhysicsTick NullPM st
