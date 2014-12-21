@@ -36,6 +36,8 @@ data FetchedRecord = FetchedRecord {fresh :: Bool, fetchError :: Maybe String, f
 
 
 getRecordCached :: ServerAddr -> Maybe Auth -> Maybe (TVar Bool) -> Bool -> Record -> IO (TVar FetchedRecord)
+getRecordCached saddr _ _ _ _ | nullSaddr saddr = do
+    atomically $ newTVar $ FetchedRecord True (Just "No server set.") Nothing
 getRecordCached saddr auth mflag cOnly rec = do
     fromCache <- withCache saddr $ getRecord rec
     let fresh = isJust fromCache && invariantRecord rec
@@ -73,6 +75,8 @@ waitFetchedFresh :: TVar FetchedRecord -> IO ()
 waitFetchedFresh tvar = atomically $ readTVar tvar >>= check.fresh
 
 makeRequest :: ServerAddr -> ClientRequest -> IO ServerResponse
+makeRequest saddr _ | nullSaddr saddr =
+    return $ ServerError "No server set."
 makeRequest saddr@(ServerAddr host port) request =
     handle (return . ServerError . (show::SomeException -> String)) $
 	withStream (IP host port) makeRequest'
@@ -87,7 +91,7 @@ knownServers :: IO [ServerAddr]
 knownServers = flip catchIO (const $ return []) $ do
     cachedir <- confFilePath "cache"
     saddrstrs <- getDirectoryContents cachedir >>= filterM (\dir ->
-	doesDirectoryExist $ cachedir++[pathSeparator]++dir++[pathSeparator]++"intricacydb"++[pathSeparator])
+	doesFileExist $ cachedir++[pathSeparator]++dir++[pathSeparator]++"serverInfo")
     return $ concat $ map (maybeToList . strToSaddr) saddrstrs
 
 withCache :: ServerAddr -> DBM a -> IO a
