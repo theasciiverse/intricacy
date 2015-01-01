@@ -18,6 +18,7 @@ import Control.Concurrent.STM
 import Control.Applicative hiding ((<*>))
 import qualified Data.Map as Map
 import Data.Map (Map)
+import qualified Data.Vector as Vector
 import Data.Maybe
 import Control.Concurrent (threadDelay)
 import Control.Monad.State
@@ -87,6 +88,12 @@ instance UIMonad (StateT UIState IO) where
 		[ singleButton (periphery 2 <+> 3<*>hw<+>hu) CmdDelete 0
 		, singleButton (periphery 2 <+> 3<*>hw) CmdMerge 4
 		]
+	    sequence_
+		[ when (null . filter (pred . placedPiece) . Vector.toList $ placedPieces st)
+		    $ registerButtonGroup $ singleButton (periphery 0 <+> d) cmd 2
+		| (pred,cmd,d) <- [
+		    (isWrench, CmdTile $ WrenchTile zero, 3<*>hu),
+		    (isHook, CmdTile $ HookTile, 3<*>hu <+> hv)] ]
 	    drawPaintButtons
 	drawMainState' (MetaState saddr undecls cOnly auth names _ _ rnamestvar _ _ mretired path mlock offset) = do
 	    let ourName = authUser <$> auth
