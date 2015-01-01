@@ -38,7 +38,7 @@ Latest version is 0.3.2 [NEWS](NEWS). If you have the haskell package manager
      - please mail me <mbays@sdf.org> if it fails!
 * [Windows binary](intricacy-0.3.2-win32.zip)
 * [Linux binary](intricacy-0.3.2-linux-i686-glibc-2.16.tgz)
-* [Linux binary for older systems](intricacy-0.3.2-linux-i686-glibc-2.14.tgz)
+* [Linux binary for older systems](intricacy-0.3.1-linux-i686-glibc-2.14.tgz)
 * [Old versions](old)
 
 ##Mailing list
