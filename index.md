@@ -27,18 +27,18 @@ you should set the new server address with the '$' command.
 
 ##Download
 
-Latest version is 0.3.1 [NEWS](NEWS). If you have the haskell package manager
+Latest version is 0.3.2 [NEWS](NEWS). If you have the haskell package manager
 'cabal' and the SDL dependencies, you can install intricacy from hackage with
 <tt>cabal update && cabal install intricacy</tt>. Otherwise, see below.
 
 * Source:
      - ` git clone http://mbays.freeshell.org/intricacy/.git && cd intricacy `
-     - or download [source tarball](intricacy-0.3.1.tar.gz)
+     - or download [source tarball](intricacy-0.3.2.tar.gz)
      - see the [README](README) for compilation instructions
      - please mail me <mbays@sdf.org> if it fails!
-* [Windows binary](intricacy-0.3.1-win32.zip)
-* [Linux binary](intricacy-0.3.1-linux-i686-glibc-2.16.tgz)
-* [Linux binary for older systems](intricacy-0.3.1-linux-i686-glibc-2.14.tgz)
+* [Windows binary](intricacy-0.3.2-win32.zip)
+* [Linux binary](intricacy-0.3.2-linux-i686-glibc-2.16.tgz)
+* [Linux binary for older systems](intricacy-0.3.2-linux-i686-glibc-2.14.tgz)
 * [Old versions](old)
 
 ##Mailing list
