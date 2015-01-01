@@ -442,7 +442,7 @@ processCommand' IMPlay (CmdDrag pos dir) = do
 		tile' <- MaybeT $ return $ snd <$> Map.lookup pos' board'
 		guard $ tileType tile' == if wsel then WrenchTile zero else HookTile
 		lift.lift $ warpPointer $ pos'
-	    | pos' <- [dir<+>pos, pos] ]
+	    | pos' <- map (<+>pos) $ hexDisc 2 ]
 
 processCommand' IMPlay cmd = do
     wsel <- gets wrenchSelected
