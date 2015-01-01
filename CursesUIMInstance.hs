@@ -300,7 +300,7 @@ instance UIMonad (StateT UIState IO) where
     getChRaw = (charify<$>) $ liftIO $ CursesH.getKey (return ())
     setUIBinding mode cmd ch =
 	modify $ \s -> s { uiKeyBindings =
-		Map.insertWith (\[bdg] -> \bdgs -> if bdg `elem` bdgs then delete bdg bdgs else bdgs ++ [bdg])
+		Map.insertWith (\[bdg] -> \bdgs -> if bdg `elem` bdgs then delete bdg bdgs else bdg:bdgs)
 		    mode [(ch,cmd)] $ uiKeyBindings s }
 
     initUI = 
