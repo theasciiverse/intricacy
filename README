@@ -40,7 +40,7 @@ To compile for windows:
     properly. Good luck with that. The mingw32-compiled libraries in winlibs
     may or may not help.
 
-To compile for OSX, or android or whatever else wacky system:
+To compile for OSX, or android or whatever other wacky system:
     No idea, sorry. But please tell me if you manage!
 
 

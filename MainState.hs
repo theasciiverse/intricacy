@@ -243,6 +243,7 @@ refreshUInfoUI = void.runMaybeT $ do
     where
 	getRandomNames = do
 	    rnamestvar <- gets randomCodenames
+	    liftIO $ atomically $ writeTVar rnamestvar []
 	    flag <- gets newAsync
 	    saddr <- gets curServer
 	    void $ liftIO $ forkIO $ do
