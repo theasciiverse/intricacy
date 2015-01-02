@@ -41,6 +41,13 @@ Latest version is 0.3.2 [NEWS](NEWS). If you have the haskell package manager
 * [Linux binary for older systems](intricacy-0.3.1-linux-i686-glibc-2.14.tgz)
 * [Old versions](old)
 
+##Introductory video
+Download: [47MB ogg theora 15m](intricacy.ogv)
+
+Stream: tell your video player to stream from
+    <tt>http://mbays.freeshell.org/intricacy/intricacy.ogv</tt>,
+or [use youtube](http://www.youtube.com/watch?v=lmuSNe4bGAM).
+
 ##Mailing list
 To join the discussion mailing list, please mail
 mbays@sdf.org with subject line
