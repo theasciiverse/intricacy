@@ -375,10 +375,11 @@ processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
     when (null tuts) $ do
 	lift.lift $ drawError "No tutorial levels found"
 	mzero
-    s <- MaybeT $ lift $ textInput ("Play which tutorial level? [1-"++show (length tuts)++"]")
-	    (length (show (length tuts))) False True Nothing Nothing
-    i <- MaybeT $ return $ fst <$> (listToMaybe $ (reads :: ReadS Int) s)
-    guard $ 1 <= i && i <= length tuts
+    -- s <- MaybeT $ lift $ textInput ("Play which tutorial level? [1-"++show (length tuts)++"]")
+	    -- (length (show (length tuts))) False True Nothing Nothing
+    -- i <- MaybeT $ return $ fst <$> (listToMaybe $ (reads :: ReadS Int) s)
+    -- guard $ 1 <= i && i <= length tuts
+    let i = 1
     let dotut i = do
 	let name = tuts !! (i-1)
 	let pref = tutdir ++ [pathSeparator] ++ name
