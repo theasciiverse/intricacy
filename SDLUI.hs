@@ -121,7 +121,7 @@ getButtons mode = do
 	    singleButton (tl<+>hv) CmdTest 4
 	    , singleButton (tl<+>(neg hw)) CmdPlay 2
 	    , markGroup
-	    , ([quitButton, Button (br<+>2<*>hu) CmdWriteState],(0,2))
+	    , singleButton (br<+>2<*>hu) CmdWriteState 2
 	    , ( [ Button (bl<+>dir) (CmdDir WHSSelected dir) | dir <- hexDirs ] ++
 		[ Button (bl<+>((-2)<*>hv)) (CmdRotate (-1))
 		, Button (bl<+>((-2)<*>hw)) (CmdRotate 1) ], (4,0) )
@@ -130,8 +130,7 @@ getButtons mode = do
 		| i <- take (length paintTiles) [0..] ],(5,0))
 	    ]
 	IMPlay -> 
-	    [ ([quitButton],(0,2))
-	    , markGroup
+	    [ markGroup
 	    , ( [ Button bl CmdWait ], (0,0))
 	    , ( [ Button (bl<+>dir) (CmdDir whs dir) | dir <- hexDirs ], (4,0) )
 	    ] ++
@@ -146,11 +145,9 @@ getButtons mode = do
 		    ], (2,0) )
 	    ]) ++
 	    [ singleButton tr CmdOpen 1 ]
-	IMReplay -> [ ([quitButton],(0,2))
-	    , markGroup ]
+	IMReplay -> [ markGroup ]
 	IMMeta ->
-	    [ ([quitButton],(0,2))
-	    , singleButton serverPos CmdSetServer 2
+	    [ singleButton serverPos CmdSetServer 2
 	    , singleButton (serverPos<+>neg hu) CmdToggleCacheOnly 0
 	    , singleButton lockLinePos CmdSelectLock 4
 	    , singleButton (miniLockPos <+> 2<*>hv <+> neg hu <+> hw) CmdEdit 2
@@ -160,10 +157,10 @@ getButtons mode = do
 		
 	_ -> []
 	where
-	    quitButton = Button br CmdQuit
 	    markGroup = ([Button (tl<+>hw) CmdMark, Button (tl<+>hw<+>neg hu) CmdJumpMark],(0,0))
 	    global = if mode == IMTextInput then [] else
-		[ singleButton (tr <+> 3<*>hv <+> 3<*>hu) CmdHelp 3 ]
+		[ singleButton br CmdQuit 0
+		, singleButton (tr <+> 3<*>hv <+> 3<*>hu) CmdHelp 3 ]
 	    tr = periphery 0
 	    tl = periphery 2
 	    bl = periphery 3
