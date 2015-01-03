@@ -90,7 +90,7 @@ instance UIMonad (StateT UIState IO) where
 		]
 	    sequence_
 		[ when (null . filter (pred . placedPiece) . Vector.toList $ placedPieces st)
-		    $ registerButtonGroup $ singleButton (periphery 0 <+> d) cmd 2
+		    $ registerButton (periphery 0 <+> d) cmd 2
 		| (pred,cmd,d) <- [
 		    (isWrench, CmdTile $ WrenchTile zero, 3<*>hu),
 		    (isHook, CmdTile $ HookTile, 3<*>hu <+> hv)] ]
@@ -104,8 +104,8 @@ instance UIMonad (StateT UIState IO) where
 		(\lock -> do
 		    drawMiniLock lock miniLockPos
 		    registerSelectable miniLockPos 3 SelOurLock
-		    registerButtonGroup $ singleButton (miniLockPos <+> 2<*>neg hv <+> hu) CmdPrevLock 4
-		    registerButtonGroup $ singleButton (miniLockPos <+> 2<*>neg hv <+> hu <+> neg hw) CmdNextLock 4
+		    registerButton (miniLockPos <+> 2<*>neg hv <+> hu) CmdPrevLock 4
+		    registerButton (miniLockPos <+> 2<*>neg hv <+> hu <+> neg hw) CmdNextLock 4
 		    )
 		(fst<$>mlock)
 	    lift $ do
@@ -115,9 +115,9 @@ instance UIMonad (StateT UIState IO) where
 		    $ serverPos <+> hu
 		renderToMain $ renderStrColAtLeft messageCol path $ lockLinePos <+> hu
 		when (offset>0) $
-		    registerButtonGroup $ singleButton (nextPagePos<+>neg hu) CmdPrevPage 4
+		    registerButton (nextPagePos<+>neg hu) CmdPrevPage 4
 
-	    when (length names > 1) $ lift $ registerButtonGroup $ singleButton
+	    when (length names > 1) $ lift $ registerButton
 		(codenamePos <+> 2<*>neg hu <+> hw) CmdBackCodename 0
 
 	    runMaybeT $ do
@@ -130,7 +130,7 @@ instance UIMonad (StateT UIState IO) where
 			    renderToMain $ withFont smallFont $ renderStrColAtLeft (opaquify $ dim errorCol) "(stale)" $ serverWaitPos
 			maybe (return ()) (setMsgLineNoRefresh errorCol) err
 			when (fresh && (isNothing ourName || home || isNothing muirc)) $
-			    registerButtonGroup $ singleButton (codenamePos <+> 2<*>hu)
+			    registerButton (codenamePos <+> 2<*>hu)
 				(if (isNothing muirc && isNothing ourName) || home then CmdRegister else CmdAuth) 2
 		    (if isJust muirc then drawName else drawNullName) name codenamePos
 		    lift $ registerSelectable codenamePos 0 SelSelectedCodeName
@@ -141,8 +141,8 @@ instance UIMonad (StateT UIState IO) where
 				    (map (locksPos<+>) $ zero:[rotate n $ 4<*>hu<->4<*>hw | n <- [0,2,3,5]])
 				    [ \pos -> (lift $ registerSelectable pos 1 (SelOldLock ls)) >> drawOldLock ls pos
 				    | ls <- retired ]
-				lift $ registerButtonGroup $ singleButton retiredPos CmdShowRetired pubWheelAngle
-				lift $ registerButtonGroup $ singleButton (retiredPos <+> hw) (CmdPlayLockSpec Nothing) 4
+				lift $ registerButton retiredPos CmdShowRetired pubWheelAngle
+				lift $ registerButton (retiredPos <+> hw) (CmdPlayLockSpec Nothing) 4
 			    Nothing -> do
 				sequence_ [ drawLockInfo (ActiveLock (codename uinfo) i) mlockinfo |
 				    (i,mlockinfo) <- assocs $ userLocks uinfo ]
@@ -151,14 +151,14 @@ instance UIMonad (StateT UIState IO) where
 				    registerButtonGroup
 					([ Button mmiscpos (CmdSolve Nothing), Button (mmiscpos<+>hu) (CmdViewSolution Nothing)], (2,2))
 				let tested = maybe False (isJust.snd) mlock
-				when (isJust mlock && home) $ lift $ registerButtonGroup $
-					singleButton (miniLockPos <+> 2<*>hv <+> neg hu) (CmdPlaceLock Nothing) $ if tested then 2 else 0
-				lift $ registerButtonGroup $ singleButton retiredPos CmdShowRetired pubWheelAngle
+				when (isJust mlock && home) $ lift $ registerButton
+				    (miniLockPos <+> 2<*>hv <+> neg hu) (CmdPlaceLock Nothing) $ if tested then 2 else 0
+				lift $ registerButton retiredPos CmdShowRetired pubWheelAngle
 
 	    when home $ do
 		unless (null undecls) $ do
 		    lift.renderToMain $ renderStrColAtLeft messageCol "Undeclared:" (undeclsPos<+>2<*>hv)
-		    lift $ registerButtonGroup $ singleButton (undeclsPos<+>2<*>hv<+>neg hu) (CmdDeclare Nothing) 2
+		    lift $ registerButton (undeclsPos<+>2<*>hv<+>neg hu) (CmdDeclare Nothing) 2
 		    fillArea (undeclsPos<+>hv)
 			(map (undeclsPos<+>) $ hexDisc 1 ++ [hu<+>neg hw, neg hu<+>hv])
 			[ \pos -> (lift $ registerSelectable pos 0 (SelUndeclared undecl)) >> drawActiveLock al pos
@@ -172,7 +172,7 @@ instance UIMonad (StateT UIState IO) where
 
 	    when (ourName /= selName) $ void $ runMaybeT $ do
 		when (isJust ourName) $
-		    lift.lift $ registerButtonGroup $ singleButton (codenamePos <+> neg hu <+> hw) CmdHome 4
+		    lift.lift $ registerButton (codenamePos <+> neg hu <+> hw) CmdHome 4
 		sel <- MaybeT $ return selName
 		us <- MaybeT $ return ourName
 		ourUInfo <- mgetUInfo us
@@ -264,8 +264,8 @@ instance UIMonad (StateT UIState IO) where
 
     setYNButtons = do
 	clearButtons
-	registerButtonGroup $ singleButton (periphery 5 <+> hw) (CmdInputChar 'Y') 2
-	registerButtonGroup $ singleButton (periphery 5 <+> neg hv) (CmdInputChar 'N') 0
+	registerButton (periphery 5 <+> hw) (CmdInputChar 'Y') 2
+	registerButton (periphery 5 <+> neg hv) (CmdInputChar 'N') 0
 	drawButtons IMTextInput
 	refresh
 
@@ -514,7 +514,7 @@ fillArea centre area draws = do
 	    let na = length area
 		nd = length draws
 	    when (nd > (na*(offset+1))) $ lift $
-		registerButtonGroup $ singleButton nextPagePos CmdNextPage 4
+		registerButton nextPagePos CmdNextPage 4
 	    return $ drop (max 0 $ min (nd - na) (na*offset)) $ draws
     sequence_ $ map (uncurry ($)) $
 	zip selDraws $ sortBy

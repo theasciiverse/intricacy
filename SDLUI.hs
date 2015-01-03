@@ -187,13 +187,14 @@ registerSelectable v r s =
     modify $ \ds -> ds {metaSelectables = foldr
 	(`Map.insert` s) (metaSelectables ds) $ map (v<+>) $ hexDisc r}
 registerButtonGroup g = modify $ \ds -> ds {contextButtons = g:contextButtons ds}
+registerButton pos cmd col = registerButtonGroup $ singleButton pos cmd col
 clearSelectables,clearButtons :: UIM ()
 clearSelectables = modify $ \ds -> ds {metaSelectables = Map.empty}
 clearButtons = modify $ \ds -> ds {contextButtons = []}
 
 registerUndoButtons noUndo noRedo = do
-    unless noUndo $ registerButtonGroup $ singleButton (periphery 2) CmdUndo 0
-    unless noRedo $ registerButtonGroup $ singleButton (periphery 2<+>neg hu) CmdRedo 2
+    unless noUndo $ registerButton (periphery 2) CmdUndo 0
+    unless noRedo $ registerButton (periphery 2<+>neg hu) CmdRedo 2
 
 commandOfSelectable IMMeta SelOurLock _ = CmdEdit
 commandOfSelectable IMMeta (SelLock (ActiveLock _ i)) False = CmdSolve (Just i)
