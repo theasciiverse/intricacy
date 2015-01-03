@@ -262,6 +262,13 @@ instance UIMonad (StateT UIState IO) where
 	let [lbp',rbp'] = fmap (fmap (\_ -> (pos<->centre))) [lbp,rbp]
 	modify $ \s -> s {leftButtonDown = lbp', rightButtonDown = rbp'}
 
+    setYNButtons = do
+	clearButtons
+	registerButtonGroup $ singleButton (periphery 5 <+> hw) (CmdInputChar 'Y') 2
+	registerButtonGroup $ singleButton (periphery 5 <+> neg hv) (CmdInputChar 'N') 0
+	drawButtons IMTextInput
+	refresh
+
     getInput mode = do
 	events <- liftIO $ getEvents
 	oldUIState <- get

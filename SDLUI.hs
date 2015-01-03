@@ -162,7 +162,8 @@ getButtons mode = do
 	where
 	    quitButton = Button br CmdQuit
 	    markGroup = ([Button (tl<+>hw) CmdMark, Button (tl<+>hw<+>neg hu) CmdJumpMark],(0,0))
-	    global = [ singleButton (tr <+> 3<*>hv <+> 3<*>hu) CmdHelp 3 ]
+	    global = if mode == IMTextInput then [] else
+		[ singleButton (tr <+> 3<*>hv <+> 3<*>hu) CmdHelp 3 ]
 	    tr = periphery 0
 	    tl = periphery 2
 	    bl = periphery 3

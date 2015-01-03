@@ -325,6 +325,7 @@ instance UIMonad (StateT UIState IO) where
 	Curses.refresh
 
     warpPointer _ = return ()
+    setYNButtons = return ()
 
     getDrawImpatience = return $ \_ -> return ()
 

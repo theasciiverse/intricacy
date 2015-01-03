@@ -155,6 +155,7 @@ confirmOrBail prompt = (guard =<<) $ lift.lift $ confirm prompt
 confirm :: UIMonad uiM => String -> uiM Bool
 confirm prompt = do
     drawMessage $ prompt ++ " [y/N]"
+    setYNButtons
     waitConfirm <* drawMessage ""
     where
 	waitConfirm = do

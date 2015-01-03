@@ -192,7 +192,9 @@ bindings IMReplay = replayBindings
 bindings _ = []
 
 findBindings :: KeyBindings -> Command -> [Char]
-findBindings bdgs cmd = nub [ ch | (ch,cmd') <- bdgs, cmd'==cmd ]
+findBindings bdgs cmd = nub
+    $ [ ch | (ch,cmd') <- bdgs, cmd'==cmd ]
+    ++ [ ch | CmdInputChar ch <- [cmd] ]
 
 findBinding :: KeyBindings -> Command -> Maybe Char
 findBinding = (listToMaybe.) . findBindings
