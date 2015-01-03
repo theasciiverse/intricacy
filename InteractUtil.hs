@@ -112,7 +112,10 @@ declare undecl@(Undeclared soln ls al) = do
     guard $ isJust $ userLocks ourUInfo ! idx
     lift $ do
 	curServerActionAsync $ DeclareSolution soln ls al idx
-	mapM_ invalidateUInfo [lockOwner al, ourName]
+	-- rather than recurse through the tree to find what scores may have
+	-- changed as a result of this declaration, or leave it to timeouts
+	-- and explicit refreshes to reveal it, we just invalidate all UInfos.
+	invalidateAllUInfo
 	refreshUInfoUI
 
 jumpMark :: UIMonad uiM => Char -> StateT MainState uiM ()

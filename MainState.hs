@@ -225,6 +225,10 @@ invalidateUInfo :: UIMonad uiM => Codename -> StateT MainState uiM ()
 invalidateUInfo name = 
     modify $ \ms -> ms {userInfos = Map.delete name $ userInfos ms}
 
+invalidateAllUInfo :: UIMonad uiM => StateT MainState uiM ()
+invalidateAllUInfo =
+    modify $ \ms -> ms {userInfos = Map.empty}
+
 mgetLock :: UIMonad uiM => LockSpec -> MaybeT (StateT MainState uiM) Lock
 mgetLock ls = do
     tvar <- msum [ MaybeT $ (Map.lookup ls) <$> gets indexedLocks 
