@@ -387,7 +387,7 @@ processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
 	text <- MaybeT $ liftIO $ listToMaybe <$> readStrings (pref ++ ".text")
 	_ <- solveLock lock $ Just $ "Tutorial " ++ show i ++ ": " ++ text
 	if i+1 <= length tuts then do
-		confirmOrBail $ "Tutorial level completed! Play next tutorial level (" ++ show (i+1) ++ ")?"
+		-- confirmOrBail $ "Tutorial level completed! Play next tutorial level (" ++ show (i+1) ++ ")?"
 		dotut $ i+1
 	    else lift $ do 
 		mauth <- gets curAuth
