@@ -57,6 +57,7 @@ class (Applicative m, MonadIO m) => UIMonad m where
     getChRaw :: m ( Maybe Char )
     unblockInput :: m (IO ())
     setUIBinding :: InputMode -> Command -> Char -> m ()
+    getUIBinding :: InputMode -> Command -> m String
     getDrawImpatience :: m ( Int -> IO () )
     warpPointer :: HexPos -> m ()
     setYNButtons :: m ()

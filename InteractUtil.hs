@@ -44,7 +44,8 @@ checkWon = do
     frame <- gets psFrame
     when (checkSolved (frame,st)) $ do
 	modify $ \ps -> ps {psSolved = True}
-	lift $ drawMessage "Unlocked!"
+	obdg <- lift $ getUIBinding IMPlay CmdOpen
+	lift $ drawMessage $ "Unlocked! '"++obdg++"' to open."
 	{-
 	pms <- (reverse.(map snd)) `liftM` gets psGameStateMoveStack
 	let wfname = fromMaybe "unnamed.lock" fname 
@@ -106,8 +107,9 @@ setLockPath path = do
 declare undecl@(Undeclared soln ls al) = do
     ourName <- mgetOurName
     ourUInfo <- mgetUInfo ourName
+    pbdg <- lift.lift $ getUIBinding IMMeta $ CmdPlaceLock Nothing
     idx <- askLockIndex "Secure behind which lock?"
-	"You first need to place a lock to secure your solution behind."
+	("You first need to place ('"++pbdg++"') a lock to secure your solution behind.")
 	(\i -> isJust $ userLocks ourUInfo ! i)
     guard $ isJust $ userLocks ourUInfo ! idx
     lift $ do

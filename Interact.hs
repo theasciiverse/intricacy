@@ -63,8 +63,9 @@ interactUI = do
 
 	testAuth
 	refreshUInfoUI
+	tbdg <- lift $ getUIBinding IMMeta CmdTutorials
 	(isNothing <$> gets curAuth >>=) $ flip when $
-	    lift $ drawMessage "Welcome. To play the tutorial levels, press 'T'."
+	    lift $ drawMessage $ "Welcome. To play the tutorial levels, press '"++tbdg++"'."
 	)
     setMark '0'
     loop
@@ -115,7 +116,7 @@ processCommand im cmd = lift $ processCommand' im cmd
 processCommand' :: UIMonad uiM => InputMode -> Command -> StateT MainState uiM ()
 processCommand' im CmdHelp = lift $ do
     showHelp im
-    void $ textInput "[press a key]" 1 False True Nothing Nothing
+    void $ textInput "[press a key or RMB]" 1 False True Nothing Nothing
 processCommand' im CmdBind = lift $ flip (>>) (drawMessage "") $ void $ runMaybeT $ do
 	lift $ drawMessage "Command to bind: "
 	cmd <- msum $ repeat $ do
@@ -320,7 +321,11 @@ processCommand' IMMeta (CmdViewSolution mnote) = void.runMaybeT $ do
 processCommand' IMMeta (CmdPlaceLock midx) = void.runMaybeT $ do
     mourNameSelected >>= guard
     ourName <- mgetOurName
-    (lock,msoln) <- MaybeT $ gets curLock
+    (lock,msoln) <- msum [MaybeT $ gets curLock
+	, do
+	    ebdg <- lift.lift $ getUIBinding IMMeta CmdEdit
+	    lift.lift $ drawError $ "No lock selected; '"++ebdg++"' to edit one."
+	    mzero]
     lockpath <- lift $ gets curLockPath
     ourUInfo <- mgetUInfo ourName
     idx <- msum [ MaybeT $ return midx
@@ -391,8 +396,11 @@ processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
 		dotut $ i+1
 	    else lift $ do 
 		mauth <- gets curAuth
+		cbdg <- lift $ getUIBinding IMMeta $ CmdSelCodename Nothing
+		rbdg <- lift $ getUIBinding IMMeta CmdRegister
 		lift $ drawMessage $ if isNothing mauth
-		    then "Tutorial completed! To play on the server, pick a codename ('C') and register it ('R')."
+		    then "Tutorial completed! To play on the server, pick a codename ('"++cbdg++
+			"') and register it ('"++rbdg++"')."
 		    else "Tutorial completed!"
     dotut i
 processCommand' IMMeta CmdShowRetired = void.runMaybeT $ do

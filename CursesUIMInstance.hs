@@ -302,6 +302,9 @@ instance UIMonad (StateT UIState IO) where
 	modify $ \s -> s { uiKeyBindings =
 		Map.insertWith (\[bdg] -> \bdgs -> if bdg `elem` bdgs then delete bdg bdgs else bdg:bdgs)
 		    mode [(ch,cmd)] $ uiKeyBindings s }
+    getUIBinding mode cmd = do
+	bdgs <- getBindings mode
+	return $ maybe "" showKey $ findBinding bdgs cmd
 
     initUI = 
 	do liftIO CursesH.start 

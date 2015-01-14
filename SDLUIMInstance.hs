@@ -215,6 +215,8 @@ instance UIMonad (StateT UIState IO) where
 		Map.insertWith (\[bdg] -> \bdgs -> if bdg `elem` bdgs then delete bdg bdgs else bdg:bdgs)
 		    mode [(ch,cmd)] $ uiKeyBindings s }
 
+    getUIBinding mode cmd = ($cmd) <$> getBindingStr mode
+
     initUI = liftM isJust (runMaybeT $ do
 	catchIOErrorMT $ SDL.init [InitVideo]
 	catchIOErrorMT TTF.init
