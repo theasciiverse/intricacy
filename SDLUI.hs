@@ -485,7 +485,10 @@ initVideo w h = do
 
     clearMiniLocks
 
-    when (isNothing font) $ lift.putStr $ "Warning: font file not found at "++fontpath++".\n"
+    when (isNothing font) $ lift $ do
+	let text = "Warning: font file not found at "++fontpath++".\n"
+	putStr text
+	writeFile "error.log" text 
 
 drawMsgLine = void.runMaybeT $ do
     (col,str) <- msum
