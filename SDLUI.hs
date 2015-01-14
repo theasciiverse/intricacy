@@ -123,8 +123,8 @@ getButtons mode = do
 	    , markGroup
 	    , singleButton (br<+>2<*>hu) CmdWriteState 2
 	    , ( [ Button (bl<+>dir) (CmdDir WHSSelected dir) | dir <- hexDirs ] ++
-		[ Button (bl<+>((-2)<*>hv)) (CmdRotate (-1))
-		, Button (bl<+>((-2)<*>hw)) (CmdRotate 1) ], (4,0) )
+		[ Button (bl<+>((-2)<*>hv)) (CmdRotate WHSSelected (-1))
+		, Button (bl<+>((-2)<*>hw)) (CmdRotate WHSSelected 1) ], (4,0) )
 	    , ( [ Button bl CmdSelect ], (0,0))
 	    , ([Button (paintButtonStart <+> hu <+> i<*>hv) (paintTileCmds!!i)
 		| i <- take (length paintTiles) [0..] ],(5,0))
@@ -135,8 +135,8 @@ getButtons mode = do
 	    , ( [ Button (bl<+>dir) (CmdDir whs dir) | dir <- hexDirs ], (4,0) )
 	    ] ++
 	    (if whs == WHSWrench then [] else
-		[ ( [ Button (bl<+>((-2)<*>hv)) (CmdRotate (-1))
-		    , Button (bl<+>((-2)<*>hw)) (CmdRotate 1)
+		[ ( [ Button (bl<+>((-2)<*>hv)) (CmdRotate whs (-1))
+		    , Button (bl<+>((-2)<*>hw)) (CmdRotate whs 1)
 		    ], (4,0) )
 	    ]) ++
 	    (if whs /= WHSSelected then [] else

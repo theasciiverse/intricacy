@@ -405,7 +405,7 @@ instance UIMonad (StateT UIState IO) where
 		rb <- isJust <$> gets rightButtonDown
 		mb <- isJust <$> gets middleButtonDown
 		if rb || mode == IMPlay && not mb
-		    then return [ CmdRotate dw ]
+		    then return [ CmdRotate WHSSelected dw ]
 		    else if mb 
 			then return [ if dw == 1 then CmdUndo else CmdRedo ]
 			else do

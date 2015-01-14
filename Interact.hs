@@ -460,7 +460,10 @@ processCommand' IMPlay cmd = do
 	    | whs == WHSWrench || (whs == WHSSelected && wsel) =
 		Just $ WrenchPush dir
 	    | otherwise = Just $ HookPush dir
-	torque dir = Just $ HookTorque dir
+	torque whs dir 
+	    | whs == WHSHook || (whs == WHSSelected && not wsel)=
+		Just $ HookTorque dir
+	    | otherwise = Nothing
 	(wsel', pm) =
 	    case cmd of
 		CmdTile (WrenchTile _) -> (True, Nothing)
@@ -468,7 +471,7 @@ processCommand' IMPlay cmd = do
 		CmdTile (ArmTile _ _) -> (False, Nothing)
 		CmdToggle -> (not wsel, Nothing)
 		CmdDir whs dir -> (wsel, push whs dir)
-		CmdRotate dir -> (wsel, torque dir)
+		CmdRotate whs dir -> (wsel, torque whs dir)
 		CmdWait -> (wsel, Just NullPM)
 		CmdSelect -> (wsel, Just NullPM)
 		_ -> (wsel, Nothing)
@@ -559,7 +562,7 @@ processCommand' IMEdit (CmdDrag pos dir) = do
 		guard $ idx' == selIdx
 		lift.lift $ warpPointer $ pos'
 	    | pos' <- [dir<+>pos, pos] ]
-processCommand' IMEdit (CmdRotate dir) = do
+processCommand' IMEdit (CmdRotate _ dir) = do
     selPiece <- gets selectedPiece
     case selPiece of
 	Nothing -> return ()

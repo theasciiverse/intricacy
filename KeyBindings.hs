@@ -42,8 +42,8 @@ qwertyViHex =
     , ('U', CmdDir WHSWrench $ neg hw)
     , ('Y', CmdDir WHSWrench hv)
     , ('N', CmdDir WHSWrench $ neg hv)
-    , ('k', CmdRotate 1)
-    , ('j', CmdRotate $ -1)
+    , ('k', CmdRotate WHSHook 1)
+    , ('j', CmdRotate WHSHook $ -1)
     ]
 qwertyLeftHex =
     [ ('d', CmdDir WHSHook hu)
@@ -58,8 +58,8 @@ qwertyLeftHex =
     , ('E', CmdDir WHSWrench $ neg hw)
     , ('W', CmdDir WHSWrench hv)
     , ('X', CmdDir WHSWrench $ neg hv)
-    , ('q', CmdRotate 1)
-    , ('c', CmdRotate $ -1)
+    , ('q', CmdRotate WHSHook 1)
+    , ('c', CmdRotate WHSHook $ -1)
     , ('S', CmdWait)
     , ('s', CmdWait)
     ]
@@ -80,8 +80,8 @@ keypadHex =
     , ('9', CmdDir WHSSelected $ neg hw)
     , ('7', CmdDir WHSSelected hv)
     , ('3', CmdDir WHSSelected $ neg hv)
-    , ('8', CmdRotate 1)
-    , ('2', CmdRotate $ -1)
+    , ('8', CmdRotate WHSSelected 1)
+    , ('2', CmdRotate WHSSelected $ -1)
     ]
 
 miscLockGlobal = lowerToo

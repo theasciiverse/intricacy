@@ -13,7 +13,7 @@ import Hex
 import GameStateTypes
 import Metagame
 
-data Command = CmdDir WrHoSel HexDir | CmdRotate TorqueDir | CmdWait
+data Command = CmdDir WrHoSel HexDir | CmdRotate WrHoSel TorqueDir | CmdWait
 	| CmdMoveTo HexPos | CmdManipulateToolAt HexPos
 	| CmdDrag HexPos HexDir
 	| CmdToggle
@@ -49,7 +49,7 @@ data WrHoSel = WHSWrench | WHSHook | WHSSelected
 	
 describeCommand :: Command -> String
 describeCommand (CmdDir whs dir) = "move " ++ whsStr whs ++ " " ++ dirStr dir
-describeCommand (CmdRotate dir) = "rotate " ++ (if dir == 1 then "counter" else "") ++ "clockwise"
+describeCommand (CmdRotate whs dir) = "rotate " ++ whsStr whs ++ " " ++ (if dir == 1 then "counter" else "") ++ "clockwise"
 describeCommand CmdWait = "nothing"
 describeCommand CmdToggle = "toggle tool"
 describeCommand CmdOpen = "open lock"
