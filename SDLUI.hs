@@ -75,7 +75,7 @@ data UIOptions = UIOptions
     , useBackground::Bool
     }
     deriving (Eq, Ord, Show, Read)
-defaultUIOptions = UIOptions False False WHSSelected True
+defaultUIOptions = UIOptions False True WHSSelected True
 modifyUIOptions f = modify $ \s -> s { uiOptions = f $ uiOptions s }
 
 renderToMain :: RenderM a -> UIM a
