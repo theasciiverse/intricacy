@@ -370,6 +370,7 @@ instance UIMonad (StateT UIState IO) where
 		(fromMaybe [] <$>) $ runMaybeT $ msum
 		    [ do
 			cmd <- MaybeT $ cmdAtMousePos pos mode Nothing
+			guard $ mode /= IMTextInput
 			modify $ \s -> s { settingBinding = Just cmd }
 			return []
 		    , do
