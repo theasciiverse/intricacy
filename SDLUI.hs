@@ -73,9 +73,10 @@ data UIOptions = UIOptions
     , showBlocks::Bool
     , whsButtons::WrHoSel
     , useBackground::Bool
+    , showButtonText::Bool
     }
     deriving (Eq, Ord, Show, Read)
-defaultUIOptions = UIOptions False True WHSSelected True
+defaultUIOptions = UIOptions False True WHSSelected True True
 modifyUIOptions f = modify $ \s -> s { uiOptions = f $ uiOptions s }
 
 renderToMain :: RenderM a -> UIM a
@@ -107,60 +108,64 @@ waitFrame = do
     modify $ \ds -> ds { lastFrameTicks = now }
 
 
-data Button = Button { buttonPos::HexVec, buttonCmd::Command }
+data Button = Button { buttonPos::HexVec, buttonCmd::Command, buttonHelp::[ButtonHelp] }
     deriving (Eq, Ord, Show)
 type ButtonGroup = ([Button],(Int,Int))
-singleButton :: HexVec -> Command -> Int -> ButtonGroup
-singleButton pos cmd col = ([Button pos cmd], (col,0))
+type ButtonHelp = (String, HexVec)
+singleButton :: HexVec -> Command -> Int -> [ButtonHelp] -> ButtonGroup
+singleButton pos cmd col helps = ([Button pos cmd helps], (col,0))
 getButtons :: InputMode -> UIM [ ButtonGroup ]
 getButtons mode = do
     whs <- gets $ whsButtons.uiOptions
     cntxtButtons <- gets contextButtons
     return $ cntxtButtons ++ global ++ case mode of 
 	IMEdit -> [
-	    singleButton (tl<+>hv) CmdTest 4
-	    , singleButton (tl<+>(neg hw)) CmdPlay 2
+	    singleButton (tl<+>hv<+>neg hw) CmdTest 4 [("test", hu<+>neg hw)]
+	    , singleButton (tl<+>(neg hw)) CmdPlay 2 [("play", hu<+>neg hw)]
 	    , markGroup
-	    , singleButton (br<+>2<*>hu) CmdWriteState 2
-	    , ( [ Button (bl<+>dir) (CmdDir WHSSelected dir) | dir <- hexDirs ] ++
-		[ Button (bl<+>((-2)<*>hv)) (CmdRotate WHSSelected (-1))
-		, Button (bl<+>((-2)<*>hw)) (CmdRotate WHSSelected 1) ], (4,0) )
-	    , ( [ Button bl CmdSelect ], (0,0))
-	    , ([Button (paintButtonStart <+> hu <+> i<*>hv) (paintTileCmds!!i)
+	    , singleButton (br<+>2<*>hu) CmdWriteState 2 [("save", hu<+>neg hw)]
+	    , ( [ Button (bl<+>dir) (CmdDir WHSSelected dir) [] | dir <- hexDirs ] ++
+		[ Button (bl<+>((-2)<*>hv)) (CmdRotate WHSSelected (-1)) []
+		, Button (bl<+>((-2)<*>hw)) (CmdRotate WHSSelected 1) [] ], (4,0) )
+	    , ( [ Button bl CmdSelect [] ], (0,0))
+	    , ([Button (paintButtonStart <+> hu <+> i<*>hv) (paintTileCmds!!i) []
 		| i <- take (length paintTiles) [0..] ],(5,0))
 	    ]
 	IMPlay -> 
 	    [ markGroup
-	    , ( [ Button bl CmdWait ], (0,0))
-	    , ( [ Button (bl<+>dir) (CmdDir whs dir) | dir <- hexDirs ], (4,0) )
+	    , ( [ Button bl CmdWait [] ], (0,0))
+	    , ( [ Button (bl<+>dir) (CmdDir whs dir) 
+		    (if dir==hu then [("move",hu<+>neg hw),(whsStr whs,hu<+>neg hv)] else [])
+		| dir <- hexDirs ], (4,0) )
 	    ] ++
 	    (if whs == WHSWrench then [] else
-		[ ( [ Button (bl<+>((-2)<*>hv)) (CmdRotate whs (-1))
-		    , Button (bl<+>((-2)<*>hw)) (CmdRotate whs 1)
+		[ ( [ Button (bl<+>((-2)<*>hv)) (CmdRotate whs (-1)) [("turn",hu<+>neg hw),("cw",hu<+>neg hv)]
+		    , Button (bl<+>((-2)<*>hw)) (CmdRotate whs 1) [("turn",hu<+>neg hw),("ccw",hu<+>neg hv)]
 		    ], (4,0) )
 	    ]) ++
 	    (if whs /= WHSSelected then [] else
-		[ ( [ Button (bl<+>(2<*>hv)<+>hw) (CmdTile $ HookTile)
-		    , Button (bl<+>(2<*>hv)) (CmdTile $ WrenchTile zero)
+		[ ( [ Button (bl<+>(2<*>hv)<+>hw<+>neg hu) (CmdTile $ HookTile) [("select",hu<+>neg hw),("hook",hu<+>neg hv)]
+		    , Button (bl<+>(2<*>hv)<+>neg hu) (CmdTile $ WrenchTile zero) [("select",hu<+>neg hw),("wrench",hu<+>neg hv)]
 		    ], (2,0) )
 	    ]) ++
-	    [ singleButton tr CmdOpen 1 ]
+	    [ singleButton tr CmdOpen 1 [("open", hu<+>neg hw)] ]
 	IMReplay -> [ markGroup ]
 	IMMeta ->
-	    [ singleButton serverPos CmdSetServer 2
-	    , singleButton (serverPos<+>neg hu) CmdToggleCacheOnly 0
-	    , singleButton lockLinePos CmdSelectLock 4
-	    , singleButton (miniLockPos <+> 2<*>hv <+> neg hu <+> hw) CmdEdit 2
-	    , singleButton (codenamePos <+> neg hu) (CmdSelCodename Nothing) 2
-	    , singleButton (serverPos <+> 2<*>neg hv <+> hw) CmdTutorials 1
+	    [ singleButton serverPos CmdSetServer 2 [("set server",2<*>neg hw)]
+	    , singleButton (serverPos<+>neg hu) CmdToggleCacheOnly 0 [("cache only",3<*>hw<+>2<*>neg hu)]
+	    , singleButton lockLinePos CmdSelectLock 4 [("select lock",2<*>neg hw)]
+	    , singleButton (miniLockPos <+> 2<*>hv <+> neg hu) CmdEdit 2 [("edit",hv<+>4<*>neg hu),("lock",hw<+>4<*>neg hu)]
+	    , singleButton (codenamePos <+> neg hu) (CmdSelCodename Nothing) 2 [("code",hv<+>4<*>neg hu),("name",hw<+>4<*>neg hu)]
+	    , singleButton (serverPos <+> 2<*>neg hv <+> 2<*>hw) CmdTutorials 1 [("play",hu<+>neg hw),("tut",hu<+>neg hv)]
 	    ]
 		
 	_ -> []
 	where
-	    markGroup = ([Button (tl<+>hw) CmdMark, Button (tl<+>hw<+>neg hu) CmdJumpMark],(0,0))
+	    markGroup = ([Button (tl<+>hw) CmdMark [("set",hu<+>neg hw),("mark",hu<+>neg hv)]
+		, Button (tl<+>hw<+>hv) CmdJumpMark [("jump",hu<+>neg hw),("mark",hu<+>neg hv)]],(0,2))
 	    global = if mode == IMTextInput then [] else
-		[ singleButton br CmdQuit 0
-		, singleButton (tr <+> 3<*>hv <+> 3<*>hu) CmdHelp 3 ]
+		[ singleButton br CmdQuit 0 [("quit",hu<+>neg hw)]
+		, singleButton (tr <+> 3<*>hv <+> 3<*>hu) CmdHelp 3 [("help",hu<+>neg hw)] ]
 	    tr = periphery 0
 	    tl = periphery 2
 	    bl = periphery 3
@@ -184,14 +189,14 @@ registerSelectable v r s =
     modify $ \ds -> ds {metaSelectables = foldr
 	(`Map.insert` s) (metaSelectables ds) $ map (v<+>) $ hexDisc r}
 registerButtonGroup g = modify $ \ds -> ds {contextButtons = g:contextButtons ds}
-registerButton pos cmd col = registerButtonGroup $ singleButton pos cmd col
+registerButton pos cmd col helps = registerButtonGroup $ singleButton pos cmd col helps
 clearSelectables,clearButtons :: UIM ()
 clearSelectables = modify $ \ds -> ds {metaSelectables = Map.empty}
 clearButtons = modify $ \ds -> ds {contextButtons = []}
 
 registerUndoButtons noUndo noRedo = do
-    unless noUndo $ registerButton (periphery 2) CmdUndo 0
-    unless noRedo $ registerButton (periphery 2<+>neg hu) CmdRedo 2
+    unless noUndo $ registerButton (periphery 2<+>hu) CmdUndo 0 [("undo",hu<+>neg hw)]
+    unless noRedo $ registerButton (periphery 2<+>hu<+>neg hv) CmdRedo 2 [("redo",hu<+>neg hw)]
 
 commandOfSelectable IMMeta SelOurLock _ = CmdEdit
 commandOfSelectable IMMeta (SelLock (ActiveLock _ i)) False = CmdSolve (Just i)
@@ -237,7 +242,7 @@ uiOB1 = UIOptButton useFiveColouring (\v o -> o {useFiveColouring=v}) [True,Fals
 	(\v -> if v then "Adjacent pieces get different colours" else
 	"Pieces are coloured according to type")
 uiOB2 = UIOptButton showBlocks (\v o -> o {showBlocks=v}) [True,False]
-	(periphery 0 <+> 2 <*> neg hw <+> 3 <*> neg hv) showBlocksButton
+	(periphery 0 <+> 2 <*> neg hw <+> 4 <*> neg hv) showBlocksButton
 	(\v -> if v then "Blocked and blocking forces are annotated" else
 	"Blockage annotations disabled")
 uiOB3 = UIOptButton whsButtons (\v o -> o {whsButtons=v}) [WHSSelected, WHSWrench, WHSHook]
@@ -246,12 +251,18 @@ uiOB3 = UIOptButton whsButtons (\v o -> o {whsButtons=v}) [WHSSelected, WHSWrenc
 	    WHSSelected -> "selected tool"
 	    WHSWrench -> "wrench"
 	    WHSHook -> "hook")
+uiOB4 = UIOptButton showButtonText (\v o -> o {showButtonText=v}) [True,False]
+	(periphery 0 <+> 3 <*> neg hw <+> 3 <*> neg hv) showButtonTextButton
+	(\v -> if v then "Button help text enabled" else
+	"Button help text disabled")
 
 drawUIOptionButtons :: InputMode -> UIM ()
-drawUIOptionButtons mode = when (mode `elem` [IMPlay, IMEdit]) $ do
-    drawUIOptionButton uiOB1
-    drawUIOptionButton uiOB2 
-    when (mode == IMPlay) $ drawUIOptionButton uiOB3
+drawUIOptionButtons mode = do
+    when (mode `elem` [IMPlay, IMEdit]) $ 
+	drawUIOptionButton uiOB1 >> drawUIOptionButton uiOB2 
+    when (mode == IMPlay) $
+	drawUIOptionButton uiOB3
+    drawUIOptionButton uiOB4
 drawUIOptionButton b = do
     value <- gets $ (getUIOpt b).uiOptions
     renderToMain $ mapM_ (\g -> drawAtRel g (uiOptPos b))
@@ -447,9 +458,15 @@ drawButtons :: InputMode -> UIM ()
 drawButtons mode = do
     buttons <- getButtons mode
     bindingStr <- getBindingStr mode
-    renderToMain $ sequence_ $ concat [
-	    [ drawAtRel (buttonGlyph col) v >> renderStrColAt buttonTextCol bdg v |
-		(i,(v,bdg)) <- enumerate $ map (\b->(buttonPos b, bindingStr $ buttonCmd b)) $ buttonGroup
+    uiopts <- gets uiOptions
+    smallFont <- gets dispFontSmall
+    renderToMain $ sequence_ $ concat [ [ do
+		drawAtRel (buttonGlyph col) v 
+		renderStrColAt buttonTextCol bdg v
+		when (showButtonText uiopts) $
+		    withFont smallFont $ recentreAt v $ rescaleRender (1/4) $
+		    sequence_ [ renderStrColAtLeft col s dv | (s,dv) <- helps ]
+	    | (i,(v,bdg,helps)) <- enumerate $ map (\b->(buttonPos b, bindingStr $ buttonCmd b, buttonHelp b)) $ buttonGroup
 		, let col = dim $ colourWheel (base+inc*i) ]
 	| (buttonGroup,(base,inc)) <- buttons
 	]
@@ -518,7 +535,7 @@ miniLockPos = (-9)<*>hw <+> hu
 lockLinePos = 2<*>(hu <+> neg hw) <+> miniLockPos
 serverPos = 12<*>hv <+> 6<*>neg hu
 serverWaitPos = serverPos <+> hw <+> neg hu
-nextPagePos = serverPos <+> 4<*>neg hv
+nextPagePos = serverPos <+> 5<*>neg hv
 randomNamesPos = 9<*>hv <+> neg hu
 codenamePos = (-4)<*>hw <+> 4<*>hv
 undeclsPos = hv <+> neg hw <+> codenamePos

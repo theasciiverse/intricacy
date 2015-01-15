@@ -236,6 +236,13 @@ showBlocksButton showing centre size surf = do
     tileGlyph (BlockTile []) (dim red) centre size surf
     when showing $ blockedPush hu (bright orange) centre size surf
 
+showButtonTextButton :: Bool -> Glyph
+showButtonTextButton showing centre@(SVec x y) size surf = do
+    buttonGlyph (dim cyan) (SVec `uncurry` edge centre (size`div`2) (neg hu)) (size`div`2) surf
+    when showing $
+	sequence_ [ pixel surf (fromIntegral $ x+size`div`3+(i*size`div`4)) (fromIntegral $ y - size`div`4) (bright cyan)
+	    | i <- [-1..1] ]
+
 whsButtonsButton :: WrHoSel -> Glyph
 whsButtonsButton whs centre size surf = do
     when (whs /= WHSHook) $
