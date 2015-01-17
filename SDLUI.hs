@@ -8,10 +8,11 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
+{-# OPTIONS_GHC -cpp #-}
+
 module SDLUI where
 
 import Graphics.UI.SDL hiding (flip)
-import Graphics.UI.SDL.Mixer
 import qualified Graphics.UI.SDL as SDL
 import qualified Graphics.UI.SDL.TTF as TTF
 import Control.Concurrent.STM
@@ -27,9 +28,13 @@ import Data.Array
 import Data.List
 import Data.Ratio
 import Data.Function (on)
-import System.Random (randomRIO)
 import System.FilePath
 --import Debug.Trace (traceShow)
+
+#ifdef SOUND
+import Graphics.UI.SDL.Mixer
+import System.Random (randomRIO)
+#endif
 
 import Hex
 import Command
@@ -422,6 +427,7 @@ drawMainGameState' args@(DrawArgs highlight colourFixed alerts st uiopts) = do
 	    liftIO $ blitSurface gsSurf Nothing vidSurf Nothing
 
 playAlertSounds :: GameState -> [Alert] -> UIM ()
+#ifdef SOUND
 playAlertSounds st alerts = do
     use <- useSounds <$> gets uiOptions
     when use $ mapM_ (maybe (return ()) playSound . alertSound) alerts
@@ -454,6 +460,9 @@ playAlertSounds st alerts = do
 	randFromList :: [a] -> IO (Maybe a)
 	randFromList [] = return Nothing
 	randFromList as = (Just.(as!!)) <$> randomRIO (0,length as - 1)
+#else
+playAlertSounds _ _ = return ()
+#endif
 
 
 drawMiniLock :: Lock -> HexVec -> UIM ()
@@ -553,6 +562,7 @@ initVideo w h = do
 	writeFile "error.log" text 
 
 initAudio :: UIM ()
+#ifdef SOUND
 initAudio = do
     liftIO $ tryOpenAudio defaultFrequency AudioS16LSB 1 4096
     -- liftIO $ querySpec >>= print
@@ -579,6 +589,9 @@ initAudio = do
 	| sound <- ["hookblocked","hookarmblocked","wrenchblocked","wrenchscrape","pivot","unlocked","ballmove"]
 		++ ["spring" ++ d ++ show l | d <- ["extend","contract"], l <- [1..12]] ]
     modify $ \s -> s { sounds = Map.fromList sounds }
+#else
+initAudio = return ()
+#endif
 
 drawMsgLine = void.runMaybeT $ do
     (col,str) <- msum

@@ -32,6 +32,9 @@ source-repository head
 Flag SDL 
     Description: Enable SDL UI
     Default: True
+Flag Sound 
+    Description: Enable sound
+    Default: True
 Flag Curses 
     Description: Enable Curses UI
     Default: True
@@ -55,7 +58,10 @@ executable intricacy
         , binary >=0.5, network-fancy >= 0.1.5
         , cryptohash >= 0.8
       if flag(SDL)
-          build-depends: SDL >=0.6.5, SDL-ttf >=0.6, SDL-gfx >=0.6, SDL-mixer >= 0.6, random >= 1.0
+          build-depends: SDL >=0.6.5, SDL-ttf >=0.6, SDL-gfx >=0.6
+          if flag(Sound)
+              cpp-options: -DSOUND
+              build-depends: SDL-mixer >= 0.6, random >= 1.0
           if os(windows)
               Extra-Lib-Dirs:    winlibs
               Extra-Libraries:   SDL_ttf SDL SDL_gfx SDL_mixer freetype
