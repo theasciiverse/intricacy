@@ -584,12 +584,13 @@ initAudio = do
     sounds <- sequence [ do
 	    chunks <- liftIO $ seqWhileJust
 		[ runMaybeT $ do
-		    chunk <- MaybeT $ tryLoadWAV path
+		    chunk <- msum $ map (MaybeT . tryLoadWAV) paths
 		    liftIO $ volumeChunk chunk vol
 		    return chunk
 		| n <- [1..]
-		, let path = soundsdir ++ [pathSeparator] ++ sound ++
-			"-" ++ (if n < 10 then ('0':) else id) (show n) ++ ".ogg"
+		, let paths = [soundsdir ++ [pathSeparator] ++ sound ++
+			"-" ++ (if n < 10 then ('0':) else id) (show n) ++ ext
+			| ext <- [".ogg", ".wav"] ]
 		, let vol = case sound of
 			"pivot" -> 64
 			"wrenchscrape" -> 64
@@ -598,6 +599,7 @@ initAudio = do
 	    return (sound,chunks)
 	| sound <- ["hookblocked","hookarmblocked","wrenchblocked","wrenchscrape","pivot","unlocked","ballmove"]
 		++ ["spring" ++ d ++ show l | d <- ["extend","contract"], l <- [1..12]] ]
+    -- liftIO $ print sounds
     modify $ \s -> s { sounds = Map.fromList sounds }
 #else
 initAudio = return ()
