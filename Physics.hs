@@ -138,7 +138,11 @@ resolveForces plForces eForces eDominates st =
 
 	stopWrench idx = setPiece idx (Wrench zero)
 	stopBlockedWrenches fs st' = foldr stopWrench st' [
-	    idx | f <- fs, let idx = forceIdx f, isWrench.placedPiece $ getpp st' idx ]
+	    forceIdx f | f <- fs, isWrench.placedPiece $ getForcedpp st' f ]
+	divertedWrenches fs = [ idx
+	    | Push idx dir <- fs
+	    , Wrench mom <- [placedPiece $ getpp st idx]
+	    , mom `notElem` [zero,dir] ]
     in do 
 	let unresisted = [ s | (s, (_, Any False)) <- enumVec $ fmap runWriter initGrps ]
 
@@ -151,6 +155,8 @@ resolveForces plForces eForces eDominates st =
 	let [blocked, unblocked] = map (nub.concat.(map (fst.runWriter)).Vector.toList) $
 		(\(x,y) -> [x,y]) $ Vector.partition (getAny.snd.runWriter) grps
 	tell $ map AlertBlockedForce blocked
+	tell $ map AlertAppliedForce unblocked
+	tell $ map AlertDivertedWrench $ divertedWrenches unblocked
 	return $ stopBlockedWrenches blocked $ foldr applyForce st unblocked
     
 applyForce :: Force -> GameState -> GameState

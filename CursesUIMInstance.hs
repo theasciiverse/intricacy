@@ -260,7 +260,7 @@ instance UIMonad (StateT UIState IO) where
 		    void $ fillBox (CVec y (s+4+length str+1)) (CVec y (w-1)) 5 GravLeft $
 			[ (`drawActiveLock` al) | al <- accessed]
 
-    drawAlerts alerts =
+    reportAlerts _ alerts =
 	do mapM_ drawAlert alerts
 	   unless (null alerts) 
 	    $ do refresh

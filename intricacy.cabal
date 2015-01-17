@@ -10,7 +10,7 @@ maintainer:          mbays@sdf.org
 category:            Game
 build-type:          Simple
 cabal-version:       >=1.8
-data-files: VeraMono.ttf tutorial/*.lock tutorial/*.text
+data-files: VeraMono.ttf tutorial/*.lock tutorial/*.text sounds/*.ogg
 extra-doc-files: README NEWS tutorial-extra/*.lock tutorial-extra/README
 
 description:
@@ -55,10 +55,10 @@ executable intricacy
         , binary >=0.5, network-fancy >= 0.1.5
         , cryptohash >= 0.8
       if flag(SDL)
-          build-depends: SDL >=0.6.5, SDL-ttf >=0.6, SDL-gfx >=0.6
+          build-depends: SDL >=0.6.5, SDL-ttf >=0.6, SDL-gfx >=0.6, SDL-mixer >= 0.6, random >= 1.0
           if os(windows)
               Extra-Lib-Dirs:    winlibs
-              Extra-Libraries:   SDL_ttf SDL SDL_gfx freetype
+              Extra-Libraries:   SDL_ttf SDL SDL_gfx SDL_mixer freetype
               ghc-options: -optl-mwindows
   else
       Buildable: False

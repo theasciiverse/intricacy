@@ -12,6 +12,7 @@
 module SDLUIMInstance () where
 
 import Graphics.UI.SDL hiding (flip)
+import Graphics.UI.SDL.Mixer.General
 import qualified Graphics.UI.SDL as SDL
 import qualified Graphics.UI.SDL.TTF as TTF
 import Control.Concurrent.STM
@@ -204,7 +205,7 @@ instance UIMonad (StateT UIState IO) where
     drawMessage = say
     drawError = sayError
 
-    drawAlerts alerts = return ()
+    reportAlerts = playAlertSounds
 
     getChRaw = do
 	events <- liftIO getEvents
@@ -232,6 +233,7 @@ instance UIMonad (StateT UIState IO) where
 	    renderToMain $ erase
 	    liftIO $ enableUnicode True
 	    liftIO $ enableKeyRepeat 250 30
+	    initAudio
 	    readBindings
 	)
 	where

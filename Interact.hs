@@ -74,7 +74,7 @@ interactUI = do
 	loop = do
 	    mainSt <- get
 	    let im = ms2im mainSt
-	    when (im == IMPlay && not (psSolved mainSt)) checkWon
+	    when (im == IMPlay) checkWon
 	    when (im == IMMeta) $ (checkAsyncErrors >>) $ void.runMaybeT $ 
 		mourNameSelected >>=
 		    flip when (lift purgeInvalidUndecls)

@@ -81,4 +81,6 @@ data Force = Push PieceIdx HexDir | Torque PieceIdx TorqueDir
 -- |Alert: for passing information about physics processing to the UI
 data Alert = AlertCollision HexPos | AlertBlockingForce Force
 	   | AlertResistedForce Force | AlertBlockedForce Force
+	   | AlertAppliedForce Force | AlertDivertedWrench PieceIdx
+	   | AlertUnlocked
     deriving (Eq, Ord, Show)

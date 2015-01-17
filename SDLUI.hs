@@ -11,6 +11,7 @@
 module SDLUI where
 
 import Graphics.UI.SDL hiding (flip)
+import Graphics.UI.SDL.Mixer
 import qualified Graphics.UI.SDL as SDL
 import qualified Graphics.UI.SDL.TTF as TTF
 import Control.Concurrent.STM
@@ -26,6 +27,8 @@ import Data.Array
 import Data.List
 import Data.Ratio
 import Data.Function (on)
+import System.Random (randomRIO)
+import System.FilePath
 --import Debug.Trace (traceShow)
 
 import Hex
@@ -35,6 +38,7 @@ import GameStateTypes
 import BoardColouring
 import Lock
 import Physics
+import GameState
 import KeyBindings
 import Mundanities
 import Metagame
@@ -61,12 +65,13 @@ data UIState = UIState { scrHeight::Int, scrWidth::Int
     , message::Maybe (Pixel, String)
     , hoverStr :: Maybe String
     , dispCentre::HexPos
-    , dispLastCol::PieceColouring }
+    , dispLastCol::PieceColouring
+    , sounds::Map String [Chunk]}
     deriving (Eq, Ord, Show)
 type UIM = StateT UIState IO
 nullUIState = UIState 0 0 Nothing Nothing Nothing Map.empty Map.empty []
     defaultUIOptions Nothing Map.empty Nothing Nothing 0 0 Nothing Nothing Nothing
-    (zero,False) Nothing Nothing (PHS zero) Map.empty
+    (zero,False) Nothing Nothing (PHS zero) Map.empty Map.empty
 
 data UIOptions = UIOptions
     { useFiveColouring::Bool
@@ -411,6 +416,39 @@ drawMainGameState' args@(DrawArgs highlight colourFixed alerts st uiopts) = do
 	    vidSurf <- liftIO getVideoSurface
 	    liftIO $ blitSurface gsSurf Nothing vidSurf Nothing
 
+playAlertSounds :: GameState -> [Alert] -> UIM ()
+playAlertSounds st alerts = mapM_ (maybe (return ()) playSound . alertSound) alerts
+    where
+	alertSound (AlertBlockedForce force) =
+	    let PlacedPiece _ piece = getpp st $ forceIdx force
+	    in case piece of
+		Wrench _ -> Just "wrenchblocked"
+		Hook _ _ -> if isPush force then Just "hookblocked" else Just "hookarmblocked"
+		_ -> Nothing
+	alertSound (AlertDivertedWrench _) = Just "wrenchscrape"
+	alertSound (AlertAppliedForce (Torque idx _))
+	    | isPivot.placedPiece.getpp st $ idx = Just "pivot"
+	alertSound (AlertAppliedForce (Push idx dir))
+	    | isBall.placedPiece.getpp st $ idx = Just "ballmove"
+	alertSound (AlertAppliedForce (Push idx dir)) = do
+	    (outDir,newLen) <- listToMaybe [(outDir,newLen)
+		| c@(Connection _ (endIdx,_) (Spring outDir natLen)) <- connections st
+		, endIdx == idx
+		, let newLen = connectionLength st c ]
+	    return $ "spring" ++ (if outDir == dir then "extend" else "contract")
+		++ show (min newLen 12)
+	alertSound AlertUnlocked = Just "unlocked"
+	alertSound _ = Nothing
+	playSound :: String -> UIM ()
+	playSound sound = void.runMaybeT $ do
+	    ss <- MaybeT $ Map.lookup sound <$> gets sounds
+	    guard.not.null $ ss
+	    liftIO $ randFromList ss >>= \(Just s) -> void $ tryPlayChannel (-1) s 0
+	randFromList :: [a] -> IO (Maybe a)
+	randFromList [] = return Nothing
+	randFromList as = (Just.(as!!)) <$> randomRIO (0,length as - 1)
+
+
 drawMiniLock :: Lock -> HexVec -> UIM ()
 drawMiniLock lock v = do
     surface <- Map.lookup lock <$> gets miniLocks >>= maybe new return
@@ -506,6 +544,34 @@ initVideo w h = do
 	let text = "Warning: font file not found at "++fontpath++".\n"
 	putStr text
 	writeFile "error.log" text 
+
+initAudio :: UIM ()
+initAudio = do
+    liftIO $ tryOpenAudio defaultFrequency AudioS16LSB 1 4096
+    -- liftIO $ querySpec >>= print
+    liftIO $ allocateChannels 16
+    let seqWhileJust (m:ms) = m >>= \ret -> case ret of
+	    Nothing -> return []
+	    Just a -> (a:) <$> seqWhileJust ms
+    soundsdir <- liftIO $ getDataPath "sounds"
+    sounds <- sequence [ do
+	    chunks <- liftIO $ seqWhileJust
+		[ runMaybeT $ do
+		    chunk <- MaybeT $ tryLoadWAV path
+		    liftIO $ volumeChunk chunk vol
+		    return chunk
+		| n <- [1..]
+		, let path = soundsdir ++ [pathSeparator] ++ sound ++
+			"-" ++ (if n < 10 then ('0':) else id) (show n) ++ ".ogg"
+		, let vol = case sound of
+			"pivot" -> 64
+			"wrenchscrape" -> 64
+			_ -> 128
+		]
+	    return (sound,chunks)
+	| sound <- ["hookblocked","hookarmblocked","wrenchblocked","wrenchscrape","pivot","unlocked","ballmove"]
+		++ ["spring" ++ d ++ show l | d <- ["extend","contract"], l <- [1..12]] ]
+    modify $ \s -> s { sounds = Map.fromList sounds }
 
 drawMsgLine = void.runMaybeT $ do
     (col,str) <- msum

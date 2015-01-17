@@ -42,10 +42,16 @@ checkWon :: UIMonad uiM => StateT MainState uiM ()
 checkWon = do
     st <- gets psCurrentState
     frame <- gets psFrame
-    when (checkSolved (frame,st)) $ do
-	modify $ \ps -> ps {psSolved = True}
+    wasSolved <- gets psSolved
+    let solved = checkSolved (frame,st)
+    when (solved /= wasSolved) $ do
+	modify $ \ps -> ps {psSolved = solved}
 	obdg <- lift $ getUIBinding IMPlay CmdOpen
-	lift $ drawMessage $ "Unlocked! '"++obdg++"' to open."
+	lift $ if solved then do
+		drawMessage $ "Unlocked! '"++obdg++"' to open."
+		reportAlerts st [AlertUnlocked]
+	    else do
+		drawMessage ""
 	{-
 	pms <- (reverse.(map snd)) `liftM` gets psGameStateMoveStack
 	let wfname = fromMaybe "unnamed.lock" fname 
@@ -57,7 +63,7 @@ doForce force = do
     let (st',alerts) = runWriter $ resolveForces
 	    (Vector.singleton (ForceChoice [force])) Vector.empty
 	    (\_ _->False) st
-    lift (drawAlerts alerts) >> pushEState st'
+    lift (reportAlerts st' alerts) >> pushEState st'
 drawTile pos tile painting = do
     modify $ \es -> es {selectedPiece = Nothing}
     lastMP <- gets lastModPos
@@ -86,7 +92,7 @@ modifyEState f = do
 doPhysicsTick :: UIMonad uiM => PlayerMove -> GameState -> uiM (GameState, [Alert])
 doPhysicsTick pm st =
     let r@(st',alerts) = runWriter $ physicsTick pm st in
-    drawAlerts alerts >> return r
+    reportAlerts st' alerts >> return r
 
 nextLock :: Bool -> FilePath -> IO FilePath
 nextLock newer path = do
