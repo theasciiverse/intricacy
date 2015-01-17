@@ -12,7 +12,6 @@
 module SDLUIMInstance () where
 
 import Graphics.UI.SDL hiding (flip)
-import Graphics.UI.SDL.Mixer.General
 import qualified Graphics.UI.SDL as SDL
 import qualified Graphics.UI.SDL.TTF as TTF
 import Control.Concurrent.STM

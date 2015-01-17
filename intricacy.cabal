@@ -29,6 +29,10 @@ source-repository head
    type:     git
    location: http://mbays.freeshell.org/intricacy/.git
 
+Flag Game
+    Description: Build game
+    Default: True
+    Manual: True
 Flag SDL 
     Description: Enable SDL UI
     Default: True
@@ -38,10 +42,6 @@ Flag Sound
 Flag Curses 
     Description: Enable Curses UI
     Default: True
-Flag Game
-    Description: Build game
-    Default: True
-    Manual: True
 Flag Server
     Description: Build server
     Default: False
@@ -64,7 +64,9 @@ executable intricacy
               build-depends: SDL-mixer >= 0.6, random >= 1.0
           if os(windows)
               Extra-Lib-Dirs:    winlibs
-              Extra-Libraries:   SDL_ttf SDL SDL_gfx SDL_mixer freetype
+              Extra-Libraries:   SDL_ttf SDL SDL_gfx freetype
+              if flag(Sound)
+                  Extra-Libraries: SDL_mixer
               ghc-options: -optl-mwindows
   else
       Buildable: False
@@ -78,6 +80,12 @@ executable intricacy
   else
       if flag(Curses)
         main-is: MainCurses.hs
+      else
+        Buildable: False
+        -- XXX: there must be a neater way to prevent the cabal flag sat
+        -- solver from thinking it's acceptable to have both SDL and Curses be
+        -- False... but this will have to do for now:
+        build-depends: Unsatisfiable >= 1337
 
   other-modules: AsciiLock, BinaryInstances, BoardColouring, Cache, Command,
       CursesRender, CursesUI, CursesUIMInstance, CVec, Database, Debug,

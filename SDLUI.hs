@@ -71,12 +71,18 @@ data UIState = UIState { scrHeight::Int, scrWidth::Int
     , hoverStr :: Maybe String
     , dispCentre::HexPos
     , dispLastCol::PieceColouring
-    , sounds::Map String [Chunk]}
+#ifdef SOUND
+    , sounds::Map String [Chunk]
+#endif
+    }
     deriving (Eq, Ord, Show)
 type UIM = StateT UIState IO
 nullUIState = UIState 0 0 Nothing Nothing Nothing Map.empty Map.empty []
     defaultUIOptions Nothing Map.empty Nothing Nothing 0 0 Nothing Nothing Nothing
-    (zero,False) Nothing Nothing (PHS zero) Map.empty Map.empty
+    (zero,False) Nothing Nothing (PHS zero) Map.empty
+#ifdef SOUND
+    Map.empty
+#endif
 
 data UIOptions = UIOptions
     { useFiveColouring::Bool
@@ -274,7 +280,11 @@ uiOB5 = UIOptButton useSounds (\v o -> o {useSounds=v}) [True,False]
 drawUIOptionButtons :: InputMode -> UIM ()
 drawUIOptionButtons mode = do
     when (mode `elem` [IMPlay, IMEdit]) $ 
-	mapM_ drawUIOptionButton [uiOB1,uiOB2,uiOB5]
+	mapM_ drawUIOptionButton [uiOB1,uiOB2
+#ifdef SOUND
+	    ,uiOB5
+#endif
+	]
     when (mode == IMPlay) $
 	drawUIOptionButton uiOB3
     drawUIOptionButton uiOB4
