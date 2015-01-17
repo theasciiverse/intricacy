@@ -91,10 +91,10 @@ instance UIMonad (StateT UIState IO) where
 		]
 	    sequence_
 		[ when (null . filter (pred . placedPiece) . Vector.toList $ placedPieces st)
-		    $ registerButton (periphery 0 <+> d) cmd 2 []
-		| (pred,cmd,d) <- [
-		    (isWrench, CmdTile $ WrenchTile zero, 3<*>hu),
-		    (isHook, CmdTile $ HookTile, 3<*>hu <+> hv)] ]
+		    $ registerButton (periphery 0 <+> d) cmd 2 [("place",hu<+>neg hw),(tool,hu<+>neg hv)]
+		| (pred,tool,cmd,d) <- [
+		    (isWrench, "wrench", CmdTile $ WrenchTile zero, 3<*>hu <+> hv),
+		    (isHook, "hook", CmdTile $ HookTile, 3<*>hu <+> 2<*>hv)] ]
 	    drawPaintButtons
 	drawMainState' (MetaState saddr undecls cOnly auth names _ _ rnamestvar _ _ mretired path mlock offset) = do
 	    let ourName = authUser <$> auth
