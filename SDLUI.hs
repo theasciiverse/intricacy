@@ -79,9 +79,10 @@ data UIOptions = UIOptions
     , whsButtons::WrHoSel
     , useBackground::Bool
     , showButtonText::Bool
+    , useSounds::Bool
     }
     deriving (Eq, Ord, Show, Read)
-defaultUIOptions = UIOptions False True WHSSelected True True
+defaultUIOptions = UIOptions False True WHSSelected True True True
 modifyUIOptions f = modify $ \s -> s { uiOptions = f $ uiOptions s }
 
 renderToMain :: RenderM a -> UIM a
@@ -243,11 +244,11 @@ data UIOptButton a = UIOptButton { getUIOpt::UIOptions->a, setUIOpt::a->UIOption
 
 -- non-uniform type, so can't use a list...
 uiOB1 = UIOptButton useFiveColouring (\v o -> o {useFiveColouring=v}) [True,False]
-	(periphery 0 <+> 2 <*> neg hw <+> neg hv) useFiveColourButton
+	(periphery 0 <+> 2 <*> hu) useFiveColourButton
 	(\v -> if v then "Adjacent pieces get different colours" else
 	"Pieces are coloured according to type")
 uiOB2 = UIOptButton showBlocks (\v o -> o {showBlocks=v}) [True,False]
-	(periphery 0 <+> 2 <*> neg hw <+> 4 <*> neg hv) showBlocksButton
+	(periphery 0 <+> 2 <*> hu <+> 1 <*> neg hv) showBlocksButton
 	(\v -> if v then "Blocked and blocking forces are annotated" else
 	"Blockage annotations disabled")
 uiOB3 = UIOptButton whsButtons (\v o -> o {whsButtons=v}) [WHSSelected, WHSWrench, WHSHook]
@@ -257,14 +258,18 @@ uiOB3 = UIOptButton whsButtons (\v o -> o {whsButtons=v}) [WHSSelected, WHSWrenc
 	    WHSWrench -> "wrench"
 	    WHSHook -> "hook")
 uiOB4 = UIOptButton showButtonText (\v o -> o {showButtonText=v}) [True,False]
-	(periphery 0 <+> 3 <*> neg hw <+> 3 <*> neg hv) showButtonTextButton
+	(periphery 0 <+> 2 <*> hu <+> 2 <*> hv) showButtonTextButton
 	(\v -> if v then "Button help text enabled" else
 	"Button help text disabled")
+uiOB5 = UIOptButton useSounds (\v o -> o {useSounds=v}) [True,False]
+	(periphery 0 <+> 2 <*> hu <+> 2 <*> neg hv) useSoundsButton
+	(\v -> if v then "Sound effects enabled" else
+	"Sound effects disabled")
 
 drawUIOptionButtons :: InputMode -> UIM ()
 drawUIOptionButtons mode = do
     when (mode `elem` [IMPlay, IMEdit]) $ 
-	drawUIOptionButton uiOB1 >> drawUIOptionButton uiOB2 
+	mapM_ drawUIOptionButton [uiOB1,uiOB2,uiOB5]
     when (mode == IMPlay) $
 	drawUIOptionButton uiOB3
     drawUIOptionButton uiOB4
@@ -417,7 +422,9 @@ drawMainGameState' args@(DrawArgs highlight colourFixed alerts st uiopts) = do
 	    liftIO $ blitSurface gsSurf Nothing vidSurf Nothing
 
 playAlertSounds :: GameState -> [Alert] -> UIM ()
-playAlertSounds st alerts = mapM_ (maybe (return ()) playSound . alertSound) alerts
+playAlertSounds st alerts = do
+    use <- useSounds <$> gets uiOptions
+    when use $ mapM_ (maybe (return ()) playSound . alertSound) alerts
     where
 	alertSound (AlertBlockedForce force) =
 	    let PlacedPiece _ piece = getpp st $ forceIdx force

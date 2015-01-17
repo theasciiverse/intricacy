@@ -356,6 +356,8 @@ instance UIMonad (StateT UIState IO) where
 			    | mPos == uiOptPos uiOB3 ]
 			++ [ toggleUIOption uiOB4 >> updateHoverStr >> return []
 			    | mPos == uiOptPos uiOB4 ]
+			++ [ toggleUIOption uiOB5 >> updateHoverStr >> return []
+			    | mPos == uiOptPos uiOB5 ]
 
 		if rb
 		then return [ CmdWait ]
@@ -447,7 +449,8 @@ instance UIMonad (StateT UIState IO) where
 		    , guard (mPos == uiOptPos uiOB1) >> describeUIOptionButton uiOB1
 		    , guard (mPos == uiOptPos uiOB2) >> describeUIOptionButton uiOB2
 		    , guard (mPos == uiOptPos uiOB3) >> describeUIOptionButton uiOB3
-		    , guard (mPos == uiOptPos uiOB4) >> describeUIOptionButton uiOB4 ]
+		    , guard (mPos == uiOptPos uiOB4) >> describeUIOptionButton uiOB4
+		    , guard (mPos == uiOptPos uiOB5) >> describeUIOptionButton uiOB5 ]
 		modify $ \ds -> ds { hoverStr = hstr }
 	    describeCommandAndKeys :: Command -> UIM String
 	    describeCommandAndKeys cmd = do

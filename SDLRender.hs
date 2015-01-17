@@ -243,6 +243,12 @@ showButtonTextButton showing centre@(SVec x y) size surf = do
 	sequence_ [ pixel surf (fromIntegral $ x+size`div`3+(i*size`div`4)) (fromIntegral $ y - size`div`4) (bright cyan)
 	    | i <- [-1..1] ]
 
+useSoundsButton :: Bool -> Glyph
+useSoundsButton use centre@(SVec x y) size surf = sequence_
+    [ arc surf (fromIntegral $ x - (size`div`2)) (fromIntegral y) r (-20) 20
+	(if use then bright green else dim red)
+    | r <- map fromIntegral $ map (*(size`div`3)) [1,2,3] ]
+
 whsButtonsButton :: WrHoSel -> Glyph
 whsButtonsButton whs centre size surf = do
     when (whs /= WHSHook) $
