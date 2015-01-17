@@ -276,12 +276,19 @@ instance UIMonad (StateT UIState IO) where
 	refresh
 
     getInput mode = do
-	events <- liftIO $ getEvents
+	events <- liftIO $ nubMouseMotions <$> getEvents
 	oldUIState <- get
 	cmds <- concat <$> mapM processEvent events
 	newUIState <- get
 	return $ cmds ++ if uistatesMayVisiblyDiffer oldUIState newUIState then [CmdRefresh] else []
 	where
+	    nubMouseMotions evs =
+		-- drop all but last mouse motion event
+		let nubMouseMotions' False (mm@(MouseMotion {}):evs) = mm:(nubMouseMotions' True evs)
+		    nubMouseMotions' True (mm@(MouseMotion {}):evs) = nubMouseMotions' True evs
+		    nubMouseMotions' b (ev:evs) = ev:(nubMouseMotions' b evs)
+		    nubMouseMotions' _ [] = []
+		in reverse $ nubMouseMotions' False $ reverse evs
 	    uistatesMayVisiblyDiffer uis1 uis2 =
 		uis1 { mousePos = (zero,False), lastFrameTicks=0 }
 		/= uis2 {mousePos = (zero,False), lastFrameTicks=0 }
