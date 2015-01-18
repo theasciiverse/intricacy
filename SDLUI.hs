@@ -454,11 +454,13 @@ playAlertSounds st alerts = do
 	alertSound (AlertAppliedForce (Push idx dir))
 	    | isBall.placedPiece.getpp st $ idx = Just "ballmove"
 	alertSound (AlertAppliedForce (Push idx dir)) = do
-	    (outDir,newLen) <- listToMaybe [(outDir,newLen)
-		| c@(Connection _ (endIdx,_) (Spring outDir natLen)) <- connections st
-		, endIdx == idx
+	    (align,newLen) <- listToMaybe [(align,newLen)
+		| c@(Connection (startIdx,_) (endIdx,_) (Spring outDir natLen)) <- connections st
+		, let align = (if outDir == dir then 1 else if outDir == neg dir then -1 else 0)
+			* (if idx == startIdx then 1 else if idx == endIdx then -1 else 0)
+		, align /= 0
 		, let newLen = connectionLength st c ]
-	    return $ "spring" ++ (if outDir == dir then "extend" else "contract")
+	    return $ "spring" ++ (if align == 1 then "contract" else "extend")
 		++ show (min newLen 12)
 	alertSound AlertUnlocked = Just "unlocked"
 	alertSound _ = Nothing
