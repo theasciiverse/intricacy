@@ -426,13 +426,13 @@ instance UIMonad (StateT UIState IO) where
 	    doWheel dw = do
 		rb <- isJust <$> gets rightButtonDown
 		mb <- isJust <$> gets middleButtonDown
-		if rb || mode == IMPlay && not mb
-		    then return [ CmdRotate WHSSelected dw ]
-		    else if mb 
-			then return [ if dw == 1 then CmdUndo else CmdRedo ]
-			else do
-			modify $ \s -> s { paintTileIndex = (paintTileIndex s + dw) `mod` (length paintTiles) }
-			return []
+		if ((rb||mb) && mode /= IMEdit) || (mb && mode == IMEdit)
+		then return [ if dw == 1 then CmdUndo else CmdRedo ]
+		else if mode /= IMEdit || rb
+		then return [ CmdRotate WHSSelected dw ]
+		else do
+		    modify $ \s -> s { paintTileIndex = (paintTileIndex s + dw) `mod` (length paintTiles) }
+		    return []
 		
 
 	    drawCmd mt True = CmdPaint mt
@@ -466,12 +466,12 @@ instance UIMonad (StateT UIState IO) where
 		mouseHelpStrs = ["Mouse commands:", "Right-click on a button to set a keybinding;"] ++ case mode of
 		    IMPlay -> ["Click on tool to select, drag to move;",
 			"Click by tool to move; right-click to wait;", "Scroll wheel to rotate hook;",
-			"Scroll wheel while held down to undo/redo."]
+			"Scroll wheel with right button held down to undo/redo."]
 		    IMEdit -> ["Left-click to draw selected; scroll to change selection;",
 			"Right-click on piece to select, drag to move;",
 			"While holding right-click: left-click to advance time, middle-click to delete;",
 			"Scroll wheel to rotate selected piece; scroll wheel while held down to undo/redo."]
-		    IMReplay -> ["Scroll wheel while held down to undo/redo."]
+		    IMReplay -> ["Scroll wheel with right button held down to undo/redo."]
 		    IMMeta -> ["Left-clicking on something does most obvious thing;",
 			"Right-clicking does second-most obvious thing."]
 
