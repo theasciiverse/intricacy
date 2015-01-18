@@ -397,8 +397,8 @@ drawBasicBG :: Int -> RenderM ()
 drawBasicBG maxR = sequence_ [ drawAtRel (hollowGlyph $ colAt v) v | v <- hexDisc maxR ]
     where
 	colAt v@(HexVec hx hy hz) = let
-		[r,g,b] = map (\h -> fromIntegral $ ((0xff*)$ abs h)`div`maxR) [hx,hy,hz]
-		a = fromIntegral $ (0xb0 * (maxR - abs (hexLen v)))`div`maxR
+		[r,g,b] = map (\h -> fromIntegral $ ((0xff*)$ 5 + abs h)`div`maxR) [hx,hy,hz]
+		a = fromIntegral $ (0x90 * (maxR - abs (hexLen v)))`div`maxR
 	    in rgbaToPixel (r,g,b,a)
 
 drawAt :: Glyph -> HexPos -> RenderM ()
