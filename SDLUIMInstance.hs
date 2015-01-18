@@ -152,7 +152,7 @@ instance UIMonad (StateT UIState IO) where
 				when (isJust $ msum $ elems $ userLocks uinfo) $ lift $ do
 				    registerButtonGroup
 					([ Button mmiscpos (CmdSolve Nothing) [("solve",hu<+>neg hw),("lock",hu<+>neg hv)]
-					, Button (mmiscpos<+>hw) (CmdViewSolution Nothing) [("view",hu<+>neg hw),("soln",hu<+>neg hv)]], (2,2))
+					, Button (mmiscpos<+>neg hv) (CmdViewSolution Nothing) [("view",hu<+>neg hw),("soln",hu<+>neg hv)]], (2,2))
 				let tested = maybe False (isJust.snd) mlock
 				when (isJust mlock && home) $ lift $ registerButton
 				    (miniLockPos <+> 3<*>hv) (CmdPlaceLock Nothing) (if tested then 2 else 0) [("place",hv<+>5<*>neg hu),("lock",hw<+>4<*>neg hu)]
