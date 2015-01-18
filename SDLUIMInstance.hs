@@ -104,16 +104,19 @@ instance UIMonad (StateT UIState IO) where
 		(\lock -> do
 		    drawMiniLock lock miniLockPos
 		    registerSelectable miniLockPos 3 SelOurLock
-		    registerButton (miniLockPos <+> 2<*>neg hv <+> hu) CmdPrevLock 4 [("prev",hu<+>neg hw),("lock",hu<+>neg hv)]
-		    registerButton (miniLockPos <+> 2<*>neg hv <+> hu <+> neg hw) CmdNextLock 4 [("next",hu<+>neg hw),("lock",hu<+>neg hv)]
 		    )
 		(fst<$>mlock)
+	    lift $ when (not $ null path) $ do
+		renderToMain $ renderStrColAtLeft messageCol path $ lockLinePos <+> hu
+		sequence_
+		    [ registerButton (miniLockPos <+> 2<*>neg hv <+> hu <+> dv) cmd 4
+			[(dirText,hu<+>neg hw),("lock",hu<+>neg hv)]
+		    | (dv,cmd,dirText) <- [(zero,CmdPrevLock,"prev"),(neg hw,CmdNextLock,"next")] ]
 	    lift $ do
 		smallFont <- gets dispFontSmall
 		renderToMain $ withFont smallFont $ renderStrColAtLeft messageCol
 			(saddrStr saddr ++ if cOnly then " (cache only)" else "")
 		    $ serverPos <+> hu
-		renderToMain $ renderStrColAtLeft messageCol path $ lockLinePos <+> hu
 		when (offset>0) $
 		    registerButton (nextPagePos<+>hv) CmdPrevPage 4 [("prev",hu<+>neg hw),("page",hu<+>neg hv)]
 
