@@ -193,10 +193,12 @@ getButtons mode = do
 data Selectable = SelOurLock
     | SelLock ActiveLock
     | SelLockUnset Bool ActiveLock
-    | SelSelectedCodeName
+    | SelSelectedCodeName Codename
+    | SelRelScore Int
     | SelScoreLock (Maybe Codename) Bool ActiveLock
     | SelUndeclared Undeclared
     | SelReadNote NoteInfo
+    | SelReadNoteSlot
     | SelSolution NoteInfo
     | SelAccessed Codename
     | SelRandom Codename
@@ -225,8 +227,8 @@ commandOfSelectable IMMeta (SelScoreLock Nothing _ (ActiveLock _ i)) False = Cmd
 commandOfSelectable IMMeta (SelScoreLock Nothing _ (ActiveLock _ i)) True = CmdPlaceLock (Just i)
 commandOfSelectable IMMeta (SelScoreLock (Just _) _ _) _ = CmdHome
 commandOfSelectable IMMeta (SelLockUnset True (ActiveLock _ i)) _ = CmdPlaceLock (Just i)
-commandOfSelectable IMMeta SelSelectedCodeName False = CmdSelCodename Nothing
-commandOfSelectable IMMeta SelSelectedCodeName True = CmdHome
+commandOfSelectable IMMeta (SelSelectedCodeName _) False = CmdSelCodename Nothing
+commandOfSelectable IMMeta (SelSelectedCodeName _) True = CmdHome
 commandOfSelectable IMMeta (SelUndeclared undecl) _ = CmdDeclare $ Just undecl
 commandOfSelectable IMMeta (SelReadNote note) False = CmdSelCodename $ Just $ noteAuthor note
 commandOfSelectable IMMeta (SelReadNote note) True = CmdViewSolution $ Just note
@@ -248,15 +250,19 @@ commandOfSelectable IMTextInput (SelUndeclared undecl) _ = CmdInputSelUndecl und
 commandOfSelectable _ _ _ = CmdNone
 
 helpOfSelectable SelOurLock = Just "Design locks."
+helpOfSelectable (SelSelectedCodeName name) = Just $ "Currently viewing "++name++"."
+helpOfSelectable (SelRelScore score) = Just $ "Your score against this player is "++show score++". Higher is better."
+helpOfSelectable (SelLock (ActiveLock name i)) = Just $ name++"'s lock "++[lockIndexChar i]++"."
 helpOfSelectable (SelLockUnset True _) = Just "Place a lock."
 helpOfSelectable (SelLockUnset False _) = Just "You access all empty lock slots once you access all filled slots."
 helpOfSelectable (SelUndeclared _) = Just "Declare solution, putting your note behind one of your locks, to access the solved lock."
-helpOfSelectable (SelRandom _) = Just "Random selection of other players. Colours indicate relative scores."
+helpOfSelectable (SelRandom _) = Just "Random set of players. Colours show relative scores, bright red (-3) to bright green (+3)."
 helpOfSelectable (SelScoreLock (Just name) False _) = Just $ "Your lock, not accessed by "++name++"."
 helpOfSelectable (SelScoreLock (Just name) True _) = Just $ "Your lock, accessed by "++name++": -1 to relative score."
 helpOfSelectable (SelScoreLock Nothing False (ActiveLock name _)) = Just $ name++"'s lock, not accessed by you."
 helpOfSelectable (SelScoreLock Nothing True (ActiveLock name _)) = Just $ name++"'s lock, accessed by you: +1 to relative score."
-helpOfSelectable (SelReadNote _) = Just "You have read this note. Reading three lets you access the lock without solving it."
+helpOfSelectable (SelReadNote note) = Just $ "You have read "++noteAuthor note++"'s note on this lock."
+helpOfSelectable SelReadNoteSlot = Just $ "If you read three notes on this lock, you can access it without having to solve it yourself."
 helpOfSelectable (SelSecured note) = let ActiveLock owner idx = noteOn note in
     Just $ "Secured note on "++owner++"'s lock "++[lockIndexChar idx]++"; notes are read by accessing the lock holding them."
 helpOfSelectable (SelSolution note) = Just $ case noteBehind note of

@@ -134,7 +134,7 @@ instance UIMonad (StateT UIState IO) where
 			    in registerButton (codenamePos <+> hw <+> 2<*>hu)
 				(if reg then CmdRegister else CmdAuth) 2 [(if reg then "reg" else "auth", hu<+>neg hv)]
 		    (if isJust muirc then drawName else drawNullName) name codenamePos
-		    lift $ registerSelectable codenamePos 0 SelSelectedCodeName
+		    lift $ registerSelectable codenamePos 0 (SelSelectedCodeName name)
 		    drawRelScore name (codenamePos<+>hu)
 		    for_ muirc $ \(RCUserInfo (_,uinfo)) -> case mretired of 
 			    Just retired -> do
@@ -571,8 +571,10 @@ drawRelScore name pos = do
     col <- nameCol name
     relScore <- getRelScore name
     flip (maybe (return ())) relScore $ \score ->
-	lift.renderToMain $ renderStrColAt col
-	    ((if score > 0 then "+" else "") ++ show score) pos
+	lift $ do
+	    renderToMain $ renderStrColAt col
+		((if score > 0 then "+" else "") ++ show score) pos
+	    registerSelectable pos 0 (SelRelScore score)
 
 drawNote note pos = case noteBehind note of
     Just al -> drawActiveLock al pos
