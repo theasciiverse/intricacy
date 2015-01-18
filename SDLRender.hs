@@ -249,8 +249,13 @@ useSoundsButton use centre@(SVec x y) size surf = sequence_
 	(if use then bright green else dim red)
     | r <- map fromIntegral $ map (*(size`div`3)) [1,2,3] ]
 
-whsButtonsButton :: WrHoSel -> Glyph
-whsButtonsButton whs centre size surf = do
+whsButtonsButton :: Maybe WrHoSel -> Glyph
+whsButtonsButton Nothing centre size surf =
+    buttonGlyph (dim red) centre (size`div`3) surf
+    >> sequence_ [ buttonGlyph (dim blue)
+	(SVec `uncurry` edge centre (size`div`2) dir) (size`div`3) surf
+	| dir <- hexDirs ]
+whsButtonsButton (Just whs) centre size surf = do
     when (whs /= WHSHook) $
 	tileGlyph (WrenchTile zero) col (miniCentre 0) miniSize surf
     when (whs /= WHSWrench) $ do

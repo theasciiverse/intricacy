@@ -60,6 +60,7 @@ instance UIMonad (StateT UIState IO) where
 	lift $ do
 	    drawButtons mode
 	    drawUIOptionButtons mode
+	    updateHoverStr mode
 	    drawMsgLine
 	    refresh
 	where
@@ -182,23 +183,28 @@ instance UIMonad (StateT UIState IO) where
 		let accesses = map (uncurry getAccessInfo) [(ourUInfo,sel),(selUInfo,us)]
 		lift $ do 
 		    fillArea (codenamePos<+>3<*>hv<+>hw) (map ((codenamePos<+>3<*>hv)<+>) [zero,hw,neg hv])
-			[ \pos -> (lift $ registerSelectable pos 0 SelOurAL) >>
+			[ \pos -> (lift $ registerSelectable pos 0 (SelScoreLock (Just sel) access $ ActiveLock us i)) >>
 			    drawNameWithCharAndCol us white (lockIndexChar i) col pos
 			| i <- [0..2]
 			, let (pub,access) = accesses !! 0 !! i
 			, let col
-				| pub = obscure pubColour 
-				| access = obscure $ scoreColour $ -3 
-				| otherwise = dim $ scoreColour 3 ]
+				| pub = dim pubColour 
+				| access = dim $ scoreColour $ -3 
+				| otherwise = obscure $ scoreColour 3 ]
 		    fillArea (codenamePos<+>2<*>neg hw) (map ((codenamePos<+>3<*>neg hw)<+>) [zero,hw,neg hv])
-			[ \pos -> (lift $ registerSelectable pos 0 (SelLock $ ActiveLock sel i)) >>
+			[ \pos -> (lift $ registerSelectable pos 0 (SelScoreLock Nothing access $ ActiveLock sel i)) >>
 			    drawNameWithCharAndCol sel white (lockIndexChar i) col pos
 			| i <- [0..2]
 			, let (pub,access) = accesses !! 1 !! i
 			, let col
 				| pub = obscure pubColour 
-				| access = obscure $ scoreColour $ 3 
-				| otherwise = dim $ scoreColour $ -3 ]
+				| access = dim $ scoreColour $ 3 
+				| otherwise = obscure $ scoreColour $ -3 ]
+		(usUnacc,selUnacc) <- MaybeT $ (snd<$>) <$> getRelScoreDetails sel
+		lift.lift.renderToMain $ sequence_ [renderStrColAt (scoreColour score) (sign:show (abs score)) pos
+			| (sign,score,pos) <-
+			    [ ('-',usUnacc-3,codenamePos<+>3<*>hv<+>neg hw)
+			    , ('+',3-selUnacc,codenamePos<+>3<*>neg hw<+>hv) ] ]
 	drawMainState' _ = return ()
 
     drawMessage = say
@@ -354,15 +360,15 @@ instance UIMonad (StateT UIState IO) where
 			++ [ (modify $ \s -> s {paintTileIndex = i}) >> return []
 			    | i <- take (length paintTiles) [0..]
 			    , mPos == paintButtonStart <+> i<*>hv ]
-			++ [ toggleUIOption uiOB1 >> updateHoverStr >> return []
+			++ [ toggleUIOption uiOB1 >> updateHoverStr mode >> return []
 			    | mPos == uiOptPos uiOB1 ]
-			++ [ toggleUIOption uiOB2 >> updateHoverStr >> return []
+			++ [ toggleUIOption uiOB2 >> updateHoverStr mode >> return []
 			    | mPos == uiOptPos uiOB2 ]
-			++ [ toggleUIOption uiOB3 >> updateHoverStr >> return []
+			++ [ toggleUIOption uiOB3 >> updateHoverStr mode >> return []
 			    | mPos == uiOptPos uiOB3 ]
-			++ [ toggleUIOption uiOB4 >> updateHoverStr >> return []
+			++ [ toggleUIOption uiOB4 >> updateHoverStr mode >> return []
 			    | mPos == uiOptPos uiOB4 ]
-			++ [ toggleUIOption uiOB5 >> updateHoverStr >> return []
+			++ [ toggleUIOption uiOB5 >> updateHoverStr mode >> return []
 			    | mPos == uiOptPos uiOB5 ]
 
 		if rb
@@ -381,7 +387,10 @@ instance UIMonad (StateT UIState IO) where
 	    processEvent (MouseButtonDown _ _ ButtonRight) = do
 		pos@(mPos,_) <- gets mousePos
 		modify $ \s -> s { rightButtonDown = Just mPos }
-		(fromMaybe [] <$>) $ runMaybeT $ msum
+		lb <- isJust <$> gets leftButtonDown
+		if lb
+		then return [ CmdWait ]
+		else (fromMaybe [] <$>) $ runMaybeT $ msum
 		    [ do
 			cmd <- MaybeT $ cmdAtMousePos pos mode Nothing
 			guard $ mode /= IMTextInput
@@ -391,9 +400,7 @@ instance UIMonad (StateT UIState IO) where
 			cmd <- MaybeT $ cmdAtMousePos pos mode (Just True)
 			return [cmd]
 		    , case mode of
-			IMPlay -> do
-			    centre <- gets dispCentre
-			    return $ [ CmdManipulateToolAt $ mPos <+> centre ]
+			IMPlay -> return [ CmdWait ]
 			_ -> return [ CmdSelect ] ]
 	    processEvent (MouseButtonUp _ _ ButtonRight) = do
 		modify $ \s -> s { rightButtonDown = Nothing }
@@ -446,25 +453,7 @@ instance UIMonad (StateT UIState IO) where
 		oldPos <- gets mousePos
 		when (newPos /= oldPos) $ do
 		    modify $ \ds -> ds { mousePos = newPos }
-		    updateHoverStr 
-
-	    updateHoverStr = do
-		p@(mPos,isCentral) <- gets mousePos
-		hstr <- runMaybeT $ msum
-		    [ MaybeT ( cmdAtMousePos p mode Nothing ) >>= lift . describeCommandAndKeys
-		    , guard (mPos == uiOptPos uiOB1) >> describeUIOptionButton uiOB1
-		    , guard (mPos == uiOptPos uiOB2) >> describeUIOptionButton uiOB2
-		    , guard (mPos == uiOptPos uiOB3) >> describeUIOptionButton uiOB3
-		    , guard (mPos == uiOptPos uiOB4) >> describeUIOptionButton uiOB4
-		    , guard (mPos == uiOptPos uiOB5) >> describeUIOptionButton uiOB5 ]
-		modify $ \ds -> ds { hoverStr = hstr }
-	    describeCommandAndKeys :: Command -> UIM String
-	    describeCommandAndKeys cmd = do
-		uibdgs <- Map.findWithDefault [] mode `liftM` gets uiKeyBindings
-		return $ describeCommand cmd ++ " ["
-		    ++ concat (intersperse ","
-			(map showKeyFriendly $ findBindings (uibdgs ++ bindings mode) cmd))
-		    ++ "]"
+		    updateHoverStr mode
 
     showHelp mode = do
 	bdgs <- nub <$> getBindings mode
@@ -473,10 +462,10 @@ instance UIMonad (StateT UIState IO) where
 	    erase
 	    let bdgWidth = (screenWidthHexes-6) `div` 3
 		showKeys chs = intercalate "/" (map showKeyFriendly chs)
-		maxkeyslen = maximum $ map (length.showKeys.map fst) $ groupBy ((==) `on` snd) bdgs
+		maxkeyslen = maximum . (0:) $ map (length.showKeys.map fst) $ groupBy ((==) `on` snd) bdgs
 		mouseHelpStrs = ["Mouse commands:", "Right-click on a button to set a keybinding;"] ++ case mode of
 		    IMPlay -> ["Click on tool to select, drag to move;",
-			"Click by tool to move;", "Scroll wheel to rotate hook;",
+			"Click by tool to move; right-click to wait;", "Scroll wheel to rotate hook;",
 			"Scroll wheel while held down to undo/redo."]
 		    IMEdit -> ["Left-click to draw selected; scroll to change selection;",
 			"Right-click on piece to select, drag to move;",
@@ -524,6 +513,28 @@ pollEvents = do
 	_ -> do
 	    es <- pollEvents
 	    return $ e:es
+
+updateHoverStr :: InputMode -> UIM ()
+updateHoverStr mode = do
+    p@(mPos,isCentral) <- gets mousePos
+    showBT <- showButtonText <$> gets uiOptions
+    hstr <- runMaybeT $ msum
+	[ MaybeT ( cmdAtMousePos p mode Nothing ) >>= lift . describeCommandAndKeys
+	, guard showBT >> MaybeT (helpAtMousePos p mode)
+	, guard (mPos == uiOptPos uiOB1) >> describeUIOptionButton uiOB1
+	, guard (mPos == uiOptPos uiOB2) >> describeUIOptionButton uiOB2
+	, guard (mPos == uiOptPos uiOB3) >> describeUIOptionButton uiOB3
+	, guard (mPos == uiOptPos uiOB4) >> describeUIOptionButton uiOB4
+	, guard (mPos == uiOptPos uiOB5) >> describeUIOptionButton uiOB5 ]
+    modify $ \ds -> ds { hoverStr = hstr }
+    where
+	describeCommandAndKeys :: Command -> UIM String
+	describeCommandAndKeys cmd = do
+	    uibdgs <- Map.findWithDefault [] mode `liftM` gets uiKeyBindings
+	    return $ describeCommand cmd ++ " ["
+		++ concat (intersperse ","
+		    (map showKeyFriendly $ findBindings (uibdgs ++ bindings mode) cmd))
+		++ "]"
 
 
 fillArea :: HexVec -> [HexVec] -> [HexVec -> StateT MainState UIM ()] -> StateT MainState UIM () 
@@ -605,7 +616,8 @@ drawLockInfo al@(ActiveLock name i) Nothing = do
     let centre = hw<+>neg hv <+> 7*(i-1)<*>hu
     lift $ drawEmptyMiniLock centre
     drawNameWithCharAndCol name white (lockIndexChar i) (invisible white) centre
-    lift $ registerSelectable centre 3 $ SelLockUnset al
+    ourName <- (authUser <$>) <$> gets curAuth
+    lift $ registerSelectable centre 3 $ SelLockUnset (ourName == Just name) al
 drawLockInfo al@(ActiveLock name i) (Just lockinfo) = do
     let centre = locksPos <+> 7*(i-1)<*>hu
     let accessedByPos = centre <+> 3<*>(hv <+> neg hw)
@@ -625,7 +637,9 @@ drawLockInfo al@(ActiveLock name i) (Just lockinfo) = do
 
     lift.renderToMain $ renderStrColAt dimWhiteCol "Accessed by:" $ accessedByPos <+> hv
     if public lockinfo
-    then lift.renderToMain $ renderStrColAt pubColour "Everyone!" accessedByPos
+    then lift $ do
+	renderToMain $ renderStrColAt pubColour "Everyone!" accessedByPos
+	registerSelectable accessedByPos 1 SelPublicLock
     else if null $ accessedBy lockinfo
 	then lift.renderToMain $ renderStrColAt messageCol "No-one" accessedByPos
 	else fillArea accessedByPos

@@ -350,12 +350,14 @@ withImpatience m = do
     m <* (liftIO $ atomically $ writeTVar finishedTV True)
 
 getRelScore :: (UIMonad uiM) => Codename -> StateT MainState uiM (Maybe Int)
-getRelScore name = runMaybeT $ do
+getRelScore name = (fst<$>) <$> getRelScoreDetails name
+getRelScoreDetails name = runMaybeT $ do
     ourName <- mgetOurName
     guard $ ourName /= name
     uinfo <- mgetUInfo name
     ourUInfo <- mgetUInfo ourName
-    return $ countUnaccessedBy ourUInfo name - countUnaccessedBy uinfo ourName
+    let (pos,neg) = (countUnaccessedBy ourUInfo name, countUnaccessedBy uinfo ourName)
+    return $ (pos-neg,(pos,neg))
     where
 	countUnaccessedBy ui name = length $ filter (not.snd) $ getAccessInfo ui name 
 

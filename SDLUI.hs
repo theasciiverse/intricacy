@@ -87,13 +87,13 @@ nullUIState = UIState 0 0 Nothing Nothing Nothing Map.empty Map.empty []
 data UIOptions = UIOptions
     { useFiveColouring::Bool
     , showBlocks::Bool
-    , whsButtons::WrHoSel
+    , whsButtons::Maybe WrHoSel
     , useBackground::Bool
     , showButtonText::Bool
     , useSounds::Bool
     }
     deriving (Eq, Ord, Show, Read)
-defaultUIOptions = UIOptions False True WHSSelected True True True
+defaultUIOptions = UIOptions False True Nothing True True True
 modifyUIOptions f = modify $ \s -> s { uiOptions = f $ uiOptions s }
 
 renderToMain :: RenderM a -> UIM a
@@ -133,7 +133,7 @@ singleButton :: HexVec -> Command -> Int -> [ButtonHelp] -> ButtonGroup
 singleButton pos cmd col helps = ([Button pos cmd helps], (col,0))
 getButtons :: InputMode -> UIM [ ButtonGroup ]
 getButtons mode = do
-    whs <- gets $ whsButtons.uiOptions
+    mwhs <- gets $ whsButtons.uiOptions
     cntxtButtons <- gets contextButtons
     return $ cntxtButtons ++ global ++ case mode of 
 	IMEdit -> [
@@ -149,23 +149,25 @@ getButtons mode = do
 		| i <- take (length paintTiles) [0..] ],(5,0))
 	    ]
 	IMPlay -> 
-	    [ markGroup
-	    , ( [ Button bl CmdWait [] ], (0,0))
-	    , ( [ Button (bl<+>dir) (CmdDir whs dir) 
-		    (if dir==hu then [("move",hu<+>neg hw),(whsStr whs,hu<+>neg hv)] else [])
-		| dir <- hexDirs ], (4,0) )
-	    ] ++
-	    (if whs == WHSWrench then [] else
-		[ ( [ Button (bl<+>((-2)<*>hv)) (CmdRotate whs (-1)) [("turn",hu<+>neg hw),("cw",hu<+>neg hv)]
-		    , Button (bl<+>((-2)<*>hw)) (CmdRotate whs 1) [("turn",hu<+>neg hw),("ccw",hu<+>neg hv)]
-		    ], (4,0) )
-	    ]) ++
-	    (if whs /= WHSSelected then [] else
-		[ ( [ Button (bl<+>(2<*>hv)<+>hw<+>neg hu) (CmdTile $ HookTile) [("select",hu<+>neg hw),("hook",hu<+>neg hv)]
-		    , Button (bl<+>(2<*>hv)<+>neg hu) (CmdTile $ WrenchTile zero) [("select",hu<+>neg hw),("wrench",hu<+>neg hv)]
-		    ], (2,0) )
-	    ]) ++
-	    [ singleButton tr CmdOpen 1 [("open", hu<+>neg hw)] ]
+	    [ markGroup ]
+	    ++ case mwhs of
+		Nothing -> []
+		Just whs -> 
+		    [ ( [ Button bl CmdWait [] ], (0,0))
+		    , ( [ Button (bl<+>dir) (CmdDir whs dir) 
+			    (if dir==hu then [("move",hu<+>neg hw),(whsStr whs,hu<+>neg hv)] else [])
+			| dir <- hexDirs ], (4,0) )
+		    ] ++
+		    (if whs == WHSWrench then [] else
+			[ ( [ Button (bl<+>((-2)<*>hv)) (CmdRotate whs (-1)) [("turn",hu<+>neg hw),("cw",hu<+>neg hv)]
+			    , Button (bl<+>((-2)<*>hw)) (CmdRotate whs 1) [("turn",hu<+>neg hw),("ccw",hu<+>neg hv)]
+			    ], (4,0) )
+		    ]) ++
+		    (if whs /= WHSSelected then [] else
+			[ ( [ Button (bl<+>(2<*>hv)<+>hw<+>neg hu) (CmdTile $ HookTile) [("select",hu<+>neg hw),("hook",hu<+>neg hv)]
+			    , Button (bl<+>(2<*>hv)<+>neg hu) (CmdTile $ WrenchTile zero) [("select",hu<+>neg hw),("wrench",hu<+>neg hv)]
+			    ], (2,0) ) ])
+	    ++ [ singleButton tr CmdOpen 1 [("open", hu<+>neg hw)] ]
 	IMReplay -> [ markGroup ]
 	IMMeta ->
 	    [ singleButton serverPos CmdSetServer 2 [("set server",2<*>neg hw)]
@@ -190,9 +192,9 @@ getButtons mode = do
 
 data Selectable = SelOurLock
     | SelLock ActiveLock
-    | SelLockUnset ActiveLock
+    | SelLockUnset Bool ActiveLock
     | SelSelectedCodeName
-    | SelOurAL
+    | SelScoreLock (Maybe Codename) Bool ActiveLock
     | SelUndeclared Undeclared
     | SelReadNote NoteInfo
     | SelSolution NoteInfo
@@ -200,6 +202,7 @@ data Selectable = SelOurLock
     | SelRandom Codename
     | SelSecured NoteInfo
     | SelOldLock LockSpec
+    | SelPublicLock
     deriving (Eq, Ord, Show)
 
 registerSelectable v r s =
@@ -218,10 +221,12 @@ registerUndoButtons noUndo noRedo = do
 commandOfSelectable IMMeta SelOurLock _ = CmdEdit
 commandOfSelectable IMMeta (SelLock (ActiveLock _ i)) False = CmdSolve (Just i)
 commandOfSelectable IMMeta (SelLock (ActiveLock _ i)) True = CmdPlaceLock (Just i)
-commandOfSelectable IMMeta (SelLockUnset (ActiveLock _ i)) _ = CmdPlaceLock (Just i)
+commandOfSelectable IMMeta (SelScoreLock Nothing _ (ActiveLock _ i)) False = CmdSolve (Just i)
+commandOfSelectable IMMeta (SelScoreLock Nothing _ (ActiveLock _ i)) True = CmdPlaceLock (Just i)
+commandOfSelectable IMMeta (SelScoreLock (Just _) _ _) _ = CmdHome
+commandOfSelectable IMMeta (SelLockUnset True (ActiveLock _ i)) _ = CmdPlaceLock (Just i)
 commandOfSelectable IMMeta SelSelectedCodeName False = CmdSelCodename Nothing
 commandOfSelectable IMMeta SelSelectedCodeName True = CmdHome
-commandOfSelectable IMMeta SelOurAL _ = CmdHome
 commandOfSelectable IMMeta (SelUndeclared undecl) _ = CmdDeclare $ Just undecl
 commandOfSelectable IMMeta (SelReadNote note) False = CmdSelCodename $ Just $ noteAuthor note
 commandOfSelectable IMMeta (SelReadNote note) True = CmdViewSolution $ Just note
@@ -233,13 +238,34 @@ commandOfSelectable IMMeta (SelSecured note) False = CmdSelCodename $ Just $ loc
 commandOfSelectable IMMeta (SelSecured note) True = CmdViewSolution $ Just note
 commandOfSelectable IMMeta (SelOldLock ls) _ = CmdPlayLockSpec $ Just ls
 commandOfSelectable IMTextInput (SelLock (ActiveLock _ i)) _ = CmdInputSelLock i
-commandOfSelectable IMTextInput (SelLockUnset (ActiveLock _ i)) _ = CmdInputSelLock i
+commandOfSelectable IMTextInput (SelScoreLock _ _ (ActiveLock _ i)) _ = CmdInputSelLock i
+commandOfSelectable IMTextInput (SelLockUnset _ (ActiveLock _ i)) _ = CmdInputSelLock i
 commandOfSelectable IMTextInput (SelReadNote note) _ = CmdInputCodename $ noteAuthor note
 commandOfSelectable IMTextInput (SelSolution note) _ = CmdInputCodename $ noteAuthor note
 commandOfSelectable IMTextInput (SelSecured note) _ = CmdInputCodename $ lockOwner $ noteOn note
 commandOfSelectable IMTextInput (SelRandom name) _ = CmdInputCodename name
 commandOfSelectable IMTextInput (SelUndeclared undecl) _ = CmdInputSelUndecl undecl
 commandOfSelectable _ _ _ = CmdNone
+
+helpOfSelectable SelOurLock = Just "Design locks."
+helpOfSelectable (SelLockUnset True _) = Just "Place a lock."
+helpOfSelectable (SelLockUnset False _) = Just "You access all empty lock slots once you access all filled slots."
+helpOfSelectable (SelUndeclared _) = Just "Declare solution, putting your note behind one of your locks, to access the solved lock."
+helpOfSelectable (SelRandom _) = Just "Random selection of other players. Colours indicate relative scores."
+helpOfSelectable (SelScoreLock (Just name) False _) = Just $ "Your lock, not accessed by "++name++"."
+helpOfSelectable (SelScoreLock (Just name) True _) = Just $ "Your lock, accessed by "++name++": -1 to relative score."
+helpOfSelectable (SelScoreLock Nothing False (ActiveLock name _)) = Just $ name++"'s lock, not accessed by you."
+helpOfSelectable (SelScoreLock Nothing True (ActiveLock name _)) = Just $ name++"'s lock, accessed by you: +1 to relative score."
+helpOfSelectable (SelReadNote _) = Just "You have read this note. Reading three lets you access the lock without solving it."
+helpOfSelectable (SelSecured note) = let ActiveLock owner idx = noteOn note in
+    Just $ "Secured note on "++owner++"'s lock "++[lockIndexChar idx]++"; notes are read by accessing the lock holding them."
+helpOfSelectable (SelSolution note) = Just $ case noteBehind note of
+    Just (ActiveLock owner idx) -> owner ++
+	" has secured their note on this lock behind their lock " ++ [lockIndexChar idx] ++ "."
+    Nothing -> noteAuthor note ++ "'s note on this lock is public knowledge."
+helpOfSelectable (SelAccessed name) = Just $ name ++ " has accessed this lock without solving it, by reading three notes on it."
+helpOfSelectable (SelPublicLock) = Just "Notes behind retired or public locks are public; locks with three public notes are public."
+helpOfSelectable _ = Nothing
 
 cmdAtMousePos pos@(mPos,central) im selMode = do
     buttons <- (concat . map fst) <$> getButtons im
@@ -249,6 +275,11 @@ cmdAtMousePos pos@(mPos,central) im selMode = do
 	    | button <- buttons, mPos == buttonPos button, central]
 	++ maybe [] (\isRight -> [ commandOfSelectable im sel isRight
 	    | Just sel <- [Map.lookup mPos sels] ]) selMode
+
+helpAtMousePos pos@(mPos,_) IMMeta =
+    join . fmap helpOfSelectable . Map.lookup mPos <$> gets metaSelectables
+helpAtMousePos _ _ = return Nothing
+    
 
 data UIOptButton a = UIOptButton { getUIOpt::UIOptions->a, setUIOpt::a->UIOptions->UIOptions,
     uiOptVals::[a], uiOptPos::HexVec, uiOptGlyph::a->Glyph, uiOptDescr::a->String }
@@ -262,16 +293,18 @@ uiOB2 = UIOptButton showBlocks (\v o -> o {showBlocks=v}) [True,False]
 	(periphery 0 <+> 2 <*> hu <+> 1 <*> neg hv) showBlocksButton
 	(\v -> if v then "Blocked and blocking forces are annotated" else
 	"Blockage annotations disabled")
-uiOB3 = UIOptButton whsButtons (\v o -> o {whsButtons=v}) [WHSSelected, WHSWrench, WHSHook]
+uiOB3 = UIOptButton whsButtons (\v o -> o {whsButtons=v}) [Nothing, Just WHSSelected, Just WHSWrench, Just WHSHook]
 	(periphery 3 <+> 3 <*> hv) whsButtonsButton
-	(\v -> "Showing buttons for controlling " ++ case v of
-	    WHSSelected -> "selected tool"
-	    WHSWrench -> "wrench"
-	    WHSHook -> "hook")
+	(\v -> case v of
+	    Nothing -> "Click to show keyboard control buttons for tools."
+	    Just whs -> "Showing buttons for controlling " ++ case whs of
+		WHSSelected -> "selected tool"
+		WHSWrench -> "wrench"
+		WHSHook -> "hook")
 uiOB4 = UIOptButton showButtonText (\v o -> o {showButtonText=v}) [True,False]
 	(periphery 0 <+> 2 <*> hu <+> 2 <*> hv) showButtonTextButton
-	(\v -> if v then "Button help text enabled" else
-	"Button help text disabled")
+	(\v -> if v then "Help text enabled" else
+	"Help text disabled")
 uiOB5 = UIOptButton useSounds (\v o -> o {useSounds=v}) [True,False]
 	(periphery 0 <+> 2 <*> hu <+> 2 <*> neg hv) useSoundsButton
 	(\v -> if v then "Sound effects enabled" else
@@ -524,12 +557,12 @@ drawButtons :: InputMode -> UIM ()
 drawButtons mode = do
     buttons <- getButtons mode
     bindingStr <- getBindingStr mode
-    uiopts <- gets uiOptions
+    showBT <- showButtonText <$> gets uiOptions
     smallFont <- gets dispFontSmall
     renderToMain $ sequence_ $ concat [ [ do
 		drawAtRel (buttonGlyph col) v 
 		renderStrColAt buttonTextCol bdg v
-		when (showButtonText uiopts) $
+		when showBT $
 		    withFont smallFont $ recentreAt v $ rescaleRender (1/4) $
 		    sequence_ [ renderStrColAtLeft col s dv | (s,dv) <- helps ]
 	    | (i,(v,bdg,helps)) <- enumerate $ map (\b->(buttonPos b, bindingStr $ buttonCmd b, buttonHelp b)) $ buttonGroup
