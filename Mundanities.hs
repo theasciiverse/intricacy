@@ -34,7 +34,7 @@ tryRead :: (Read a) => String -> Maybe a
 tryRead = (fst <$>) . listToMaybe . reads
 
 readStrings :: FilePath -> IO [String]
-readStrings = (lines . BSC.unpack <$>) . BS.readFile
+readStrings file = (lines . BSC.unpack) <$> BS.readFile file
 
 writeReadFile :: (Show a) => FilePath -> a -> IO ()
 writeReadFile file x = do

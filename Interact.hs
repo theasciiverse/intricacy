@@ -389,7 +389,7 @@ processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
 	let name = tuts !! (i-1)
 	let pref = tutdir ++ [pathSeparator] ++ name
 	(lock,_) <- MaybeT $ liftIO $ readLock (pref ++ ".lock")
-	text <- MaybeT $ liftIO $ listToMaybe <$> readStrings (pref ++ ".text")
+	text <- liftIO $ (fromMaybe "" . listToMaybe) <$> (readStrings (pref ++ ".text") `catchIO` const (return []))
 	_ <- solveLock lock $ Just $ "Tutorial " ++ show i ++ ": " ++ text
 	if i+1 <= length tuts then do
 		-- confirmOrBail $ "Tutorial level completed! Play next tutorial level (" ++ show (i+1) ++ ")?"
