@@ -60,7 +60,6 @@ instance UIMonad (StateT UIState IO) where
 	lift $ do
 	    drawButtons mode
 	    drawUIOptionButtons mode
-	    updateHoverStr mode
 	    drawMsgLine
 	    refresh
 	where
@@ -521,6 +520,9 @@ updateHoverStr mode = do
     hstr <- runMaybeT $ msum
 	[ MaybeT ( cmdAtMousePos p mode Nothing ) >>= lift . describeCommandAndKeys
 	, guard showBT >> MaybeT (helpAtMousePos p mode)
+	, guard showBT >> guard (or
+	    [ mPos == paintButtonStart <+> i<*>hv | i <- take (length paintTiles) [0..] ])
+	    >> return "Select tile to draw with (can also use scroll-wheel to select)."
 	, guard (mPos == uiOptPos uiOB1) >> describeUIOptionButton uiOB1
 	, guard (mPos == uiOptPos uiOB2) >> describeUIOptionButton uiOB2
 	, guard (mPos == uiOptPos uiOB3) >> describeUIOptionButton uiOB3
