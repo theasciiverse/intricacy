@@ -168,12 +168,12 @@ instance UIMonad (StateT UIState IO) where
 			(map (undeclsPos<+>) $ hexDisc 1 ++ [hu<+>neg hw, neg hu<+>hv])
 			[ \pos -> (lift $ registerSelectable pos 0 (SelUndeclared undecl)) >> drawActiveLock al pos
 			| undecl@(Undeclared _ _ al) <- undecls ]
-		rnames <- liftIO $ atomically $ readTVar rnamestvar
-		unless (null rnames) $
-		    fillArea randomNamesPos
-			(map (randomNamesPos<+>) $ hexDisc 2)
-			[ \pos -> (lift $ registerSelectable pos 0 (SelRandom name)) >> drawName name pos
-			| name <- rnames ]
+	    rnames <- liftIO $ atomically $ readTVar rnamestvar
+	    unless (null rnames) $
+		fillArea randomNamesPos
+		    (map (randomNamesPos<+>) $ hexDisc 2)
+		    [ \pos -> (lift $ registerSelectable pos 0 (SelRandom name)) >> drawName name pos
+		    | name <- rnames ]
 
 	    when (ourName /= selName) $ void $ runMaybeT $ do
 		when (isJust ourName) $
