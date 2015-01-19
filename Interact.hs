@@ -67,7 +67,7 @@ interactUI = do
 	(isNothing <$> gets curAuth >>=) $ flip when $
 	    lift $ drawMessage $ "Welcome. To play the tutorial levels, press '"++tbdg++"'."
 	)
-    setMark '0'
+    setMark startMark
     loop
 
     where
@@ -134,14 +134,15 @@ processCommand' im CmdMark = void.runMaybeT $ do
     guard $ im `elem` [IMEdit, IMPlay, IMReplay]
     str <- MaybeT $ lift $ textInput "Mark: " 1 False True Nothing Nothing
     ch <- MaybeT $ return $ listToMaybe str
-    guard $ ch `notElem` ['0', '\'']
+    guard $ ch `notElem` [startMark, '\'']
     lift $ setMark ch
 processCommand' im CmdJumpMark = void.runMaybeT $ do
     guard $ im `elem` [IMEdit, IMPlay, IMReplay]
     str <- MaybeT $ lift $ textInput
-	"Jump to mark ('0' for starting state): " 1 False True Nothing Nothing
+	"Jump to mark (\"'\" to unjump): " 1 False True Nothing Nothing
     ch <- MaybeT $ return $ listToMaybe str
     lift $ jumpMark ch
+processCommand' im CmdReset = jumpMark startMark
 processCommand' IMMeta (CmdSelCodename mname) = void.runMaybeT $ do
     name <- msum [ MaybeT $ return $ mname
 	, do

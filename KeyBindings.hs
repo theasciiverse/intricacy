@@ -90,6 +90,7 @@ miscLockGlobal = lowerToo
     , ('R', CmdRedo)
     , (ctrl 'R', CmdRedo)
     , (ctrl 'U', CmdUndo)
+    , ('^', CmdReset)
     , ('.', CmdWait)
     , ('Z', CmdWait)
     , ('M', CmdMark)

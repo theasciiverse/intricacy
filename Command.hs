@@ -22,7 +22,7 @@ data Command = CmdDir WrHoSel HexDir | CmdRotate WrHoSel TorqueDir | CmdWait
 	| CmdPaintFromTo (Maybe Tile) HexPos HexPos
 	| CmdSelect | CmdUnselect
 	| CmdDelete | CmdMerge
-	| CmdMark | CmdJumpMark
+	| CmdMark | CmdJumpMark | CmdReset
 	| CmdPlay | CmdTest
 	| CmdUndo | CmdRedo
 	| CmdReplayForward Int | CmdReplayBack Int
@@ -57,6 +57,7 @@ describeCommand (CmdTile tile) = tileStr tile
 describeCommand CmdMerge = "merge with adjacent piece" 
 describeCommand CmdMark = "mark state"
 describeCommand CmdJumpMark = "jump to marked state"
+describeCommand CmdReset = "jump to initial state"
 describeCommand CmdSelect = "select piece" 
 describeCommand CmdUnselect = "unselect piece"
 describeCommand CmdDelete = "delete piece"

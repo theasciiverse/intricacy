@@ -126,6 +126,8 @@ declare undecl@(Undeclared soln ls al) = do
 	invalidateAllUInfo
 	refreshUInfoUI
 
+startMark = '^'
+
 jumpMark :: UIMonad uiM => Char -> StateT MainState uiM ()
 jumpMark ch = do
     mst <- get
