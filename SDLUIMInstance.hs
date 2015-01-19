@@ -284,6 +284,7 @@ instance UIMonad (StateT UIState IO) where
 	events <- liftIO $ nubMouseMotions <$> getEvents
 	oldUIState <- get
 	cmds <- concat <$> mapM processEvent events
+	setPaintFromCmds cmds
 	newUIState <- get
 	return $ cmds ++ if uistatesMayVisiblyDiffer oldUIState newUIState then [CmdRefresh] else []
 	where
@@ -294,6 +295,15 @@ instance UIMonad (StateT UIState IO) where
 		    nubMouseMotions' b (ev:evs) = ev:(nubMouseMotions' b evs)
 		    nubMouseMotions' _ [] = []
 		in reverse $ nubMouseMotions' False $ reverse evs
+	    setPaintFromCmds cmds = sequence_
+		[ modify $ \s -> s { paintTileIndex = pti }
+		    | (pti,pt) <- zip [0..] paintTiles
+		    , cmd <- cmds
+		    , (isNothing pt && cmd == CmdDelete) ||
+			(isJust $ do
+			    pt' <- pt
+			    CmdTile t <- Just cmd
+			    guard $ ((==)`on`tileType) t pt') ]
 	    uistatesMayVisiblyDiffer uis1 uis2 =
 		uis1 { mousePos = (zero,False), lastFrameTicks=0 }
 		/= uis2 {mousePos = (zero,False), lastFrameTicks=0 }
@@ -309,14 +319,6 @@ instance UIMonad (StateT UIState IO) where
 		    else do
 			uibdgs <- Map.findWithDefault [] mode `liftM` gets uiKeyBindings
 			let mCmd = lookup ch $ uibdgs ++ bindings mode
-			sequence_
-			    [ modify $ \s -> s { paintTileIndex = pti }
-				| (pti,pt) <- zip [0..] paintTiles
-				, (isNothing pt && mCmd == Just CmdDelete) ||
-				    (isJust $ do
-					pt' <- pt
-					CmdTile t <- mCmd
-					guard $ ((==)`on`tileType) t pt') ]
 			return $ maybeToList mCmd
 	    processEvent (MouseMotion {}) = do
 		(oldMPos,_) <- gets mousePos
@@ -521,9 +523,10 @@ updateHoverStr mode = do
     hstr <- runMaybeT $ msum
 	[ MaybeT ( cmdAtMousePos p mode Nothing ) >>= lift . describeCommandAndKeys
 	, guard showBT >> MaybeT (helpAtMousePos p mode)
-	, guard showBT >> guard (or
-	    [ mPos == paintButtonStart <+> i<*>hv | i <- take (length paintTiles) [0..] ])
-	    >> return "Select tile to draw with (can also use scroll-wheel to select)."
+	, guard showBT >> msum
+	    [ return $ "set paint mode: " ++ describeCommand (paintTileCmds!!i)
+	    | i <- take (length paintTiles) [0..]
+	    , mPos == paintButtonStart <+> i<*>hv ]
 	, guard (mPos == uiOptPos uiOB1) >> describeUIOptionButton uiOB1
 	, guard (mPos == uiOptPos uiOB2) >> describeUIOptionButton uiOB2
 	, guard (mPos == uiOptPos uiOB3) >> describeUIOptionButton uiOB3

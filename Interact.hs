@@ -344,7 +344,7 @@ processCommand' IMMeta (CmdPlaceLock midx) = void.runMaybeT $ do
 processCommand' IMMeta CmdSelectLock = void.runMaybeT $ do
     lockdir <- liftIO $ confFilePath "locks"
     paths <- liftIO $ map (drop (length lockdir + 1)) <$> getDirContentsRec lockdir
-    path <- MaybeT $ lift $ textInput "Select lock:" 1024 False False (Just paths) Nothing
+    path <- MaybeT $ lift $ textInput "Lock name:" 1024 False False (Just paths) Nothing
     lift $ setLockPath path
 processCommand' IMMeta CmdNextLock =
     gets curLockPath >>= liftIO . nextLock True >>= setLockPath
