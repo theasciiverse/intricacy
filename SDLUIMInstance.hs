@@ -117,8 +117,6 @@ instance UIMonad (StateT UIState IO) where
 		renderToMain $ withFont smallFont $ renderStrColAtLeft messageCol
 			(saddrStr saddr ++ if cOnly then " (cache only)" else "")
 		    $ serverPos <+> hu
-		when (offset>0) $
-		    registerButton (nextPagePos<+>hv) CmdPrevPage 4 [("prev",hu<+>neg hw),("page",hu<+>neg hv)]
 
 	    when (length names > 1) $ lift $ registerButton
 		(codenamePos <+> 2<*>neg hu <+> hw) CmdBackCodename 0 [("back",2<*>hw<+>neg hv<+>neg hu)]
@@ -544,15 +542,19 @@ updateHoverStr mode = do
 
 fillArea :: HexVec -> [HexVec] -> [HexVec -> StateT MainState UIM ()] -> StateT MainState UIM () 
 fillArea centre area draws = do
-    selDraws <- do
-	    offset <- gets listOffset
-	    let na = length area
-		nd = length draws
-	    when (nd > (na*(offset+1))) $ lift $
-		registerButton nextPagePos CmdNextPage 4 [("next",hu<+>neg hw),("page",hu<+>neg hv)]
-	    return $ drop (max 0 $ min (nd - na) (na*offset)) $ draws
+    offset <- gets listOffset
+    let na = length area
+	listButton cmd = \pos -> lift $ registerButton pos cmd 4 []
+	draws' = if offset > 0 && length draws > na
+	    then listButton CmdPrevPage :
+		drop (max 0 $ min (length draws - (na-1)) (na-1 + (na-2)*(offset-1))) draws
+	    else draws
+	selDraws = if length draws' > na
+	    then take (na-1) draws' ++ [listButton CmdNextPage]
+	    else take na draws'
     sequence_ $ map (uncurry ($)) $
-	zip selDraws $ sortBy
+	zip selDraws $ sortBy (compare `on` hexVec2SVec 37) $
+	    take (length selDraws) $ sortBy
 		(compare `on` (hexLen . (<->centre)))
 		area
 
