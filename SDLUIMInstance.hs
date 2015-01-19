@@ -587,8 +587,11 @@ drawRelScore name pos = do
 drawNote note pos = case noteBehind note of
     Just al -> drawActiveLock al pos
     Nothing -> drawPublicNote (noteAuthor note) pos
-drawActiveLock (ActiveLock name i) =
-    drawNameWithChar name white (lockIndexChar i)
+drawActiveLock al@(ActiveLock name i) pos = do
+    accessed <- accessedAL al
+    drawNameWithChar name
+	(if accessed then accColour else white)
+	(lockIndexChar i) pos
 drawPublicNote name =
     drawNameWithChar name pubColour 'P'
 drawNameWithChar name charcol char pos = do
@@ -607,6 +610,7 @@ drawNameWithCharAndCol name charcol char col pos = do
 	    renderStrColAt charcol [char] pos
 pubWheelAngle = 5
 pubColour = colourWheel pubWheelAngle -- ==purple
+accColour = cyan
 nameCol name = do
     ourName <- (authUser <$>) <$> gets curAuth
     relScore <- getRelScore name
@@ -667,7 +671,7 @@ drawLockInfo al@(ActiveLock name i) (Just lockinfo) = do
     case if isJust $ guard . (|| public lockinfo) . (`elem` map noteAuthor (lockSolutions lockinfo)) =<< ourName
 	    then if public lockinfo
 		then Just (pubColour,"Accessed!",AccessedPublic)
-		else Just (green, "Solved!",AccessedSolved)
+		else Just (accColour, "Solved!",AccessedSolved)
 	    else if any (\(Undeclared _ ls _) -> ls == lockSpec lockinfo) undecls
 		then Just (yellow, "Undeclared",AccessedUndeclared)
 		else Nothing
@@ -679,7 +683,7 @@ drawLockInfo al@(ActiveLock name i) (Just lockinfo) = do
 	    read <- take 3 <$> getNotesReadOn lockinfo
 	    unless (ourName == Just name) $ do
 		let readPos = accessedPos <+> (-3)<*>hu
-		lift.renderToMain $ renderStrColAt (if length read == 3 then accessedCol else dimWhiteCol)
+		lift.renderToMain $ renderStrColAt (if length read == 3 then accColour else dimWhiteCol)
 		    "Read:" $ readPos
 		when (length read == 3) $ lift $ registerSelectable readPos 0 (SelAccessedMethod AccessedReadNotes)
 		fillArea (accessedPos<+>neg hu) [ accessedPos <+> i<*>hu | i <- [-1..1] ]

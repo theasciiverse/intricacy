@@ -416,7 +416,6 @@ drawAtRel gl v = do
 	liftIO $ gl cpos size surf
 
 messageCol = white
-accessedCol = green
 dimWhiteCol = Pixel 0xa0a0a000
 buttonTextCol = white
 errorCol = red

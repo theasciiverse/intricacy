@@ -361,6 +361,13 @@ getRelScoreDetails name = runMaybeT $ do
     where
 	countUnaccessedBy ui name = length $ filter (not.snd) $ getAccessInfo ui name 
 
+accessedAL :: (UIMonad uiM) => ActiveLock -> StateT MainState uiM Bool
+accessedAL (ActiveLock name idx) = (isJust <$>) $ runMaybeT $ do
+    ourName <- mgetOurName
+    guard $ ourName /= name
+    uinfo <- mgetUInfo name
+    guard $ snd $ getAccessInfo uinfo ourName !! idx
+
 getNotesReadOn :: UIMonad uiM => LockInfo -> StateT MainState uiM [NoteInfo]
 getNotesReadOn lockinfo = (fromMaybe [] <$>) $ runMaybeT $ do
     ourName <- mgetOurName
