@@ -659,22 +659,28 @@ drawLockInfo al@(ActiveLock name i) (Just lockinfo) = do
 		    | name <- accessedBy lockinfo \\ map noteAuthor (lockSolutions lockinfo) ]
     
     undecls <- gets undeclareds
-    if isJust $ guard . (|| public lockinfo) . (`elem` map noteAuthor (lockSolutions lockinfo)) =<< ourName
-    then lift.renderToMain $ 
-	(if public lockinfo
-	    then renderStrColAt pubColour "Accessed!"
-	    else renderStrColAt green "Solved!")
-	accessedPos
-    else if any (\(Undeclared _ ls _) -> ls == lockSpec lockinfo) undecls
-    then lift.renderToMain $ renderStrColAt yellow "Undeclared" accessedPos
-    else do
-	read <- take 3 <$> getNotesReadOn lockinfo
-	unless (ourName == Just name) $ do
-	    lift.renderToMain $ renderStrColAt (if length read == 3 then accessedCol else dimWhiteCol)
-		"Read:" $ accessedPos <+> (-3)<*>hu
-	    fillArea (accessedPos<+>neg hu) [ accessedPos <+> i<*>hu | i <- [-1..1] ]
-		$ take 3 $ [ \pos -> (lift $ registerSelectable pos 0 (SelReadNote note)) >> drawName (noteAuthor note) pos
-		    | note <- read ] ++ (repeat $ lift . renderToMain . drawAtRel (hollowGlyph $ dim green))
+    case if isJust $ guard . (|| public lockinfo) . (`elem` map noteAuthor (lockSolutions lockinfo)) =<< ourName
+	    then if public lockinfo
+		then Just (pubColour,"Accessed!",AccessedPublic)
+		else Just (green, "Solved!",AccessedSolved)
+	    else if any (\(Undeclared _ ls _) -> ls == lockSpec lockinfo) undecls
+		then Just (yellow, "Undeclared",AccessedUndeclared)
+		else Nothing
+	of
+	Just (col,str,selstr) -> lift $ do
+	    renderToMain $ renderStrColAt col str accessedPos
+	    registerSelectable accessedPos 1 (SelAccessedMethod selstr)
+	Nothing -> do
+	    read <- take 3 <$> getNotesReadOn lockinfo
+	    unless (ourName == Just name) $ do
+		let readPos = accessedPos <+> (-3)<*>hu
+		lift.renderToMain $ renderStrColAt (if length read == 3 then accessedCol else dimWhiteCol)
+		    "Read:" $ readPos
+		when (length read == 3) $ lift $ registerSelectable readPos 0 (SelAccessedMethod AccessedReadNotes)
+		fillArea (accessedPos<+>neg hu) [ accessedPos <+> i<*>hu | i <- [-1..1] ]
+		    $ take 3 $ [ \pos -> (lift $ registerSelectable pos 0 (SelReadNote note)) >> drawName (noteAuthor note) pos
+			| note <- read ] ++ (repeat $ \pos -> (lift $ registerSelectable pos 0 SelReadNoteSlot >>
+				renderToMain (drawAtRel (hollowGlyph $ dim green) pos)))
 
     lift.renderToMain $ renderStrColAt dimWhiteCol "Holds notes:" $ notesPos <+> hv
     if null $ notesSecured lockinfo

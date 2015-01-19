@@ -191,6 +191,8 @@ getButtons mode = do
 	    bl = periphery 3
 	    br = periphery 5
 
+data AccessedMethod = AccessedSolved | AccessedPublic | AccessedReadNotes | AccessedUndeclared
+    deriving (Eq, Ord, Show)
 data Selectable = SelOurLock
     | SelLock ActiveLock
     | SelLockUnset Bool ActiveLock
@@ -206,6 +208,7 @@ data Selectable = SelOurLock
     | SelSecured NoteInfo
     | SelOldLock LockSpec
     | SelPublicLock
+    | SelAccessedMethod AccessedMethod
     deriving (Eq, Ord, Show)
 
 registerSelectable v r s =
@@ -272,6 +275,11 @@ helpOfSelectable (SelSolution note) = Just $ case noteBehind note of
     Nothing -> noteAuthor note ++ "'s note on this lock is public knowledge."
 helpOfSelectable (SelAccessed name) = Just $ name ++ " has accessed this lock without solving it, by reading three notes on it."
 helpOfSelectable (SelPublicLock) = Just "Notes behind retired or public locks are public; locks with three public notes are public."
+helpOfSelectable (SelAccessedMethod meth) = Just $ case meth of
+    AccessedSolved -> "You solved this lock, so have access to it and any notes it holds."
+    AccessedPublic -> "The solution to this lock is public knowledge."
+    AccessedUndeclared -> "You have solved this lock, but need to declare your solution to access the lock."
+    AccessedReadNotes -> "You have read three notes on others' solutions to this lock, so have access to it."
 helpOfSelectable _ = Nothing
 
 cmdAtMousePos pos@(mPos,central) im selMode = do
