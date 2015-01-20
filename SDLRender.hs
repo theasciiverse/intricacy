@@ -112,12 +112,13 @@ tileGlyph (BlockTile adjs) col centre size surf =
 		]
 
 tileGlyph (SpringTile extn dir) col centre size surf =
-    aaLines surf points $ bright col
+    aaLines surf points $ brightness col
 	where
 	    n = 3*case extn of
 		Stretched -> 1
 		Relaxed -> 2
 		Compressed -> 3
+	    brightness = if extn == Relaxed then dim else bright
 	    dir' = if dir == zero then hu else dir
 	    (sx,sy) = corner centre size (hextant dir' - 1)
 	    (offx,offy) = corner centre size (hextant dir')
