@@ -86,14 +86,14 @@ nullUIState = UIState 0 0 Nothing Nothing Nothing Map.empty Map.empty []
 
 data UIOptions = UIOptions
     { useFiveColouring::Bool
-    , showBlocks::Bool
+    , showBlocks::ShowBlocks
     , whsButtons::Maybe WrHoSel
     , useBackground::Bool
     , showButtonText::Bool
     , useSounds::Bool
     }
     deriving (Eq, Ord, Show, Read)
-defaultUIOptions = UIOptions False True Nothing True True True
+defaultUIOptions = UIOptions False ShowBlocksBlocking Nothing True True True
 modifyUIOptions f = modify $ \s -> s { uiOptions = f $ uiOptions s }
 
 renderToMain :: RenderM a -> UIM a
@@ -304,10 +304,12 @@ uiOB1 = UIOptButton useFiveColouring (\v o -> o {useFiveColouring=v}) [True,Fals
 	(periphery 0 <+> 2 <*> hu) useFiveColourButton
 	(\v -> if v then "Adjacent pieces get different colours" else
 	"Pieces are coloured according to type")
-uiOB2 = UIOptButton showBlocks (\v o -> o {showBlocks=v}) [True,False]
+uiOB2 = UIOptButton showBlocks (\v o -> o {showBlocks=v}) [ShowBlocksBlocking,ShowBlocksAll,ShowBlocksNone]
 	(periphery 0 <+> 2 <*> hu <+> 1 <*> neg hv) showBlocksButton
-	(\v -> if v then "Blocked and blocking forces are annotated" else
-	"Blockage annotations disabled")
+	(\v -> case v of
+	    ShowBlocksBlocking -> "Blocking forces are annotated"
+	    ShowBlocksAll -> "Blocked and blocking forces are annotated"
+	    ShowBlocksNone -> "Blockage annotations disabled")
 uiOB3 = UIOptButton whsButtons (\v o -> o {whsButtons=v}) [Nothing, Just WHSSelected, Just WHSWrench, Just WHSHook]
 	(periphery 3 <+> 3 <*> hv) whsButtonsButton
 	(\v -> case v of
@@ -327,12 +329,12 @@ uiOB5 = UIOptButton useSounds (\v o -> o {useSounds=v}) [True,False]
 
 drawUIOptionButtons :: InputMode -> UIM ()
 drawUIOptionButtons mode = do
-    when (mode `elem` [IMPlay, IMEdit]) $ 
-	mapM_ drawUIOptionButton [uiOB1,uiOB2
+    when (mode `elem` [IMPlay, IMEdit]) $ do
+	drawUIOptionButton uiOB1
+	drawUIOptionButton uiOB2
 #ifdef SOUND
-	    ,uiOB5
+	drawUIOptionButton uiOB5
 #endif
-	]
     when (mode == IMPlay) $
 	drawUIOptionButton uiOB3
     drawUIOptionButton uiOB4
@@ -473,14 +475,16 @@ drawMainGameState' args@(DrawArgs highlight colourFixed alerts st uiopts) = do
 		    (pos,glyph) <- Map.toList $ fmap (ownedTileGlyph colouring highlight) board
 		    ]
 
-		when (showBlocks uiopts) $ sequence_
-		    $ [ drawBlocked st colouring False force |
-		    AlertBlockedForce force <- alerts ]
-		    ++ [ drawBlocked st colouring True force |
-		    AlertBlockingForce force <- alerts ]
-		    ++ [ drawBlocked st colouring True force |
-		    AlertResistedForce force <- alerts ]
-		    -- ++ [ drawAt collisionMarker pos | AlertCollision pos <- alerts ]
+		when (showBlocks uiopts /= ShowBlocksNone) $ sequence_
+		    $ [ drawBlocked st colouring False force
+			| AlertBlockedForce force <- alerts
+			, showBlocks uiopts == ShowBlocksAll ]
+		    ++ [ drawBlocked st colouring True force
+			| AlertBlockingForce force <- alerts ]
+		    -- ++ [ drawBlocked st colouring True force |
+		    -- AlertResistedForce force <- alerts ]
+		    ++ [ drawAt collisionMarker pos
+			| AlertCollision pos <- alerts ]
 	    vidSurf <- liftIO getVideoSurface
 	    liftIO $ blitSurface gsSurf Nothing vidSurf Nothing
 

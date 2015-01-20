@@ -47,10 +47,15 @@ rimmedPolygon surf verts fillCol rimCol = do
     aaPolygon' surf verts $ opaquify rimCol
     return ()
 
-rimmedCircle surf centre@(SVec x y) rad fillCol rimCol = do
-    filledCircle surf (fromIntegral x) (fromIntegral y) (fromIntegral rad) fillCol
-    aaCircle' surf (fromIntegral x) (fromIntegral y) (fromIntegral rad) $ opaquify rimCol
-    return ()
+circleAt surf centre@(SVec x y) rad col =
+    aaCircle' surf (fromIntegral x) (fromIntegral y) (fromIntegral rad) col
+
+filledCircleAt surf centre@(SVec x y) rad col =
+    filledCircle surf (fromIntegral x) (fromIntegral y) (fromIntegral rad) col
+
+rimmedCircle surf centre@(SVec x y) rad fillCol rimCol = void $ do
+    filledCircleAt surf centre rad fillCol
+    circleAt surf centre rad $ opaquify rimCol
 
 type Glyph = SVec -> Int -> Surface -> IO ()
 
@@ -205,8 +210,14 @@ blockedPush dir col centre size surf = do
 	--to' = corner centre size $ (hextant dir) - 1
 	
 collisionMarker :: Glyph
-collisionMarker centre size surf =
-    rimmedCircle surf centre (size`div`3) (bright orange) $ bright orange
+collisionMarker centre@(SVec x y) size surf = void $ do
+    -- rimmedCircle surf centre (size`div`3) (bright purple) $ bright purple
+    aaLine surf `uncurry` start `uncurry` end $ col
+    circleAt surf centre rad col
+    where
+	[start,end] = map (corner centre (size`div`2)) [0,3]
+	rad = ysize size
+	col = dim purple
 
 hollowGlyph :: Pixel -> Glyph
 hollowGlyph col centre size surf =
@@ -231,10 +242,16 @@ useFiveColourButton using centre size surf = do
 	    (SVec `uncurry` corner centre (size`div`2) h) (size`div`2) surf)
 	[0,2,4]
 
-showBlocksButton :: Bool -> Glyph
+data ShowBlocks = ShowBlocksBlocking | ShowBlocksAll | ShowBlocksNone
+    deriving (Eq, Ord, Show, Read)
+
+showBlocksButton :: ShowBlocks -> Glyph
 showBlocksButton showing centre size surf = do
-    tileGlyph (BlockTile []) (dim red) centre size surf
-    when showing $ blockedPush hu (bright orange) centre size surf
+    tileGlyph (BlockTile []) (dim blue) centre size surf
+    when (showing == ShowBlocksAll) $
+	blockedPush hu (bright orange) centre size surf
+    when (showing /= ShowBlocksNone) $
+	blockedPush hw (bright purple) centre size surf
 
 showButtonTextButton :: Bool -> Glyph
 showButtonTextButton showing centre@(SVec x y) size surf = do

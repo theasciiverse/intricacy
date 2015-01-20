@@ -132,7 +132,7 @@ other the 'end'. A block is stationary if it is not the end of any spring. The
 directed graph whose nodes are the blocks and whose edges are the springs is
 required to be acyclic. A spring may also be rooted in a pivot.
 
-I will now attempt to describe in full excrutiating detail the game physics,
+I will now attempt to describe in full excruciating detail the game physics,
 i.e. the algorithm used to determine what happens on a turn. You shouldn't
 need to read this to play the game! Experimenting and turning on blockage
 annotations should be enough.

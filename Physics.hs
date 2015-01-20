@@ -123,13 +123,17 @@ resolveForces plForces eForces eDominates st =
 	checkInconsistent :: Int -> Int -> [[Force]] -> Writer [Alert] [Int]
 	checkInconsistent i j fss = 
 	    let st' = foldr applyForce st $ nub $ concat fss
-		inconsistencies = [ [f,f']
+		(inconsistencies,cols) = runWriter $ sequence
+		    [ tell cols >> return [f,f']
 		    | [f,f'] <- sequence fss
-		    , if forceIdx f == forceIdx f'
-			then f /= f'
-			else not.null $ collisions st' (forceIdx f) (forceIdx f') ]
+		    , (True,cols) <- [
+			    if forceIdx f == forceIdx f'
+			    then (f /= f',[])
+			    else let cols = collisions st' (forceIdx f) (forceIdx f')
+				in (not $ null cols, cols) ]]
 	    in do
 		tell $ map AlertBlockingForce $ concat inconsistencies
+		tell $ map AlertCollision cols
 		return $ if null inconsistencies then []
 		    else if i==j then [i]
 		    else if dominates i j then [j]
