@@ -100,7 +100,8 @@ processCommand :: UIMonad uiM => InputMode -> Command -> ErrorT InteractSuccess 
 processCommand im CmdQuit = do
     case im of
 	IMReplay -> throwError $ InteractSuccess False
-	IMPlay -> lift (gets psIsSub) >>= flip when (throwError $ InteractSuccess False)
+	IMPlay -> lift (or <$> sequence [gets psIsSub, null <$> gets psGameStateMoveStack])
+	    >>= flip when (throwError $ InteractSuccess False)
 	IMEdit -> lift editStateUnsaved >>= flip unless (throwError $ InteractSuccess True)
 	_ -> return ()
     title <- lift $ getTitle

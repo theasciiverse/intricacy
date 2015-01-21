@@ -195,14 +195,14 @@ getButtons mode = do
 	    bl = periphery 3
 	    br = periphery 5
 
-data AccessedMethod = AccessedSolved | AccessedPublic | AccessedReadNotes | AccessedUndeclared
+data AccessedInfo = AccessedSolved | AccessedPublic | AccessedReadNotes | AccessedUndeclared
     deriving (Eq, Ord, Show)
 data Selectable = SelOurLock
     | SelLock ActiveLock
     | SelLockUnset Bool ActiveLock
     | SelSelectedCodeName Codename
     | SelRelScore Int
-    | SelScoreLock (Maybe Codename) Bool ActiveLock
+    | SelScoreLock (Maybe Codename) (Maybe AccessedReason) ActiveLock
     | SelUndeclared Undeclared
     | SelReadNote NoteInfo
     | SelReadNoteSlot
@@ -212,7 +212,9 @@ data Selectable = SelOurLock
     | SelSecured NoteInfo
     | SelOldLock LockSpec
     | SelPublicLock
-    | SelAccessedMethod AccessedMethod
+    | SelAccessedInfo AccessedInfo
+    | SelPrivyHeader
+    | SelNotesHeader
     deriving (Eq, Ord, Show)
 
 registerSelectable v r s =
@@ -257,33 +259,64 @@ commandOfSelectable IMTextInput (SelRandom name) _ = CmdInputCodename name
 commandOfSelectable IMTextInput (SelUndeclared undecl) _ = CmdInputSelUndecl undecl
 commandOfSelectable _ _ _ = CmdNone
 
-helpOfSelectable SelOurLock = Just "Design locks."
-helpOfSelectable (SelSelectedCodeName name) = Just $ "Currently viewing "++name++"."
-helpOfSelectable (SelRelScore score) = Just $ "Your score against this player is "++show score++". Higher is better."
-helpOfSelectable (SelLock (ActiveLock name i)) = Just $ name++"'s lock "++[lockIndexChar i]++"."
-helpOfSelectable (SelLockUnset True _) = Just "Place a lock."
-helpOfSelectable (SelLockUnset False _) = Just "You access all empty lock slots once you access all filled slots."
-helpOfSelectable (SelUndeclared _) = Just "Declare solution, putting your note behind one of your locks, to access the solved lock."
-helpOfSelectable (SelRandom _) = Just "Random set of players. Colours show relative scores, bright red (-3) to bright green (+3)."
-helpOfSelectable (SelScoreLock (Just name) False _) = Just $ "Your lock, not accessed by "++name++"."
-helpOfSelectable (SelScoreLock (Just name) True _) = Just $ "Your lock, accessed by "++name++": -1 to relative score."
-helpOfSelectable (SelScoreLock Nothing False (ActiveLock name _)) = Just $ name++"'s lock, not accessed by you."
-helpOfSelectable (SelScoreLock Nothing True (ActiveLock name _)) = Just $ name++"'s lock, accessed by you: +1 to relative score."
-helpOfSelectable (SelReadNote note) = Just $ "You have read "++noteAuthor note++"'s note on this lock."
-helpOfSelectable SelReadNoteSlot = Just $ "If you read three notes on this lock, you can access it without having to solve it yourself."
+helpOfSelectable SelOurLock = Just
+    "Design a lock."
+helpOfSelectable (SelSelectedCodeName name) = Just $
+    "Currently viewing "++name++"."
+helpOfSelectable (SelRelScore score) = Just $
+    "The extent to which you are held in higher esteem than this fellow guild member."
+helpOfSelectable (SelLock (ActiveLock name i)) = Just $
+    name++"'s lock "++[lockIndexChar i]++"."
+helpOfSelectable (SelLockUnset True _) = Just
+    "Place a lock."
+helpOfSelectable (SelLockUnset False _) = Just
+    "An empty lock slot."
+helpOfSelectable (SelUndeclared _) = Just
+    "Declare yourself privy to a lock's secrets by securing a note on it behind a lock of your own."
+helpOfSelectable (SelRandom _) = Just
+    "Random set of guild members. Colours show relative esteem, bright red (-3) to bright green (+3)."
+helpOfSelectable (SelScoreLock (Just name) Nothing _) = Just $
+    "Your lock, to the secrets of which "++name++" is not privy."
+helpOfSelectable (SelScoreLock (Just name) (Just AccessedPrivy) _) = Just $
+    "Your lock, to the secrets of which "++name++" is privy: -1 to relative esteem."
+helpOfSelectable (SelScoreLock (Just name) (Just AccessedPub) _) = Just $
+    "Your lock, the secrets of which have been publically revealed: -1 to relative esteem."
+helpOfSelectable (SelScoreLock (Just name) (Just AccessedEmpty) _) = Just $
+    "Your empty lock slot; "++name++" is privy to the secrets of all your locks: -1 to relative esteem."
+helpOfSelectable (SelScoreLock Nothing Nothing (ActiveLock name _)) = Just $
+    name++"'s lock, to the secrets of which you are not privy."
+helpOfSelectable (SelScoreLock Nothing (Just AccessedPrivy) (ActiveLock name _)) = Just $
+    name++"'s lock, to the secrets of which you are privy: +1 to relative esteem."
+helpOfSelectable (SelScoreLock Nothing (Just AccessedPub) (ActiveLock name _)) = Just $
+    name++"'s lock, the secrets of which have been publically revealed: +1 to relative esteem."
+helpOfSelectable (SelScoreLock Nothing (Just AccessedEmpty) (ActiveLock name _)) = Just $
+    name++"'s empty lock slot; you are privy to the secrets of all "++name++"'s locks: +1 to relative esteem."
+helpOfSelectable (SelReadNote note) = Just $
+    "You have read "++noteAuthor note++"'s note on this lock."
+helpOfSelectable SelReadNoteSlot = Just $
+    "Reading three notes on this lock would let you piece together enough to unriddle its secrets."
 helpOfSelectable (SelSecured note) = let ActiveLock owner idx = noteOn note in
-    Just $ "Secured note on "++owner++"'s lock "++[lockIndexChar idx]++"; notes are read by accessing the lock holding them."
+    Just $ "Secured note on "++owner++"'s lock "++[lockIndexChar idx]++"."
 helpOfSelectable (SelSolution note) = Just $ case noteBehind note of
     Just (ActiveLock owner idx) -> owner ++
 	" has secured their note on this lock behind their lock " ++ [lockIndexChar idx] ++ "."
     Nothing -> noteAuthor note ++ "'s note on this lock is public knowledge."
-helpOfSelectable (SelAccessed name) = Just $ name ++ " has accessed this lock without solving it, by reading three notes on it."
-helpOfSelectable (SelPublicLock) = Just "Notes behind retired or public locks are public; locks with three public notes are public."
-helpOfSelectable (SelAccessedMethod meth) = Just $ case meth of
-    AccessedSolved -> "You solved this lock, so have access to it and any notes it holds."
-    AccessedPublic -> "The solution to this lock is public knowledge."
-    AccessedUndeclared -> "You have solved this lock, but need to declare your solution to access the lock."
-    AccessedReadNotes -> "You have read three notes on others' solutions to this lock, so have access to it."
+helpOfSelectable (SelAccessed name) = Just $
+    name ++ " did not pick this lock, but is privy to its secrets."
+helpOfSelectable (SelPublicLock) = Just
+    "Notes behind retired or public locks are public; locks with three public notes are public."
+helpOfSelectable (SelAccessedInfo meth) = Just $ case meth of
+    AccessedSolved -> "You picked this lock and declared your solution, so may read any notes it secures."
+    AccessedPublic -> "The secrets of this lock have been publically revealed."
+    AccessedUndeclared -> "You have picked this lock, but are yet to declare your solution."
+    AccessedReadNotes ->
+	"Having read three notes on others' solutions to this lock, you have unravelled its secrets."
+helpOfSelectable (SelOldLock ls) = Just $
+    "Retired lock, #"++show ls++". Any notes which were secured by the lock are now public knowledge."
+helpOfSelectable SelPrivyHeader = Just $
+    "Guild members privy to this lock's secrets, hence able to read its secured notes."
+helpOfSelectable SelNotesHeader = Just $
+    "Secured notes. Notes are obfuscated sketches of method, proving success but revealing little."
 helpOfSelectable _ = Nothing
 
 cmdAtMousePos pos@(mPos,central) im selMode = do

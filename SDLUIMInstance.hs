@@ -184,22 +184,22 @@ instance UIMonad (StateT UIState IO) where
 		let accesses = map (uncurry getAccessInfo) [(ourUInfo,sel),(selUInfo,us)]
 		lift $ do 
 		    fillArea (codenamePos<+>3<*>hv<+>hw) (map ((codenamePos<+>3<*>hv)<+>) [zero,hw,neg hv])
-			[ \pos -> (lift $ registerSelectable pos 0 (SelScoreLock (Just sel) access $ ActiveLock us i)) >>
+			[ \pos -> (lift $ registerSelectable pos 0 (SelScoreLock (Just sel) accessed $ ActiveLock us i)) >>
 			    drawNameWithCharAndCol us white (lockIndexChar i) col pos
 			| i <- [0..2]
-			, let (pub,access) = accesses !! 0 !! i
+			, let accessed = accesses !! 0 !! i
 			, let col
-				| pub = dim pubColour 
-				| access = dim $ scoreColour $ -3 
+				| accessed == Just AccessedPub = dim pubColour 
+				| isJust accessed = dim $ scoreColour $ -3 
 				| otherwise = obscure $ scoreColour 3 ]
 		    fillArea (codenamePos<+>2<*>neg hw) (map ((codenamePos<+>3<*>neg hw)<+>) [zero,hw,neg hv])
-			[ \pos -> (lift $ registerSelectable pos 0 (SelScoreLock Nothing access $ ActiveLock sel i)) >>
+			[ \pos -> (lift $ registerSelectable pos 0 (SelScoreLock Nothing accessed $ ActiveLock sel i)) >>
 			    drawNameWithCharAndCol sel white (lockIndexChar i) col pos
 			| i <- [0..2]
-			, let (pub,access) = accesses !! 1 !! i
+			, let accessed = accesses !! 1 !! i
 			, let col
-				| pub = obscure pubColour 
-				| access = dim $ scoreColour $ 3 
+				| accessed == Just AccessedPub = obscure pubColour 
+				| isJust accessed = dim $ scoreColour $ 3 
 				| otherwise = obscure $ scoreColour $ -3 ]
 		(usUnacc,selUnacc) <- MaybeT $ (snd<$>) <$> getRelScoreDetails sel
 		lift.lift.renderToMain $ sequence_ [renderStrColAt (scoreColour score) (sign:show (abs score)) pos
@@ -664,13 +664,17 @@ drawLockInfo al@(ActiveLock name i) (Just lockinfo) = do
 		lift $ registerSelectable centre 3 $ SelLock al
 	]
 
-    lift.renderToMain $ renderStrColAt dimWhiteCol "Accessed by:" $ accessedByPos <+> hv
+    size <- snd <$> lift getGeom
+    lift $ do
+	renderToMain $ displaceRender (SVec size 0) $ renderStrColAt (brightish white) "PRIVY" $ accessedByPos <+> hv
+	registerSelectable (accessedByPos <+> hv) 0 SelPrivyHeader
+	registerSelectable (accessedByPos <+> hv <+> hu) 0 SelPrivyHeader
     if public lockinfo
     then lift $ do
-	renderToMain $ renderStrColAt pubColour "Everyone!" accessedByPos
+	renderToMain $ renderStrColAt pubColour "All" accessedByPos
 	registerSelectable accessedByPos 1 SelPublicLock
     else if null $ accessedBy lockinfo
-	then lift.renderToMain $ renderStrColAt messageCol "No-one" accessedByPos
+	then lift.renderToMain $ renderStrColAt dimWhiteCol "No-one" accessedByPos
 	else fillArea accessedByPos
 		[ accessedByPos <+> d | j <- [0..2], i <- [-2..3]
 		    , i-j > -4, i-j < 3
@@ -691,22 +695,25 @@ drawLockInfo al@(ActiveLock name i) (Just lockinfo) = do
 	of
 	Just (col,str,selstr) -> lift $ do
 	    renderToMain $ renderStrColAt col str accessedPos
-	    registerSelectable accessedPos 1 (SelAccessedMethod selstr)
+	    registerSelectable accessedPos 1 (SelAccessedInfo selstr)
 	Nothing -> do
 	    read <- take 3 <$> getNotesReadOn lockinfo
 	    unless (ourName == Just name) $ do
 		let readPos = accessedPos <+> (-3)<*>hu
 		lift.renderToMain $ renderStrColAt (if length read == 3 then accColour else dimWhiteCol)
 		    "Read:" $ readPos
-		when (length read == 3) $ lift $ registerSelectable readPos 0 (SelAccessedMethod AccessedReadNotes)
+		when (length read == 3) $ lift $ registerSelectable readPos 0 (SelAccessedInfo AccessedReadNotes)
 		fillArea (accessedPos<+>neg hu) [ accessedPos <+> i<*>hu | i <- [-1..1] ]
 		    $ take 3 $ [ \pos -> (lift $ registerSelectable pos 0 (SelReadNote note)) >> drawName (noteAuthor note) pos
 			| note <- read ] ++ (repeat $ \pos -> (lift $ registerSelectable pos 0 SelReadNoteSlot >>
 				renderToMain (drawAtRel (hollowGlyph $ dim green) pos)))
 
-    lift.renderToMain $ renderStrColAt dimWhiteCol "Holds notes:" $ notesPos <+> hv
+    lift $ do
+	renderToMain $ displaceRender (SVec size 0) $ renderStrColAt (brightish white) "NOTES" $ notesPos <+> hv
+	registerSelectable (notesPos <+> hv) 0 SelNotesHeader
+	registerSelectable (notesPos <+> hv <+> hu) 0 SelNotesHeader
     if null $ notesSecured lockinfo
-	then lift.renderToMain $ renderStrColAt messageCol "None" notesPos
+	then lift.renderToMain $ renderStrColAt dimWhiteCol "None" notesPos
 	else fillArea notesPos
 		[ notesPos <+> d | j <- [0..2], i <- [-2..3]
 		    , i-j > -4, i-j < 3
