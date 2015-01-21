@@ -109,6 +109,7 @@ instance UIMonad (StateT UIState IO) where
 		(fst<$>mlock)
 	    lift $ when (not $ null path) $ do
 		renderToMain $ renderStrColAtLeft messageCol path $ lockLinePos <+> hu
+		registerSelectable (lockLinePos <+> 2<*>hu) 1 SelLockPath
 		sequence_
 		    [ registerButton (miniLockPos <+> 2<*>neg hv <+> hu <+> dv) cmd 4
 			[(dirText,hu<+>neg hw),("lock",hu<+>neg hv)]

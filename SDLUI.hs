@@ -213,6 +213,7 @@ data Selectable = SelOurLock
     | SelOldLock LockSpec
     | SelPublicLock
     | SelAccessedInfo AccessedInfo
+    | SelLockPath
     | SelPrivyHeader
     | SelNotesHeader
     deriving (Eq, Ord, Show)
@@ -249,6 +250,7 @@ commandOfSelectable IMMeta (SelRandom name) _ = CmdSelCodename $ Just name
 commandOfSelectable IMMeta (SelSecured note) False = CmdSelCodename $ Just $ lockOwner $ noteOn note
 commandOfSelectable IMMeta (SelSecured note) True = CmdViewSolution $ Just note
 commandOfSelectable IMMeta (SelOldLock ls) _ = CmdPlayLockSpec $ Just ls
+commandOfSelectable IMMeta (SelLockPath) _ = CmdSelectLock
 commandOfSelectable IMTextInput (SelLock (ActiveLock _ i)) _ = CmdInputSelLock i
 commandOfSelectable IMTextInput (SelScoreLock _ _ (ActiveLock _ i)) _ = CmdInputSelLock i
 commandOfSelectable IMTextInput (SelLockUnset _ (ActiveLock _ i)) _ = CmdInputSelLock i
@@ -313,6 +315,8 @@ helpOfSelectable (SelAccessedInfo meth) = Just $ case meth of
 	"Having read three notes on others' solutions to this lock, you have unravelled its secrets."
 helpOfSelectable (SelOldLock ls) = Just $
     "Retired lock, #"++show ls++". Any notes which were secured by the lock are now public knowledge."
+helpOfSelectable SelLockPath = Just $
+    "Select a lock by its name. The names you give your locks are not revealed to others."
 helpOfSelectable SelPrivyHeader = Just $
     "Guild members privy to this lock's secrets, hence able to read its secured notes."
 helpOfSelectable SelNotesHeader = Just $
