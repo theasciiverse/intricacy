@@ -101,12 +101,11 @@ instance UIMonad (StateT UIState IO) where
 	    let selName = listToMaybe names
 	    let home = isJust ourName && ourName == selName
 	    lift $ renderToMain $ (erase >> drawCursorAt Nothing)
-	    lift $ maybe (drawEmptyMiniLock miniLockPos)
-		(\lock -> do
-		    drawMiniLock lock miniLockPos
-		    registerSelectable miniLockPos 3 SelOurLock
-		    )
-		(fst<$>mlock)
+	    lift $ do
+		maybe (drawEmptyMiniLock miniLockPos)
+		    (\lock -> drawMiniLock lock miniLockPos)
+		    (fst<$>mlock)
+		registerSelectable miniLockPos 3 SelOurLock
 	    lift $ when (not $ null path) $ do
 		renderToMain $ renderStrColAtLeft messageCol path $ lockLinePos <+> hu
 		registerSelectable (lockLinePos <+> 2<*>hu) 1 SelLockPath
