@@ -101,6 +101,7 @@ physicsTick pm st =
 	(efs, dominates) = envForces st
     in do
 	st' <- resolveForces tfs Vector.empty (\_ _->False) $ setTools pm st
+	tell $ [AlertIntermediateState st']
 	resolveForces Vector.empty efs dominates $ setTools NullPM st'
 
 type Source = Int

@@ -16,6 +16,7 @@ import qualified Graphics.UI.SDL as SDL
 import qualified Graphics.UI.SDL.TTF as TTF
 import Control.Concurrent.STM
 import Control.Applicative hiding ((<*>))
+import System.Timeout
 import qualified Data.Map as Map
 import Data.Map (Map)
 import qualified Data.Vector as Vector
@@ -281,12 +282,13 @@ instance UIMonad (StateT UIState IO) where
 	refresh
 
     getInput mode = do
-	events <- liftIO $ nubMouseMotions <$> getEvents
+	fps <- gets fps
+	events <- liftIO $ nubMouseMotions <$> getEventsTimeout (10^6`div`fps)
 	oldUIState <- get
 	cmds <- concat <$> mapM processEvent events
 	setPaintFromCmds cmds
-	newUIState <- get
-	return $ cmds ++ if uistatesMayVisiblyDiffer oldUIState newUIState then [CmdRefresh] else []
+	addRefresh <- needRefresh oldUIState
+	return $ cmds ++ if addRefresh then [CmdRefresh] else []
 	where
 	    nubMouseMotions evs =
 		-- drop all but last mouse motion event
@@ -304,6 +306,12 @@ instance UIMonad (StateT UIState IO) where
 			    pt' <- pt
 			    CmdTile t <- Just cmd
 			    guard $ ((==)`on`tileType) t pt') ]
+	    needRefresh old = do
+		new <- get
+		now <- liftIO getTicks
+		anim <- maybe False (<now) <$> gets nextAnimFrameAt
+		return $ anim || uistatesMayVisiblyDiffer old new
+
 	    uistatesMayVisiblyDiffer uis1 uis2 =
 		uis1 { mousePos = (zero,False), lastFrameTicks=0 }
 		/= uis2 {mousePos = (zero,False), lastFrameTicks=0 }
@@ -508,6 +516,11 @@ getEvents = do
     es <- pollEvents
     return $ e:es
 
+getEventsTimeout us = do
+    es <- maybeToList <$> timeout us waitEvent
+    es' <- pollEvents
+    return $ es++es'
+
 pollEvents = do
     e <- pollEvent
     case e of
@@ -523,7 +536,7 @@ updateHoverStr mode = do
     hstr <- runMaybeT $ msum
 	[ MaybeT ( cmdAtMousePos p mode Nothing ) >>= lift . describeCommandAndKeys
 	, guard showBT >> MaybeT (helpAtMousePos p mode)
-	, guard showBT >> msum
+	, guard (showBT && mode == IMEdit) >> msum
 	    [ return $ "set paint mode: " ++ describeCommand (paintTileCmds!!i)
 	    | i <- take (length paintTiles) [0..]
 	    , mPos == paintButtonStart <+> i<*>hv ]

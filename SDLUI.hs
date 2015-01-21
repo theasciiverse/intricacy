@@ -71,6 +71,9 @@ data UIState = UIState { scrHeight::Int, scrWidth::Int
     , hoverStr :: Maybe String
     , dispCentre::HexPos
     , dispLastCol::PieceColouring
+    , animFrame::Int
+    , nextAnimFrameAt::Maybe Word32
+    , fps::Int
 #ifdef SOUND
     , sounds::Map String [Chunk]
 #endif
@@ -79,7 +82,7 @@ data UIState = UIState { scrHeight::Int, scrWidth::Int
 type UIM = StateT UIState IO
 nullUIState = UIState 0 0 Nothing Nothing Nothing Map.empty Map.empty []
     defaultUIOptions Nothing Map.empty Nothing Nothing 0 0 Nothing Nothing Nothing
-    (zero,False) Nothing Nothing (PHS zero) Map.empty
+    (zero,False) Nothing Nothing (PHS zero) Map.empty 0 Nothing 25
 #ifdef SOUND
     Map.empty
 #endif
@@ -91,9 +94,10 @@ data UIOptions = UIOptions
     , useBackground::Bool
     , showButtonText::Bool
     , useSounds::Bool
+    , uiAnimTime::Word32
     }
     deriving (Eq, Ord, Show, Read)
-defaultUIOptions = UIOptions False ShowBlocksBlocking Nothing True True True
+defaultUIOptions = UIOptions False ShowBlocksBlocking Nothing True True True 50
 modifyUIOptions f = modify $ \s -> s { uiOptions = f $ uiOptions s }
 
 renderToMain :: RenderM a -> UIM a
@@ -454,19 +458,38 @@ drawMainGameState highlight colourFixed alerts st = do
 drawMainGameState' :: DrawArgs -> UIM ()
 drawMainGameState' args@(DrawArgs highlight colourFixed alerts st uiopts) = do
     lastArgs <- gets lastDrawArgs
-    void $ if lastArgs == Just args
+    when (lastArgs /= Just args) $
+	modify $ \ds -> ds { animFrame = 0, nextAnimFrameAt = Nothing }
+
+    lastAnimFrame <- gets animFrame
+    now <- liftIO getTicks
+    anim <- maybe False (<now) <$> gets nextAnimFrameAt
+    when anim $
+	modify $ \ds -> ds { animFrame = lastAnimFrame+1, nextAnimFrameAt = Nothing }
+    animFrameToDraw <- gets animFrame
+    void $ if (lastArgs == Just args && lastAnimFrame == animFrameToDraw)
 	then do
 	    vidSurf <- liftIO getVideoSurface
 	    gsSurf <- liftM fromJust $ gets gsSurface
 	    liftIO $ blitSurface gsSurf Nothing vidSurf Nothing
 	else do
 	    modify $ \ds -> ds { lastDrawArgs = Just args }
-	    let board = stateBoard st
+
+	    let animSts = [ st | AlertIntermediateState st <- alerts ] ++ [st]
+	    let drawSt = animSts !! animFrameToDraw
+	    -- let drawAlerts = takeWhile (/= AlertIntermediateState drawSt) alerts
+	    let drawAlerts = alerts
+	    nextIsSet <- isJust <$> gets nextAnimFrameAt
+	    when (not nextIsSet && length animSts > animFrameToDraw+1) $ do
+		time <- uiAnimTime <$> gets uiOptions
+		modify $ \ds -> ds { nextAnimFrameAt = Just $ now + time }
+
+	    let board = stateBoard drawSt
 	    lastCol <- gets dispLastCol
-	    let coloured = colouredPieces colourFixed st
+	    let coloured = colouredPieces colourFixed drawSt
 	    let colouring = if useFiveColouring uiopts
-		then boardColouring st coloured lastCol
-		else pieceTypeColouring st coloured
+		then boardColouring drawSt coloured lastCol
+		else pieceTypeColouring drawSt coloured
 	    modify $ \ds -> ds { dispLastCol = colouring }
 	    gsSurf <- liftM fromJust $ gets gsSurface
 	    renderToMainWithSurf gsSurf $ do
@@ -476,15 +499,15 @@ drawMainGameState' args@(DrawArgs highlight colourFixed alerts st uiopts) = do
 		    ]
 
 		when (showBlocks uiopts /= ShowBlocksNone) $ sequence_
-		    $ [ drawBlocked st colouring False force
-			| AlertBlockedForce force <- alerts
+		    $ [ drawBlocked drawSt colouring False force
+			| AlertBlockedForce force <- drawAlerts
 			, showBlocks uiopts == ShowBlocksAll ]
-		    ++ [ drawBlocked st colouring True force
-			| AlertBlockingForce force <- alerts ]
-		    -- ++ [ drawBlocked st colouring True force |
-		    -- AlertResistedForce force <- alerts ]
+		    ++ [ drawBlocked drawSt colouring True force
+			| AlertBlockingForce force <- drawAlerts ]
+		    -- ++ [ drawBlocked drawSt colouring True force |
+		    -- AlertResistedForce force <- drawAlerts ]
 		    ++ [ drawAt collisionMarker pos
-			| AlertCollision pos <- alerts ]
+			| AlertCollision pos <- drawAlerts ]
 	    vidSurf <- liftIO getVideoSurface
 	    liftIO $ blitSurface gsSurf Nothing vidSurf Nothing
 

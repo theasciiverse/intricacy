@@ -83,4 +83,5 @@ data Alert = AlertCollision HexPos | AlertBlockingForce Force
 	   | AlertResistedForce Force | AlertBlockedForce Force
 	   | AlertAppliedForce Force | AlertDivertedWrench PieceIdx
 	   | AlertUnlocked
+	   | AlertIntermediateState GameState
     deriving (Eq, Ord, Show)
