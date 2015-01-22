@@ -22,6 +22,7 @@ import Control.Monad.Trans.Class
 import qualified Data.Map as Map
 import Data.List (maximumBy)
 import Data.Function (on)
+import GHC.Int (Int16)
 
 import Hex
 import GameState
@@ -56,6 +57,18 @@ filledCircleAt surf centre@(SVec x y) rad col =
 rimmedCircle surf centre@(SVec x y) rad fillCol rimCol = void $ do
     filledCircleAt surf centre rad fillCol
     circleAt surf centre rad $ opaquify rimCol
+
+thickLine :: Surface -> (Int16,Int16) -> (Int16,Int16) -> Float -> Pixel -> IO ()
+thickLine surf from@(x,y) to@(x',y') thickness col = do
+    let (dx,dy) = (x'-x,y'-y)
+	[rdx,rdy] = map fromIntegral [dx,dy]
+	s = thickness / (sqrt $ rdx^2 + rdy^2)
+	perp@(px,py) = (round $ s*rdy, round $ s*(-rdx))
+	mperp = (-px,-py)
+	addHalf (a,b) (c,d) = ( (2*a + c) `div` 2, (2*b + d) `div` 2 )
+    rimmedPolygon surf
+	(map (uncurry addHalf) [(from,perp),(to,perp),(from,mperp),(to,mperp)])
+	(dim col) (bright col)
 
 type Glyph = SVec -> Int -> Surface -> IO ()
 
@@ -140,7 +153,7 @@ tileGlyph (PivotTile dir) col centre size surf = do
 	    to = edge centre rad dir
 
 tileGlyph (ArmTile dir _) col centre size surf =
-    void $ aaLine surf `uncurry` from `uncurry` to $ bright col
+    void $ thickLine surf from to 1 col
 	where
 	    dir' = if dir == zero then hu else dir
 	    from = edge centre size $ neg dir'
