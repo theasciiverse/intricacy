@@ -62,6 +62,7 @@ instance UIMonad (StateT UIState IO) where
 	    drawButtons mode
 	    drawUIOptionButtons mode
 	    drawMsgLine
+	    drawShortMouseHelp mode
 	    refresh
 	where
 	drawMainState' (PlayState { psCurrentState=st, psLastAlerts=alerts, wrenchSelected=wsel }) = do
@@ -436,7 +437,8 @@ instance UIMonad (StateT UIState IO) where
 	    doWheel dw = do
 		rb <- isJust <$> gets rightButtonDown
 		mb <- isJust <$> gets middleButtonDown
-		if ((rb||mb) && mode /= IMEdit) || (mb && mode == IMEdit)
+		if ((rb || mb || mode == IMReplay) && mode /= IMEdit)
+		    || (mb && mode == IMEdit)
 		then return [ if dw == 1 then CmdUndo else CmdRedo ]
 		else if mode /= IMEdit || rb
 		then return [ CmdRotate WHSSelected dw ]
@@ -473,18 +475,18 @@ instance UIMonad (StateT UIState IO) where
 	    let bdgWidth = (screenWidthHexes-6) `div` 3
 		showKeys chs = intercalate "/" (map showKeyFriendly chs)
 		maxkeyslen = maximum . (0:) $ map (length.showKeys.map fst) $ groupBy ((==) `on` snd) bdgs
-		mouseHelpStrs = ["Mouse commands:", "Right-click on a button to set a keybinding;"] ++ case mode of
-		    IMPlay -> ["Click on tool to select, drag to move;",
-			"Click by tool to move; right-click to wait;", "Scroll wheel to rotate hook;",
-			"Scroll wheel with right button held down to undo/redo."]
-		    IMEdit -> ["Left-click to draw selected; scroll to change selection;",
-			"Right-click on piece to select, drag to move;",
-			"While holding right-click: left-click to advance time, middle-click to delete;",
-			"Scroll wheel to rotate selected piece; scroll wheel while held down to undo/redo."]
-		    IMReplay -> ["Scroll wheel with right button held down to undo/redo."]
-		    IMMeta -> ["Left-clicking on something does most obvious thing;",
-			"Right-clicking does second-most obvious thing."]
-
+		mouseHelpStrs = ["Mouse commands:", "Right-click on a button to set a keybinding;"]
+		    ++ case mode of
+			IMPlay -> ["Click on tool to select, drag to move;",
+			    "Click by tool to move; right-click to wait;", "Scroll wheel to rotate hook;",
+			    "Scroll wheel with right button held down to undo/redo."]
+			IMEdit -> ["Left-click to draw selected; scroll to change selection;",
+			    "Right-click on piece to select, drag to move;",
+			    "While holding right-click: left-click to advance time, middle-click to delete;",
+			    "Scroll wheel to rotate selected piece; scroll wheel while held down to undo/redo."]
+			IMReplay -> ["Scroll wheel with right button held down to undo/redo."]
+			IMMeta -> ["Left-clicking on something does most obvious thing;",
+			    "Right-clicking does second-most obvious thing."]
 	    renderStrColAt messageCol "Keybindings:" $ (screenHeightHexes`div`4)<*>(hv<+>neg hw)
 	    sequence_ [ with $ renderStrColAtLeft messageCol
 			( keysStr ++ ": " ++ desc )
@@ -510,6 +512,35 @@ instance UIMonad (StateT UIState IO) where
 			  <+> (y`mod`2)<*>hw
 		| (str,y) <- zip mouseHelpStrs [0..] ]
 	refresh
+
+drawShortMouseHelp mode = do
+    mwhs <- gets $ whsButtons.uiOptions
+    showBT <- showButtonText <$> gets uiOptions
+    when (showBT && isNothing mwhs) $ do
+	let helps = shortMouseHelp mode
+	smallFont <- gets dispFontSmall
+	renderToMain $ withFont smallFont $ sequence_
+	    [ renderStrColAtLeft (dim cyan) help
+		(periphery 3 <+> neg hu <+> (2-n)<*>hv )
+	    | (n,help) <- zip [0..] helps ]
+    where
+	shortMouseHelp IMPlay =
+	    [ "LMB: select/move tool"
+	    , "LMB+drag: move tool"
+	    , "Wheel: turn hook"
+	    , "RMB: wait a turn"
+	    , "RMB+Wheel: undo/redo"
+	    ]
+	shortMouseHelp IMEdit =
+	    [ "LMB: paint; Ctrl+LMB: delete"
+	    , "Wheel: set paint type"
+	    , "RMB: select piece; drag to move"
+	    , "RMB+LMB: wait; RMB+MMB: delete piece"
+	    , "MMB+Wheel: undo/redo"
+	    ]
+	shortMouseHelp IMReplay =
+	    [ "Wheel: advance/regress time" ]
+	shortMouseHelp _ = []
 
 getEvents = do
     e <- waitEvent

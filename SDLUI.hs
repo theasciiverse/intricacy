@@ -144,33 +144,13 @@ getButtons mode = do
 	    singleButton (tl<+>hv<+>neg hw) CmdTest 4 [("test", hu<+>neg hw)]
 	    , singleButton (tl<+>(neg hw)) CmdPlay 2 [("play", hu<+>neg hw)]
 	    , markGroup
-	    , singleButton (br<+>2<*>hu) CmdWriteState 2 [("save", hu<+>neg hw)]
-	    , ( [ Button (bl<+>dir) (CmdDir WHSSelected dir) [] | dir <- hexDirs ] ++
-		[ Button (bl<+>((-2)<*>hv)) (CmdRotate WHSSelected (-1)) []
-		, Button (bl<+>((-2)<*>hw)) (CmdRotate WHSSelected 1) [] ], (4,0) )
-	    , ( [ Button bl CmdSelect [] ], (0,0))
-	    , ([Button (paintButtonStart <+> hu <+> i<*>hv) (paintTileCmds!!i) []
-		| i <- take (length paintTiles) [0..] ],(5,0))
-	    ]
+	    , singleButton (br<+>2<*>hu) CmdWriteState 2 [("save", hu<+>neg hw)] ]
+	    ++ whsBGs mwhs mode
+	    ++ [ ([Button (paintButtonStart <+> hu <+> i<*>hv) (paintTileCmds!!i) []
+		| i <- take (length paintTiles) [0..] ],(5,0)) ]
 	IMPlay -> 
 	    [ markGroup ]
-	    ++ case mwhs of
-		Nothing -> []
-		Just whs -> 
-		    [ ( [ Button bl CmdWait [] ], (0,0))
-		    , ( [ Button (bl<+>dir) (CmdDir whs dir) 
-			    (if dir==hu then [("move",hu<+>neg hw),(whsStr whs,hu<+>neg hv)] else [])
-			| dir <- hexDirs ], (4,0) )
-		    ] ++
-		    (if whs == WHSWrench then [] else
-			[ ( [ Button (bl<+>((-2)<*>hv)) (CmdRotate whs (-1)) [("turn",hu<+>neg hw),("cw",hu<+>neg hv)]
-			    , Button (bl<+>((-2)<*>hw)) (CmdRotate whs 1) [("turn",hu<+>neg hw),("ccw",hu<+>neg hv)]
-			    ], (4,0) )
-		    ]) ++
-		    (if whs /= WHSSelected then [] else
-			[ ( [ Button (bl<+>(2<*>hv)<+>hw<+>neg hu) (CmdTile $ HookTile) [("select",hu<+>neg hw),("hook",hu<+>neg hv)]
-			    , Button (bl<+>(2<*>hv)<+>neg hu) (CmdTile $ WrenchTile zero) [("select",hu<+>neg hw),("wrench",hu<+>neg hv)]
-			    ], (2,0) ) ])
+	    ++ whsBGs mwhs mode
 	    ++ [ singleButton tr CmdOpen 1 [("open", hu<+>neg hw)] ]
 	IMReplay -> [ markGroup ]
 	IMMeta ->
@@ -190,6 +170,28 @@ getButtons mode = do
 	    global = if mode == IMTextInput then [] else
 		[ singleButton br CmdQuit 0 [("quit",hu<+>neg hw)]
 		, singleButton (tr <+> 3<*>hv <+> 3<*>hu) CmdHelp 3 [("help",hu<+>neg hw)] ]
+	    whsBGs :: Maybe WrHoSel -> InputMode -> [ ButtonGroup ]
+	    whsBGs Nothing _ = []
+	    whsBGs (Just whs) mode =
+		let edit = mode == IMEdit
+		in [ ( [ Button bl (if edit then CmdSelect else CmdWait) [] ], (0,0))
+		, ( [ Button (bl<+>dir) (CmdDir whs dir) 
+			(if dir==hu then [("move",hu<+>neg hw),(if edit then "piece" else whsStr whs,hu<+>neg hv)] else [])
+		    | dir <- hexDirs ], (4,0) )
+		] ++
+		(if whs == WHSWrench then [] else
+		    [ ( [ Button (bl<+>((-2)<*>hv))
+			    (CmdRotate whs (-1))
+			    [("turn",hu<+>neg hw),("cw",hu<+>neg hv)]
+			, Button (bl<+>((-2)<*>hw))
+			    (CmdRotate whs 1)
+			    [("turn",hu<+>neg hw),("ccw",hu<+>neg hv)]
+			], (4,0) )
+		]) ++
+		(if whs /= WHSSelected || mode == IMEdit then [] else
+		    [ ( [ Button (bl<+>(2<*>hv)<+>hw<+>neg hu) (CmdTile $ HookTile) [("select",hu<+>neg hw),("hook",hu<+>neg hv)]
+			, Button (bl<+>(2<*>hv)<+>neg hu) (CmdTile $ WrenchTile zero) [("select",hu<+>neg hw),("wrench",hu<+>neg hv)]
+			], (2,0) ) ])
 	    tr = periphery 0
 	    tl = periphery 2
 	    bl = periphery 3
@@ -354,9 +356,9 @@ uiOB2 = UIOptButton showBlocks (\v o -> o {showBlocks=v}) [ShowBlocksBlocking,Sh
 uiOB3 = UIOptButton whsButtons (\v o -> o {whsButtons=v}) [Nothing, Just WHSSelected, Just WHSWrench, Just WHSHook]
 	(periphery 3 <+> 3 <*> hv) whsButtonsButton
 	(\v -> case v of
-	    Nothing -> "Click to show keyboard control buttons for tools."
+	    Nothing -> "Showing mouse controls; click to show keyboard control buttons."
 	    Just whs -> "Showing buttons for controlling " ++ case whs of
-		WHSSelected -> "selected tool"
+		WHSSelected -> "selected piece"
 		WHSWrench -> "wrench"
 		WHSHook -> "hook")
 uiOB4 = UIOptButton showButtonText (\v o -> o {showButtonText=v}) [True,False]
@@ -373,11 +375,10 @@ drawUIOptionButtons mode = do
     when (mode `elem` [IMPlay, IMEdit]) $ do
 	drawUIOptionButton uiOB1
 	drawUIOptionButton uiOB2
+	drawUIOptionButton uiOB3
 #ifdef SOUND
 	drawUIOptionButton uiOB5
 #endif
-    when (mode == IMPlay) $
-	drawUIOptionButton uiOB3
     drawUIOptionButton uiOB4
 drawUIOptionButton b = do
     value <- gets $ (getUIOpt b).uiOptions
