@@ -37,9 +37,10 @@ import CVec
 
 data UIState = UIState { dispCPairs::[Curses.Pair], dispCentre::HexPos
     , dispLastCol::PieceColouring, uiKeyBindings :: Map InputMode KeyBindings
+    , monochrome::Bool
     , message::Maybe (Curses.Attr, ColPair, String)}
 type UIM = StateT UIState IO
-nullUIState = UIState [] (PHS zero) Map.empty Map.empty Nothing
+nullUIState = UIState [] (PHS zero) Map.empty Map.empty False Nothing
 
 readBindings :: UIM ()
 readBindings = do 
@@ -115,8 +116,9 @@ drawState reversed colourFixed alerts st = do
 -- TODO: monochrome mode
 drawStateWithGeom reversed colourFixed lastCol st geom = do
     let colouring = boardColouring st (colouredPieces colourFixed st) lastCol
-    sequence_ [ drawAtWithGeom glyph pos geom | 
-	(pos,glyph) <- Map.toList $ fmap (ownedTileGlyph colouring reversed) $ stateBoard st
+    mono <- gets monochrome
+    sequence_ [ drawAtWithGeom glyph pos geom |
+	(pos,glyph) <- Map.toList $ fmap (ownedTileGlyph mono colouring reversed) $ stateBoard st
 	]
     return colouring
 

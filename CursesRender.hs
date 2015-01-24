@@ -19,6 +19,7 @@ import Hex
 import CVec
 import GameStateTypes
 import BoardColouring (PieceColouring)
+import AsciiLock
 
 -- From Curses.CursesHelper:
 -- | Converts a list of 'Curses.Color' pairs (foreground color and
@@ -74,8 +75,10 @@ tileChar (SpringTile Compressed _) = ('$',bold)
 tileChar (SpringTile Stretched _) = ('s',bold)
 tileChar _ = ('?',bold)
 
-ownedTileGlyph :: PieceColouring -> [PieceIdx] -> OwnedTile -> Glyph
-ownedTileGlyph colouring reversed (owner,t) =
+ownedTileGlyph :: Bool -> PieceColouring -> [PieceIdx] -> OwnedTile -> Glyph
+ownedTileGlyph True colouring reversed ot =
+    Glyph (monochromeOTileChar colouring ot) white a0
+ownedTileGlyph False colouring reversed (owner,t) =
     let (ch,attr) = tileChar t
 	pair = case Map.lookup owner colouring of
 		    Nothing -> 0

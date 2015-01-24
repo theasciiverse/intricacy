@@ -330,6 +330,8 @@ instance UIMonad (StateT UIState IO) where
     warpPointer _ = return ()
     setYNButtons = return ()
 
+    toggleColourMode = modify $ \s -> s {monochrome = not $ monochrome s}
+
     getDrawImpatience = return $ \_ -> return ()
 
     getInput mode = do

@@ -128,7 +128,7 @@ processCommand' im CmdBind = lift $ flip (>>) (drawMessage "") $ void $ runMaybe
 	ch <- MaybeT getChRaw
 	guard $ ch /= '\ESC'
 	lift $ setUIBinding im cmd ch
-
+processCommand' _ CmdToggleColourMode = lift toggleColourMode
 processCommand' _ CmdSuspend = lift $ suspend
 processCommand' _ CmdRedraw = lift $ redraw
 processCommand' im CmdMark = void.runMaybeT $ do

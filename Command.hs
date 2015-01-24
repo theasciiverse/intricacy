@@ -39,6 +39,7 @@ data Command = CmdDir WrHoSel HexDir | CmdRotate WrHoSel TorqueDir | CmdWait
 	| CmdEdit | CmdPlaceLock (Maybe LockIndex)
 	| CmdRegister | CmdAuth
 	| CmdNextPage | CmdPrevPage
+        | CmdToggleColourMode
 	| CmdRedraw | CmdRefresh | CmdSuspend
 	| CmdQuit | CmdForceQuit
 	| CmdHelp | CmdBind
@@ -89,6 +90,7 @@ describeCommand (CmdPlaceLock mli) = "place lock" ++ maybe "" ((' ':).(:"").lock
 describeCommand CmdRegister = "register codename"
 describeCommand CmdAuth = "authenticate"
 describeCommand CmdBind = "bind key"
+describeCommand CmdToggleColourMode = "toggle lock colour mode"
 describeCommand CmdQuit = "quit"
 describeCommand CmdHelp = "help"
 describeCommand _ = ""

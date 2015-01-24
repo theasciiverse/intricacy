@@ -282,6 +282,9 @@ instance UIMonad (StateT UIState IO) where
 	drawButtons IMTextInput
 	refresh
 
+    toggleColourMode = modify $ \s -> s {uiOptions = (uiOptions s){
+        useFiveColouring = not $ useFiveColouring $ uiOptions s}}
+
     getInput mode = do
 	fps <- gets fps
 	events <- liftIO $ nubMouseMotions <$> getEventsTimeout (10^6`div`fps)

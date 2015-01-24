@@ -9,7 +9,7 @@
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
 module AsciiLock (lockToAscii, lockOfAscii, stateToAscii
-    , readAsciiLockFile, writeAsciiLockFile) where
+    , readAsciiLockFile, writeAsciiLockFile, monochromeOTileChar) where
 
 import Data.Function (on)
 import Control.Applicative hiding ((<*>))

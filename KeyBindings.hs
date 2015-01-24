@@ -104,6 +104,7 @@ miscGlobal = lowerToo
     , (ctrl 'B', CmdBind)
     , (ctrl 'L', CmdRedraw)
     , (ctrl 'Z', CmdSuspend)
+    , ('%', CmdToggleColourMode)
     ]
 
 lockGlobal = keypadHex ++ qwertyViHex ++ miscGlobal ++ miscLockGlobal
