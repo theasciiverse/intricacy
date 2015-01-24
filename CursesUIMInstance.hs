@@ -64,9 +64,25 @@ drawName showScore pos name = do
 	(name ++ if showScore then " " ++ maybe "" show relScore else "")
 
 drawActiveLock :: CVec -> ActiveLock -> StateT MainState UIM ()
-drawActiveLock pos (ActiveLock name i) = do
+drawActiveLock pos al@(ActiveLock name i) = do
+    accessed <- accessedAL al
+    drawNameWithChar pos name
+	(if accessed then green else white)
+	(lockIndexChar i)
+
+drawNameWithChar :: CVec -> Codename -> ColPair -> Char -> StateT MainState UIM ()
+drawNameWithChar pos name charcol char = do
     drawName False (pos <+> CVec 0 (-1)) name
-    lift $ drawStr bold white (pos <+> CVec 0 1) [':',lockIndexChar i]
+    lift $ drawStr bold charcol (pos <+> CVec 0 1) [':',char]
+
+drawNote :: CVec -> NoteInfo -> StateT MainState UIM ()
+drawNote pos note = case noteBehind note of
+    Just al -> drawActiveLock pos al
+    Nothing -> drawPublicNote pos (noteAuthor note)
+    where
+        drawPublicNote pos name =
+            drawNameWithChar pos name magenta 'P'
+
 
 data Gravity = GravUp | GravLeft | GravRight | GravDown | GravCentre
     deriving (Eq, Ord, Show, Enum)
@@ -124,8 +140,10 @@ drawLockInfo al@(ActiveLock name i) lockinfo = do
 	    then lift $ drawStrCentred a0 white (CVec (lockTop-1) vcentre) "No-one"
 		>> return (lockTop-1)
 	    else
-		fillBox (CVec (top+1) (left+1)) (CVec (lockTop-1) (right-1)) 3 GravDown $
-		    [ \pos -> drawName False pos name | name <- accessedBy lockinfo ]
+		fillBox (CVec (top+1) (left+1)) (CVec (lockTop-1) (right-1)) 5 GravDown $
+        [ \pos -> drawNote pos note | note <- lockSolutions lockinfo ] ++
+        [ \pos -> drawName False pos name
+		    | name <- accessedBy lockinfo \\ map noteAuthor (lockSolutions lockinfo) ]
     lift $ drawStrCentred a0 white (CVec (startOn-1) vcentre) "Accessed by:"
     
     undecls <- gets undeclareds
