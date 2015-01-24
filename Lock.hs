@@ -37,7 +37,7 @@ validLock :: Lock -> Bool
 validLock lock@(f,st) = and
     [ st == stepPhysics st
     , lock == reframe lock
-    , validGameState st 
+    , validGameState st
     ]
 
 stepPhysics :: GameState -> GameState

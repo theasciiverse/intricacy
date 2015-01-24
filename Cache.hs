@@ -49,7 +49,7 @@ getRecordCached saddr auth mflag cOnly rec = do
 	    let action = case rec of
 		    RecUserInfo name ->
 			let curVersion = (\(RCUserInfo (v,_)) -> v) <$> fromCache
-			in GetUserInfo name curVersion 
+			in GetUserInfo name curVersion
 		    _ -> askForRecord rec
 	    resp <- makeRequest saddr (ClientRequest
 		    protocolVersion (if needsAuth action then auth else Nothing) action)
@@ -83,7 +83,7 @@ makeRequest saddr@(ServerAddr host port) request =
 	    `catchIO` (const $ return $ ServerError $ "Cannot connect to "++saddrStr saddr++"!")
     where
 	makeRequest' hdl = do
-	    BS.hPut hdl $ BL.toStrict $ encode request 
+	    BS.hPut hdl $ BL.toStrict $ encode request
 	    hFlush hdl
 	    (decode . BL.fromStrict) `liftM` BS.hGetContents hdl
 

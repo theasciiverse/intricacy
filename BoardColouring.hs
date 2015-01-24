@@ -41,7 +41,7 @@ pieceTypeColouring st coloured = Map.fromList
     [ (idx, col) | (idx, PlacedPiece _ p) <- enumVec $ placedPieces st
 	, idx `elem` coloured
 	, let col = if isBlock p then 1+((connGraphHeight st idx - 1) `mod` 5) else 0 ]
-    
+
 
 boardColouring :: GameState -> [PieceIdx] -> PieceColouring -> PieceColouring
 boardColouring st coloured lastCol =
@@ -50,7 +50,7 @@ boardColouring st coloured lastCol =
 	board = stateBoard st
 	graph = Map.fromList [ (idx, nub $ neighbours idx)
 	    | idx <- coloured ]
-	neighbours idx = 
+	neighbours idx =
 	    neighbours' idx (perim idx) []
 	perim :: PieceIdx -> Set (HexPos,HexDir)
 	perim idx =
@@ -63,7 +63,7 @@ boardColouring st coloured lastCol =
 		    return $ idx == idx'
 		]
 	neighbours' :: PieceIdx -> Set (HexPos,HexDir) -> [PieceIdx] -> [PieceIdx]
-	neighbours' idx as ns 
+	neighbours' idx as ns
 	    | Set.null as = ns
 	    | otherwise =
 		let a = head $ Set.elems as
@@ -76,13 +76,13 @@ boardColouring st coloured lastCol =
 	march idx startPos (pos,basedir) init
 	    | not init && pos == startPos = ([],[])
 	    | otherwise =
-	    let n = do 
+	    let n = do
 		    (idx',_) <- Map.lookup pos board
 		    guard $ idx' `elem` coloured
 		    return idx'
-		mNext = listToMaybe 
+		mNext = listToMaybe
 		    [ (pos', rotate (h-2) basedir)
-		    | h <- [1..5] 
+		    | h <- [1..5]
 		    , let pos' = (rotate h basedir)<+>pos
 		    , (fst <$> Map.lookup pos' board) /= Just idx
 		    ]

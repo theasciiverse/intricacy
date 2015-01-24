@@ -61,7 +61,7 @@ getMany = go []
 
 instance Binary HexVec where
     put (HexVec x y _) = putPackedInt x >> putPackedInt y
-    get = do 
+    get = do
 	x <- getPackedInt
 	y <- getPackedInt
 	return $ tupxy2hv (x,y)

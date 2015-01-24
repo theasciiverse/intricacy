@@ -17,6 +17,6 @@ import qualified CursesUI (UIM)
 import CursesUIMInstance ()
 import MainState
 
-main = main' 
+main = main'
     (Just (doUI::SDLUI.UIM MainState -> IO (Maybe MainState)))
     (Just (doUI::CursesUI.UIM MainState -> IO (Maybe MainState)))

@@ -22,7 +22,7 @@ data Frame = BasicFrame Int
 
 frameSize :: Frame -> Int
 frameSize (BasicFrame size) = size
- 
+
 bolthole, entrance :: Frame -> HexVec
 bolthole (BasicFrame size) = size<*>hu <+> (size`div`2)<*>hv
 entrance f = neg $ bolthole f
@@ -33,7 +33,7 @@ boltWidth (BasicFrame size) = size`div`4+1
 
 baseState :: Frame -> GameState
 baseState f =
-    GameState 
+    GameState
 	(Vector.fromList $ [ framePiece f, bolt ] ++ (initTools f))
 	[]
     where
@@ -49,7 +49,7 @@ framePiece f@(BasicFrame size) =
 	++ (map (entrance f <+>) [neg hu <+> hv, 2 <*> neg hu, neg hu <+> hw,
 		2 <*> hw, neg hv <+> hw])
 	++ (concat [
-		map (rotate r) [ (n<*>hu) <+> (size<*>hw) | n <- [0..size-1] ] | r <- [0..5] ] \\ 
+		map (rotate r) [ (n<*>hu) <+> (size<*>hw) | n <- [0..size-1] ] | r <- [0..5] ] \\
 	    [bolthole f, entrance f])
     where bw = boltWidth f
 

@@ -133,13 +133,13 @@ instance UIMonad (StateT UIState IO) where
 			    renderToMain $ withFont smallFont $ renderStrColAtLeft (opaquify $ dim errorCol) "(stale)" $ serverWaitPos
 			maybe (return ()) (setMsgLineNoRefresh errorCol) err
 			when (fresh && (isNothing ourName || home || isNothing muirc)) $
-			    let reg = (isNothing muirc && isNothing ourName) || home  
+			    let reg = (isNothing muirc && isNothing ourName) || home
 			    in registerButton (codenamePos <+> hw <+> 2<*>hu)
 				(if reg then CmdRegister else CmdAuth) 2 [(if reg then "reg" else "auth", hu<+>neg hv)]
 		    (if isJust muirc then drawName else drawNullName) name codenamePos
 		    lift $ registerSelectable codenamePos 0 (SelSelectedCodeName name)
 		    drawRelScore name (codenamePos<+>hu)
-		    for_ muirc $ \(RCUserInfo (_,uinfo)) -> case mretired of 
+		    for_ muirc $ \(RCUserInfo (_,uinfo)) -> case mretired of
 			    Just retired -> do
 				fillArea locksPos
 				    (map (locksPos<+>) $ zero:[rotate n $ 4<*>hu<->4<*>hw | n <- [0,2,3,5]])
@@ -183,15 +183,15 @@ instance UIMonad (StateT UIState IO) where
 		ourUInfo <- mgetUInfo us
 		selUInfo <- mgetUInfo sel
 		let accesses = map (uncurry getAccessInfo) [(ourUInfo,sel),(selUInfo,us)]
-		lift $ do 
+		lift $ do
 		    fillArea (codenamePos<+>3<*>hv<+>hw) (map ((codenamePos<+>3<*>hv)<+>) [zero,hw,neg hv])
 			[ \pos -> (lift $ registerSelectable pos 0 (SelScoreLock (Just sel) accessed $ ActiveLock us i)) >>
 			    drawNameWithCharAndCol us white (lockIndexChar i) col pos
 			| i <- [0..2]
 			, let accessed = accesses !! 0 !! i
 			, let col
-				| accessed == Just AccessedPub = dim pubColour 
-				| isJust accessed = dim $ scoreColour $ -3 
+				| accessed == Just AccessedPub = dim pubColour
+				| isJust accessed = dim $ scoreColour $ -3
 				| otherwise = obscure $ scoreColour 3 ]
 		    fillArea (codenamePos<+>2<*>neg hw) (map ((codenamePos<+>3<*>neg hw)<+>) [zero,hw,neg hv])
 			[ \pos -> (lift $ registerSelectable pos 0 (SelScoreLock Nothing accessed $ ActiveLock sel i)) >>
@@ -199,8 +199,8 @@ instance UIMonad (StateT UIState IO) where
 			| i <- [0..2]
 			, let accessed = accesses !! 1 !! i
 			, let col
-				| accessed == Just AccessedPub = obscure pubColour 
-				| isJust accessed = dim $ scoreColour $ 3 
+				| accessed == Just AccessedPub = obscure pubColour
+				| isJust accessed = dim $ scoreColour $ 3
 				| otherwise = obscure $ scoreColour $ -3 ]
 		(usUnacc,selUnacc) <- MaybeT $ (snd<$>) <$> getRelScoreDetails sel
 		lift.lift.renderToMain $ sequence_ [renderStrColAt (scoreColour score) (sign:show (abs score)) pos
@@ -258,7 +258,7 @@ instance UIMonad (StateT UIState IO) where
     getDrawImpatience = do
 	curState <- get
 	let pos = serverWaitPos
-	return $ \ticks -> void $ flip runStateT curState $ do 
+	return $ \ticks -> void $ flip runStateT curState $ do
 	    when (ticks>2) $ renderToMain $ do
 		mapM (drawAtRel (filledHexGlyph $ bright black)) [ pos <+> i<*>hu | i <- [0..3] ]
 		withFont (dispFontSmall curState) $
@@ -434,7 +434,7 @@ instance UIMonad (StateT UIState IO) where
 		return [ CmdRedraw ]
 	    processEvent VideoExpose = return [ CmdRedraw ]
 	    processEvent Quit = return [ CmdForceQuit ]
-		
+
 	    processEvent _ = return []
 
 	    doWheel dw = do
@@ -448,7 +448,7 @@ instance UIMonad (StateT UIState IO) where
 		else do
 		    modify $ \s -> s { paintTileIndex = (paintTileIndex s + dw) `mod` (length paintTiles) }
 		    return []
-		
+
 
 	    drawCmd mt True = CmdPaint mt
 	    drawCmd (Just t) False = CmdTile t
@@ -473,7 +473,7 @@ instance UIMonad (StateT UIState IO) where
     showHelp mode = do
 	bdgs <- nub <$> getBindings mode
 	smallFont <- gets dispFontSmall
-	renderToMain $ do 
+	renderToMain $ do
 	    erase
 	    let bdgWidth = (screenWidthHexes-6) `div` 3
 		showKeys chs = intercalate "/" (map showKeyFriendly chs)
@@ -590,7 +590,7 @@ updateHoverStr mode = do
 		++ "]"
 
 
-fillArea :: HexVec -> [HexVec] -> [HexVec -> StateT MainState UIM ()] -> StateT MainState UIM () 
+fillArea :: HexVec -> [HexVec] -> [HexVec -> StateT MainState UIM ()] -> StateT MainState UIM ()
 fillArea centre area draws = do
     offset <- gets listOffset
     let na = length area
@@ -614,12 +614,12 @@ drawOldLock ls pos = void.runMaybeT $ msum [ do
     , lift.lift.renderToMain $
 	    renderStrColAt messageCol (show ls) pos
     ]
-    
+
 
 drawName name pos = nameCol name >>= drawNameCol name pos
 drawNullName name pos = drawNameCol name pos $ invisible white
 drawNameCol name pos col = do
-    lift.renderToMain $ do 
+    lift.renderToMain $ do
 	drawAtRel (playerGlyph col) pos
 	renderStrColAt messageCol name pos
 drawRelScore name pos = do
@@ -651,7 +651,7 @@ drawNameWithCharAndCol name charcol char col pos = do
     smallFont <- lift $ gets dispFontSmall
     lift.renderToMain $ do
 	drawAtRel (playerGlyph col) pos
-	displaceRender up $ 
+	displaceRender up $
 	    renderStrColAt messageCol name pos
 	displaceRender down $ withFont smallFont $
 	    renderStrColAt charcol [char] pos
@@ -667,10 +667,10 @@ nameCol name = do
 scoreColour :: Int -> Pixel
 scoreColour score = Pixel $ case score of
 	0 -> 0x80800000
-	1 -> 0x70a00000 
+	1 -> 0x70a00000
 	2 -> 0x40c00000
 	3 -> 0x00ff0000
-	(-1) -> 0xa0700000 
+	(-1) -> 0xa0700000
 	(-2) -> 0xc0400000
 	(-3) -> 0xff000000
 
@@ -717,7 +717,7 @@ drawLockInfo al@(ActiveLock name i) (Just lockinfo) = do
 		    | note <- lockSolutions lockinfo ] ++
 		[ \pos -> (lift $ registerSelectable pos 0 (SelAccessed name)) >> drawName name pos
 		    | name <- accessedBy lockinfo \\ map noteAuthor (lockSolutions lockinfo) ]
-    
+
     undecls <- gets undeclareds
     case if isJust $ guard . (|| public lockinfo) . (`elem` map noteAuthor (lockSolutions lockinfo)) =<< ourName
 	    then if public lockinfo

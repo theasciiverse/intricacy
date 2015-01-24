@@ -8,7 +8,7 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
-module Interact (interactUI) where 
+module Interact (interactUI) where
 
 import Control.Monad.State
 import Control.Applicative
@@ -75,7 +75,7 @@ interactUI = do
 	    mainSt <- get
 	    let im = ms2im mainSt
 	    when (im == IMPlay) checkWon
-	    when (im == IMMeta) $ (checkAsyncErrors >>) $ void.runMaybeT $ 
+	    when (im == IMMeta) $ (checkAsyncErrors >>) $ void.runMaybeT $
 		mourNameSelected >>=
 		    flip when (lift purgeInvalidUndecls)
 	    drawMainState
@@ -245,7 +245,7 @@ processCommand' IMMeta (CmdSolve midx) = void.runMaybeT $ do
 		"solving " ++ name ++ ":" ++ [lockIndexChar idx] ++ "  (#" ++ show ls ++")"
 	    mourName <- lift $ (authUser <$>) <$> gets curAuth
 	    guard $ mourName /= Just name
-	    let undecl = Undeclared soln ls (ActiveLock name idx) 
+	    let undecl = Undeclared soln ls (ActiveLock name idx)
 	    msum [ do
 		    _ <- MaybeT $ gets curAuth
 		    confirmOrBail "Declare solution?"
@@ -256,13 +256,13 @@ processCommand' IMMeta (CmdSolve midx) = void.runMaybeT $ do
 	]
 processCommand' IMMeta (CmdPlayLockSpec mls) = void.runMaybeT $ do
     ls <- msum [ MaybeT $ return mls
-	, do 
+	, do
 	    tls <- MaybeT . lift $ textInput "Lock number:" 16 False False Nothing Nothing
 	    MaybeT . return $ fst <$> (listToMaybe $ (reads :: ReadS Int) tls)
 	]
     RCLock lock <- MaybeT $ getFreshRecBlocking $ RecLock ls
     solveLock lock $ Just $ "solving " ++ show ls
-    
+
 processCommand' IMMeta (CmdDeclare mundecl) = void.runMaybeT $ do
     mourNameSelected >>= guard
     name <- mgetCurName
@@ -283,7 +283,7 @@ processCommand' IMMeta (CmdDeclare mundecl) = void.runMaybeT $ do
 		, listToMaybe $ [ undecl
 		    | undecl@(Undeclared _ _ (ActiveLock name' i)) <- undecls
 		    , or [ take (length which) (name' ++ ":" ++ [lockIndexChar i]) ==
-			    map toUpper which 
+			    map toUpper which
 			, name'==name && [lockIndexChar i] == which
 			] ]
 		]
@@ -297,14 +297,14 @@ processCommand' IMMeta (CmdViewSolution mnote) = void.runMaybeT $ do
 	    [ case mlockinfo of
 		Nothing -> return []
 		Just lockinfo -> (++lockSolutions lockinfo) <$> do
-			ns <- getNotesReadOn lockinfo 
+			ns <- getNotesReadOn lockinfo
 			return $ if length ns < 3 then [] else ns
 	    | mlockinfo <- elems $ userLocks uinfo ]
 	idx <- askLockIndex "View solution to which lock?" "No solutions to view" $ not.null.(noteses!!)
 	let notes = noteses!!idx
 	    authors = map noteAuthor notes
 	author <- if length notes == 1
-	    then return $ noteAuthor $ head notes 
+	    then return $ noteAuthor $ head notes
 	    else (map toUpper <$>) $ MaybeT $ lift $
 		textInput ("View solution by which player? ["
 		    ++ intercalate "," (take 3 authors)
@@ -337,7 +337,7 @@ processCommand' IMMeta (CmdPlaceLock midx) = void.runMaybeT $ do
 	confirmOrBail "Really retire existing lock?"
     soln <- msum [ MaybeT $ return msoln,
 	solveLock lock $ Just $ "testing lock" ]
-    lift $ do 
+    lift $ do
 	curServerActionAsync $ SetLock lock idx soln
 	invalidateUInfo ourName
 	refreshUInfoUI
@@ -396,7 +396,7 @@ processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
 	if i+1 <= length tuts then do
 		-- confirmOrBail $ "Tutorial level completed! Play next tutorial level (" ++ show (i+1) ++ ")?"
 		dotut $ i+1
-	    else lift $ do 
+	    else lift $ do
 		mauth <- gets curAuth
 		cbdg <- lift $ getUIBinding IMMeta $ CmdSelCodename Nothing
 		rbdg <- lift $ getUIBinding IMMeta CmdRegister
@@ -413,7 +413,7 @@ processCommand' IMMeta CmdShowRetired = void.runMaybeT $ do
 	    return $ Just lss
 	Just _ -> return Nothing
     lift $ modify $ \ms -> ms {retiredLocks = newRL}
-    
+
 processCommand' IMPlay CmdUndo = do
     st <- gets psCurrentState
     stack <- gets psGameStateMoveStack
@@ -424,7 +424,7 @@ processCommand' IMPlay CmdUndo = do
 	    psLastAlerts = [], psUndoneStack = (st,pm):ustms}
 processCommand' IMPlay CmdRedo = do
     ustms <- gets psUndoneStack
-    case ustms of 
+    case ustms of
 	[] -> return ()
 	ustm:ustms' -> do
 	    pushPState ustm
@@ -458,11 +458,11 @@ processCommand' IMPlay (CmdDrag pos dir) = do
 processCommand' IMPlay cmd = do
     wsel <- gets wrenchSelected
     st <- gets psCurrentState
-    let push whs dir 
+    let push whs dir
 	    | whs == WHSWrench || (whs == WHSSelected && wsel) =
 		Just $ WrenchPush dir
 	    | otherwise = Just $ HookPush dir
-	torque whs dir 
+	torque whs dir
 	    | whs == WHSHook || (whs == WHSSelected && not wsel)=
 		Just $ HookTorque dir
 	    | otherwise = Nothing
@@ -525,7 +525,7 @@ processCommand' IMEdit CmdUndo = do
     unless (null sts) $ modify $ \es -> es {esGameStateStack = sts, esUndoneStack = st:usts}
 processCommand' IMEdit CmdRedo = do
     usts <- gets esUndoneStack
-    case usts of 
+    case usts of
 	[] -> return ()
 	ust:usts' -> do
 	    pushEState ust

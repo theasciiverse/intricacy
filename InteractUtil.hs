@@ -54,7 +54,7 @@ checkWon = do
 		drawMessage ""
 	{-
 	pms <- (reverse.(map snd)) `liftM` gets psGameStateMoveStack
-	let wfname = fromMaybe "unnamed.lock" fname 
+	let wfname = fromMaybe "unnamed.lock" fname
 	liftIO $ writeFile (wfname++".solution") $ show pms
 	liftIO $ B.writeFile (wfname++".solution.bin") $ Bin.encode $ pms
 	-}

@@ -68,7 +68,7 @@ main' msdlUI mcursesUI = do
 	    Nothing -> initMetaState
 	    Just lock -> return $ newEditState lock Nothing mpath
     void $ runMaybeT $ msum [ do
-	    finalState <- msum 
+	    finalState <- msum
 		[ do
 		    guard $ ForceCurses `notElem` opts
 		    sdlUI <- MaybeT . return $ msdlUI

@@ -84,7 +84,7 @@ askForRecord (RecRetiredLocks name) = GetRetired name
 askForRecord _ = error "no corresponding request"
 
 type DBM = ReaderT FilePath IO
-	    
+
 recordExists :: Record -> DBM Bool
 recordExists rec = recordPath rec >>= liftIO . doesFileExist
 
@@ -114,8 +114,8 @@ putRecord :: Record -> RecordContents -> DBM ()
 putRecord rec rc = do
     path <- recordPath rec
     liftIO $ do
-	mkdirhierto path 
-	h <- openFile path WriteMode 
+	mkdirhierto path
+	h <- openFile path WriteMode
 	putRecordh rc h
 	hClose h
 putRecordh (RCPassword hpw) h = hPutStr h $ show hpw
@@ -129,12 +129,12 @@ putRecordh (RCServerInfo sinfo) h = hPutStr h $ show sinfo
 
 modifyRecord :: Record -> (RecordContents -> RecordContents) -> DBM ()
 modifyRecord rec f = do
-    h <- recordPath rec >>= liftIO . flip openFile ReadWriteMode 
+    h <- recordPath rec >>= liftIO . flip openFile ReadWriteMode
     liftIO $ do
 	Just rc <- getRecordh rec h
 	hSeek h AbsoluteSeek 0
 	putRecordh (f rc) h
-	hTell h >>= hSetFileSize h 
+	hTell h >>= hSetFileSize h
 	hClose h
 
 delRecord :: Record -> DBM ()
@@ -177,7 +177,7 @@ recordPath rec = do
 	locksDir = "locks"++[pathSeparator]
 
 -- dummy out characters which are disallowed on unix or windows:
-pathifyName = map $ \c -> case c of 
+pathifyName = map $ \c -> case c of
     '/'->'s'
     '.'->'d'
     '\\'->'b'
@@ -188,7 +188,7 @@ pathifyName = map $ \c -> case c of
     '?'->'q'
     '*'->'a'
     _ -> c
-unpathifyName = map $ \c -> case c of 
+unpathifyName = map $ \c -> case c of
     's'->'/'
     'd'->'.'
     'b'->'\\'
@@ -198,4 +198,4 @@ unpathifyName = map $ \c -> case c of
     'p'->'|'
     'q'->'?'
     'a'->'*'
-    _ -> c 
+    _ -> c

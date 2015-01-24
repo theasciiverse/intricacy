@@ -114,7 +114,7 @@ renderToMainWithSurf surf m = do
 
 
 refresh :: UIM ()
-refresh = do 
+refresh = do
     surface <- liftIO getVideoSurface
     liftIO $ SDL.flip surface
 
@@ -139,7 +139,7 @@ getButtons :: InputMode -> UIM [ ButtonGroup ]
 getButtons mode = do
     mwhs <- gets $ whsButtons.uiOptions
     cntxtButtons <- gets contextButtons
-    return $ cntxtButtons ++ global ++ case mode of 
+    return $ cntxtButtons ++ global ++ case mode of
 	IMEdit -> [
 	    singleButton (tl<+>hv<+>neg hw) CmdTest 4 [("test", hu<+>neg hw)]
 	    , singleButton (tl<+>(neg hw)) CmdPlay 2 [("play", hu<+>neg hw)]
@@ -148,7 +148,7 @@ getButtons mode = do
 	    ++ whsBGs mwhs mode
 	    ++ [ ([Button (paintButtonStart <+> hu <+> i<*>hv) (paintTileCmds!!i) []
 		| i <- take (length paintTiles) [0..] ],(5,0)) ]
-	IMPlay -> 
+	IMPlay ->
 	    [ markGroup ]
 	    ++ whsBGs mwhs mode
 	    ++ [ singleButton tr CmdOpen 1 [("open", hu<+>neg hw)] ]
@@ -161,7 +161,7 @@ getButtons mode = do
 	    , singleButton (codenamePos <+> neg hu) (CmdSelCodename Nothing) 2 [("code",hv<+>4<*>neg hu),("name",hw<+>4<*>neg hu)]
 	    , singleButton (serverPos <+> 2<*>neg hv <+> 2<*>hw) CmdTutorials 1 [("play",hu<+>neg hw),("tut",hu<+>neg hv)]
 	    ]
-		
+
 	_ -> []
 	where
 	    markGroup = ([Button (tl<+>hw) CmdMark [("set",hu<+>neg hw),("mark",hu<+>neg hv)]
@@ -175,7 +175,7 @@ getButtons mode = do
 	    whsBGs (Just whs) mode =
 		let edit = mode == IMEdit
 		in [ ( [ Button bl (if edit then CmdSelect else CmdWait) [] ], (0,0))
-		, ( [ Button (bl<+>dir) (CmdDir whs dir) 
+		, ( [ Button (bl<+>dir) (CmdDir whs dir)
 			(if dir==hu then [("move",hu<+>neg hw),(if edit then "piece" else whsStr whs,hu<+>neg hv)] else [])
 		    | dir <- hexDirs ], (4,0) )
 		] ++
@@ -337,7 +337,7 @@ cmdAtMousePos pos@(mPos,central) im selMode = do
 helpAtMousePos pos@(mPos,_) IMMeta =
     join . fmap helpOfSelectable . Map.lookup mPos <$> gets metaSelectables
 helpAtMousePos _ _ = return Nothing
-    
+
 
 data UIOptButton a = UIOptButton { getUIOpt::UIOptions->a, setUIOpt::a->UIOptions->UIOptions,
     uiOptVals::[a], uiOptPos::HexVec, uiOptGlyph::a->Glyph, uiOptDescr::a->String }
@@ -394,7 +394,7 @@ toggleUIOption (UIOptButton getopt setopt vals _ _ _) = do
     modifyUIOptions $ setopt value'
 
 readUIConfigFile :: UIM ()
-readUIConfigFile = do 
+readUIConfigFile = do
     path <- liftIO $ confFilePath "SDLUI.conf"
     mOpts <- liftIO $ readReadFile path
     case mOpts of
@@ -408,7 +408,7 @@ writeUIConfigFile = do
     liftIO $ writeFile path $ show opts
 
 readBindings :: UIM ()
-readBindings = do 
+readBindings = do
     path <- liftIO $ confFilePath "bindings"
     mbdgs <- liftIO $ readReadFile path
     case mbdgs of
@@ -450,7 +450,7 @@ paintButtonStart = periphery 0 <+> (- length paintTiles `div` 2)<*>hv
 drawPaintButtons :: UIM ()
 drawPaintButtons = do
     pti <- getEffPaintTileIndex
-    renderToMain $ sequence_ [ 
+    renderToMain $ sequence_ [
 	do
 	    let gl = case paintTiles!!i of
 		    Nothing -> hollowInnerGlyph $ dim purple
@@ -473,8 +473,8 @@ screenWidthHexes,screenHeightHexes::Int
 screenWidthHexes = 32
 screenHeightHexes = 25
 getGeom :: UIM (SVec, Int)
-getGeom = do 
-    h <- gets scrHeight 
+getGeom = do
+    h <- gets scrHeight
     w <- gets scrWidth
     let scrCentre = SVec (w`div`2) (h`div`2)
     -- |size is the greatest integer such that
@@ -532,7 +532,7 @@ drawMainGameState' args@(DrawArgs highlight colourFixed alerts st uiopts) = do
 	    gsSurf <- liftM fromJust $ gets gsSurface
 	    renderToMainWithSurf gsSurf $ do
 		erase
-		sequence_ [ drawAt glyph pos | 
+		sequence_ [ drawAt glyph pos |
 		    (pos,glyph) <- Map.toList $ fmap (ownedTileGlyph colouring highlight) board
 		    ]
 
@@ -609,7 +609,7 @@ drawMiniLock lock v = do
 		colouring = if useFiveColouring uiopts
 		    then boardColouring st coloured Map.empty
 		    else pieceTypeColouring st coloured
-		draw = sequence_ [ drawAt glyph pos | 
+		draw = sequence_ [ drawAt glyph pos |
 		    (pos,glyph) <- Map.toList $ fmap (ownedTileGlyph colouring []) $ stateBoard st ]
 	    liftIO $ runReaderT draw $
 		RenderContext surf Nothing (PHS zero) (SVec (width`div`2) (height`div`2)) minisize Nothing
@@ -640,7 +640,7 @@ drawButtons mode = do
     showBT <- showButtonText <$> gets uiOptions
     smallFont <- gets dispFontSmall
     renderToMain $ sequence_ $ concat [ [ do
-		drawAtRel (buttonGlyph col) v 
+		drawAtRel (buttonGlyph col) v
 		renderStrColAt buttonTextCol bdg v
 		when showBT $
 		    withFont smallFont $ recentreAt v $ rescaleRender (1/4) $
@@ -654,7 +654,7 @@ drawButtons mode = do
 initVideo :: Int -> Int -> UIM ()
 initVideo w h = do
     liftIO $ setVideoMode w h 0 [Resizable]
-    
+
     -- see what size we actually got:
     vinfo <- liftIO $ getVideoInfo
     let [w',h'] = map ($vinfo) [videoInfoWidth,videoInfoHeight]
@@ -684,7 +684,7 @@ initVideo w h = do
     when (isNothing font) $ lift $ do
 	let text = "Warning: font file not found at "++fontpath++".\n"
 	putStr text
-	writeFile "error.log" text 
+	writeFile "error.log" text
 
 initAudio :: UIM ()
 #ifdef SOUND
@@ -735,12 +735,12 @@ drawMsgLine = void.runMaybeT $ do
 setMsgLineNoRefresh col str = do
     modify $ \s -> s { message = Just (col,str) }
     unless (null str) $ modify $ \s -> s { hoverStr = Nothing }
-    drawMsgLine 
+    drawMsgLine
 setMsgLine col str = setMsgLineNoRefresh col str >> refresh
 
 drawTitle (Just title) = renderToMain $ renderStrColAt messageCol title titlePos
 drawTitle Nothing = return ()
-    
+
 say = setMsgLine messageCol
 sayError = setMsgLine errorCol
 

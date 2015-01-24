@@ -35,7 +35,7 @@ getpp :: GameState -> PieceIdx -> PlacedPiece
 getpp st idx = (placedPieces st) ! idx
 
 setpp :: PieceIdx -> PlacedPiece -> GameState -> GameState
-setpp idx pp st@(GameState pps _) = 
+setpp idx pp st@(GameState pps _) =
     let displacement = (placedPos $ getpp st idx) <-> placedPos pp
 	updateConn conn@(Connection root@(ridx,rpos) end@(eidx,epos) link)
 	    | ridx == idx = Connection (ridx,rpos<+>displacement) end link
@@ -61,7 +61,7 @@ components patt
 
 floodfill :: HexVec -> Set HexVec -> (Set HexVec, Set HexVec)
 floodfill start patt = floodfill' start `execState` (patt, Set.empty)
-    where 
+    where
 	floodfill' :: HexVec -> State (Set HexVec, Set HexVec) ()
 	floodfill' start = do
 	      (patt, dels) <- get
@@ -87,7 +87,7 @@ delPieceIn pos st =
 	_ -> st
 
 setPiece :: PieceIdx -> Piece -> GameState -> GameState
-setPiece idx p st = 
+setPiece idx p st =
     setpp idx (PlacedPiece (placedPos $ getpp st idx) p) st
 
 adjustPieces :: (Piece -> Piece) -> GameState -> GameState
@@ -158,7 +158,7 @@ checkConnGraphAcyclic st =
 	checkDiGraphAcyclic dg = case listToMaybe $ leaves dg of
 	    Nothing -> Map.null dg
 	    Just leaf -> checkDiGraphAcyclic $ Map.delete leaf $ fmap (Set.delete leaf) dg
-    in checkDiGraphAcyclic $ Map.fromList 
+    in checkDiGraphAcyclic $ Map.fromList
 	[ (idx, Set.fromList $ map (fst.connectionRoot) $ springsEndAtIdx st idx) | idx <- idxs ]
 
 repossessConns :: GameState -> GameState -> GameState
@@ -210,7 +210,7 @@ springFullyExtended st c@(Connection _ _ (Spring _ natLen)) = connectionLength s
 springFullyExtended _ _ = False
 springFullyCompressed st c@(Connection _ _ (Spring _ natLen)) = connectionLength st c <= (natLen+1)`div`2
 springFullyCompressed _ _ = False
-springExtensionValid st c@(Connection _ _ (Spring _ natLen)) = let l = connectionLength st c in 
+springExtensionValid st c@(Connection _ _ (Spring _ natLen)) = let l = connectionLength st c in
     l >= (natLen+1)`div`2 && l <= 2*natLen
 springExtensionValid _ _ = True
 
@@ -243,7 +243,7 @@ plPieceMap (PlacedPiece pos (Block pattern)) =
 	, let adjs = filter (\dir -> rel <+> dir `elem` pattern) hexDirs ]
 plPieceMap (PlacedPiece pos (Pivot arms)) =
     let overarmed = length arms > 2 in
-    Map.fromList $ (pos, PivotTile $ if overarmed then (head arms) else zero ) : 
+    Map.fromList $ (pos, PivotTile $ if overarmed then (head arms) else zero ) :
 	[ (rel <+> pos, ArmTile rel main) |
 	    (rel,main) <- zip arms $ repeat False -- overarmed:$repeat False
 	    ]
@@ -318,7 +318,7 @@ validGameState st@(GameState pps conns) = and
 	    && (validEnd st end)
 	    | c@(Connection root@(ridx,_) end@(eidx,_) (Spring dir _)) <- conns
 	    , let [rpos,epos] = map (locusPos st) [root,end] ]
-    , and [ 1 == length (components $ Set.fromList patt) 
+    , and [ 1 == length (components $ Set.fromList patt)
 	    | Block patt <- map placedPiece $ Vector.toList pps ]
     ]
 

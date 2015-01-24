@@ -24,11 +24,11 @@ type PlanarGraph a = Map a [a]
 
 fourColour :: Ord a => Graph a -> Colouring a -> Colouring a
 fourColour (nodes,edges) lastCol =
-    -- bruteforce 
+    -- bruteforce
     if Map.keysSet lastCol == nodes && isColouring lastCol
 	then lastCol
 	else head $ filter isColouring colourings
-    where 
+    where
 	isColouring mapping = and [
 	    Map.lookup s mapping /= Map.lookup e mapping |
 		edge <- Set.toList edges
@@ -41,7 +41,7 @@ fourColour (nodes,edges) lastCol =
 
 fiveColour :: Ord a => PlanarGraph a -> Colouring a -> Colouring a
 -- ^algorithm based on that presented in
--- http://people.math.gatech.edu/~thomas/PAP/fcstoc.pdf 
+-- http://people.math.gatech.edu/~thomas/PAP/fcstoc.pdf
 -- Key point: a planar graph can't have all vertices of degree >= 6
 -- (Proof: suppose it does, so |E| >= 3|V|; WLOG the graph is triangulated,
 -- so then |F| <= 2/3 |E|. So \xi = |V|-|E|+|F| <= (1/3 - 1 + 2/3)|E| = 0.
@@ -59,7 +59,7 @@ fiveColour g lastCol =
     fiveColour' g
 	| g == Map.empty = Map.empty
 	| otherwise =
-	let 
+	let
 	    adjsOf v = (nub $ g Map.! v) \\ [v]
 	    v = head $ filter ((<=5) . length . adjsOf) $ Map.keys g
 	    adjs = adjsOf v
@@ -87,6 +87,6 @@ fiveColour g lastCol =
 	fmap (filter (/= v)) . Map.delete v
     contractNodes v v' =
 	fmap (map (\v'' -> if v'' == v' then v else v'')) . Map.delete v'
-    
+
 
 

@@ -61,7 +61,7 @@ boardToAscii colouring board =
 	(miny,maxy) = minmax $ map cy $ Map.keys asciiBoard
 	(minx,maxx) = minmax $ map cx $ Map.keys asciiBoard
 	asciiBoard' = Map.mapKeys (<->CVec miny minx) asciiBoard
-    in [ [ Map.findWithDefault ' ' (CVec y x) asciiBoard' 
+    in [ [ Map.findWithDefault ' ' (CVec y x) asciiBoard'
 	    | x <- [0..(maxx-minx)] ]
 	| y <- [0..(maxy-miny)] ]
 
@@ -117,7 +117,7 @@ asciiBoardState frame board =
 	addAppendages :: GameState -> Maybe GameState
 	addAppendages st = foldM addAppendageOT st $ Map.toList $
 	    Map.filter (not.isBaseTile.snd) board
-	addAppendageOT st (pos,(-1,ArmTile dir _)) = 
+	addAppendageOT st (pos,(-1,ArmTile dir _)) =
 	    let rpos = (neg dir<+>pos)
 	    in case Map.lookup rpos baseBoard of
 		Just (idx,PivotTile _) -> Just $ addPivotArm idx pos st
@@ -153,7 +153,7 @@ monochromeOTileChar colouring (idx,BlockTile _) =
 	_ -> '#'
 monochromeOTileChar _ (_,t) = monochromeTileChar t
 monochromeTileChar (PivotTile _) = 'o'
-monochromeTileChar (ArmTile dir _) 
+monochromeTileChar (ArmTile dir _)
     | dir == hu = '-'
     | dir == hv = '\\'
     | dir == hw = '/'

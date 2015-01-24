@@ -113,7 +113,7 @@ tileGlyph :: Tile -> Pixel -> Glyph
 
 tileGlyph (BlockTile adjs) col centre size surf =
     rimmedPolygon surf corners col $ bright col
-	where 
+	where
 	    corners = concat [
 		if or $ map adjAt [0,1]
 		then [corner centre size $ hextant dir]
@@ -167,7 +167,7 @@ tileGlyph HookTile col centre size surf =
 tileGlyph (WrenchTile mom) col centre size surf = do
     rimmedCircle surf centre (size`div`3) col $ bright col
     when (mom /= zero) $
-	let 
+	let
 	    (fx,fy) = innerCorner centre size $ neg mom
 	    (tx,ty) = edge centre size $ neg mom
 	    shifts = map (map (`div` 2)) $
@@ -222,7 +222,7 @@ blockedPush dir col centre size surf = do
 
 	--from' = corner centre size $ hextant dir
 	--to' = corner centre size $ (hextant dir) - 1
-	
+
 collisionMarker :: Glyph
 collisionMarker centre@(SVec x y) size surf = void $ do
     -- rimmedCircle surf centre (size`div`3) (bright purple) $ bright purple
@@ -346,7 +346,7 @@ cyan = colourWheel 3
 blue = colourWheel 4
 purple = colourWheel 5
 
-colourOf colouring idx = 
+colourOf colouring idx =
     case Map.lookup idx colouring of
 	    Nothing -> white
 	    Just n -> colourWheel n
@@ -360,7 +360,7 @@ data SVec = SVec { cx, cy :: Int }
     deriving (Eq, Ord, Show)
 instance Monoid SVec where
     mempty = SVec 0 0
-    mappend (SVec x y) (SVec x' y') = SVec (x+x') (y+y') 
+    mappend (SVec x y) (SVec x' y') = SVec (x+x') (y+y')
 instance Grp SVec where
     neg (SVec x y) = SVec (-x) (-y)
 type CCoord = PHS SVec

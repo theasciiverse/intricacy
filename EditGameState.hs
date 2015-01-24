@@ -22,7 +22,7 @@ import Hex
 import GameState
 import GameStateTypes
 --import Debug
-	
+
 modTile :: Maybe Tile -> HexPos -> HexPos -> Bool -> GameState -> GameState
 modTile tile pos lastPos painting st =
     let board = stateBoard st
@@ -78,7 +78,7 @@ modTile tile pos lastPos painting st =
 	       in case addToIdx of
 		  Nothing -> addPiece $ Block [zero]
 		  Just b -> addBlockPos b pos
-	   Just (ArmTile armdir _) -> 
+	   Just (ArmTile armdir _) ->
 	       let adjacentPivots = [ idx |
 		       dir <- if armdir == zero then hexDirs else [armdir, neg armdir]
 		       , Just (idx, PivotTile _) <- [Map.lookup (dir <+> pos) board'] ]
@@ -117,7 +117,7 @@ modTile tile pos lastPos painting st =
 		      Just conn -> addConn conn
 	   Just (PivotTile _) -> addPiece $ Pivot []
 	   Just (WrenchTile _) -> addPiece $ Wrench zero
-	   Just HookTile -> let arm = listToMaybe [ dir | 
+	   Just HookTile -> let arm = listToMaybe [ dir |
 				    dir <- hexDirs
 				    , isNothing $ Map.lookup (dir <+> pos) board' ]
 			    in case arm of Just armdir -> addPiece $ Hook armdir NullHF

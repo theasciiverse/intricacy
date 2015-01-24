@@ -79,11 +79,11 @@ envForces st@(GameState _ conns) =
 	    , natLen /= curLen
 	    , let dir = if natLen > curLen then outDir else neg outDir ]
 
-    in ( Vector.map (ForceChoice . replicate 1 . snd) rootedForces, 
+    in ( Vector.map (ForceChoice . replicate 1 . snd) rootedForces,
 	\f1 f2 -> Just True == do
 		rootIdx <- fst $ rootedForces!f2
 		return $ connGraphPathExists st (forceIdx.snd $ rootedForces!f1) rootIdx )
-	
+
 
 setTools :: PlayerMove -> GameState -> GameState
 setTools pm st =
@@ -115,14 +115,14 @@ resolveForces plForces eForces eDominates st =
 		[False,False] -> eDominates (i-pln) (j-pln)
 		_ -> False
 	initGrps = fmap (propagate st True) plForces Vector.++
-		fmap (propagate st False) eForces 
+		fmap (propagate st False) eForces
 	blockInconsistent :: Int -> Int -> StateT (Vector (Writer Any [Force])) (Writer [Alert]) ()
 	blockInconsistent i j = do
 	    grps <- mapM gets [(!i),(!j)]
 	    blocks <- lift $ checkInconsistent i j $ map (fst.runWriter) grps
 	    modify $ Vector.imap (\k -> if k `elem` blocks then (tell (Any True) >>) else id)
 	checkInconsistent :: Int -> Int -> [[Force]] -> Writer [Alert] [Int]
-	checkInconsistent i j fss = 
+	checkInconsistent i j fss =
 	    let st' = foldr applyForce st $ nub $ concat fss
 		(inconsistencies,cols) = runWriter $ sequence
 		    [ tell cols >> return [f,f']
@@ -148,7 +148,7 @@ resolveForces plForces eForces eDominates st =
 	    | Push idx dir <- fs
 	    , Wrench mom <- [placedPiece $ getpp st idx]
 	    , mom `notElem` [zero,dir] ]
-    in do 
+    in do
 	let unresisted = [ s | (s, (_, Any False)) <- enumVec $ fmap runWriter initGrps ]
 
 	-- check for inconsistencies within, and between pairs of, forcegroups
@@ -163,7 +163,7 @@ resolveForces plForces eForces eDominates st =
 	tell $ map AlertAppliedForce unblocked
 	tell $ map AlertDivertedWrench $ divertedWrenches unblocked
 	return $ stopBlockedWrenches blocked $ foldr applyForce st unblocked
-    
+
 applyForce :: Force -> GameState -> GameState
 applyForce f s =
     let idx = forceIdx f
@@ -171,7 +171,7 @@ applyForce f s =
 	pp'' = case (placedPiece pp',f) of
 		   ( Wrench _ , Push _ dir ) -> pp' {placedPiece = Wrench dir}
 		   _ -> pp'
-	in 
+	in
 	s { placedPieces = (placedPieces s) // [(idx, pp'')] }
 
 collisionsWithForce :: GameState -> Force -> PieceIdx -> [HexPos]
@@ -190,7 +190,7 @@ applyForceTo (PlacedPiece pos (Hook arm hf)) (Torque _ dir) =
 applyForceTo pp _ = pp
 
 -- A force on a piece which resists it is immediately blocked
-pieceResists :: GameState -> Force -> Bool 
+pieceResists :: GameState -> Force -> Bool
 pieceResists st force =
     let idx = forceIdx force
 	PlacedPiece _ piece = getpp st idx
@@ -201,7 +201,7 @@ pieceResists st force =
 		     (Wrench mom) -> case force of
 			    Push _ v -> v /= mom
 			    _ -> True
-		     (Hook _ hf) -> case force of 
+		     (Hook _ hf) -> case force of
 			    Push _ v -> hf /= PushHF v
 			    Torque _ dir -> hf /= TorqueHF dir
 		     _ -> False

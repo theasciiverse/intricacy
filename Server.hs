@@ -64,7 +64,7 @@ parseArgs argv =
 	(_,_,errs) -> ioError (userError (concat errs ++ usageInfo header options))
     where header = "Usage: intricacy-server [OPTION...]"
 
-main = do 
+main = do
     argv <- getArgs
     (opts,_) <- parseArgs argv
     let delay = fromMaybe 0 $ listToMaybe [ d | RequestDelay d <- opts ]
@@ -88,7 +88,7 @@ handler delay hdl addr = handle ((\e -> return ()) :: SomeException -> IO ()) $
     handler' hdl addr
     where handler' hdl addr = do
 	    response <- handle (\e -> return $ ServerError $ show (e::SomeException)) $ do
-		request <- B.decode <$> L.hGetContents hdl 
+		request <- B.decode <$> L.hGetContents hdl
 		let hostname = case addr of
 			IP n _ -> n
 			IPv4 n _ -> n
@@ -151,8 +151,8 @@ handleRequest req@(ClientRequest pv auth action) = do
 	handleRequest' = do
 	    when (pv /= protocolVersion) $ throwError "Bad protocol version"
 	    case action of
-		Authenticate -> do 
-		    checkAuth auth 
+		Authenticate -> do
+		    checkAuth auth
 		    return $ ServerMessage $ "Welcome, " ++ authUser (fromJust auth)
 		Register -> newUser auth >> return ServerAck
 		ResetPassword passwd -> resetPassword auth passwd >> return ServerAck
@@ -164,15 +164,15 @@ handleRequest req@(ClientRequest pv auth action) = do
 			(fromJust<$>)$ runMaybeT $ msum [ do
 			    v <- MaybeT $ return mversion
 			    msum [ guard (v >= curV) >> return ServerFresh
-				, do 
-				    guard (v >= curV - 10) 
+				, do
+				    guard (v >= curV - 10)
 				    RCUserInfoDeltas deltas <- lift $ getRecordErrored $ RecUserInfoLog name
 				    return $ ServedUserInfoDeltas $ take (curV-v) deltas
 				]
 			    , return $ ServedUserInfo (curV,info)
 			    ]
 		    ) `catchError` \_ -> return ServerCodenameFree
-		GetSolution note -> do 
+		GetSolution note -> do
 		    uinfo <- getUserInfoOfAuth auth
 		    let uname = codename uinfo
 		    onLinfo <- getALock $ noteOn note
@@ -265,14 +265,14 @@ handleRequest req@(ClientRequest pv auth action) = do
 	erroredDB = erroredIO . withDB
 	getRecordErrored :: Record -> ErrorT String IO RecordContents
 	getRecordErrored rec = do
-	    mrc <- lift $ withDB $ getRecord rec 
+	    mrc <- lift $ withDB $ getRecord rec
 	    case mrc of
 		Just rc -> return rc
 		Nothing -> throwError $ "Bad record on server! Record was: " ++ show rec
-	getLock ls = do 
+	getLock ls = do
 	    RCLock lock <- getRecordErrored $ RecLock ls
 	    return lock
-	getSolution note = do 
+	getSolution note = do
 	    RCSolution soln <- getRecordErrored $ RecNote note
 	    return soln
 	getServerInfo = do
@@ -289,14 +289,14 @@ handleRequest req@(ClientRequest pv auth action) = do
 		Just lockinfo -> return lockinfo
 	checkValidLockIndex idx =
 	    unless (0<=idx && idx < maxLocks) $ throwError "Bad lock index"
-	getUserInfo name = do 
+	getUserInfo name = do
 	    RCUserInfo (version,info) <- getRecordErrored $ RecUserInfo name
 	    return info
-	getUserInfoOfAuth auth = do 
+	getUserInfoOfAuth auth = do
 	    checkAuth auth
 	    let Just (Auth name _) = auth
 	    getUserInfo name
-	    
+
 	checkAuth :: Maybe Auth -> ErrorT String IO ()
 	checkAuth Nothing = throwError "Authentication required"
 	checkAuth (Just (Auth name pw)) = do
@@ -323,7 +323,7 @@ handleRequest req@(ClientRequest pv auth action) = do
 	--- | TODO: journalling so we can survive death during database writes?
 	applyDeltasToRecords :: [(Codename, UserInfoDelta)] -> ErrorT String IO ()
 	applyDeltasToRecords nds = sequence_ $ [applyDeltasToRecord name deltas
-		| group <- groupBy ((==) `on` fst) nds 
+		| group <- groupBy ((==) `on` fst) nds
 		, let name = fst $ head group
 		, let deltas = map snd group ]
 	applyDeltasToRecord name deltas = do
@@ -367,7 +367,7 @@ handleRequest req@(ClientRequest pv auth action) = do
 	    unless publified $ do
 	    lock <- getCurrALock al
 	    accessorsOfNotesOnLock <- ((++ map noteAuthor (lockSolutions lock)).concat)
-		<$> (sequence 
+		<$> (sequence
 		    [ accessedBy <$> getCurrALock behind | NoteInfo _ (Just behind) _ <- lockSolutions lock ] )
 	    forM_ accessorsOfNotesOnLock $ checkSuffReadNotes al
 	checkSuffReadNotes target name = do

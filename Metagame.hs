@@ -45,7 +45,7 @@ getAccessInfo ui name =
     let mlinfos = elems $ userLocks ui
 	accessedSlot = maybe accessedAllExisting accessedLock
 	accessedAllExisting = all (maybe True accessedLock) mlinfos
-	accessedLock linfo = public linfo || name `elem` accessedBy linfo 
+	accessedLock linfo = public linfo || name `elem` accessedBy linfo
     in map (maybe
 	    (if accessedAllExisting then Just AccessedEmpty else Nothing)
 	    (\linfo -> if public linfo then Just AccessedPub
@@ -67,7 +67,7 @@ data LockDelta
     | SetPublic
     deriving (Eq, Ord, Show, Read)
 
-data NoteInfo = NoteInfo {noteAuthor::Codename, noteBehind::Maybe ActiveLock, noteOn::ActiveLock} 
+data NoteInfo = NoteInfo {noteAuthor::Codename, noteBehind::Maybe ActiveLock, noteOn::ActiveLock}
     deriving (Eq, Ord, Show, Read)
 
 data ActiveLock = ActiveLock {lockOwner::Codename, lockIndex :: LockIndex}
@@ -86,7 +86,7 @@ type LockIndex = Int
 type Hint = GameState
 
 lockIndexChar :: LockIndex -> Char
-lockIndexChar i = toEnum $ i + fromEnum 'A' 
+lockIndexChar i = toEnum $ i + fromEnum 'A'
 charLockIndex c = fromEnum (toUpper c) - fromEnum 'A'
 
 applyDeltas :: UserInfo -> [UserInfoDelta] -> UserInfo
@@ -142,7 +142,7 @@ instance Binary LockDelta where
 
 instance Binary LockInfo where
     put (LockInfo spec pk notes solved accessed) = put spec >> put pk >> put notes >> put solved >> put accessed
-    get = liftM5 LockInfo get get get get get 
+    get = liftM5 LockInfo get get get get get
 
 instance Binary NoteInfo where
     put (NoteInfo author behind on) = put author >> put behind >> put on

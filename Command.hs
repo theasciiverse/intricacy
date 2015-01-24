@@ -47,7 +47,7 @@ data Command = CmdDir WrHoSel HexDir | CmdRotate WrHoSel TorqueDir | CmdWait
     deriving (Eq, Ord, Show, Read)
 data WrHoSel = WHSWrench | WHSHook | WHSSelected
     deriving (Eq, Ord, Show, Read)
-	
+
 describeCommand :: Command -> String
 describeCommand (CmdDir whs dir) = "move " ++ whsStr whs ++ " " ++ dirStr dir
 describeCommand (CmdRotate whs dir) = "rotate " ++ whsStr whs ++ " " ++ (if dir == 1 then "counter" else "") ++ "clockwise"
@@ -55,11 +55,11 @@ describeCommand CmdWait = "nothing"
 describeCommand CmdToggle = "toggle tool"
 describeCommand CmdOpen = "open lock"
 describeCommand (CmdTile tile) = tileStr tile
-describeCommand CmdMerge = "merge with adjacent piece" 
+describeCommand CmdMerge = "merge with adjacent piece"
 describeCommand CmdMark = "mark state"
 describeCommand CmdJumpMark = "jump to marked state"
 describeCommand CmdReset = "jump to initial state"
-describeCommand CmdSelect = "select piece" 
+describeCommand CmdSelect = "select piece"
 describeCommand CmdUnselect = "unselect piece"
 describeCommand CmdDelete = "delete piece"
 describeCommand CmdPlay = "play lock"

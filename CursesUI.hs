@@ -43,7 +43,7 @@ type UIM = StateT UIState IO
 nullUIState = UIState [] (PHS zero) Map.empty Map.empty False Nothing
 
 readBindings :: UIM ()
-readBindings = do 
+readBindings = do
     path <- liftIO $ confFilePath "bindings"
     mbdgs <- liftIO $ readReadFile path
     case mbdgs of
@@ -75,7 +75,7 @@ refresh = liftIO Curses.refresh
 
 type Geom = (CVec, HexPos)
 getGeom :: UIM Geom
-getGeom = do 
+getGeom = do
     (h,w) <- liftIO Curses.scrSize
     centre <- gets dispCentre
     return (CVec (h`div`2) (w`div`2), centre)
@@ -102,7 +102,7 @@ drawStrCentred attr col v str =
 drawCursorAt :: Maybe HexPos -> UIM ()
 drawCursorAt Nothing =
     void $ liftIO $ Curses.cursSet Curses.CursorInvisible
-drawCursorAt (Just pos) = do 
+drawCursorAt (Just pos) = do
     geom@(scrCentre,centre) <- getGeom
     liftIO $ Curses.cursSet Curses.CursorVisible
     liftIO $ move $ scrCentre <+> (hexVec2CVec $ pos <-> centre)
@@ -137,6 +137,6 @@ drawTitle (Just title) = do
     (h,w) <- liftIO Curses.scrSize
     drawStrCentred a0 white (CVec 0 (w`div`2)) title
 drawTitle Nothing = return ()
-    
+
 say = setMsgLine bold white
 sayError = setMsgLine bold red

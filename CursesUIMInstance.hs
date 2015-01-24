@@ -53,9 +53,9 @@ drawName showScore pos name = do
     relScore <- getRelScore name
     let (attr,col) = case relScore of
 	    Just 0 -> (a0,yellow)
-	    Just 1 -> (bold,cyan) 
-	    Just 2 -> (a0,green) 
-	    Just 3 -> (bold,green) 
+	    Just 1 -> (bold,cyan)
+	    Just 2 -> (a0,green)
+	    Just 3 -> (bold,green)
 	    Just (-1) -> (bold,magenta)
 	    Just (-2) -> (a0,red)
 	    Just (-3) -> (bold,red)
@@ -133,7 +133,7 @@ drawLockInfo al@(ActiveLock name i) lockinfo = do
 	]
 
     startOn <-
-	if (public lockinfo) 
+	if (public lockinfo)
 	then lift $ drawStrCentred bold white (CVec (lockTop-1) vcentre) "Everyone!"
 	    >> return (lockTop-1)
 	else if null $ accessedBy lockinfo
@@ -145,7 +145,7 @@ drawLockInfo al@(ActiveLock name i) lockinfo = do
         [ \pos -> drawName False pos name
 		    | name <- accessedBy lockinfo \\ map noteAuthor (lockSolutions lockinfo) ]
     lift $ drawStrCentred a0 white (CVec (startOn-1) vcentre) "Accessed by:"
-    
+
     undecls <- gets undeclareds
     if isJust $ guard . (|| public lockinfo) . (`elem` accessedBy lockinfo) =<< ourName
     then lift $ drawStrCentred a0 green (CVec (lockBottom+1) vcentre) "Accessed!"
@@ -264,7 +264,7 @@ instance UIMonad (StateT UIState IO) where
 		sel <- MaybeT $ return selName
 		us <- MaybeT $ return ourName
 		ourUInfo <- mgetUInfo us
-		let accessed = [ ActiveLock us i 
+		let accessed = [ ActiveLock us i
 			| i<-[0..2]
 			, Just lock <- [ userLocks ourUInfo ! i ]
 			, public lock || selName `elem` map Just (accessedBy lock) ]
@@ -280,7 +280,7 @@ instance UIMonad (StateT UIState IO) where
 
     reportAlerts _ alerts =
 	do mapM_ drawAlert alerts
-	   unless (null alerts) 
+	   unless (null alerts)
 	    $ do refresh
 		 liftIO $ threadDelay $ 5*10^4
 	where
@@ -324,10 +324,10 @@ instance UIMonad (StateT UIState IO) where
 	bdgs <- getBindings mode
 	return $ maybe "" showKey $ findBinding bdgs cmd
 
-    initUI = 
-	do liftIO CursesH.start 
+    initUI =
+	do liftIO CursesH.start
 	   cpairs <- liftIO $ colorsToPairs [ (f, CursesH.black) | f <-
-		[ CursesH.white, CursesH.red, CursesH.green, CursesH.yellow, CursesH.blue, CursesH.magenta, CursesH.cyan] ] 
+		[ CursesH.white, CursesH.red, CursesH.green, CursesH.yellow, CursesH.blue, CursesH.magenta, CursesH.cyan] ]
 	   modify $ \s -> s {dispCPairs = cpairs}
 	   readBindings
 	   return True
@@ -338,8 +338,8 @@ instance UIMonad (StateT UIState IO) where
     unblockInput = return $ Curses.ungetCh 0
     suspend = do
 	liftIO $ do
-	    CursesH.suspend 
-	    Curses.resetParams 
+	    CursesH.suspend
+	    Curses.resetParams
 	redraw
     redraw = liftIO $ do
 	Curses.endWin

@@ -70,7 +70,7 @@ class (Applicative m, MonadIO m) => UIMonad m where
 	if ok then m >>= (endUI >>).return.Just else return Nothing
 
 -- | this could be neatened using GADTs
-data MainState 
+data MainState
     = PlayState
 	{ psCurrentState::GameState
 	, psFrame::Frame
@@ -167,7 +167,7 @@ getTitle = ms2im <$> get >>= \im -> case im of
 	mpath <- gets esPath
 	unsaved <- editStateUnsaved
 	isTested <- isJust <$> getCurTestSoln
-	return $ Just $ "editing " ++ fromMaybe "[unnamed lock]" mpath ++ 
+	return $ Just $ "editing " ++ fromMaybe "[unnamed lock]" mpath ++
 	    (if isTested then " (Tested)" else "") ++
 	    (if unsaved then " [+]" else "    ")
     IMPlay -> gets psTitle
@@ -194,7 +194,7 @@ instance Error () where noMsg = ()
 mgetOurName :: (UIMonad uiM) => MaybeT (StateT MainState uiM) Codename
 mgetOurName = MaybeT $ (authUser <$>) <$> gets curAuth
 mgetCurName :: (UIMonad uiM) => MaybeT (StateT MainState uiM) Codename
-mgetCurName = MaybeT $ listToMaybe <$> gets codenameStack 
+mgetCurName = MaybeT $ listToMaybe <$> gets codenameStack
 
 getUInfoFetched :: UIMonad uiM => Integer -> Codename -> StateT MainState uiM FetchedRecord
 getUInfoFetched staleTime name =
@@ -224,7 +224,7 @@ setUInfoTVar name = do
     return tvar
 
 invalidateUInfo :: UIMonad uiM => Codename -> StateT MainState uiM ()
-invalidateUInfo name = 
+invalidateUInfo name =
     modify $ \ms -> ms {userInfos = Map.delete name $ userInfos ms}
 
 invalidateAllUInfo :: UIMonad uiM => StateT MainState uiM ()
@@ -233,9 +233,9 @@ invalidateAllUInfo =
 
 mgetLock :: UIMonad uiM => LockSpec -> MaybeT (StateT MainState uiM) Lock
 mgetLock ls = do
-    tvar <- msum [ MaybeT $ (Map.lookup ls) <$> gets indexedLocks 
+    tvar <- msum [ MaybeT $ (Map.lookup ls) <$> gets indexedLocks
 	, lift $ do
-	    tvar <- getRecordCachedFromCur True $ RecLock ls 
+	    tvar <- getRecordCachedFromCur True $ RecLock ls
 	    modify $ \ms -> ms { indexedLocks = Map.insert ls tvar $ indexedLocks ms }
 	    return tvar ]
     RCLock lock <- MaybeT $ (fetchedRC<$>) $ liftIO $ atomically $ readTVar tvar
@@ -257,7 +257,7 @@ refreshUInfoUI = void.runMaybeT $ do
 		resp <- makeRequest saddr $
 		    ClientRequest protocolVersion Nothing $ GetRandomNames 19
 		case resp of
-		    ServedRandomNames names -> atomically $ do 
+		    ServedRandomNames names -> atomically $ do
 			    writeTVar rnamestvar names
 			    writeTVar flag True
 		    _ -> return ()
@@ -276,8 +276,8 @@ purgeInvalidUndecls = do
 		ourName <- mgetOurName
 		msum [ do
 			linfo <- MaybeT $ return $ userLocks uinfo ! idx
-			return $ public linfo 
-			    || ourName `elem` accessedBy linfo 
+			return $ public linfo
+			    || ourName `elem` accessedBy linfo
 			    || lockSpec linfo /= ls
 		    , return True
 		    ]
@@ -360,7 +360,7 @@ getRelScoreDetails name = runMaybeT $ do
     let (pos,neg) = (countUnaccessedBy ourUInfo name, countUnaccessedBy uinfo ourName)
     return $ (pos-neg,(pos,neg))
     where
-	countUnaccessedBy ui name = length $ filter isNothing $ getAccessInfo ui name 
+	countUnaccessedBy ui name = length $ filter isNothing $ getAccessInfo ui name
 
 accessedAL :: (UIMonad uiM) => ActiveLock -> StateT MainState uiM Bool
 accessedAL (ActiveLock name idx) = (isJust <$>) $ runMaybeT $ do
