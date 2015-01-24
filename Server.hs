@@ -12,7 +12,7 @@ module Main where
 
 import Network.Fancy
 
-import Control.Concurrent (threadDelay)
+import Control.Concurrent (threadDelay,forkIO)
 import Control.Applicative
 import Control.Monad
 import Control.Monad.Trans.State
@@ -51,10 +51,12 @@ import Mundanities
 
 port = 27001 -- 27001 == ('i'<<8) + 'y'
 
-data Opt = RequestDelay Int
+data Opt = RequestDelay Int | Daemon | LogFile FilePath
     deriving (Eq, Ord, Show)
 options =
-    [ Option ['d'] ["delay"] (ReqArg (RequestDelay . read) "MICROSECS") "delay before sending response (for testing) (default: 0)"
+    [ Option ['P'] ["delay"] (ReqArg (RequestDelay . read) "MICROSECS") "delay before sending response (for testing) (default: 0)"
+    -- , Option ['d'] ["daemon"] (NoArg Daemon) "Run as daemon"
+    , Option ['l'] ["logfile"] (ReqArg LogFile "PATH") "Log to file"
     --, Option ['d'] ["dir"] (ReqArg (DBDir . read)) "directory for server database [default: intricacydb]"
     ]
 parseArgs :: [String] -> IO ([Opt],[String])
@@ -67,11 +69,21 @@ parseArgs argv =
 main = do
     argv <- getArgs
     (opts,_) <- parseArgs argv
-    let delay = fromMaybe 0 $ listToMaybe [ d | RequestDelay d <- opts ]
-    withDB setDefaultServerInfo
-    writeFile lockFilePath ""
-    streamServer serverSpec{address = IPv4 "" port, threading=Inline} $ handler delay
-    sleepForever
+    {- FIXME: doesn't work
+    if Daemon `elem` opts
+        then void $ forkIO $ main' opts
+        else main' opts
+    -}
+    main' opts
+    where main' opts = do
+            withDB setDefaultServerInfo
+            writeFile lockFilePath ""
+            let delay = fromMaybe 0 $ listToMaybe [ d | RequestDelay d <- opts ]
+            logh <- case listToMaybe [ f | LogFile f <- opts ] of
+                Nothing -> return stdout
+                Just path -> openFile path AppendMode
+            streamServer serverSpec{address = IPv4 "" port, threading=Inline} $ handler delay logh
+            sleepForever
 
 -- database path is relative to current directory: ./intricacydb/
 dbpath = "intricacydb"
@@ -81,10 +93,10 @@ setDefaultServerInfo = do
     alreadySet <- recordExists RecServerInfo
     unless alreadySet $ putRecord RecServerInfo (RCServerInfo defaultServerInfo)
 
-logit = putStrLn
+logit h s = hPutStrLn h s >> hFlush h
 
-handler :: Int -> Handle -> Address -> IO ()
-handler delay hdl addr = handle ((\e -> return ()) :: SomeException -> IO ()) $
+handler :: Int -> Handle -> Handle -> Address -> IO ()
+handler delay logh hdl addr = handle ((\e -> return ()) :: SomeException -> IO ()) $
     handler' hdl addr
     where handler' hdl addr = do
 	    response <- handle (\e -> return $ ServerError $ show (e::SomeException)) $ do
@@ -96,11 +108,11 @@ handler delay hdl addr = handle ((\e -> return ()) :: SomeException -> IO ()) $
 			Unix path -> path
 		    hashedHostname = take 8 $ hash hostname
 		now <- liftIO getCurrentTime
-		logit $ show now ++ ": " ++ hashedHostname ++ " >>> " ++ showRequest request
+		logit logh $ show now ++ ": " ++ hashedHostname ++ " >>> " ++ showRequest request
 		response <- handleRequest request
 		when (delay > 0) $ threadDelay delay
 		now' <- liftIO getCurrentTime
-		logit $ show now' ++ ": " ++ hashedHostname ++ " <<< " ++ showResponse response
+		logit logh $ show now' ++ ": " ++ hashedHostname ++ " <<< " ++ showResponse response
 		return response
 	    L.hPut hdl $ B.encode response
 
