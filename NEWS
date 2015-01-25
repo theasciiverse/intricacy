@@ -1,79 +1,34 @@
+This is an abbreviated summary; see the git log for gory details.
+
 0.4:
-    Misc minor tweaks.
-0.3.8.2:
-    More minor UI improvements (further thanks to dormir)
-0.3.8.1:
-    Deneutralise terminology.
-0.3.8:
-    Animate to show the two physics phases in each turn (thanks dormir)
-0.3.7.1:
-    Minor UI improvements (thanks dormir)
-0.3.7:
-    Metagame help text
-0.3.6:
-    Sound effects.
-0.3.5:
-    Button help text.
-0.3.4:
-    Tutorial tweaks.
-    Yet more misc minor UI improvements.
-0.3.3:
-    Misc minor UI improvements.
-0.3.2:
-    Misc minor UI improvements.
-0.3.1:
-    Misc minor UI improvements;
-    Help screens in SDL mode.
+    Sound effects (thanks linley).
+    Animate to show the two physics phases (thanks dormir).
+    Help screens.
+    Help text for buttons and metagame.
+    Deneutralised metagame terminology.
+    Tutorial tweaked.
+    Various UI improvements (thanks Quicksand-S and dormir)
+
 0.3:
-    Minor fixes; first version uploaded to hackage
-0.2.8:
-    Implemented click-and-drag movement in play and edit modes.
-0.2.7:
+    Mouse control.
     Improvements to curses UI - handle resizing; show keys; allow rebinding.
-    Fixed some bugs with viewing notes.
-0.2.6.3:
-    Update default server address
-0.2.6.2:
-    Fix silly crash bug introduced by 0.2.6.1
-0.2.6.1:
-    Add mouse control of tools
-0.2.6:
-    Minor UI tweaks.
-0.2.5:
     Shortened tutorial drastically. Other levels now in 'tutorial-extra/'.
-    Improved video setup handling.
-    Fixed bug with text disappearing on resize.
-0.2.4:
     Improve handling inaccessible servers.
     Added background.
-    Fixed bug with prompts being quickly dismissed when using the mouse.
-0.2.3:
-    Minor graphical improvements.
-0.2.2:
-    Visible changes:
-	scoring tweak: empty slots are accessed iff all non-empty slots are;
-	'q'uit confirmation now reminds you what you're quitting from;
-	we now consider testedness when deciding if a lock is modified;
-	added detailed game info to the README;
-	added hover text for UI buttons.
-    Bugs fixed:
+    First version uploaded to hackage.
+    Scoring tweak: empty slots are accessed iff all non-empty slots are.
+    Detailed game info in README.
+    Hover text for UI buttons.
+    Marks.
+    Lock testing in edit mode.
+    Significant bugs fixed:
 	editor, lockfile reader, and validity checker were not in accordance
-	    on what is allowed as the root of a spring;
-	SDL UI was redrawing the screen on every mouse movement;
+	    on what is allowed as the root of a spring.
+	SDL UI was redrawing the screen on every mouse movement.
 	curses UI wasn't refreshing properly on async flag.
-0.2.1:
-    New features:
-	The "reset tools" command has become a "test lock" command. Successful
-	    tests are saved along with the lock, meaning you can then place the
-	    lock without having to test it again.
-
-	You can now use marks in 'play' mode, and there's a default mark for the
-	    initial state, effectively giving a "reset" command.
-
-    Bugs fixed: 
-	stale notes weren't getting refreshed
-	retired display got stuck on changing codename
-	you couldn't move into the bolthole with keyboard commands
+	stale notes weren't getting refreshed.
+	retired display got stuck on changing codename.
+	you couldn't move into the bolthole with keyboard commands.
     
 0.2:
     First public release
