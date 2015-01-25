@@ -20,14 +20,9 @@ Written in Haskell, with SDL and Curses user interfaces.
 [![Editing a lock](screenshots/editing.small.png)](screenshots/editing.png)
 [![Curses mode](screenshots/curses.small.png)](screenshots/curses.png)
 
-##Server address change
-The server address has changed from *gonzales.homelinux.org* to
-*thegonz.net*. If you have played with an old version (0.2.6.2 or earlier),
-you should set the new server address with the '$' command.
-
 ##Download
 
-Latest version is 0.3.6 [NEWS](NEWS). If you have the haskell package manager
+Latest version is 0.3.8.2 [NEWS](NEWS). If you have the haskell package manager
 'cabal' and the SDL dependencies, you can install intricacy from hackage with
 <tt>cabal update && cabal install intricacy</tt>. Otherwise, see below.
 
@@ -51,6 +46,11 @@ Download: [47MB ogg theora 15m](intricacy.ogv)
 Stream: tell your video player to stream from
     <tt>http://mbays.freeshell.org/intricacy/intricacy.ogv</tt>,
 or [use youtube](http://www.youtube.com/watch?v=lmuSNe4bGAM).
+
+##Server address change after 0.2.6.2
+The server address changed from *gonzales.homelinux.org* to *thegonz.net*. If
+you last played with an old version (0.2.6.2 or earlier), you should set the
+new server address with the '$' command.
 
 ##Mailing list
 To join the discussion mailing list, please mail
