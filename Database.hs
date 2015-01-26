@@ -10,8 +10,7 @@
 
 module Database where
 
--- TODO: use ByteString everywhere
-
+import Data.Maybe
 import Control.Applicative
 import Control.Monad
 import System.IO
@@ -176,26 +175,29 @@ recordPath rec = do
 	alockFN (ActiveLock name idx) = pathifyName name ++":"++ show idx
 	locksDir = "locks"++[pathSeparator]
 
--- dummy out characters which are disallowed on unix or windows:
-pathifyName = map $ \c -> case c of
-    '/'->'s'
-    '.'->'d'
-    '\\'->'b'
-    '<'->'l'
-    '>'->'g'
-    ':'->'c'
-    '|'->'p'
-    '?'->'q'
-    '*'->'a'
-    _ -> c
-unpathifyName = map $ \c -> case c of
-    's'->'/'
-    'd'->'.'
-    'b'->'\\'
-    'l'->'<'
-    'g'->'>'
-    'c'->':'
-    'p'->'|'
-    'q'->'?'
-    'a'->'*'
-    _ -> c
+-- Dummy out characters which are disallowed on unix or dos.
+-- We use lowercase characters as dummies.
+-- Note that this will cause collisions on case-insensitive filesystems;
+-- but note that these collisions are mostly harmless - they just mean some
+-- codenames will be aliases for others.
+pathifyName = map $ \c ->
+    fromMaybe c (lookup c pathifyAssocs)
+unpathifyName = map $ \c ->
+    fromMaybe c (lookup c $ map (\(a,b) -> (b,a)) pathifyAssocs)
+pathifyAssocs =
+    [ ('/','s')
+    , ('.','d')
+    , ('\\','b')
+    , ('<','l')
+    , ('>','g')
+    , (':','c')
+    , ('|','p')
+    , ('?','q')
+    , ('*','a')
+    , ('+','t')
+    , (',','m')
+    , (';','i')
+    , ('=','e')
+    , ('[','k')
+    , (']','j')
+    ]
