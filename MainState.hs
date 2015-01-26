@@ -145,9 +145,6 @@ readLock path = runMaybeT $ msum
 	    return $ (lock,msoln) ]
 -- writeLock :: FilePath -> Lock -> IO ()
 -- writeLock path lock = fullLockPath path >>= flip writeReadFile lock
-fullLockPath path = if isAbsolute path
-    then return path
-    else (++(pathSeparator:path)) <$> confFilePath "locks"
 
 writeMetaState (MetaState { curServer=saddr, undeclareds=undecls, curAuth=auth, curLockPath=path }) = do
     confFilePath "metagame.conf" >>= flip writeReadFile (saddr, auth, path)

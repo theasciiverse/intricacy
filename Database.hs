@@ -21,10 +21,6 @@ import Control.Monad.IO.Class
 import qualified Data.ByteString.Lazy.Char8 as CL
 import qualified Data.ByteString.Char8 as CS
 
---import OpenSSL.Digest (MessageDigest(SHA1), toHex)
---import OpenSSL.Digest.ByteString.Lazy (digest)
---import Data.Digest.Pure.SHA (sha1, showDigest)
---see also OpenSSL.EVP.Digest from HsOpenSSL
 import Crypto.Hash (hashlazy, Digest, SHA1, digestToHexByteString)
 
 import Protocol
@@ -32,8 +28,6 @@ import Metagame
 import Lock
 import Mundanities
 
---hash :: String -> IO String
---hash str = fmap (>>=toHex) $ digest SHA1 $ CL.pack $ str
 sha1 :: CL.ByteString -> Digest SHA1
 sha1 = hashlazy
 hash :: String -> String
@@ -102,12 +96,12 @@ getRecordh RecLockHashes h = ((RCLockHashes <$>) . tryRead) <$> hGetStrict h
 getRecordh (RecRetiredLocks name) h = ((RCLockSpecs <$>) . tryRead) <$> hGetStrict h
 getRecordh RecServerInfo h = ((RCServerInfo <$>) . tryRead) <$> hGetStrict h
 
-hGetStrict h = CS.unpack `liftM` concatMWhileNonempty (repeat $ CS.hGet h 1024)
+hGetStrict h = CS.unpack <$> concatMWhileNonempty (repeat $ CS.hGet h 1024)
     where concatMWhileNonempty (m:ms) = do
 	    bs <- m
 	    if CS.null bs
 		then return bs
-		else (bs `CS.append`) `liftM` concatMWhileNonempty ms
+		else (bs `CS.append`) <$> concatMWhileNonempty ms
 
 putRecord :: Record -> RecordContents -> DBM ()
 putRecord rec rc = do
@@ -155,18 +149,19 @@ newLockRecord lock = do
 listUsers :: DBM [Codename]
 listUsers = do
     dbpath <- ask
-    liftIO $ (map unpathifyName . filter ((==3).length)) <$> getDirectoryContents (dbpath++[pathSeparator]++"users")
+    liftIO $ (map unpathifyName . filter ((==3).length)) <$>
+	getDirectoryContents (dbpath++[pathSeparator]++"users")
 
 recordPath :: Record -> DBM FilePath
-recordPath rec = do
-	dbpath <- ask
-	return $ dbpath ++ [pathSeparator] ++ recordPath' rec
+recordPath rec =
+    (++ ([pathSeparator] ++ recordPath' rec)) <$> ask
     where
 	recordPath' (RecPassword name) = userDir name ++ "passwd"
 	recordPath' (RecUserInfo name) = userDir name ++ "info"
 	recordPath' (RecUserInfoLog name) = userDir name ++ "log"
 	recordPath' (RecLock ls) = locksDir ++ show ls
-	recordPath' (RecNote (NoteInfo name _  alock)) = userDir name ++ "notes" ++ [pathSeparator] ++ alockFN alock
+	recordPath' (RecNote (NoteInfo name _  alock)) =
+	    userDir name ++ "notes" ++ [pathSeparator] ++ alockFN alock
 	recordPath' (RecRetiredLocks name) = userDir name ++ "retired"
 	recordPath' RecLockHashes = "lockHashes"
 	recordPath' RecServerInfo = "serverInfo"

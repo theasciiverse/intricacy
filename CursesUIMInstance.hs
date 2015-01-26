@@ -324,13 +324,14 @@ instance UIMonad (StateT UIState IO) where
 	bdgs <- getBindings mode
 	return $ maybe "" showKey $ findBinding bdgs cmd
 
-    initUI =
-	do liftIO CursesH.start
-	   cpairs <- liftIO $ colorsToPairs [ (f, CursesH.black) | f <-
-		[ CursesH.white, CursesH.red, CursesH.green, CursesH.yellow, CursesH.blue, CursesH.magenta, CursesH.cyan] ]
-	   modify $ \s -> s {dispCPairs = cpairs}
-	   readBindings
-	   return True
+    initUI = do
+	liftIO CursesH.start
+	cpairs <- liftIO $ colorsToPairs [ (f, CursesH.black)
+	    | f <- [ CursesH.white, CursesH.red, CursesH.green, CursesH.yellow
+		, CursesH.blue, CursesH.magenta, CursesH.cyan] ]
+	modify $ \s -> s {dispCPairs = cpairs}
+	readBindings
+	return True
 
     endUI = do
 	writeBindings

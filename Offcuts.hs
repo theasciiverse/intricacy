@@ -38,3 +38,21 @@ drawPaintSel = do
     case (paintTiles!!pti) of
 	Nothing -> return ()
 	Just t -> renderToMain $ drawAtRel (tileGlyph t (dim $ colourWheel 5)) (periphery 0)
+
+-- from GraphColouring.hs
+fourColour :: Ord a => Graph a -> Colouring a -> Colouring a
+fourColour (nodes,edges) lastCol =
+    -- ^bruteforce
+    if Map.keysSet lastCol == nodes && isColouring lastCol
+	then lastCol
+	else head $ filter isColouring colourings
+    where
+	isColouring mapping = and [
+	    Map.lookup s mapping /= Map.lookup e mapping |
+		edge <- Set.toList edges
+		, [s,e] <- [Set.toList edge] ]
+	colourings = colourings' $ Set.toList nodes
+	colourings' [] = [ Map.empty ]
+	colourings' (n:ns) = [ Map.insert n c m |
+	    m <- colourings' ns
+	    , c <- [0..3] ]

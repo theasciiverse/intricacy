@@ -26,6 +26,11 @@ liftLock g (f,st) = (f,g st)
 
 lockSize (f,_) = frameSize f
 
+baseLock :: Int -> Lock
+baseLock size =
+    let frame = BasicFrame size
+    in (frame, baseState frame)
+
 deframe :: Lock -> Lock
 deframe = delTools . liftLock (setpp 0 nullpp)
 nullpp = PlacedPiece (PHS zero) (Block [])

@@ -13,44 +13,48 @@ import Hex
 import GameStateTypes
 import Metagame
 
-data Command = CmdDir WrHoSel HexDir | CmdRotate WrHoSel TorqueDir | CmdWait
-	| CmdMoveTo HexPos | CmdManipulateToolAt HexPos
-	| CmdDrag HexPos HexDir
-	| CmdToggle
-	| CmdOpen
-	| CmdTile Tile | CmdPaint (Maybe Tile)
-	| CmdPaintFromTo (Maybe Tile) HexPos HexPos
-	| CmdSelect | CmdUnselect
-	| CmdDelete | CmdMerge
-	| CmdMark | CmdJumpMark | CmdReset
-	| CmdPlay | CmdTest
-	| CmdUndo | CmdRedo
-	| CmdReplayForward Int | CmdReplayBack Int
-	| CmdInputChar Char
-	| CmdInputSelLock LockIndex | CmdInputCodename Codename | CmdInputSelUndecl Undeclared
-	| CmdWriteState
-	| CmdTutorials
-	| CmdShowRetired | CmdPlayLockSpec (Maybe LockSpec)
-	| CmdSetServer | CmdToggleCacheOnly
-	| CmdSelCodename (Maybe Codename) | CmdBackCodename | CmdHome
-	| CmdSolve (Maybe LockIndex) | CmdDeclare (Maybe Undeclared)
-	| CmdViewSolution (Maybe NoteInfo)
-	| CmdSelectLock | CmdNextLock | CmdPrevLock
-	| CmdEdit | CmdPlaceLock (Maybe LockIndex)
-	| CmdRegister | CmdAuth
-	| CmdNextPage | CmdPrevPage
-        | CmdToggleColourMode
-	| CmdRedraw | CmdRefresh | CmdSuspend
-	| CmdQuit | CmdForceQuit
-	| CmdHelp | CmdBind
-	| CmdNone
+data Command
+    = CmdDir WrHoSel HexDir | CmdRotate WrHoSel TorqueDir | CmdWait
+    | CmdMoveTo HexPos | CmdManipulateToolAt HexPos
+    | CmdDrag HexPos HexDir
+    | CmdToggle
+    | CmdOpen
+    | CmdTile Tile | CmdPaint (Maybe Tile)
+    | CmdPaintFromTo (Maybe Tile) HexPos HexPos
+    | CmdSelect | CmdUnselect
+    | CmdDelete | CmdMerge
+    | CmdMark | CmdJumpMark | CmdReset
+    | CmdPlay | CmdTest
+    | CmdUndo | CmdRedo
+    | CmdReplayForward Int | CmdReplayBack Int
+    | CmdInputChar Char
+    | CmdInputSelLock LockIndex
+    | CmdInputCodename Codename
+    | CmdInputSelUndecl Undeclared
+    | CmdWriteState
+    | CmdTutorials
+    | CmdShowRetired | CmdPlayLockSpec (Maybe LockSpec)
+    | CmdSetServer | CmdToggleCacheOnly
+    | CmdSelCodename (Maybe Codename) | CmdBackCodename | CmdHome
+    | CmdSolve (Maybe LockIndex) | CmdDeclare (Maybe Undeclared)
+    | CmdViewSolution (Maybe NoteInfo)
+    | CmdSelectLock | CmdNextLock | CmdPrevLock
+    | CmdEdit | CmdPlaceLock (Maybe LockIndex)
+    | CmdRegister | CmdAuth
+    | CmdNextPage | CmdPrevPage
+    | CmdToggleColourMode
+    | CmdRedraw | CmdRefresh | CmdSuspend
+    | CmdQuit | CmdForceQuit
+    | CmdHelp | CmdBind
+    | CmdNone
     deriving (Eq, Ord, Show, Read)
 data WrHoSel = WHSWrench | WHSHook | WHSSelected
     deriving (Eq, Ord, Show, Read)
 
 describeCommand :: Command -> String
 describeCommand (CmdDir whs dir) = "move " ++ whsStr whs ++ " " ++ dirStr dir
-describeCommand (CmdRotate whs dir) = "rotate " ++ whsStr whs ++ " " ++ (if dir == 1 then "counter" else "") ++ "clockwise"
+describeCommand (CmdRotate whs dir) = "rotate " ++ whsStr whs
+	++ " " ++ (if dir == 1 then "counter" else "") ++ "clockwise"
 describeCommand CmdWait = "nothing"
 describeCommand CmdToggle = "toggle tool"
 describeCommand CmdOpen = "open lock"
@@ -73,20 +77,26 @@ describeCommand CmdTutorials = "play tutorial levels"
 describeCommand CmdShowRetired = "show retired locks"
 describeCommand CmdSetServer = "set server"
 describeCommand CmdToggleCacheOnly = "toggle using only cache"
-describeCommand (CmdSelCodename mname) = "select player" ++ maybe "" (' ':) mname
+describeCommand (CmdSelCodename mname) = "select player"
+	++ maybe "" (' ':) mname
 describeCommand CmdBackCodename = "select last player"
 describeCommand CmdHome = "select self"
-describeCommand (CmdSolve mli) = "solve lock" ++ maybe "" ((' ':).(:"").lockIndexChar) mli
-describeCommand (CmdPlayLockSpec mls) = "find lock by number" ++ maybe "" ((' ':).show) mls
-describeCommand (CmdDeclare mundecl) = "declare solution" ++ maybe "" (\_->" [specified solution]") mundecl
-describeCommand (CmdViewSolution mnote) = "view lock solution" ++ maybe "" (\_->" [specified solution]") mnote
+describeCommand (CmdSolve mli) = "solve lock"
+	++ maybe "" ((' ':).(:"").lockIndexChar) mli
+describeCommand (CmdPlayLockSpec mls) = "find lock by number"
+	++ maybe "" ((' ':).show) mls
+describeCommand (CmdDeclare mundecl) = "declare solution"
+	++ maybe "" (\_->" [specified solution]") mundecl
+describeCommand (CmdViewSolution mnote) = "view lock solution"
+	++ maybe "" (\_->" [specified solution]") mnote
 describeCommand CmdSelectLock = "choose lock by name"
 describeCommand CmdNextLock = "next lock"
 describeCommand CmdPrevLock = "previous lock"
 describeCommand CmdNextPage = "page forward through lists"
 describeCommand CmdPrevPage = "page back through lists"
 describeCommand CmdEdit = "edit lock"
-describeCommand (CmdPlaceLock mli) = "place lock" ++ maybe "" ((' ':).(:"").lockIndexChar) mli
+describeCommand (CmdPlaceLock mli) = "place lock"
+	++ maybe "" ((' ':).(:"").lockIndexChar) mli
 describeCommand CmdRegister = "register codename"
 describeCommand CmdAuth = "authenticate"
 describeCommand CmdBind = "bind key"

@@ -131,4 +131,3 @@ instance Binary PlayerMove where
 	    1 -> liftM HookPush get
 	    2 -> liftM HookTorque getPackedInt
 	    3 -> liftM WrenchPush get
-

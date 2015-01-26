@@ -242,4 +242,3 @@ writeAsciiLockFile path msoln lock = do
     writeStrings path $ lockToAscii lock ++ case msoln of
 	Nothing -> []
 	Just soln -> ["Solution:", show soln]
-

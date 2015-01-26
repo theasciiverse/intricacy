@@ -123,23 +123,23 @@ connectionLength st (Connection root end _) =
 springsAtIdx,springsEndAtIdx,springsRootAtIdx :: GameState -> PieceIdx -> [Connection]
 springsAtIdx st idx =
     [ c | c@(Connection (ridx,_) (eidx, _) (Spring _ _)) <- connections st
-	  , idx `elem` [ridx,eidx] ]
+    , idx `elem` [ridx,eidx] ]
 springsAtIdxIgnoring st idx idx' =
     [ c | c@(Connection (ridx,_) (eidx, _) (Spring _ _)) <- connections st
-	  , idx `elem` [ridx,eidx], idx' `notElem` [ridx,eidx] ]
+    , idx `elem` [ridx,eidx], idx' `notElem` [ridx,eidx] ]
 springsEndAtIdx st idx =
     [ c | c@(Connection _ (eidx, _) (Spring _ _)) <- connections st
-	  , eidx==idx ]
+    , eidx==idx ]
 springsRootAtIdx st idx =
     [ c | c@(Connection (ridx, _) _ (Spring _ _)) <- connections st
-	  , ridx==idx ]
+    , ridx==idx ]
 connectionsBetween :: GameState -> PieceIdx -> PieceIdx -> [Connection]
 connectionsBetween st idx idx' =
     filter connIsBetween $ connections st
     where
 	connIsBetween conn =
 	    isPerm (idx,idx') (fst $ connectionRoot conn, fst $ connectionEnd conn)
-	isPerm (x,y) (x',y') = (x==x'&&y==y')||(x==y'&&y==x')
+	isPerm = (==) `on` (\(x,y) -> Set.fromList [x,y])
 
 connGraphPathExists :: GameState -> PieceIdx -> PieceIdx -> Bool
 connGraphPathExists st ridx eidx = (ridx == eidx) ||
@@ -150,15 +150,16 @@ connGraphHeight :: GameState -> PieceIdx -> Int
 connGraphHeight st idx =
     maximum (0 : map ((+1) . connGraphHeight st . fst . connectionRoot) (springsEndAtIdx st idx))
 
-type DiGraph a = Map a (Set a)
+type Digraph a = Map a (Set a)
 checkConnGraphAcyclic :: GameState -> Bool
 checkConnGraphAcyclic st =
     let idxs = ppidxs st
 	leaves dg = map fst $ filter (Set.null . snd) $ Map.toList dg
-	checkDiGraphAcyclic dg = case listToMaybe $ leaves dg of
+	checkDigraphAcyclic :: Ord a => Digraph a -> Bool
+	checkDigraphAcyclic dg = case listToMaybe $ leaves dg of
 	    Nothing -> Map.null dg
-	    Just leaf -> checkDiGraphAcyclic $ Map.delete leaf $ fmap (Set.delete leaf) dg
-    in checkDiGraphAcyclic $ Map.fromList
+	    Just leaf -> checkDigraphAcyclic $ Map.delete leaf $ fmap (Set.delete leaf) dg
+    in checkDigraphAcyclic $ Map.fromList
 	[ (idx, Set.fromList $ map (fst.connectionRoot) $ springsEndAtIdx st idx) | idx <- idxs ]
 
 repossessConns :: GameState -> GameState -> GameState
@@ -201,17 +202,23 @@ componentify idx st = let PlacedPiece ppos p = getpp st idx
 			$ foldr (addpp . ppOfComp) st newComps, Just idx)
 	_ -> (st,Nothing)
 
-springExtended,springCompressed,springFullyExtended,springFullyCompressed :: GameState -> Connection -> Bool
-springExtended st c@(Connection _ _ (Spring _ natLen)) = connectionLength st c > natLen
+springExtended,springCompressed,springFullyExtended
+    ,springFullyCompressed :: GameState -> Connection -> Bool
+springExtended st c@(Connection _ _ (Spring _ natLen)) =
+    connectionLength st c > natLen
 springExtended _ _ = False
-springCompressed st c@(Connection _ _ (Spring _ natLen)) = connectionLength st c < natLen
+springCompressed st c@(Connection _ _ (Spring _ natLen)) =
+    connectionLength st c < natLen
 springCompressed _ _ = False
-springFullyExtended st c@(Connection _ _ (Spring _ natLen)) = connectionLength st c >= 2*natLen
+springFullyExtended st c@(Connection _ _ (Spring _ natLen)) =
+    connectionLength st c >= 2*natLen
 springFullyExtended _ _ = False
-springFullyCompressed st c@(Connection _ _ (Spring _ natLen)) = connectionLength st c <= (natLen+1)`div`2
+springFullyCompressed st c@(Connection _ _ (Spring _ natLen)) =
+    connectionLength st c <= (natLen+1)`div`2
 springFullyCompressed _ _ = False
-springExtensionValid st c@(Connection _ _ (Spring _ natLen)) = let l = connectionLength st c in
-    l >= (natLen+1)`div`2 && l <= 2*natLen
+springExtensionValid st c@(Connection _ _ (Spring _ natLen)) =
+    let l = connectionLength st c
+    in l >= (natLen+1)`div`2 && l <= 2*natLen
 springExtensionValid _ _ = True
 
 stateBoard :: GameState -> GameBoard
@@ -238,15 +245,14 @@ plPieceBoard (idx,pp) = fmap (\x -> (idx,x)) $ plPieceMap pp
 
 plPieceMap :: PlacedPiece -> Map HexPos Tile
 plPieceMap (PlacedPiece pos (Block pattern)) =
-    Map.fromList [ (rel <+> pos, BlockTile adjs) |
-	rel <- pattern
+    Map.fromList [ (rel <+> pos, BlockTile adjs)
+	| rel <- pattern
 	, let adjs = filter (\dir -> rel <+> dir `elem` pattern) hexDirs ]
 plPieceMap (PlacedPiece pos (Pivot arms)) =
     let overarmed = length arms > 2 in
     Map.fromList $ (pos, PivotTile $ if overarmed then (head arms) else zero ) :
-	[ (rel <+> pos, ArmTile rel main) |
-	    (rel,main) <- zip arms $ repeat False -- overarmed:$repeat False
-	    ]
+	[ (rel <+> pos, ArmTile rel main)
+	| (rel,main) <- zip arms $ repeat False ]
 plPieceMap (PlacedPiece pos (Hook arm _)) =
     Map.fromList $ (pos, HookTile) : [ (arm <+> pos, ArmTile arm True) ]
 plPieceMap (PlacedPiece pos (Wrench mom)) = Map.singleton pos $ WrenchTile mom

@@ -70,3 +70,7 @@ getDirContentsRec path = flip catchIO (const $ return []) $ do
     annotated <- (\p -> (,) p <$> doesDirectoryExist p) `mapM` contents
     let (dirs,files) = join (***) (map fst) $ partition snd annotated
     (files++) . concat <$> getDirContentsRec `mapM` dirs
+
+fullLockPath path = if isAbsolute path
+    then return path
+    else (++(pathSeparator:path)) <$> confFilePath "locks"

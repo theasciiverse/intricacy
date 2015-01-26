@@ -35,20 +35,21 @@ import InputMode
 import CursesRender
 import CVec
 
-data UIState = UIState { dispCPairs::[Curses.Pair], dispCentre::HexPos
-    , dispLastCol::PieceColouring, uiKeyBindings :: Map InputMode KeyBindings
+data UIState = UIState
+    { dispCPairs::[Curses.Pair]
+    , dispCentre::HexPos
+    , dispLastCol::PieceColouring
+    , uiKeyBindings :: Map InputMode KeyBindings
     , monochrome::Bool
     , message::Maybe (Curses.Attr, ColPair, String)}
 type UIM = StateT UIState IO
 nullUIState = UIState [] (PHS zero) Map.empty Map.empty False Nothing
 
 readBindings :: UIM ()
-readBindings = do
+readBindings = void.runMaybeT $ do
     path <- liftIO $ confFilePath "bindings"
-    mbdgs <- liftIO $ readReadFile path
-    case mbdgs of
-	Just bdgs -> modify $ \s -> s {uiKeyBindings = bdgs}
-	Nothing -> return ()
+    bdgs <- MaybeT $ liftIO $ readReadFile path
+    lift $ modify $ \s -> s {uiKeyBindings = bdgs}
 writeBindings :: UIM ()
 writeBindings = do
     path <- liftIO $ confFilePath "bindings"
@@ -57,15 +58,14 @@ writeBindings = do
     liftIO $ writeFile path $ show bdgs
 
 getBindings mode = do
-    uibdgs <- Map.findWithDefault [] mode `liftM` gets uiKeyBindings
+    uibdgs <- Map.findWithDefault [] mode <$> gets uiKeyBindings
     return $ uibdgs ++ bindings mode
 
 bindingsStr :: InputMode -> [Command] -> UIM String
 bindingsStr mode cmds = do
-    uibdgs <- Map.findWithDefault [] mode `liftM` gets uiKeyBindings
-    return $ (\x -> "["++x++"]") $ intercalate "," $
-	[ maybe "" showKey $ findBinding (uibdgs ++ bindings mode) cmd
-	    | cmd <- cmds ]
+    bdgs <- getBindings mode
+    return $ (("["++).(++"]")) $ intercalate "," $
+	map (maybe "" showKey . findBinding bdgs) cmds
 
 
 erase :: UIM ()
@@ -113,7 +113,6 @@ drawState reversed colourFixed alerts st = do
     colouring <- drawStateWithGeom reversed colourFixed lastCol st =<< getGeom
     modify $ \ds -> ds { dispLastCol = colouring }
 
--- TODO: monochrome mode
 drawStateWithGeom reversed colourFixed lastCol st geom = do
     let colouring = boardColouring st (colouredPieces colourFixed st) lastCol
     mono <- gets monochrome

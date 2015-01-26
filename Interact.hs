@@ -358,7 +358,8 @@ processCommand' IMMeta CmdPrevPage =
 processCommand' IMMeta CmdEdit = void.runMaybeT $ do
     (lock, msoln) <- msum [ MaybeT $ gets curLock
 	, do
-	    frame <- BasicFrame <$> msum [ do
+	    size <- msum
+		[ do
 		    _ <- gets curServer
 		    RCServerInfo (ServerInfo size _) <- MaybeT $ getFreshRecBlocking RecServerInfo
 		    return size
@@ -369,7 +370,7 @@ processCommand' IMMeta CmdEdit = void.runMaybeT $ do
 		    guard $ 3 <= size && size <= maxlocksize
 		    return size
 		]
-	    return ((frame, baseState frame), Nothing)
+	    return (baseLock size, Nothing)
 	]
     path <- lift $ gets curLockPath
     newPath <- MaybeT $ lift $ (esPath <$>) $ execStateT interactUI $ newEditState (reframe lock)
