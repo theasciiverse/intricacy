@@ -20,7 +20,9 @@ import Data.Maybe
 import System.Exit
 import System.Environment
 import System.Directory
+import System.FilePath
 import System.Console.GetOpt
+import System.IO
 
 import Mundanities
 import AsciiLock
@@ -32,7 +34,7 @@ data Opt = LockSize Int | ForceCurses
     deriving (Eq, Ord, Show)
 options =
     [ Option ['c'] ["curses"] (NoArg ForceCurses) "force curses UI"
-    -- , Option ['s'] ["locksize"] (ReqArg (LockSize . read) "SIZE") "locksize"
+    , Option ['s'] ["locksize"] (ReqArg (LockSize . read) "SIZE") "locksize"
     ]
 parseArgs :: [String] -> IO ([Opt],[String])
 parseArgs argv =
@@ -45,18 +47,15 @@ setup :: IO (Maybe Lock,[Opt],Maybe String)
 setup = do
     argv <- getArgs
     (opts,args) <- parseArgs argv
-    --let frameSize = fromMaybe 8 $ listToMaybe [ size | LockSize size <- opts ]
-    (fromJust <$>) $ runMaybeT $ msum [ do
-	rpath <- MaybeT $ return $ listToMaybe args
-	msum [ do
-	    path <- MaybeT $ (Just <$> canonicalizePath rpath)
-			`catchIO` (const $ return Nothing)
-	    lock <- reframe.fst <$> MaybeT (readLock path)
-	    return (Just lock,opts,Just path)
-	    , do
-		lift $ putStrLn $ "Failed to open lock file: "++rpath
-		lift $ exitFailure
-		mzero ]
+    let size = fromMaybe 8 $ listToMaybe [ size | LockSize size <- opts ]
+    curDir <- getCurrentDirectory
+    (fromJust <$>) $ runMaybeT $ msum
+	[ do
+	    path <- MaybeT $ return ((curDir </>) <$> listToMaybe args)
+	    msum [ do
+		    lock <- reframe.fst <$> MaybeT (readLock path)
+		    return (Just lock,opts,Just path)
+		, return (Just $ baseLock size, opts, Just path) ]
 	, return (Nothing,opts,Nothing) ]
 
 main' :: (UIMonad s, UIMonad c) =>
