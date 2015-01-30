@@ -11,6 +11,7 @@
 module Database where
 
 import Data.Maybe
+import Data.Tuple (swap)
 import Control.Applicative
 import Control.Monad
 import System.IO
@@ -172,13 +173,13 @@ recordPath rec =
 
 -- Dummy out characters which are disallowed on unix or dos.
 -- We use lowercase characters as dummies.
--- Note that this will cause collisions on case-insensitive filesystems;
--- but note that these collisions are mostly harmless - they just mean some
--- codenames will be aliases for others.
-pathifyName = map $ \c ->
-    fromMaybe c (lookup c pathifyAssocs)
-unpathifyName = map $ \c ->
-    fromMaybe c (lookup c $ map (\(a,b) -> (b,a)) pathifyAssocs)
+-- To avoid collisions on case-insensitive filesystems, we use '_' as an
+-- escape character.
+pathifyName = concatMap $ \c ->
+    fromMaybe [c] (('_':) . pure <$> lookup c pathifyAssocs)
+unpathifyName = concatMap $ \c -> case c of
+	'_' -> ""
+	_ -> pure $ fromMaybe c (lookup c $ map swap pathifyAssocs)
 pathifyAssocs =
     [ ('/','s')
     , ('.','d')
@@ -195,4 +196,5 @@ pathifyAssocs =
     , ('=','e')
     , ('[','k')
     , (']','j')
+    , ('_','u')
     ]
