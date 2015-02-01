@@ -50,6 +50,7 @@ import Metagame
 import SDLRender
 import InputMode
 import Maxlocksize
+import Util
 
 data UIState = UIState { scrHeight::Int, scrWidth::Int
     , gsSurface::Maybe Surface
@@ -619,7 +620,7 @@ drawMiniLock lock v = do
 
 -- | TODO: do this more cleverly
 clearOldMiniLocks =
-    (>=50).Map.size <$> gets miniLocks >>= flip when clearMiniLocks
+    (>=50).Map.size <$> gets miniLocks >>? clearMiniLocks
 clearMiniLocks = modify $ \ds -> ds { miniLocks = Map.empty}
 
 drawEmptyMiniLock v =

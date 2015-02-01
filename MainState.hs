@@ -43,6 +43,7 @@ import Protocol
 import Metagame
 import ServerAddr
 import InputMode
+import Util
 
 class (Applicative m, MonadIO m) => UIMonad m where
     runUI :: m a -> IO a
@@ -241,7 +242,7 @@ mgetLock ls = do
 refreshUInfoUI :: (UIMonad uiM) => StateT MainState uiM ()
 refreshUInfoUI = void.runMaybeT $ do
     modify $ \ms -> ms { listOffset = 0 }
-    mourNameSelected >>= flip when getRandomNames
+    mourNameSelected >>? getRandomNames
     lift $ modify $ \ms -> ms {retiredLocks = Nothing}
     lift.lift $ drawMessage ""
     where
@@ -374,7 +375,7 @@ getNotesReadOn lockinfo = (fromMaybe [] <$>) $ runMaybeT $ do
 	    || n `elem` notesRead ourUInfo) $ lockSolutions lockinfo
 
 testAuth :: UIMonad uiM => StateT MainState uiM ()
-testAuth = (isJust <$> gets curAuth >>=) $ flip when $ do
+testAuth = isJust <$> gets curAuth >>? do
     resp <- curServerAction $ Authenticate
     case resp of
 	ServerMessage msg -> (lift $ drawMessage $ "Server: " ++ msg)

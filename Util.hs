@@ -11,6 +11,17 @@
 module Util where
 import qualified Data.Vector as Vector
 import Data.Vector (Vector)
+import Control.Monad
 
 enumVec :: Vector a -> [(Int,a)]
 enumVec = Vector.toList . Vector.indexed
+
+-- nice tip from one joeyh:
+whenM,unlessM,(>>?),(>>!) :: Monad m => m Bool -> m () -> m ()
+whenM c a = c >>= flip when a
+unlessM c a = c >>= flip unless a
+(>>?) = whenM
+(>>!) = unlessM
+-- same precedence as ($), allowing e.g. foo bar >>! error $ "failed " ++ meep
+infixr 0 >>?
+infixr 0 >>!

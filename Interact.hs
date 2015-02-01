@@ -47,16 +47,17 @@ import MainState
 import InputMode
 import Maxlocksize
 import InteractUtil
+import Util
+
+newtype InteractSuccess = InteractSuccess Bool
+instance Error InteractSuccess where
+    noMsg = InteractSuccess False
 
 interactUI :: UIMonad uiM => StateT MainState uiM InteractSuccess
 interactUI = do
     lift $ drawMessage ""
-    (IMMeta==) . ms2im <$> get >>= flip when (void $ do
-	flag <- gets newAsync
-	unblock <- lift unblockInput
-	_ <- liftIO $ forkIO $ forever $ do
-	    atomically $ readTVar flag >>= check >> writeTVar flag False
-	    unblock
+    (==IMMeta) <$> gets ms2im >>? do
+	spawnUnblockerThread
 
 	-- draw before testing auth, lest a timeout mean a blank screen
 	drawMainState
@@ -64,9 +65,8 @@ interactUI = do
 	testAuth
 	refreshUInfoUI
 	tbdg <- lift $ getUIBinding IMMeta CmdTutorials
-	(isNothing <$> gets curAuth >>=) $ flip when $
+	isNothing <$> gets curAuth >>?
 	    lift $ drawMessage $ "Welcome. To play the tutorial levels, press '"++tbdg++"'."
-	)
     setMark startMark
     loop
 
@@ -76,8 +76,7 @@ interactUI = do
 	    let im = ms2im mainSt
 	    when (im == IMPlay) checkWon
 	    when (im == IMMeta) $ (checkAsyncErrors >>) $ void.runMaybeT $
-		mourNameSelected >>=
-		    flip when (lift purgeInvalidUndecls)
+		mourNameSelected >>? lift purgeInvalidUndecls
 	    drawMainState
 	    cmds <- lift $ getSomeInput im
 	    runErrorT (mapM_ (processCommand im) cmds) >>= \x -> case x of
@@ -101,12 +100,12 @@ processCommand im CmdQuit = do
     case im of
 	IMReplay -> throwError $ InteractSuccess False
 	IMPlay -> lift (or <$> sequence [gets psIsSub, null <$> gets psGameStateMoveStack])
-	    >>= flip when (throwError $ InteractSuccess False)
-	IMEdit -> lift editStateUnsaved >>= flip unless (throwError $ InteractSuccess True)
+	    >>? throwError $ InteractSuccess False
+	IMEdit -> lift editStateUnsaved >>! throwError $ InteractSuccess True
 	_ -> return ()
     title <- lift $ getTitle
-    really <- lift $ lift $ confirm $ "Really quit" ++ maybe "" (" from "++) title ++ "?"
-    when really $ throwError $ InteractSuccess False
+    (lift . lift . confirm) ("Really quit" ++ maybe "" (" from "++) title ++ "?")
+	>>? throwError $ InteractSuccess False
 processCommand im CmdForceQuit = throwError $ InteractSuccess False
 processCommand IMPlay CmdOpen = do
     st <- gets psCurrentState
@@ -615,7 +614,7 @@ processCommand' IMEdit CmdWriteState = void.runMaybeT $ do
     newPath <- MaybeT $ lift $ textInput "Save lock as:" 1024 False False Nothing path
     guard $ not $ null newPath
     fullPath <- liftIO $ fullLockPath newPath
-    (liftIO (doesFileExist fullPath `catchIO` const (return True)) >>=) $ flip when $
+    liftIO (doesFileExist fullPath `catchIO` const (return True)) >>?
 	confirmOrBail $ "Really overwrite '"++fullPath++"'?"
     lift $ do
 	st <- gets $ head.esGameStateStack
