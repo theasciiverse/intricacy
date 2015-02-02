@@ -178,8 +178,8 @@ instance UIMonad (StateT UIState IO) where
 	    when (ourName /= selName) $ void $ runMaybeT $ do
 		when (isJust ourName) $
 		    lift.lift $ registerButton (codenamePos <+> neg hu <+> hw) CmdHome 4 [("home",hu<+>neg hv)]
-		sel <- MaybeT $ return selName
-		us <- MaybeT $ return ourName
+		sel <- liftMaybe selName
+		us <- liftMaybe ourName
 		ourUInfo <- mgetUInfo us
 		selUInfo <- mgetUInfo sel
 		let accesses = map (uncurry getAccessInfo) [(ourUInfo,sel),(selUInfo,us)]

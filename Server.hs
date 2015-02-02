@@ -48,6 +48,7 @@ import Frame
 import Database
 import AsciiLock
 import Mundanities
+import Util
 
 port = 27001 -- 27001 == ('i'<<8) + 'y'
 
@@ -174,7 +175,7 @@ handleRequest req@(ClientRequest pv auth action) = do
 		GetUserInfo name mversion -> (do
 			RCUserInfo (curV,info) <- getRecordErrored $ RecUserInfo name
 			(fromJust<$>)$ runMaybeT $ msum [ do
-			    v <- MaybeT $ return mversion
+			    v <- liftMaybe mversion
 			    msum [ guard (v >= curV) >> return ServerFresh
 				, do
 				    guard (v >= curV - 10)

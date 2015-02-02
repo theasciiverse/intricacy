@@ -142,7 +142,7 @@ readLock path = runMaybeT $ msum
 	[ (\l->(l,Nothing)) <$> (MaybeT $ readReadFile path)
 	, do
 	    (mlock,msoln) <- lift $ readAsciiLockFile path
-	    lock <- MaybeT $ return mlock
+	    lock <- liftMaybe mlock
 	    return $ (lock,msoln) ]
 -- writeLock :: FilePath -> Lock -> IO ()
 -- writeLock path lock = fullLockPath path >>= flip writeReadFile lock
@@ -273,7 +273,7 @@ purgeInvalidUndecls = do
 		uinfo <- mgetUInfo name
 		ourName <- mgetOurName
 		msum [ do
-			linfo <- MaybeT $ return $ userLocks uinfo ! idx
+			linfo <- liftMaybe $ userLocks uinfo ! idx
 			return $ public linfo
 			    || ourName `elem` accessedBy linfo
 			    || lockSpec linfo /= ls

@@ -12,9 +12,13 @@ module Util where
 import qualified Data.Vector as Vector
 import Data.Vector (Vector)
 import Control.Monad
+import Control.Monad.Trans.Maybe
 
 enumVec :: Vector a -> [(Int,a)]
 enumVec = Vector.toList . Vector.indexed
+
+liftMaybe :: Monad m => Maybe a -> MaybeT m a
+liftMaybe = MaybeT . return
 
 -- nice tip from one joeyh:
 whenM,unlessM,(>>?),(>>!) :: Monad m => m Bool -> m () -> m ()

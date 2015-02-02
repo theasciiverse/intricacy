@@ -261,8 +261,8 @@ instance UIMonad (StateT UIState IO) where
 		    void $ fillBox (CVec 2 5) (CVec 5 (w`div`3)) 3 GravCentre
 			[ \pos -> drawName False pos name | name <- rnames ]
 	    when (ourName /= selName) $ void $ runMaybeT $ do
-		sel <- MaybeT $ return selName
-		us <- MaybeT $ return ourName
+		sel <- liftMaybe selName
+		us <- liftMaybe ourName
 		ourUInfo <- mgetUInfo us
 		let accessed = [ ActiveLock us i
 			| i<-[0..2]

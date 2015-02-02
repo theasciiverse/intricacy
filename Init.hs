@@ -29,6 +29,7 @@ import AsciiLock
 import Lock
 import MainState
 import Interact
+import Util
 
 data Opt = LockSize Int | ForceCurses
     deriving (Eq, Ord, Show)
@@ -51,7 +52,7 @@ setup = do
     curDir <- getCurrentDirectory
     (fromJust <$>) $ runMaybeT $ msum
 	[ do
-	    path <- MaybeT $ return ((curDir </>) <$> listToMaybe args)
+	    path <- liftMaybe ((curDir </>) <$> listToMaybe args)
 	    msum [ do
 		    lock <- reframe.fst <$> MaybeT (readLock path)
 		    return (Just lock,opts,Just path)
@@ -70,10 +71,10 @@ main' msdlUI mcursesUI = do
 	    finalState <- msum
 		[ do
 		    guard $ ForceCurses `notElem` opts
-		    sdlUI <- MaybeT . return $ msdlUI
+		    sdlUI <- liftMaybe $ msdlUI
 		    MaybeT $ sdlUI $ interactUI `execStateT` initMState
 		, do
-		    cursesUI <- MaybeT . return $ mcursesUI
+		    cursesUI <- liftMaybe $ mcursesUI
 		    MaybeT $ cursesUI $ interactUI `execStateT` initMState
 		]
 	    when (isNothing mlock) $ lift $ writeMetaState finalState

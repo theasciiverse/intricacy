@@ -37,6 +37,7 @@ import Protocol
 import Metagame
 import MainState
 import InputMode
+import Util
 
 checkWon :: UIMonad uiM => StateT MainState uiM ()
 checkWon = do
@@ -133,13 +134,13 @@ jumpMark ch = do
     mst <- get
     void.runMaybeT $ case ms2im mst of
 	IMEdit -> do
-	    st <- MaybeT $ return $ ch `Map.lookup` esMarks mst
+	    st <- liftMaybe $ ch `Map.lookup` esMarks mst
 	    lift $ setMark '\'' >> pushEState st
 	IMPlay -> do
-	    mst' <- MaybeT $ return $ ch `Map.lookup` psMarks mst
+	    mst' <- liftMaybe $ ch `Map.lookup` psMarks mst
 	    put mst' { psMarks = Map.insert '\'' mst $ psMarks mst }
 	IMReplay -> do
-	    mst' <- MaybeT $ return $ ch `Map.lookup` rsMarks mst
+	    mst' <- liftMaybe $ ch `Map.lookup` rsMarks mst
 	    put mst' { rsMarks = Map.insert '\'' mst $ rsMarks mst }
 	_ -> return ()
 
