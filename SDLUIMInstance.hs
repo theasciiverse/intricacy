@@ -590,7 +590,7 @@ updateHoverStr mode = do
 		++ "]"
 
 
-fillArea :: HexVec -> [HexVec] -> [HexVec -> StateT MainState UIM ()] -> StateT MainState UIM ()
+fillArea :: HexVec -> [HexVec] -> [HexVec -> MainStateT UIM ()] -> MainStateT UIM ()
 fillArea centre area draws = do
     offset <- gets listOffset
     let na = length area
@@ -674,7 +674,7 @@ scoreColour score = Pixel $ case score of
 	(-2) -> 0xc0400000
 	(-3) -> 0xff000000
 
-drawLockInfo :: ActiveLock -> Maybe LockInfo -> StateT MainState UIM ()
+drawLockInfo :: ActiveLock -> Maybe LockInfo -> MainStateT UIM ()
 drawLockInfo al@(ActiveLock name i) Nothing = do
     let centre = hw<+>neg hv <+> 7*(i-1)<*>hu
     lift $ drawEmptyMiniLock centre

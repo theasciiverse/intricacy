@@ -47,7 +47,7 @@ import CursesRender
 import CVec
 
 
-drawName :: Bool -> CVec -> Codename -> StateT MainState UIM ()
+drawName :: Bool -> CVec -> Codename -> MainStateT UIM ()
 drawName showScore pos name = do
     ourName <- (authUser <$>) <$> gets curAuth
     relScore <- getRelScore name
@@ -63,19 +63,19 @@ drawName showScore pos name = do
     lift $ drawStrCentred attr col pos
 	(name ++ if showScore then " " ++ maybe "" show relScore else "")
 
-drawActiveLock :: CVec -> ActiveLock -> StateT MainState UIM ()
+drawActiveLock :: CVec -> ActiveLock -> MainStateT UIM ()
 drawActiveLock pos al@(ActiveLock name i) = do
     accessed <- accessedAL al
     drawNameWithChar pos name
 	(if accessed then green else white)
 	(lockIndexChar i)
 
-drawNameWithChar :: CVec -> Codename -> ColPair -> Char -> StateT MainState UIM ()
+drawNameWithChar :: CVec -> Codename -> ColPair -> Char -> MainStateT UIM ()
 drawNameWithChar pos name charcol char = do
     drawName False (pos <+> CVec 0 (-1)) name
     lift $ drawStr bold charcol (pos <+> CVec 0 1) [':',char]
 
-drawNote :: CVec -> NoteInfo -> StateT MainState UIM ()
+drawNote :: CVec -> NoteInfo -> MainStateT UIM ()
 drawNote pos note = case noteBehind note of
     Just al -> drawActiveLock pos al
     Nothing -> drawPublicNote pos (noteAuthor note)
@@ -86,7 +86,7 @@ drawNote pos note = case noteBehind note of
 
 data Gravity = GravUp | GravLeft | GravRight | GravDown | GravCentre
     deriving (Eq, Ord, Show, Enum)
-fillBox :: CVec -> CVec -> Int -> Gravity -> [CVec -> StateT MainState UIM ()] -> StateT MainState UIM Int
+fillBox :: CVec -> CVec -> Int -> Gravity -> [CVec -> MainStateT UIM ()] -> MainStateT UIM Int
 fillBox (CVec t l) (CVec b r) width grav draws = do
     let half = width`div`2
 	starty = (if grav == GravDown then b else t)

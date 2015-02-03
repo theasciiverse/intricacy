@@ -54,7 +54,7 @@ newtype InteractSuccess = InteractSuccess Bool
 instance Error InteractSuccess where
     noMsg = InteractSuccess False
 
-interactUI :: UIMonad uiM => StateT MainState uiM InteractSuccess
+interactUI :: UIMonad uiM => MainStateT uiM InteractSuccess
 interactUI = do
     lift $ drawMessage ""
     (==IMMeta) <$> gets ms2im >>? do
@@ -97,7 +97,7 @@ getSomeInput im = do
     cmds <- getInput im
     if null cmds then getSomeInput im else return cmds
 
-processCommand :: UIMonad uiM => InputMode -> Command -> ErrorT InteractSuccess (StateT MainState uiM) ()
+processCommand :: UIMonad uiM => InputMode -> Command -> ErrorT InteractSuccess (MainStateT uiM) ()
 processCommand im CmdQuit = do
     case im of
 	IMReplay -> throwError $ InteractSuccess False
@@ -117,7 +117,7 @@ processCommand IMPlay CmdOpen = do
 	else lift.lift $ drawError "Locked!"
 processCommand im cmd = lift $ processCommand' im cmd
 
-processCommand' :: UIMonad uiM => InputMode -> Command -> StateT MainState uiM ()
+processCommand' :: UIMonad uiM => InputMode -> Command -> MainStateT uiM ()
 processCommand' im CmdHelp = lift $ do
     showHelp im
     void $ textInput "[press a key or RMB]" 1 False True Nothing Nothing
@@ -634,11 +634,11 @@ hashPassword :: String -> String -> String
 -- ^ salt password
 hashPassword name password = hash $ "IY" ++ name ++ password
 
-subPlay :: UIMonad uiM => Lock -> StateT MainState uiM ()
+subPlay :: UIMonad uiM => Lock -> MainStateT uiM ()
 subPlay lock =
     pushEState =<< psCurrentState <$> (lift $ execStateT interactUI $ newPlayState lock Nothing True)
 
-solveLock :: UIMonad uiM => Lock -> Maybe String -> MaybeT (StateT MainState uiM) Solution
+solveLock :: UIMonad uiM => Lock -> Maybe String -> MaybeT (MainStateT uiM) Solution
 solveLock lock title = do
     (InteractSuccess solved, ps) <- lift.lift $ runStateT interactUI $ newPlayState (reframe lock) title False
     guard $ solved

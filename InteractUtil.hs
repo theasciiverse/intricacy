@@ -38,7 +38,7 @@ import MainState
 import InputMode
 import Util
 
-checkWon :: UIMonad uiM => StateT MainState uiM ()
+checkWon :: UIMonad uiM => MainStateT uiM ()
 checkWon = do
     st <- gets psCurrentState
     frame <- gets psFrame
@@ -66,17 +66,17 @@ paintTilePath tile from to = if from == to
     else let from' = (hexVec2HexDirOrZero $ to<->from) <+> from
 	in drawTile from' tile True >> paintTilePath tile from' to
 
-pushEState :: UIMonad uiM => GameState -> StateT MainState uiM ()
+pushEState :: UIMonad uiM => GameState -> MainStateT uiM ()
 pushEState st = do
     st':sts <- gets esGameStateStack
     when (st' /= st) $ modify $ \es -> es {esGameStateStack = st:st':sts, esUndoneStack = []}
-pushPState :: UIMonad uiM => (GameState,PlayerMove) -> StateT MainState uiM ()
+pushPState :: UIMonad uiM => (GameState,PlayerMove) -> MainStateT uiM ()
 pushPState (st,pm) = do
     st' <- gets psCurrentState
     stms <- gets psGameStateMoveStack
     when (st' /= st) $ modify $ \ps -> ps {psCurrentState = st,
 	    psGameStateMoveStack = (st',pm):stms, psUndoneStack = []}
-modifyEState :: UIMonad uiM => (GameState -> GameState) -> StateT MainState uiM ()
+modifyEState :: UIMonad uiM => (GameState -> GameState) -> MainStateT uiM ()
 modifyEState f = do
     st:_ <- gets esGameStateStack
     pushEState $ f st
@@ -120,7 +120,7 @@ declare undecl@(Undeclared soln ls al) = do
 
 startMark = '^'
 
-jumpMark :: UIMonad uiM => Char -> StateT MainState uiM ()
+jumpMark :: UIMonad uiM => Char -> MainStateT uiM ()
 jumpMark ch = do
     mst <- get
     void.runMaybeT $ case ms2im mst of
@@ -135,7 +135,7 @@ jumpMark ch = do
 	    put mst' { rsMarks = Map.insert '\'' mst $ rsMarks mst }
 	_ -> return ()
 
-setMark :: (Monad m) => Char -> StateT MainState m ()
+setMark :: (Monad m) => Char -> MainStateT m ()
 setMark ch = get >>= \mst -> case mst of
     -- ugh... remind me why I'm not using lens?
     EditState { esMarks = marks, esGameStateStack = (st:_) } ->

@@ -50,7 +50,7 @@ class (Applicative m, MonadIO m) => UIMonad m where
     runUI :: m a -> IO a
     initUI :: m Bool
     endUI :: m ()
-    drawMainState :: StateT MainState m ()
+    drawMainState :: MainStateT m ()
     reportAlerts :: GameState -> [Alert] -> m ()
     drawMessage :: String -> m ()
     drawError :: String -> m ()
@@ -113,13 +113,15 @@ data MainState
 	, newAsync :: TVar Bool
 	, asyncError :: TVar (Maybe String)
 	, randomCodenames :: TVar [Codename]
-	, userInfos :: Map Codename (TVar FetchedRecord, UTCTime)
+	, userInfoTVs :: Map Codename (TVar FetchedRecord, UTCTime)
 	, indexedLocks :: Map LockSpec (TVar FetchedRecord)
 	, retiredLocks :: Maybe [LockSpec]
 	, curLockPath :: FilePath
 	, curLock :: Maybe (Lock,Maybe Solution)
 	, listOffset :: Int
 	}
+
+type MainStateT = StateT MainState
 
 ms2im :: MainState -> InputMode
 ms2im mainSt = case mainSt of
@@ -160,7 +162,7 @@ writeMetaState (MetaState { curServer=saddr, undeclareds=undecls, curAuth=auth, 
     unless (nullSaddr saddr) $
 	confFilePath ("undeclared" ++ [pathSeparator] ++ saddrStr saddr) >>= flip writeReadFile undecls
 
-getTitle :: UIMonad uiM => StateT MainState uiM (Maybe String)
+getTitle :: UIMonad uiM => MainStateT uiM (Maybe String)
 getTitle = ms2im <$> get >>= \im -> case im of
     IMEdit -> do
 	mpath <- gets esPath
@@ -173,7 +175,7 @@ getTitle = ms2im <$> get >>= \im -> case im of
     IMReplay -> gets rsTitle
     _ -> return Nothing
 
-editStateUnsaved :: UIMonad uiM => StateT MainState uiM Bool
+editStateUnsaved :: UIMonad uiM => MainStateT uiM Bool
 editStateUnsaved = (isNothing <$>) $ runMaybeT $ do
     (sst,tested) <- MaybeT $ gets lastSavedState
     st <- MaybeT $ gets $ headMay.esGameStateStack
@@ -181,7 +183,7 @@ editStateUnsaved = (isNothing <$>) $ runMaybeT $ do
     nowTested <- isJust <$> lift getCurTestSoln
     guard $ tested == nowTested
 
-getCurTestSoln :: UIMonad uiM => StateT MainState uiM (Maybe Solution)
+getCurTestSoln :: UIMonad uiM => MainStateT uiM (Maybe Solution)
 getCurTestSoln = runMaybeT $ do
     (st',soln) <- MaybeT $ gets esTested
     st <- MaybeT $ gets $ headMay.esGameStateStack
@@ -190,47 +192,41 @@ getCurTestSoln = runMaybeT $ do
 
 instance Error () where noMsg = ()
 
-mgetOurName :: (UIMonad uiM) => MaybeT (StateT MainState uiM) Codename
+mgetOurName :: (UIMonad uiM) => MaybeT (MainStateT uiM) Codename
 mgetOurName = MaybeT $ (authUser <$>) <$> gets curAuth
-mgetCurName :: (UIMonad uiM) => MaybeT (StateT MainState uiM) Codename
+mgetCurName :: (UIMonad uiM) => MaybeT (MainStateT uiM) Codename
 mgetCurName = MaybeT $ listToMaybe <$> gets codenameStack
 
-getUInfoFetched :: UIMonad uiM => Integer -> Codename -> StateT MainState uiM FetchedRecord
-getUInfoFetched staleTime name =
-    gets ((Map.lookup name) . userInfos) >>=
-	\x -> case x of
-	    Nothing -> set
-	    Just (tvar, time) -> do
-		now <- liftIO getCurrentTime
-		if floor (diffUTCTime now time) > staleTime
-		    then set
-		    else liftIO $ atomically $ readTVar tvar
-    where set = do
-	    tvar <- setUInfoTVar name
+getUInfoFetched :: UIMonad uiM => Integer -> Codename -> MainStateT uiM FetchedRecord
+getUInfoFetched staleTime name = do
+    uinfott <- gets (Map.lookup name . userInfoTVs)
+    ($uinfott) $ maybe set $ \(tvar,time) -> do
+	now <- liftIO getCurrentTime
+	if floor (diffUTCTime now time) > staleTime
+	    then set
+	    else liftIO $ atomically $ readTVar tvar
+    where
+	set = do
+	    now <- liftIO getCurrentTime
+	    tvar <- getRecordCachedFromCur True $ RecUserInfo name
+	    modify $ \ms -> ms {userInfoTVs = Map.insert name (tvar, now) $ userInfoTVs ms}
 	    liftIO $ atomically $ readTVar tvar
 
-mgetUInfo :: UIMonad uiM => Codename -> MaybeT (StateT MainState uiM) UserInfo
+mgetUInfo :: UIMonad uiM => Codename -> MaybeT (MainStateT uiM) UserInfo
 mgetUInfo name = do
     RCUserInfo (_,uinfo) <- MaybeT $ (fetchedRC <$>) $ getUInfoFetched defaultStaleTime name
     return uinfo
     where defaultStaleTime = 300
 
-setUInfoTVar :: UIMonad uiM => Codename -> StateT MainState uiM (TVar FetchedRecord)
-setUInfoTVar name = do
-    now <- liftIO getCurrentTime
-    tvar <- getRecordCachedFromCur True $ RecUserInfo name
-    modify $ \ms -> ms {userInfos = Map.insert name (tvar, now) $ userInfos ms}
-    return tvar
-
-invalidateUInfo :: UIMonad uiM => Codename -> StateT MainState uiM ()
+invalidateUInfo :: UIMonad uiM => Codename -> MainStateT uiM ()
 invalidateUInfo name =
-    modify $ \ms -> ms {userInfos = Map.delete name $ userInfos ms}
+    modify $ \ms -> ms {userInfoTVs = Map.delete name $ userInfoTVs ms}
 
-invalidateAllUInfo :: UIMonad uiM => StateT MainState uiM ()
+invalidateAllUInfo :: UIMonad uiM => MainStateT uiM ()
 invalidateAllUInfo =
-    modify $ \ms -> ms {userInfos = Map.empty}
+    modify $ \ms -> ms {userInfoTVs = Map.empty}
 
-mgetLock :: UIMonad uiM => LockSpec -> MaybeT (StateT MainState uiM) Lock
+mgetLock :: UIMonad uiM => LockSpec -> MaybeT (MainStateT uiM) Lock
 mgetLock ls = do
     tvar <- msum [ MaybeT $ (Map.lookup ls) <$> gets indexedLocks
 	, lift $ do
@@ -240,7 +236,7 @@ mgetLock ls = do
     RCLock lock <- MaybeT $ (fetchedRC<$>) $ liftIO $ atomically $ readTVar tvar
     return $ reframe lock
 
-refreshUInfoUI :: (UIMonad uiM) => StateT MainState uiM ()
+refreshUInfoUI :: (UIMonad uiM) => MainStateT uiM ()
 refreshUInfoUI = void.runMaybeT $ do
     modify $ \ms -> ms { listOffset = 0 }
     mourNameSelected >>? getRandomNames
@@ -261,10 +257,10 @@ refreshUInfoUI = void.runMaybeT $ do
 			    writeTVar flag True
 		    _ -> return ()
 
-mourNameSelected :: (UIMonad uiM) => MaybeT (StateT MainState uiM) Bool
+mourNameSelected :: (UIMonad uiM) => MaybeT (MainStateT uiM) Bool
 mourNameSelected = liftM2 (==) mgetCurName mgetOurName
 
-purgeInvalidUndecls :: (UIMonad uiM) => StateT MainState uiM ()
+purgeInvalidUndecls :: (UIMonad uiM) => MainStateT uiM ()
 purgeInvalidUndecls = do
     undecls' <- gets undeclareds >>= filterM ((not<$>).invalid)
     modify $ \ms -> ms { undeclareds = undecls' }
@@ -281,7 +277,7 @@ purgeInvalidUndecls = do
 		    , return True
 		    ]
 
-curServerAction :: UIMonad uiM => Protocol.Action -> StateT MainState uiM ServerResponse
+curServerAction :: UIMonad uiM => Protocol.Action -> MainStateT uiM ServerResponse
 curServerAction act = do
     saddr <- gets curServer
     auth <- gets curAuth
@@ -289,7 +285,7 @@ curServerAction act = do
     if cOnly then return $ ServerError "Can't contact server in cache-only mode"
 	else lift $ withImpatience $ liftIO $ makeRequest saddr $ ClientRequest protocolVersion auth act
 
-curServerActionAsync :: UIMonad uiM => Protocol.Action -> StateT MainState uiM ()
+curServerActionAsync :: UIMonad uiM => Protocol.Action -> MainStateT uiM ()
 curServerActionAsync act = do
     saddr <- gets curServer
     auth <- gets curAuth
@@ -304,14 +300,14 @@ curServerActionAsync act = do
 	    _ -> return ()
 	atomically $ writeTVar flag True
 
-checkAsyncErrors :: UIMonad uiM => StateT MainState uiM ()
+checkAsyncErrors :: UIMonad uiM => MainStateT uiM ()
 checkAsyncErrors = void.runMaybeT $ do
     errtvar <- lift $ gets asyncError
     err <- MaybeT $ liftIO $ atomically $ readTVar errtvar
     lift.lift $ drawError err
     liftIO $ atomically $ writeTVar errtvar Nothing
 
-getRecordCachedFromCur :: UIMonad uiM => Bool -> Record -> StateT MainState uiM (TVar FetchedRecord)
+getRecordCachedFromCur :: UIMonad uiM => Bool -> Record -> MainStateT uiM (TVar FetchedRecord)
 getRecordCachedFromCur flagIt rec = do
     saddr <- gets curServer
     auth <- gets curAuth
@@ -320,7 +316,7 @@ getRecordCachedFromCur flagIt rec = do
     liftIO $ getRecordCached saddr auth
 	(if flagIt then Just flag else Nothing) cOnly rec
 
-getFreshRecBlocking :: UIMonad uiM => Record -> StateT MainState uiM (Maybe RecordContents)
+getFreshRecBlocking :: UIMonad uiM => Record -> MainStateT uiM (Maybe RecordContents)
 getFreshRecBlocking rec = do
     tvar <- getRecordCachedFromCur False rec
     cOnly <- gets cacheOnly
@@ -349,7 +345,7 @@ withImpatience m = do
     liftIO $ forkIO $ waitImpatiently 0
     m <* (liftIO $ atomically $ writeTVar finishedTV True)
 
-getRelScore :: (UIMonad uiM) => Codename -> StateT MainState uiM (Maybe Int)
+getRelScore :: (UIMonad uiM) => Codename -> MainStateT uiM (Maybe Int)
 getRelScore name = (fst<$>) <$> getRelScoreDetails name
 getRelScoreDetails name = runMaybeT $ do
     ourName <- mgetOurName
@@ -361,21 +357,21 @@ getRelScoreDetails name = runMaybeT $ do
     where
 	countUnaccessedBy ui name = length $ filter isNothing $ getAccessInfo ui name
 
-accessedAL :: (UIMonad uiM) => ActiveLock -> StateT MainState uiM Bool
+accessedAL :: (UIMonad uiM) => ActiveLock -> MainStateT uiM Bool
 accessedAL (ActiveLock name idx) = (isJust <$>) $ runMaybeT $ do
     ourName <- mgetOurName
     guard $ ourName /= name
     uinfo <- mgetUInfo name
     guard $ isJust $ getAccessInfo uinfo ourName !! idx
 
-getNotesReadOn :: UIMonad uiM => LockInfo -> StateT MainState uiM [NoteInfo]
+getNotesReadOn :: UIMonad uiM => LockInfo -> MainStateT uiM [NoteInfo]
 getNotesReadOn lockinfo = (fromMaybe [] <$>) $ runMaybeT $ do
     ourName <- mgetOurName
     ourUInfo <- mgetUInfo ourName
     return $ filter (\n -> isNothing (noteBehind n)
 	    || n `elem` notesRead ourUInfo) $ lockSolutions lockinfo
 
-testAuth :: UIMonad uiM => StateT MainState uiM ()
+testAuth :: UIMonad uiM => MainStateT uiM ()
 testAuth = isJust <$> gets curAuth >>? do
     resp <- curServerAction $ Authenticate
     case resp of
