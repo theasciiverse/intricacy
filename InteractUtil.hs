@@ -12,7 +12,6 @@ module InteractUtil where
 
 import Control.Monad.State
 import Control.Applicative
-import qualified Data.Vector as Vector
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Control.Monad.Writer
@@ -51,19 +50,11 @@ checkWon = do
 	lift $ if solved then do
 		drawMessage $ "Unlocked! '"++obdg++"' to open."
 		reportAlerts st [AlertUnlocked]
-	    else do
-		drawMessage ""
-	{-
-	pms <- (reverse.(map snd)) `liftM` gets psGameStateMoveStack
-	let wfname = fromMaybe "unnamed.lock" fname
-	liftIO $ writeFile (wfname++".solution") $ show pms
-	liftIO $ B.writeFile (wfname++".solution.bin") $ Bin.encode $ pms
-	-}
+	    else drawMessage ""
+
 doForce force = do
     st:_ <- gets esGameStateStack
-    let (st',alerts) = runWriter $ resolveForces
-	    (Vector.singleton (ForceChoice [force])) Vector.empty
-	    (\_ _->False) st
+    let (st',alerts) = runWriter $ resolveSinglePlForce force st
     lift (reportAlerts st' alerts) >> pushEState st'
 drawTile pos tile painting = do
     modify $ \es -> es {selectedPiece = Nothing}

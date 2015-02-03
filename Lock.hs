@@ -45,51 +45,50 @@ validLock lock@(f,st) = and
     , validGameState st
     ]
 
-stepPhysics :: GameState -> GameState
-stepPhysics = fst.runWriter.physicsTick NullPM
-
 type Solution = [PlayerMove]
 
 checkSolution :: Lock -> Solution -> Bool
 checkSolution lock pms =
     let (frame,st) = reframe lock
-    in any (\st' -> checkSolved (frame,st')) $
-		scanl (((fst.runWriter).).flip physicsTick) st pms
+	tick :: GameState -> PlayerMove -> GameState
+	tick st pm = fst . runWriter $ physicsTick pm st
+    in any (\st' -> checkSolved (frame,st')) $ scanl tick st pms
 
 checkSolved :: Lock -> Bool
 checkSolved (f,st) =
-    let b = stateBoard st in
-	and [ isNothing $ Map.lookup p b | p <- boltArea f ]
+    and [ isNothing $ Map.lookup p (stateBoard st) | p <- boltArea f ]
 
 
 canonify :: Lock -> Lock
 canonify = addTools . stabilise . delTools . delOOB
 delTools :: Lock -> Lock
-delTools = liftLock delTools'
-    where
+delTools = liftLock delTools' where
 	delTools' :: GameState -> GameState
 	delTools' st =
-	    case listToMaybe [ idx | (idx,pp) <- enumVec $ placedPieces st
-			      , isTool $ placedPiece pp ] of
-		Nothing -> st
-		Just idx -> delTools' $ delPiece idx st
+	    fromMaybe st $ listToMaybe 
+		[ delTools' $ delPiece idx st
+		| (idx,pp) <- enumVec $ placedPieces st
+		, isTool $ placedPiece pp ]
 addTools :: Lock -> Lock
 addTools (f,st) =
     let st' = clearToolArea f st
     in (f, foldr addpp st' $ initTools f)
+
+-- |An important property of the game physics is that any state stabilises in
+-- finite time. Proof: in any spontaneous state change some spring gets closer
+-- to being of natural length, and none get further from it.
 stabilise :: Lock -> Lock
-stabilise = liftLock stabilise'
-    where
+stabilise = liftLock stabilise' where
 	stabilise' :: GameState -> GameState
 	stabilise' st =
 	    let st' = stepPhysics st
 	    in if st == st' then st else stabilise' st'
 
 delOOB :: Lock -> Lock
-delOOB l@(f,st) = case listToMaybe [ idx |
-	(idx,_) <- enumVec $ placedPieces st
+delOOB l@(f,st) =
+    fromMaybe l $ listToMaybe
+	[ delOOB $ liftLock (delPiece idx) l
+	| (idx,_) <- enumVec $ placedPieces st
 	, not $ isFrame idx
 	, all (not.inBounds f) $ fullFootprint st idx
-	, null $ springsEndAtIdx st idx] of
-    Nothing -> l
-    Just idx -> delOOB $ liftLock (delPiece idx) l
+	, null $ springsEndAtIdx st idx]

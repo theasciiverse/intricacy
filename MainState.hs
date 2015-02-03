@@ -28,6 +28,7 @@ import System.FilePath
 import Data.Time.Clock
 import Data.Array
 import Data.Function (on)
+import Safe
 
 import Hex
 import Mundanities
@@ -120,6 +121,13 @@ data MainState
 	, listOffset :: Int
 	}
 
+ms2im :: MainState -> InputMode
+ms2im mainSt = case mainSt of
+    PlayState {} -> IMPlay
+    ReplayState {} -> IMReplay
+    EditState {} -> IMEdit
+    MetaState {} -> IMMeta
+
 newPlayState (frame,st) title sub = PlayState st frame [] False False [] [] title sub Map.empty
 newReplayState st soln title = ReplayState st soln [] title Map.empty
 newEditState (frame,st) msoln mpath = EditState [st] [] frame mpath
@@ -152,13 +160,6 @@ writeMetaState (MetaState { curServer=saddr, undeclareds=undecls, curAuth=auth, 
     unless (nullSaddr saddr) $
 	confFilePath ("undeclared" ++ [pathSeparator] ++ saddrStr saddr) >>= flip writeReadFile undecls
 
-ms2im :: MainState -> InputMode
-ms2im mainSt = case mainSt of
-    PlayState {} -> IMPlay
-    ReplayState {} -> IMReplay
-    EditState {} -> IMEdit
-    MetaState {} -> IMMeta
-
 getTitle :: UIMonad uiM => StateT MainState uiM (Maybe String)
 getTitle = ms2im <$> get >>= \im -> case im of
     IMEdit -> do
@@ -175,7 +176,7 @@ getTitle = ms2im <$> get >>= \im -> case im of
 editStateUnsaved :: UIMonad uiM => StateT MainState uiM Bool
 editStateUnsaved = (isNothing <$>) $ runMaybeT $ do
     (sst,tested) <- MaybeT $ gets lastSavedState
-    st <- lift $ gets $ head.esGameStateStack
+    st <- MaybeT $ gets $ headMay.esGameStateStack
     guard $ sst == st
     nowTested <- isJust <$> lift getCurTestSoln
     guard $ tested == nowTested
@@ -183,7 +184,7 @@ editStateUnsaved = (isNothing <$>) $ runMaybeT $ do
 getCurTestSoln :: UIMonad uiM => StateT MainState uiM (Maybe Solution)
 getCurTestSoln = runMaybeT $ do
     (st',soln) <- MaybeT $ gets esTested
-    st <- lift $ gets $ head.esGameStateStack
+    st <- MaybeT $ gets $ headMay.esGameStateStack
     guard $ st == st'
     return soln
 

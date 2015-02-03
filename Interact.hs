@@ -27,6 +27,7 @@ import System.Directory
 import System.FilePath
 import Data.Array
 import Data.Function (on)
+import Safe (readMay)
 
 import Hex
 import Command
@@ -68,10 +69,10 @@ interactUI = do
 	isNothing <$> gets curAuth >>?
 	    lift $ drawMessage $ "Welcome. To play the tutorial levels, press '"++tbdg++"'."
     setMark startMark
-    loop
+    interactLoop
 
     where
-	loop = do
+	interactLoop = do
 	    mainSt <- get
 	    let im = ms2im mainSt
 	    when (im == IMPlay) checkWon
@@ -79,21 +80,22 @@ interactUI = do
 		mourNameSelected >>? lift purgeInvalidUndecls
 	    drawMainState
 	    cmds <- lift $ getSomeInput im
-	    runErrorT (mapM_ (processCommand im) cmds) >>= \x -> case x of
-		Left ret -> do
-		    lift $ drawMessage ""
-		    return ret
-		Right _ -> loop
+	    runErrorT (mapM_ (processCommand im) cmds) >>=
+		either
+		    ((lift (drawMessage "") >>) . return)
+		    (const interactLoop)
 
--- | TODO: neater would be to use a stream (see package 'pipes') for
--- input?
+	-- | unblock input whenever the newAsync TVar is set to True
+	spawnUnblockerThread = do
+	    flag <- gets newAsync
+	    unblock <- lift unblockInput
+	    liftIO $ forkIO $ forever $ do
+		atomically $ readTVar flag >>= check >> writeTVar flag False
+		unblock
+
 getSomeInput im = do
     cmds <- getInput im
     if null cmds then getSomeInput im else return cmds
-
-newtype InteractSuccess = InteractSuccess Bool
-instance Error InteractSuccess where
-    noMsg = InteractSuccess False
 
 processCommand :: UIMonad uiM => InputMode -> Command -> ErrorT InteractSuccess (StateT MainState uiM) ()
 processCommand im CmdQuit = do
@@ -110,14 +112,16 @@ processCommand im CmdForceQuit = throwError $ InteractSuccess False
 processCommand IMPlay CmdOpen = do
     st <- gets psCurrentState
     frame <- gets psFrame
-    if checkSolved (frame,st) then throwError $ InteractSuccess True else lift.lift $ drawError "Locked!"
+    if checkSolved (frame,st)
+	then throwError $ InteractSuccess True
+	else lift.lift $ drawError "Locked!"
 processCommand im cmd = lift $ processCommand' im cmd
 
 processCommand' :: UIMonad uiM => InputMode -> Command -> StateT MainState uiM ()
 processCommand' im CmdHelp = lift $ do
     showHelp im
     void $ textInput "[press a key or RMB]" 1 False True Nothing Nothing
-processCommand' im CmdBind = lift $ flip (>>) (drawMessage "") $ void $ runMaybeT $ do
+processCommand' im CmdBind = lift $ (>> drawMessage "") $ runMaybeT $ do
 	lift $ drawMessage "Command to bind: "
 	cmd <- msum $ repeat $ do
 	    cmd <- MaybeT $ listToMaybe <$> getInput im
@@ -128,8 +132,8 @@ processCommand' im CmdBind = lift $ flip (>>) (drawMessage "") $ void $ runMaybe
 	guard $ ch /= '\ESC'
 	lift $ setUIBinding im cmd ch
 processCommand' _ CmdToggleColourMode = lift toggleColourMode
-processCommand' _ CmdSuspend = lift $ suspend
-processCommand' _ CmdRedraw = lift $ redraw
+processCommand' _ CmdSuspend = lift suspend
+processCommand' _ CmdRedraw = lift redraw
 processCommand' im CmdMark = void.runMaybeT $ do
     guard $ im `elem` [IMEdit, IMPlay, IMReplay]
     str <- MaybeT $ lift $ textInput "Mark: " 1 False True Nothing Nothing
@@ -146,7 +150,8 @@ processCommand' im CmdReset = jumpMark startMark
 processCommand' IMMeta (CmdSelCodename mname) = void.runMaybeT $ do
     name <- msum [ liftMaybe $ mname
 	, do
-	    newCodename <- (map toUpper <$>) $ MaybeT $ lift $ textInput "Codename:" 3 False True Nothing Nothing
+	    newCodename <- (map toUpper <$>) $ MaybeT $ lift $
+		textInput "Codename:" 3 False True Nothing Nothing
 	    guard $ length newCodename == 3
 	    return newCodename
 	]
@@ -168,14 +173,13 @@ processCommand' IMMeta CmdBackCodename = do
 processCommand' IMMeta CmdSetServer = void.runMaybeT $ do
     saddr <- gets curServer
     saddrs <- liftIO $ knownServers
-    newSaddrstr <- MaybeT $ lift $ textInput "Set server:" 256 False False
+    newSaddr <- MaybeT $ ((>>= strToSaddr) <$>) $
+	lift $ textInput "Set server:" 256 False False
 	    (Just $ map saddrStr saddrs) (Just $ saddrStr saddr)
-    newSaddr <- MaybeT $ return $ strToSaddr newSaddrstr
     modify $ \ms -> ms { curServer = newSaddr }
-    unless (nullSaddr newSaddr) $
-	msum [ void $ MaybeT $ getFreshRecBlocking RecServerInfo
-	, modify $ \ms -> ms { curServer = saddr }
-	]
+    guard.not $ nullSaddr newSaddr
+    msum [ void.MaybeT $ getFreshRecBlocking RecServerInfo
+	, modify $ \ms -> ms { curServer = saddr } ]
 processCommand' IMMeta CmdToggleCacheOnly =
     not <$> gets cacheOnly >>= \c -> modify $ \ms -> ms {cacheOnly = c}
 
@@ -186,7 +190,8 @@ processCommand' IMMeta CmdRegister = void.runMaybeT $ do
     confirmOrBail $ if isUs then "Really reset password?" else "Register codename "++newName++"?"
     passwd <- (hashPassword newName <$>) $ MaybeT $ lift $
 	textInput "Enter new password:" 64 True False Nothing Nothing
-    lift $ if isUs then do
+    lift $ if isUs
+	then do
 	    resp <- curServerAction $ ResetPassword passwd
 	    case resp of
 		ServerAck -> do
@@ -246,7 +251,7 @@ processCommand' IMMeta (CmdSolve midx) = void.runMaybeT $ do
 	    guard $ mourName /= Just name
 	    let undecl = Undeclared soln ls (ActiveLock name idx)
 	    msum [ do
-		    _ <- MaybeT $ gets curAuth
+		    MaybeT $ gets curAuth
 		    confirmOrBail "Declare solution?"
 		    declare undecl
 		, unless (any (\(Undeclared _ ls' _) -> ls == ls') undecls) $
@@ -257,13 +262,13 @@ processCommand' IMMeta (CmdPlayLockSpec mls) = void.runMaybeT $ do
     ls <- msum [ liftMaybe mls
 	, do
 	    tls <- MaybeT . lift $ textInput "Lock number:" 16 False False Nothing Nothing
-	    liftMaybe $ fst <$> (listToMaybe $ (reads :: ReadS Int) tls)
+	    liftMaybe $ readMay tls
 	]
     RCLock lock <- MaybeT $ getFreshRecBlocking $ RecLock ls
     solveLock lock $ Just $ "solving " ++ show ls
 
 processCommand' IMMeta (CmdDeclare mundecl) = void.runMaybeT $ do
-    mourNameSelected >>= guard
+    guard =<< mourNameSelected
     name <- mgetCurName
     undecls <- lift $ gets undeclareds
     guard $ not $ null undecls
@@ -276,19 +281,22 @@ processCommand' IMMeta (CmdDeclare mundecl) = void.runMaybeT $ do
 		5 False True Nothing Nothing
 	    liftMaybe $ msum
 		[ do
-		    i <- fst <$> (listToMaybe $ (reads :: ReadS Int) which)
+		    i <- readMay which
 		    guard $ 0 < i && i <= length undecls
 		    return $ undecls !! (i-1)
-		, listToMaybe $ [ undecl
+		, listToMaybe $
+		    [ undecl
 		    | undecl@(Undeclared _ _ (ActiveLock name' i)) <- undecls
-		    , or [ take (length which) (name' ++ ":" ++ [lockIndexChar i]) ==
+		    , or
+			[ take (length which) (name' ++ ":" ++ [lockIndexChar i]) ==
 			    map toUpper which
 			, name'==name && [lockIndexChar i] == which
-			] ]
+			]
+		    ]
 		]
 	]
 processCommand' IMMeta (CmdViewSolution mnote) = void.runMaybeT $ do
-    note <- msum [ liftMaybe mnote, do
+    note <- liftMaybe mnote `mplus` do
 	ourName <- mgetOurName
 	name <- mgetCurName
 	uinfo <- mgetUInfo name
@@ -310,7 +318,6 @@ processCommand' IMMeta (CmdViewSolution mnote) = void.runMaybeT $ do
 		    ++ if length authors > 3 then ",...]" else "]")
 		3 False True (Just $ authors) Nothing
 	liftMaybe $ find ((==author).noteAuthor) notes
-	]
     let ActiveLock name idx = noteOn note
     uinfo <- mgetUInfo name
     ls <- lockSpec <$> MaybeT (return $ userLocks uinfo ! idx)
@@ -320,22 +327,19 @@ processCommand' IMMeta (CmdViewSolution mnote) = void.runMaybeT $ do
 	"viewing solution by " ++ noteAuthor note ++ " to " ++ name ++ [':',lockIndexChar idx]
 
 processCommand' IMMeta (CmdPlaceLock midx) = void.runMaybeT $ do
-    mourNameSelected >>= guard
+    guard =<< mourNameSelected
     ourName <- mgetOurName
-    (lock,msoln) <- msum [MaybeT $ gets curLock
-	, do
-	    ebdg <- lift.lift $ getUIBinding IMMeta CmdEdit
-	    lift.lift $ drawError $ "No lock selected; '"++ebdg++"' to edit one."
-	    mzero]
+    (lock,msoln) <- MaybeT (gets curLock) `mplus` do
+	ebdg <- lift.lift $ getUIBinding IMMeta CmdEdit
+	lift.lift $ drawError $ "No lock selected; '"++ebdg++"' to edit one."
+	mzero
     lockpath <- lift $ gets curLockPath
     ourUInfo <- mgetUInfo ourName
-    idx <- msum [ liftMaybe midx
-	, askLockIndex ("Place " ++ show lockpath ++ " in which slot?") "bug" $ const True
-	]
+    idx <- (liftMaybe midx `mplus`) $
+	askLockIndex ("Place " ++ show lockpath ++ " in which slot?") "bug" $ const True
     when (isJust $ userLocks ourUInfo ! idx) $
 	confirmOrBail "Really retire existing lock?"
-    soln <- msum [ liftMaybe msoln,
-	solveLock lock $ Just $ "testing lock" ]
+    soln <- (liftMaybe msoln `mplus`) $ solveLock lock $ Just $ "testing lock"
     lift $ do
 	curServerActionAsync $ SetLock lock idx soln
 	invalidateUInfo ourName
@@ -355,25 +359,23 @@ processCommand' IMMeta CmdNextPage =
 processCommand' IMMeta CmdPrevPage =
     modify $ \ms -> ms { listOffset = max 0 $ listOffset ms - 1 }
 processCommand' IMMeta CmdEdit = void.runMaybeT $ do
-    (lock, msoln) <- msum [ MaybeT $ gets curLock
-	, do
-	    size <- msum
-		[ do
-		    _ <- gets curServer
-		    RCServerInfo (ServerInfo size _) <- MaybeT $ getFreshRecBlocking RecServerInfo
-		    return size
-		, do
-		    sizet <- MaybeT $ lift $ textInput
-			("Lock size: [3-" ++ show maxlocksize ++ "]") 2 False False Nothing Nothing
-		    size <- liftMaybe $ fst <$> (listToMaybe $ (reads :: ReadS Int) sizet)
-		    guard $ 3 <= size && size <= maxlocksize
-		    return size
-		]
-	    return (baseLock size, Nothing)
-	]
+    (lock, msoln) <- (MaybeT $ gets curLock) `mplus` do
+	size <- msum
+	    [ do
+		gets curServer
+		RCServerInfo (ServerInfo size _) <- MaybeT $ getFreshRecBlocking RecServerInfo
+		return size
+	    , do
+		sizet <- MaybeT $ lift $ textInput
+		    ("Lock size: [3-" ++ show maxlocksize ++ "]") 2 False False Nothing Nothing
+		size <- liftMaybe $ readMay sizet
+		guard $ 3 <= size && size <= maxlocksize
+		return size
+	    ]
+	return (baseLock size, Nothing)
     path <- lift $ gets curLockPath
-    newPath <- MaybeT $ lift $ (esPath <$>) $ execStateT interactUI $ newEditState (reframe lock)
-	msoln (if null path then Nothing else Just path)
+    newPath <- MaybeT $ lift $ (esPath <$>) $ execStateT interactUI $
+	newEditState (reframe lock) msoln (if null path then Nothing else Just path)
     lift $ setLockPath newPath
 processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
     tutdir <- liftIO $ getDataPath "tutorial"
@@ -384,7 +386,7 @@ processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
 	mzero
     -- s <- MaybeT $ lift $ textInput ("Play which tutorial level? [1-"++show (length tuts)++"]")
 	    -- (length (show (length tuts))) False True Nothing Nothing
-    -- i <- liftMaybe $ fst <$> (listToMaybe $ (reads :: ReadS Int) s)
+    -- i <- liftMaybe $ readMay s
     -- guard $ 1 <= i && i <= length tuts
     let i = 1
     let dotut i = do

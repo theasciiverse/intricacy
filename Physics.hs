@@ -104,6 +104,9 @@ physicsTick pm st =
 	tell $ [AlertIntermediateState st']
 	resolveForces Vector.empty efs dominates $ setTools NullPM st'
 
+stepPhysics :: GameState -> GameState
+stepPhysics = fst.runWriter.physicsTick NullPM
+
 type Source = Int
 data SourcedForce = SForce Source Force Bool Bool
     deriving (Eq, Ord, Show)
@@ -163,6 +166,11 @@ resolveForces plForces eForces eDominates st =
 	tell $ map AlertAppliedForce unblocked
 	tell $ map AlertDivertedWrench $ divertedWrenches unblocked
 	return $ stopBlockedWrenches blocked $ foldr applyForce st unblocked
+
+resolveSinglePlForce :: Force -> GameState -> Writer [Alert] GameState
+resolveSinglePlForce force st = resolveForces
+    (Vector.singleton (ForceChoice [force])) Vector.empty
+    (\_ _->False) st
 
 applyForce :: Force -> GameState -> GameState
 applyForce f s =
