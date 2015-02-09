@@ -216,9 +216,9 @@ instance UIMonad (StateT UIState IO) where
 
     getChRaw = do
 	events <- liftIO getEvents
-	case listToMaybe $ [ key | KeyDown key <- events ] of
-	    Nothing -> getChRaw
-	    Just (Keysym _ _ ch) -> return $ Just ch
+	maybe getChRaw (return.Just) $ listToMaybe $ [ ch
+	    | KeyDown (Keysym _ _ ch) <- events
+	    , ch /= '\0' ]
 
     setUIBinding mode cmd ch =
 	modify $ \s -> s { uiKeyBindings =
