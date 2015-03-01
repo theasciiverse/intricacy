@@ -17,7 +17,6 @@ import qualified Data.Map as Map
 import Data.Map (Map)
 import qualified Data.Set as Set
 import Data.Set (Set)
-import qualified Data.Vector as Vector
 import Data.List
 import Data.Maybe
 
@@ -76,7 +75,7 @@ boardColouring st coloured lastCol =
 	march idx startPos (pos,basedir) init
 	    | not init && pos == startPos = ([],[])
 	    | otherwise =
-	    let n = do
+	    let mn = do
 		    (idx',_) <- Map.lookup pos board
 		    guard $ idx' `elem` coloured
 		    return idx'
@@ -89,5 +88,5 @@ boardColouring st coloured lastCol =
 		(path,ns) = case mNext of
 		    Nothing -> ([],[])
 		    Just next -> march idx startPos next False
-	    in (pos:path, (maybeToList n)++ns)
+	    in (pos:path, (maybeToList mn)++ns)
 

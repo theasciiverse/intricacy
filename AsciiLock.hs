@@ -15,11 +15,9 @@ import Data.Function (on)
 import Control.Applicative hiding ((<*>))
 import Control.Monad
 import Control.Arrow ((&&&))
-import System.IO
 import qualified Data.Map as Map
 import Data.Map (Map)
 import qualified Data.Vector as Vector
-import Data.Vector (Vector, (!), (//))
 import Data.Maybe
 import Data.Traversable as T
 import Data.List
@@ -38,7 +36,7 @@ import Mundanities
 type AsciiLock = [String]
 
 lockToAscii :: Lock -> AsciiLock
-lockToAscii (_,st) = stateToAscii st
+lockToAscii = stateToAscii . snd
 
 stateToAscii :: GameState -> AsciiLock
 stateToAscii st =
@@ -48,7 +46,7 @@ stateToAscii st =
 lockOfAscii :: AsciiLock -> Maybe Lock
 lockOfAscii lines = do
     board <- asciiToBoard lines
-    let size = maximum $ map (hx . (<->origin))$ Map.keys board
+    let size = maximum $ map (hx . (<->origin)) $ Map.keys board
 	frame = BasicFrame size
     st <- asciiBoardState frame board
     return (frame, st)
@@ -94,23 +92,24 @@ asciiBoardState frame board =
 	addBaseOT :: (HexPos,(PieceIdx,Tile)) -> GameState -> GameState
 	addBaseOT (pos,(o,BlockTile [])) = addBlockPos o pos
 	addBaseOT (pos,(-1,t)) = addpp $ PlacedPiece pos $ basePieceOfTile t
+	addBaseOT _ = error "owned non-block tile in AsciiLock.asciiBoardState"
 	basePieceOfTile (PivotTile _) = Pivot []
 	basePieceOfTile HookTile = Hook hu NullHF
 	basePieceOfTile (WrenchTile _) = Wrench zero
 	basePieceOfTile BallTile = Ball
+	basePieceOfTile _ = error "Unexpected tile in AsciiLock.asciiBoardState"
 	componentifyNew st = foldr ((fst.).componentify) st $ filter (/=0) $ ppidxs st
 	-- | we assume that the largest wholly out-of-bounds block is the frame
 	setFrame st = fromMaybe st $ do
-	    (idx,pp) <- listToMaybe $ sortBy (flip compare `on` blockSize . placedPiece . snd)
-		    [ (idx,pp)
+	    (idx,pp) <- listToMaybe $ map fst $ sortBy (flip compare `on` snd)
+		    [ ((idx,pp),length vs)
 		    | (idx,pp) <- enumVec $ placedPieces st
-		    , isBlock . placedPiece $ pp
+		    , Block vs <- [placedPiece pp]
 		    , let fp = plPieceFootprint pp
 		    , not $ null fp
 		    , all (not.inBounds frame) fp
 		    ]
 	    return $ delPiece idx $ setpp 0 pp st
-	blockSize (Block vs) = length vs
 	baseSt = setFrame . componentifyNew . addBase . addPreBase $ GameState Vector.empty []
 
 	baseBoard = stateBoard baseSt
@@ -123,11 +122,11 @@ asciiBoardState frame board =
 		Just (idx,PivotTile _) -> Just $ addPivotArm idx pos st
 		Just (idx,HookTile) -> Just $ setpp idx (PlacedPiece rpos (Hook dir NullHF)) st
 		_ -> Nothing
-	addAppendageOT st (pos,(-1,SpringTile extn dir)) =
+	addAppendageOT st (pos,(-1,SpringTile _ dir)) =
 	    let rpos = (neg dir<+>pos)
 	    in case Map.lookup rpos baseBoard of
 		Just (_,SpringTile _ _) -> Just st
-		Just (ridx,tile) -> do
+		Just _ -> do
 		    (_,epos) <- castRay pos dir baseBoard
 		    let twiceNatLen = sum [ extnValue extn
 			    | i <- [1..hexLen (epos<->rpos)-1]
@@ -152,6 +151,7 @@ monochromeOTileChar colouring (idx,BlockTile _) =
 	Just 4 -> '~'
 	_ -> '#'
 monochromeOTileChar _ (_,t) = monochromeTileChar t
+monochromeTileChar :: Tile -> Char
 monochromeTileChar (PivotTile _) = 'o'
 monochromeTileChar (ArmTile dir _)
     | dir == hu = '-'
@@ -188,6 +188,7 @@ monochromeTileChar (SpringTile extn dir)
 	Stretched                  -> '1'
 	Relaxed                    -> '7'
 	Compressed                 -> '9'
+monochromeTileChar _ = '?'
 monoToOTile :: Char -> Maybe OwnedTile
 monoToOTile '#' = Just $ (1,BlockTile [])
 monoToOTile '%' = Just $ (2,BlockTile [])
@@ -195,6 +196,7 @@ monoToOTile '"' = Just $ (3,BlockTile [])
 monoToOTile '&' = Just $ (4,BlockTile [])
 monoToOTile '~' = Just $ (5,BlockTile [])
 monoToOTile ch = ((,) (-1)) <$> monoToTile ch
+monoToTile :: Char -> Maybe Tile
 monoToTile 'o' = Just $ PivotTile zero
 monoToTile '-' = Just $ ArmTile hu False
 monoToTile '\\' = Just $ ArmTile hv False

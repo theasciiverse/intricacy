@@ -269,13 +269,12 @@ purgeInvalidUndecls = do
 	    (fromMaybe False <$>) $ runMaybeT $ do
 		uinfo <- mgetUInfo name
 		ourName <- mgetOurName
-		msum [ do
-			linfo <- liftMaybe $ userLocks uinfo ! idx
-			return $ public linfo
-			    || ourName `elem` accessedBy linfo
-			    || lockSpec linfo /= ls
-		    , return True
-		    ]
+		(`mplus` return True) $ do
+		    linfo <- liftMaybe $ userLocks uinfo ! idx
+		    return $ public linfo
+			|| ourName `elem` accessedBy linfo
+			|| lockSpec linfo /= ls
+
 
 curServerAction :: UIMonad uiM => Protocol.Action -> MainStateT uiM ServerResponse
 curServerAction act = do
@@ -344,6 +343,7 @@ withImpatience m = do
 	    when (not finished) $ drawImpatience (ticks+1) >> waitImpatiently (ticks+1)
     liftIO $ forkIO $ waitImpatiently 0
     m <* (liftIO $ atomically $ writeTVar finishedTV True)
+
 
 getRelScore :: (UIMonad uiM) => Codename -> MainStateT uiM (Maybe Int)
 getRelScore name = (fst<$>) <$> getRelScoreDetails name

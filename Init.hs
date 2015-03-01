@@ -22,10 +22,7 @@ import System.Environment
 import System.Directory
 import System.FilePath
 import System.Console.GetOpt
-import System.IO
 
-import Mundanities
-import AsciiLock
 import Lock
 import MainState
 import Interact
