@@ -78,6 +78,8 @@ askForRecord (RecRetiredLocks name) = GetRetired name
 askForRecord _ = error "no corresponding request"
 
 type DBM = ReaderT FilePath IO
+withDB :: FilePath -> DBM a -> IO a
+withDB = flip runReaderT
 
 recordExists :: Record -> DBM Bool
 recordExists rec = recordPath rec >>= liftIO . doesFileExist

@@ -48,17 +48,19 @@ import Frame
 import Database
 import AsciiLock
 import Mundanities
-import Util
+import Maxlocksize
 
-port = 27001 -- 27001 == ('i'<<8) + 'y'
+defaultPort = 27001 -- 27001 == ('i'<<8) + 'y'
 
-data Opt = RequestDelay Int | Daemon | LogFile FilePath
+data Opt = RequestDelay Int | Daemon | LogFile FilePath | Port Int | DBDir FilePath | ServerLockSize Int
     deriving (Eq, Ord, Show)
 options =
-    [ Option ['P'] ["delay"] (ReqArg (RequestDelay . read) "MICROSECS") "delay before sending response (for testing) (default: 0)"
+    [ Option ['p'] ["port"] (ReqArg (Port . read) "PORT") $ "TCP port to listen on (default: " ++ show defaultPort ++ ")"
+    , Option ['P'] ["delay"] (ReqArg (RequestDelay . read) "MICROSECS") "delay before sending response (for testing) (default: 0)"
     -- , Option ['d'] ["daemon"] (NoArg Daemon) "Run as daemon"
     , Option ['l'] ["logfile"] (ReqArg LogFile "PATH") "Log to file"
-    --, Option ['d'] ["dir"] (ReqArg (DBDir . read)) "directory for server database [default: intricacydb]"
+    , Option ['d'] ["dir"] (ReqArg DBDir "PATH") "directory for server database [default: intricacydb]"
+    , Option ['s'] ["locksize"] (ReqArg (ServerLockSize . read) "SIZE") "size of locks (only takes effect when creating a new database) [default: 8]"
     ]
 parseArgs :: [String] -> IO ([Opt],[String])
 parseArgs argv =
@@ -75,29 +77,40 @@ main = do
         then void $ forkIO $ main' opts
         else main' opts
     -}
-    main' opts
-    where main' opts = do
-            withDB setDefaultServerInfo
-            writeFile lockFilePath ""
-            let delay = fromMaybe 0 $ listToMaybe [ d | RequestDelay d <- opts ]
-            logh <- case listToMaybe [ f | LogFile f <- opts ] of
-                Nothing -> return stdout
-                Just path -> openFile path AppendMode
-            streamServer serverSpec{address = IPv4 "" port, threading=Inline} $ handler delay logh
-            sleepForever
+    let delay = fromMaybe 0 $ listToMaybe [ d | RequestDelay d <- opts ]
+	port = fromMaybe defaultPort $ listToMaybe [ p | Port p <- opts ]
+	dbpath = fromMaybe "intricacydb" $ listToMaybe [ p | DBDir p <- opts ]
+	locksize = min maxlocksize $ fromMaybe 8 $ listToMaybe [ s | ServerLockSize s <- opts ]
+    withDB dbpath $ setDefaultServerInfo locksize
+    writeFile (lockFilePath dbpath) ""
+    logh <- case listToMaybe [ f | LogFile f <- opts ] of
+	Nothing -> return stdout
+	Just path -> openFile path AppendMode
+    streamServer serverSpec{address = IPv4 "" port, threading=Inline} $ handler dbpath delay logh
+    sleepForever
 
--- database path is relative to current directory: ./intricacydb/
-dbpath = "intricacydb"
-withDB = flip runReaderT dbpath
-
-setDefaultServerInfo = do
+setDefaultServerInfo locksize = do
     alreadySet <- recordExists RecServerInfo
-    unless alreadySet $ putRecord RecServerInfo (RCServerInfo defaultServerInfo)
+    unless alreadySet $ putRecord RecServerInfo (RCServerInfo $ defaultServerInfo locksize)
+
+-- | We lock the whole database during each request, using haskell's native
+-- file locking, meaning that we have at any time one writer *xor* any number
+-- of readers.
+withDBLock dbpath lockMode m = do
+    h <- getDBLock lockMode
+    ret <- m
+    hClose h
+    return ret
+    where
+	getDBLock lockMode =
+	    catchIO (openFile (lockFilePath dbpath) lockMode) (\_ -> threadDelay (50*10^3) >> getDBLock lockMode)
+
+lockFilePath dbpath = dbpath ++ [pathSeparator] ++ "lockfile"
 
 logit h s = hPutStrLn h s >> hFlush h
 
-handler :: Int -> Handle -> Handle -> Address -> IO ()
-handler delay logh hdl addr = handle ((\e -> return ()) :: SomeException -> IO ()) $
+handler :: FilePath -> Int -> Handle -> Handle -> Address -> IO ()
+handler dbpath delay logh hdl addr = handle ((\e -> return ()) :: SomeException -> IO ()) $
     handler' hdl addr
     where handler' hdl addr = do
 	    response <- handle (\e -> return $ ServerError $ show (e::SomeException)) $ do
@@ -110,7 +123,7 @@ handler delay logh hdl addr = handle ((\e -> return ()) :: SomeException -> IO (
 		    hashedHostname = take 8 $ hash hostname
 		now <- liftIO getCurrentTime
 		logit logh $ show now ++ ": " ++ hashedHostname ++ " >>> " ++ showRequest request
-		response <- handleRequest request
+		response <- handleRequest dbpath request
 		when (delay > 0) $ threadDelay delay
 		now' <- liftIO getCurrentTime
 		logit logh $ show now' ++ ": " ++ hashedHostname ++ " <<< " ++ showResponse response
@@ -133,20 +146,8 @@ showResponse (ServedLock lock) = "ServedLock lock:\n" ++ unlines (lockToAscii lo
 showResponse (ServedSolution soln) = "ServedSolution [SOLN]"
 showResponse resp = show resp
 
--- | We lock the whole database during each request, using haskell's native
--- file locking, meaning that we have at any time one writer *xor* any number
--- of readers.
-withDBLock lockMode m = do
-    h <- getDBLock lockMode
-    ret <- m
-    hClose h
-    return ret
-    where getDBLock lockMode =
-	    catchIO (openFile lockFilePath lockMode) (\_ -> threadDelay (50*10^3) >> getDBLock lockMode)
-lockFilePath = dbpath ++ [pathSeparator] ++ "lockfile"
-
-handleRequest :: ClientRequest -> IO ServerResponse
-handleRequest req@(ClientRequest pv auth action) = do
+handleRequest :: FilePath -> ClientRequest -> IO ServerResponse
+handleRequest dbpath req@(ClientRequest pv auth action) = do
     let lockMode = case action of
 	    Authenticate -> ReadMode
 	    GetServerInfo -> ReadMode
@@ -156,7 +157,7 @@ handleRequest req@(ClientRequest pv auth action) = do
 	    GetSolution _ -> ReadMode
 	    GetRandomNames _ -> ReadMode
 	    _ -> ReadWriteMode
-    eresp <- withDBLock lockMode $ runErrorT handleRequest'
+    eresp <- withDBLock dbpath lockMode $ runErrorT handleRequest'
     case eresp of
 	Left error -> return $ ServerError error
 	Right resp -> return resp
@@ -175,7 +176,7 @@ handleRequest req@(ClientRequest pv auth action) = do
 		GetUserInfo name mversion -> (do
 			RCUserInfo (curV,info) <- getRecordErrored $ RecUserInfo name
 			(fromJust<$>)$ runMaybeT $ msum [ do
-			    v <- liftMaybe mversion
+			    v <- MaybeT $ return mversion
 			    msum [ guard (v >= curV) >> return ServerFresh
 				, do
 				    guard (v >= curV - 10)
@@ -275,10 +276,10 @@ handleRequest req@(ClientRequest pv auth action) = do
 		Left e -> throwError $ "Server IO error: " ++ show e
 		Right x -> return x
 	erroredDB :: DBM a -> ErrorT String IO a
-	erroredDB = erroredIO . withDB
+	erroredDB = erroredIO . withDB dbpath
 	getRecordErrored :: Record -> ErrorT String IO RecordContents
 	getRecordErrored rec = do
-	    mrc <- lift $ withDB $ getRecord rec
+	    mrc <- lift $ withDB dbpath $ getRecord rec
 	    case mrc of
 		Just rc -> return rc
 		Nothing -> throwError $ "Bad record on server! Record was: " ++ show rec
@@ -332,7 +333,7 @@ handleRequest req@(ClientRequest pv auth action) = do
 	checkCodeName :: Codename -> ErrorT String IO Bool
 	checkCodeName name = do
 	    unless (validCodeName name) $ throwError "Invalid codename"
-	    liftIO $ withDB $ recordExists $ RecPassword name
+	    liftIO $ withDB dbpath $ recordExists $ RecPassword name
 	--- | TODO: journalling so we can survive death during database writes?
 	applyDeltasToRecords :: [(Codename, UserInfoDelta)] -> ErrorT String IO ()
 	applyDeltasToRecords nds = sequence_ $ [applyDeltasToRecord name deltas

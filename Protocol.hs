@@ -70,7 +70,7 @@ data ServerResponse
 
 data ServerInfo = ServerInfo {serverLockSize :: Int, serverInfoString::String}
     deriving (Eq, Ord, Show, Read)
-defaultServerInfo = ServerInfo 8 ""
+defaultServerInfo locksize = ServerInfo locksize ""
 
 instance Binary ClientRequest where
     put (ClientRequest pv mauth act) = putPackedInt pv >> put mauth >> put act
