@@ -106,7 +106,9 @@ processCommand im CmdQuit = do
 	IMEdit -> lift editStateUnsaved >>! throwError $ InteractSuccess True
 	_ -> return ()
     title <- lift $ getTitle
-    (lift . lift . confirm) ("Really quit" ++ maybe "" (" from "++) title ++ "?")
+    (lift . lift . confirm) ("Really quit"
+	    ++ (if im == IMEdit then " without saving" else "")
+	    ++ maybe "" (" from "++) title ++ "?")
 	>>? throwError $ InteractSuccess False
 processCommand im CmdForceQuit = throwError $ InteractSuccess False
 processCommand IMPlay CmdOpen = do
