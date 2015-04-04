@@ -97,9 +97,9 @@ setDefaultServerInfo locksize = do
 -- file locking, meaning that we have at any time one writer *xor* any number
 -- of readers.
 withDBLock dbpath lockMode m = do
-    h <- getDBLock lockMode
+    h <- liftIO $ getDBLock lockMode
     ret <- m
-    hClose h
+    liftIO $ hClose h
     return ret
     where
 	getDBLock lockMode =
@@ -157,13 +157,43 @@ handleRequest dbpath req@(ClientRequest pv auth action) = do
 	    GetSolution _ -> ReadMode
 	    GetRandomNames _ -> ReadMode
 	    _ -> ReadWriteMode
-    eresp <- withDBLock dbpath lockMode $ runErrorT handleRequest'
+
+    -- check solutions prior to write-locking database:
+    eresp <- runErrorT $ do
+	withDBLock dbpath ReadMode $ checkRequest
+	withDBLock dbpath lockMode $ handleRequest'
     case eresp of
 	Left error -> return $ ServerError error
 	Right resp -> return resp
+
     where
-	handleRequest' = do
+	checkRequest = do
 	    when (pv /= protocolVersion) $ throwError "Bad protocol version"
+	    case action of
+		DeclareSolution soln ls target idx -> do
+		    info <- getUserInfoOfAuth auth
+		    lock <- getLock ls
+		    tinfo <- getALock target
+		    when (ls /= lockSpec tinfo) $ throwError "Lock no longer in use!"
+		    when (public tinfo) $ throwError "Lock solution already public knowledge!"
+		    let name = codename info
+		    let behind = ActiveLock name idx
+		    when (name `elem` map noteAuthor (lockSolutions tinfo)) $
+			throwError "Note already taken on that lock!"
+		    when (name == lockOwner target) $
+			throwError "That's your lock!"
+		    behindLock <- getALock behind
+		    when (public behindLock) $ throwError "Your lock is cracked!"
+		    unless (checkSolution lock soln) $ throwError "Bad solution"
+		SetLock lock@(frame,_) idx soln -> do
+		    ServerInfo serverSize _ <- getServerInfo
+		    when (frame /= BasicFrame serverSize) $ throwError $
+			"Server only accepts size "++show serverSize++" locks."
+		    unless (validLock $ reframe lock) $ throwError "Invalid lock!"
+		    unless (not.checkSolved $ reframe lock) $ throwError "Lock not locked!"
+		    unless (checkSolution lock soln) $ throwError "Bad solution"
+		_ -> return ()
+	handleRequest' =
 	    case action of
 		Authenticate -> do
 		    checkAuth auth
@@ -204,20 +234,9 @@ handleRequest dbpath req@(ClientRequest pv auth action) = do
 			else throwError "You don't have access to that note."
 		DeclareSolution soln ls target idx -> do
 		    info <- getUserInfoOfAuth auth
-		    lock <- getLock ls
-		    tinfo <- getALock target
-		    when (ls /= lockSpec tinfo) $ throwError "Lock no longer in use!"
-		    when (public tinfo) $ throwError "Lock solution already public knowledge!"
 		    let name = codename info
 		    let behind = ActiveLock name idx
 		    let note = NoteInfo name (Just behind) target
-		    when (name `elem` map noteAuthor (lockSolutions tinfo)) $
-			throwError "Note already taken on that lock!"
-		    when (name == lockOwner target) $
-			throwError "That's your lock!"
-		    behindLock <- getALock behind
-		    when (public behindLock) $ throwError "Your lock is cracked!"
-		    unless (checkSolution lock soln) $ throwError "Bad solution"
 		    erroredDB $ putRecord (RecNote note) (RCSolution soln)
 		    execStateT (declareNote note behind) [] >>= applyDeltasToRecords
 		    return ServerAck
@@ -225,13 +244,6 @@ handleRequest dbpath req@(ClientRequest pv auth action) = do
 		    info <- getUserInfoOfAuth auth
 		    let name = codename info
 		    let al = ActiveLock name idx
-		    ServerInfo serverSize _ <- getServerInfo
-		    when (frame /= BasicFrame serverSize) $ throwError $
-			"Server only accepts size "++show serverSize++" locks."
-		    unless (validLock $ reframe lock) $ throwError "Invalid lock!"
-		    unless (not.checkSolved $ reframe lock) $ throwError "Lock not locked!"
-		    unless (checkSolution lock soln) $ throwError "Bad solution"
-
 		    RCLockHashes hashes <- getRecordErrored RecLockHashes
 			    `catchError` const (return (RCLockHashes []))
 		    let hashed = hash $ show lock
