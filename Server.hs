@@ -86,7 +86,7 @@ main = do
     logh <- case listToMaybe [ f | LogFile f <- opts ] of
 	Nothing -> return stdout
 	Just path -> openFile path AppendMode
-    streamServer serverSpec{address = IPv4 "" port, threading=Inline} $ handler dbpath delay logh
+    streamServer serverSpec{address = IPv4 "" port, threading=Threaded} $ handler dbpath delay logh
     sleepForever
 
 setDefaultServerInfo locksize = do
