@@ -74,11 +74,11 @@ instance UIMonad (StateT UIState IO) where
 			, or [wsel && isWrench p, not wsel && isHook p] ]
 		drawMainGameState selTools False alerts st
 		registerUndoButtons canUndo canRedo
-	drawMainState' (ReplayState { rsCurrentState=st } ) = do
+	drawMainState' (ReplayState { rsCurrentState=st, rsLastAlerts=alerts } ) = do
 	    canUndo <- null <$> gets rsGameStateMoveStack
 	    canRedo <- null <$> gets rsMoveStack
 	    lift $ do
-		drawMainGameState [] False [] st
+		drawMainGameState [] False alerts st
 		registerUndoButtons canUndo canRedo
 		renderToMain $ drawCursorAt Nothing
 	drawMainState' (EditState { esGameStateStack=(st:sts), esUndoneStack=undostack,

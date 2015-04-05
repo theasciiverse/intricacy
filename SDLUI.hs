@@ -372,10 +372,10 @@ uiOB5 = UIOptButton useSounds (\v o -> o {useSounds=v}) [True,False]
 
 drawUIOptionButtons :: InputMode -> UIM ()
 drawUIOptionButtons mode = do
-    when (mode `elem` [IMPlay, IMEdit]) $ do
+    when (mode `elem` [IMPlay, IMEdit, IMReplay]) $ do
 	drawUIOptionButton uiOB1
 	drawUIOptionButton uiOB2
-	drawUIOptionButton uiOB3
+	unless (mode == IMReplay) $ drawUIOptionButton uiOB3
 #ifdef SOUND
 	drawUIOptionButton uiOB5
 #endif

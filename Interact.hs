@@ -492,6 +492,7 @@ processCommand' IMPlay cmd = do
 processCommand' IMReplay (CmdReplayBack 1) = void.runMaybeT $ do
     (st',pm) <- MaybeT $ listToMaybe <$> gets rsGameStateMoveStack
     lift $ modify $ \rs -> rs {rsCurrentState=st'
+	, rsLastAlerts = []
 	, rsGameStateMoveStack = tail $ rsGameStateMoveStack rs
 	, rsMoveStack = pm:rsMoveStack rs}
 processCommand' IMReplay (CmdReplayBack n) = replicateM_ n $
@@ -500,8 +501,9 @@ processCommand' IMReplay (CmdReplayForward 1) = void.runMaybeT $ do
     pm <- MaybeT $ listToMaybe <$> gets rsMoveStack
     lift $ do
 	st <- gets rsCurrentState
-	(st',_) <- lift $ doPhysicsTick pm st
+	(st',alerts) <- lift $ doPhysicsTick pm st
 	modify $ \rs -> rs {rsCurrentState = st'
+	    , rsLastAlerts = alerts
 	    , rsGameStateMoveStack = (st,pm):rsGameStateMoveStack rs
 	    , rsMoveStack = tail $ rsMoveStack rs}
 processCommand' IMReplay (CmdReplayForward n) = replicateM_ n $

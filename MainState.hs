@@ -87,6 +87,7 @@ data MainState
 	}
     | ReplayState
 	{ rsCurrentState::GameState
+	, rsLastAlerts::[Alert]
 	, rsMoveStack::[PlayerMove]
 	, rsGameStateMoveStack::[(GameState, PlayerMove)]
 	, rsTitle::Maybe String
@@ -131,7 +132,7 @@ ms2im mainSt = case mainSt of
     MetaState {} -> IMMeta
 
 newPlayState (frame,st) title sub = PlayState st frame [] False False [] [] title sub Map.empty
-newReplayState st soln title = ReplayState st soln [] title Map.empty
+newReplayState st soln title = ReplayState st [] soln [] title Map.empty
 newEditState (frame,st) msoln mpath = EditState [st] [] frame mpath
     ((\s->(st,s))<$>msoln) (Just (st, isJust msoln)) Nothing (PHS zero) (PHS zero) Map.empty
 initMetaState = do
