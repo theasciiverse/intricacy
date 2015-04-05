@@ -324,7 +324,6 @@ helpOfSelectable SelPrivyHeader = Just $
     "Guild members privy to this lock's secrets, hence able to read its secured notes."
 helpOfSelectable SelNotesHeader = Just $
     "Secured notes. Notes are obfuscated sketches of method, proving success but revealing little."
-helpOfSelectable _ = Nothing
 
 cmdAtMousePos pos@(mPos,central) im selMode = do
     buttons <- (concat . map fst) <$> getButtons im
