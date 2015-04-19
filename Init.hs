@@ -28,23 +28,29 @@ import MainState
 import Interact
 import Util
 
-data Opt = LockSize Int | ForceCurses
+data Opt = LockSize Int | ForceCurses | Help
     deriving (Eq, Ord, Show)
 options =
     [ Option ['c'] ["curses"] (NoArg ForceCurses) "force curses UI"
     , Option ['s'] ["locksize"] (ReqArg (LockSize . read) "SIZE") "locksize"
+    , Option ['h'] ["help"] (NoArg Help) "show usage information"
     ]
+
+usage :: String
+usage = usageInfo header options
+    where header = "Usage: intricacy [OPTION...] [file]"
+
 parseArgs :: [String] -> IO ([Opt],[String])
 parseArgs argv =
     case getOpt Permute options argv of
 	(o,n,[]) -> return (o,n)
-	(_,_,errs) -> ioError (userError (concat errs ++ usageInfo header options))
-    where header = "Usage: intricacy [OPTION...] [file]"
+	(_,_,errs) -> ioError (userError (concat errs ++ usage))
 
 setup :: IO (Maybe Lock,[Opt],Maybe String)
 setup = do
     argv <- getArgs
     (opts,args) <- parseArgs argv
+    when (Help `elem` opts) $ putStr usage >> exitSuccess
     let size = fromMaybe 8 $ listToMaybe [ size | LockSize size <- opts ]
     curDir <- getCurrentDirectory
     (fromJust <$>) $ runMaybeT $ msum
