@@ -1,5 +1,9 @@
 This is an abbreviated summary; see the git log for gory details.
 
+0.4.1:
+    Concurrency on server; no more freezes while it checks a solution.
+    Misc minor UI fixes.
+    
 0.4:
     Sound effects (thanks linley).
     Animate to show the two physics phases (thanks dormir).
