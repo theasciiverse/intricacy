@@ -496,7 +496,10 @@ drawMainGameState highlight colourFixed alerts st = do
 drawMainGameState' :: DrawArgs -> UIM ()
 drawMainGameState' args@(DrawArgs highlight colourFixed alerts st uiopts) = do
     lastArgs <- gets lastDrawArgs
-    when (lastArgs /= Just args) $
+    when (case lastArgs of
+	    Nothing -> True
+	    Just (DrawArgs _ _ lastAlerts lastSt _) ->
+		lastAlerts /= alerts || lastSt /= st) $
 	modify $ \ds -> ds { animFrame = 0, nextAnimFrameAt = Nothing }
 
     lastAnimFrame <- gets animFrame
