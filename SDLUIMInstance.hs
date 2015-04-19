@@ -97,7 +97,7 @@ instance UIMonad (StateT UIState IO) where
 		    (isWrench, "wrench", CmdTile $ WrenchTile zero, 3<*>hu <+> hv),
 		    (isHook, "hook", CmdTile $ HookTile, 3<*>hu <+> 2<*>hv)] ]
 	    drawPaintButtons
-	drawMainState' (MetaState saddr undecls cOnly auth names _ _ rnamestvar _ _ mretired path mlock offset) = do
+	drawMainState' (MetaState saddr undecls cOnly auth names _ _ _ rnamestvar _ _ mretired path mlock offset) = do
 	    let ourName = authUser <$> auth
 	    let selName = listToMaybe names
 	    let home = isJust ourName && ourName == selName

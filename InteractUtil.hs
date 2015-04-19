@@ -110,13 +110,12 @@ declare undecl@(Undeclared soln ls al) = do
 	("You first need to place ('"++pbdg++"') a lock to secure your solution behind.")
 	(\i -> isJust $ userLocks ourUInfo ! i)
     guard $ isJust $ userLocks ourUInfo ! idx
-    lift $ do
-	curServerActionAsync $ DeclareSolution soln ls al idx
+    lift $ curServerActionAsyncThenInvalidate
+	(DeclareSolution soln ls al idx)
 	-- rather than recurse through the tree to find what scores may have
 	-- changed as a result of this declaration, or leave it to timeouts
 	-- and explicit refreshes to reveal it, we just invalidate all UInfos.
-	invalidateAllUInfo
-	refreshUInfoUI
+	(Just AllCodenames)
 
 startMark = '^'
 

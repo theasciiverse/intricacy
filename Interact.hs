@@ -76,7 +76,7 @@ interactUI = do
 	    mainSt <- get
 	    let im = ms2im mainSt
 	    when (im == IMPlay) checkWon
-	    when (im == IMMeta) $ (checkAsyncErrors >>) $ void.runMaybeT $
+	    when (im == IMMeta) $ (checkAsync >>) $ void.runMaybeT $
 		mourNameSelected >>? lift purgeInvalidUndecls
 	    drawMainState
 	    cmds <- lift $ getSomeInput im
@@ -342,10 +342,9 @@ processCommand' IMMeta (CmdPlaceLock midx) = void.runMaybeT $ do
     when (isJust $ userLocks ourUInfo ! idx) $
 	confirmOrBail "Really retire existing lock?"
     soln <- (liftMaybe msoln `mplus`) $ solveLock lock $ Just $ "testing lock"
-    lift $ do
-	curServerActionAsync $ SetLock lock idx soln
-	invalidateUInfo ourName
-	refreshUInfoUI
+    lift $ curServerActionAsyncThenInvalidate
+	(SetLock lock idx soln)
+	(Just (SomeCodenames [ourName]))
 
 processCommand' IMMeta CmdSelectLock = void.runMaybeT $ do
     lockdir <- liftIO $ confFilePath "locks"

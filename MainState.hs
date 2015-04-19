@@ -113,6 +113,7 @@ data MainState
 	, codenameStack :: [Codename]
 	, newAsync :: TVar Bool
 	, asyncError :: TVar (Maybe String)
+	, asyncInvalidate :: TVar (Maybe Codenames)
 	, randomCodenames :: TVar [Codename]
 	, userInfoTVs :: Map Codename (TVar FetchedRecord, UTCTime)
 	, indexedLocks :: Map LockSpec (TVar FetchedRecord)
@@ -138,6 +139,7 @@ newEditState (frame,st) msoln mpath = EditState [st] [] frame mpath
 initMetaState = do
     flag <- atomically $ newTVar False
     errtvar <- atomically $ newTVar Nothing
+    invaltvar <- atomically $ newTVar Nothing
     rnamestvar <- atomically $ newTVar []
     (saddr, auth, path) <- confFilePath "metagame.conf" >>=
 	liftM (fromMaybe (defaultServerAddr, Nothing, "")) . readReadFile
@@ -146,7 +148,7 @@ initMetaState = do
 	confFilePath ("undeclared" ++ [pathSeparator] ++ saddrStr saddr) >>=
 	liftM (fromMaybe []) . readReadFile
     mlock <- fullLockPath path >>= readLock
-    return $ MetaState saddr undecls False auth names flag errtvar rnamestvar Map.empty Map.empty Nothing path mlock 0
+    return $ MetaState saddr undecls False auth names flag errtvar invaltvar rnamestvar Map.empty Map.empty Nothing path mlock 0
 
 readLock :: FilePath -> IO (Maybe (Lock, Maybe Solution))
 readLock path = runMaybeT $ msum
@@ -219,6 +221,7 @@ mgetUInfo name = do
     return uinfo
     where defaultStaleTime = 300
 
+
 invalidateUInfo :: UIMonad uiM => Codename -> MainStateT uiM ()
 invalidateUInfo name =
     modify $ \ms -> ms {userInfoTVs = Map.delete name $ userInfoTVs ms}
@@ -226,6 +229,13 @@ invalidateUInfo name =
 invalidateAllUInfo :: UIMonad uiM => MainStateT uiM ()
 invalidateAllUInfo =
     modify $ \ms -> ms {userInfoTVs = Map.empty}
+
+data Codenames = AllCodenames | SomeCodenames [Codename]
+
+invalidateUInfos :: UIMonad uiM => Codenames -> MainStateT uiM ()
+invalidateUInfos AllCodenames = invalidateAllUInfo
+invalidateUInfos (SomeCodenames names) = mapM_ invalidateUInfo names
+
 
 mgetLock :: UIMonad uiM => LockSpec -> MaybeT (MainStateT uiM) Lock
 mgetLock ls = do
@@ -285,27 +295,34 @@ curServerAction act = do
     if cOnly then return $ ServerError "Can't contact server in cache-only mode"
 	else lift $ withImpatience $ liftIO $ makeRequest saddr $ ClientRequest protocolVersion auth act
 
-curServerActionAsync :: UIMonad uiM => Protocol.Action -> MainStateT uiM ()
-curServerActionAsync act = do
+curServerActionAsyncThenInvalidate :: UIMonad uiM => Protocol.Action -> Maybe Codenames -> MainStateT uiM ()
+curServerActionAsyncThenInvalidate act names = do
     saddr <- gets curServer
     auth <- gets curAuth
     flag <- gets newAsync
     errtvar <- gets asyncError
+    invaltvar <- gets asyncInvalidate
     cOnly <- gets cacheOnly
     void $ liftIO $ forkIO $ do
 	resp <- if cOnly then return $ ServerError "Can't contact server in cache-only mode"
 		else makeRequest saddr $ ClientRequest protocolVersion auth act
 	case resp of
 	    ServerError err -> atomically $ writeTVar errtvar $ Just err
-	    _ -> return ()
+	    _ -> atomically $ writeTVar invaltvar names
 	atomically $ writeTVar flag True
 
-checkAsyncErrors :: UIMonad uiM => MainStateT uiM ()
-checkAsyncErrors = void.runMaybeT $ do
-    errtvar <- lift $ gets asyncError
-    err <- MaybeT $ liftIO $ atomically $ readTVar errtvar
-    lift.lift $ drawError err
-    liftIO $ atomically $ writeTVar errtvar Nothing
+checkAsync :: UIMonad uiM => MainStateT uiM ()
+checkAsync = do
+    void.runMaybeT $ do
+	errtvar <- lift $ gets asyncError
+	err <- MaybeT $ liftIO $ atomically $
+		readTVar errtvar <* writeTVar errtvar Nothing
+	lift.lift $ drawError err
+    void.runMaybeT $ do
+	invaltvar <- lift $ gets asyncInvalidate
+	names <- MaybeT $ liftIO $ atomically $
+		readTVar invaltvar <* writeTVar invaltvar Nothing
+	lift $ invalidateUInfos names >> refreshUInfoUI
 
 getRecordCachedFromCur :: UIMonad uiM => Bool -> Record -> MainStateT uiM (TVar FetchedRecord)
 getRecordCachedFromCur flagIt rec = do

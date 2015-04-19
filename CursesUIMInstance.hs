@@ -204,7 +204,7 @@ instance UIMonad (StateT UIState IO) where
 	drawMainState' (EditState { esGameStateStack=(st:_), selectedPiece=selPiece, selectedPos=selPos }) = lift $ do
 	    drawState (maybeToList selPiece) True [] st
 	    drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
-	drawMainState' (MetaState saddr undecls cOnly auth names _ _ rnamestvar _ _ mretired path lock _) = do
+	drawMainState' (MetaState saddr undecls cOnly auth names _ _ _ rnamestvar _ _ mretired path lock _) = do
 	    let ourName = liftM authUser auth
 	    let selName = listToMaybe names
 	    let home = isJust ourName && ourName == selName
