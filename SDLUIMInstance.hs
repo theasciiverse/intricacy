@@ -88,7 +88,7 @@ instance UIMonad (StateT UIState IO) where
 	    registerUndoButtons (null sts) (null undostack)
 	    when (isJust selPiece) $ mapM_ registerButtonGroup
 		[ singleButton (periphery 2 <+> 3<*>hw<+>hv) CmdDelete 0 [("delete",hu<+>neg hw)]
-		, singleButton (periphery 2 <+> 3<*>hw) CmdMerge 4 [("merge",hu<+>neg hw)]
+		, singleButton (periphery 2 <+> 3<*>hw) CmdMerge 1 [("merge",hu<+>neg hw)]
 		]
 	    sequence_
 		[ when (null . filter (pred . placedPiece) . Vector.toList $ placedPieces st)
@@ -106,12 +106,12 @@ instance UIMonad (StateT UIState IO) where
 		maybe (drawEmptyMiniLock miniLockPos)
 		    (\lock -> drawMiniLock lock miniLockPos)
 		    (fst<$>mlock)
-		registerSelectable miniLockPos 3 SelOurLock
+		registerSelectable miniLockPos 1 SelOurLock
 	    lift $ when (not $ null path) $ do
 		renderToMain $ renderStrColAtLeft messageCol path $ lockLinePos <+> hu
 		registerSelectable (lockLinePos <+> 2<*>hu) 1 SelLockPath
 		sequence_
-		    [ registerButton (miniLockPos <+> 2<*>neg hv <+> hu <+> dv) cmd 4
+		    [ registerButton (miniLockPos <+> 2<*>neg hv <+> hu <+> dv) cmd 1
 			[(dirText,hu<+>neg hw),("lock",hu<+>neg hv)]
 		    | (dv,cmd,dirText) <- [(zero,CmdPrevLock,"prev"),(neg hw,CmdNextLock,"next")] ]
 	    lift $ do
@@ -146,15 +146,14 @@ instance UIMonad (StateT UIState IO) where
 				    [ \pos -> (lift $ registerSelectable pos 1 (SelOldLock ls)) >> drawOldLock ls pos
 				    | ls <- retired ]
 				lift $ registerButton retiredPos CmdShowRetired pubWheelAngle [("retired",hu<+>neg hw)]
-				lift $ registerButton (retiredPos <+> hw) (CmdPlayLockSpec Nothing) 4 [("play",hu<+>neg hw),("no.",hu<+>neg hv)]
+				lift $ registerButton (retiredPos <+> hw) (CmdPlayLockSpec Nothing) 1 [("play",hu<+>neg hw),("no.",hu<+>neg hv)]
 			    Nothing -> do
 				sequence_ [ drawLockInfo (ActiveLock (codename uinfo) i) mlockinfo |
 				    (i,mlockinfo) <- assocs $ userLocks uinfo ]
 				let mmiscpos = (serverPos <+> 2<*>neg hv)
 				when (isJust $ msum $ elems $ userLocks uinfo) $ lift $ do
-				    registerButtonGroup
-					([ Button mmiscpos (CmdSolve Nothing) [("solve",hu<+>neg hw),("lock",hu<+>neg hv)]
-					, Button (mmiscpos<+>neg hv) (CmdViewSolution Nothing) [("view",hu<+>neg hw),("soln",hu<+>neg hv)]], (2,2))
+				    registerButton mmiscpos (CmdSolve Nothing) 2 [("solve",hu<+>neg hw),("lock",hu<+>neg hv)]
+				    registerButton (mmiscpos<+>neg hv) (CmdViewSolution Nothing) 0 [("view",hu<+>neg hw),("soln",hu<+>neg hv)]
 				let tested = maybe False (isJust.snd) mlock
 				when (isJust mlock && home) $ lift $ registerButton
 				    (miniLockPos <+> 3<*>hv) (CmdPlaceLock Nothing) (if tested then 2 else 0) [("place",hv<+>5<*>neg hu),("lock",hw<+>4<*>neg hu)]
@@ -177,7 +176,7 @@ instance UIMonad (StateT UIState IO) where
 
 	    when (ourName /= selName) $ void $ runMaybeT $ do
 		when (isJust ourName) $
-		    lift.lift $ registerButton (codenamePos <+> neg hu <+> hw) CmdHome 4 [("home",hu<+>neg hv)]
+		    lift.lift $ registerButton (codenamePos <+> neg hu <+> hw) CmdHome 1 [("home",hu<+>neg hv)]
 		sel <- liftMaybe selName
 		us <- liftMaybe ourName
 		ourUInfo <- mgetUInfo us
@@ -594,7 +593,7 @@ fillArea :: HexVec -> [HexVec] -> [HexVec -> MainStateT UIM ()] -> MainStateT UI
 fillArea centre area draws = do
     offset <- gets listOffset
     let na = length area
-	listButton cmd = \pos -> lift $ registerButton pos cmd 4 []
+	listButton cmd = \pos -> lift $ registerButton pos cmd 3 []
 	draws' = if offset > 0 && length draws > na
 	    then listButton CmdPrevPage :
 		drop (max 0 $ min (length draws - (na-1)) (na-1 + (na-2)*(offset-1))) draws
@@ -621,7 +620,7 @@ drawNullName name pos = drawNameCol name pos $ invisible white
 drawNameCol name pos col = do
     lift.renderToMain $ do
 	drawAtRel (playerGlyph col) pos
-	renderStrColAt messageCol name pos
+	renderStrColAt buttonTextCol name pos
 drawRelScore name pos = do
     col <- nameCol name
     relScore <- getRelScore name
@@ -652,7 +651,7 @@ drawNameWithCharAndCol name charcol char col pos = do
     lift.renderToMain $ do
 	drawAtRel (playerGlyph col) pos
 	displaceRender up $
-	    renderStrColAt messageCol name pos
+	    renderStrColAt buttonTextCol name pos
 	displaceRender down $ withFont smallFont $
 	    renderStrColAt charcol [char] pos
 pubWheelAngle = 5

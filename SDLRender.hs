@@ -261,7 +261,7 @@ data ShowBlocks = ShowBlocksBlocking | ShowBlocksAll | ShowBlocksNone
 
 showBlocksButton :: ShowBlocks -> Glyph
 showBlocksButton showing centre size surf = do
-    tileGlyph (BlockTile []) (dim blue) centre size surf
+    tileGlyph (BlockTile []) (dim red) centre size surf
     when (showing == ShowBlocksAll) $
 	blockedPush hu (bright orange) centre size surf
     when (showing /= ShowBlocksNone) $
@@ -269,9 +269,9 @@ showBlocksButton showing centre size surf = do
 
 showButtonTextButton :: Bool -> Glyph
 showButtonTextButton showing centre@(SVec x y) size surf = do
-    buttonGlyph (dim cyan) (SVec `uncurry` edge centre (size`div`2) (neg hu)) (size`div`2) surf
+    buttonGlyph (dim yellow) (SVec `uncurry` edge centre (size`div`2) (neg hu)) (size`div`2) surf
     when showing $
-	sequence_ [ pixel surf (fromIntegral $ x+size`div`3+(i*size`div`4)) (fromIntegral $ y - size`div`4) (bright cyan)
+	sequence_ [ pixel surf (fromIntegral $ x+size`div`3+(i*size`div`4)) (fromIntegral $ y - size`div`4) (bright white)
 	    | i <- [-1..1] ]
 
 useSoundsButton :: Bool -> Glyph
@@ -283,7 +283,7 @@ useSoundsButton use centre@(SVec x y) size surf = sequence_
 whsButtonsButton :: Maybe WrHoSel -> Glyph
 whsButtonsButton Nothing centre size surf =
     buttonGlyph (dim red) centre (size`div`3) surf
-    >> sequence_ [ buttonGlyph (dim blue)
+    >> sequence_ [ buttonGlyph (dim yellow)
 	(SVec `uncurry` edge centre (size`div`2) dir) (size`div`3) surf
 	| dir <- hexDirs ]
 whsButtonsButton (Just whs) centre size surf = do

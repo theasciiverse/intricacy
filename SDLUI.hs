@@ -142,7 +142,7 @@ getButtons mode = do
     cntxtButtons <- gets contextButtons
     return $ cntxtButtons ++ global ++ case mode of
 	IMEdit -> [
-	    singleButton (tl<+>hv<+>neg hw) CmdTest 4 [("test", hu<+>neg hw)]
+	    singleButton (tl<+>hv<+>neg hw) CmdTest 1 [("test", hu<+>neg hw)]
 	    , singleButton (tl<+>(neg hw)) CmdPlay 2 [("play", hu<+>neg hw)]
 	    , markGroup
 	    , singleButton (br<+>2<*>hu) CmdWriteState 2 [("save", hu<+>neg hw)] ]
@@ -157,7 +157,7 @@ getButtons mode = do
 	IMMeta ->
 	    [ singleButton serverPos CmdSetServer 2 [("set server",2<*>neg hw)]
 	    , singleButton (serverPos<+>neg hu) CmdToggleCacheOnly 0 [("cache only",3<*>hw<+>2<*>neg hu)]
-	    , singleButton lockLinePos CmdSelectLock 4 [("select lock",2<*>neg hw)]
+	    , singleButton lockLinePos CmdSelectLock 1 [("select lock",2<*>neg hw)]
 	    , singleButton (miniLockPos <+> 2<*>hv <+> neg hu) CmdEdit 2 [("edit",hv<+>4<*>neg hu),("lock",hw<+>4<*>neg hu)]
 	    , singleButton (codenamePos <+> neg hu) (CmdSelCodename Nothing) 2 [("code",hv<+>4<*>neg hu),("name",hw<+>4<*>neg hu)]
 	    , singleButton (serverPos <+> 2<*>neg hv <+> 2<*>hw) CmdTutorials 1 [("play",hu<+>neg hw),("tut",hu<+>neg hv)]
@@ -178,7 +178,7 @@ getButtons mode = do
 		in [ ( [ Button bl (if edit then CmdSelect else CmdWait) [] ], (0,0))
 		, ( [ Button (bl<+>dir) (CmdDir whs dir)
 			(if dir==hu then [("move",hu<+>neg hw),(if edit then "piece" else whsStr whs,hu<+>neg hv)] else [])
-		    | dir <- hexDirs ], (4,0) )
+		    | dir <- hexDirs ], (1,0) )
 		] ++
 		(if whs == WHSWrench then [] else
 		    [ ( [ Button (bl<+>((-2)<*>hv))
@@ -187,7 +187,7 @@ getButtons mode = do
 			, Button (bl<+>((-2)<*>hw))
 			    (CmdRotate whs 1)
 			    [("turn",hu<+>neg hw),("ccw",hu<+>neg hv)]
-			], (4,0) )
+			], (1,0) )
 		]) ++
 		(if whs /= WHSSelected || mode == IMEdit then [] else
 		    [ ( [ Button (bl<+>(2<*>hv)<+>hw<+>neg hu) (CmdTile $ HookTile) [("select",hu<+>neg hw),("hook",hu<+>neg hv)]
@@ -647,7 +647,7 @@ drawButtons mode = do
 		renderStrColAt buttonTextCol bdg v
 		when showBT $
 		    withFont smallFont $ recentreAt v $ rescaleRender (1/4) $
-		    sequence_ [ renderStrColAtLeft col s dv | (s,dv) <- helps ]
+		    sequence_ [ renderStrColAtLeft white s dv | (s,dv) <- helps ]
 	    | (i,(v,bdg,helps)) <- enumerate $ map (\b->(buttonPos b, bindingStr $ buttonCmd b, buttonHelp b)) $ buttonGroup
 		, let col = dim $ colourWheel (base+inc*i) ]
 	| (buttonGroup,(base,inc)) <- buttons
