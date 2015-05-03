@@ -692,7 +692,7 @@ initVideo w h = do
 initAudio :: UIM ()
 #ifdef SOUND
 initAudio = do
-    liftIO $ tryOpenAudio defaultFrequency AudioS16LSB 1 4096
+    liftIO $ tryOpenAudio defaultFrequency AudioS16Sys 1 1024
     -- liftIO $ querySpec >>= print
     liftIO $ allocateChannels 16
     let seqWhileJust (m:ms) = m >>= \ret -> case ret of
