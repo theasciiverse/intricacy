@@ -178,7 +178,7 @@ getButtons mode = do
 		in [ ( [ Button bl (if edit then CmdSelect else CmdWait) [] ], (0,0))
 		, ( [ Button (bl<+>dir) (CmdDir whs dir)
 			(if dir==hu then [("move",hu<+>neg hw),(if edit then "piece" else whsStr whs,hu<+>neg hv)] else [])
-		    | dir <- hexDirs ], (1,0) )
+		    | dir <- hexDirs ], (5,0) )
 		] ++
 		(if whs == WHSWrench then [] else
 		    [ ( [ Button (bl<+>((-2)<*>hv))
@@ -187,7 +187,7 @@ getButtons mode = do
 			, Button (bl<+>((-2)<*>hw))
 			    (CmdRotate whs 1)
 			    [("turn",hu<+>neg hw),("ccw",hu<+>neg hv)]
-			], (1,0) )
+			], (5,0) )
 		]) ++
 		(if whs /= WHSSelected || mode == IMEdit then [] else
 		    [ ( [ Button (bl<+>(2<*>hv)<+>hw<+>neg hu) (CmdTile $ HookTile) [("select",hu<+>neg hw),("hook",hu<+>neg hv)]

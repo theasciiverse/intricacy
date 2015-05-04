@@ -283,7 +283,7 @@ useSoundsButton use centre@(SVec x y) size surf = sequence_
 whsButtonsButton :: Maybe WrHoSel -> Glyph
 whsButtonsButton Nothing centre size surf =
     buttonGlyph (dim red) centre (size`div`3) surf
-    >> sequence_ [ buttonGlyph (dim yellow)
+    >> sequence_ [ buttonGlyph (dim purple)
 	(SVec `uncurry` edge centre (size`div`2) dir) (size`div`3) surf
 	| dir <- hexDirs ]
 whsButtonsButton (Just whs) centre size surf = do
