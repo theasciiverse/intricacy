@@ -158,9 +158,9 @@ askLockIndex prompt failMessage pred = do
 confirmOrBail prompt = (guard =<<) $ lift.lift $ confirm prompt
 confirm :: UIMonad uiM => String -> uiM Bool
 confirm prompt = do
-    drawMessage $ prompt ++ " [y/N]"
+    drawPrompt $ prompt ++ " [y/N] "
     setYNButtons
-    waitConfirm <* drawMessage ""
+    waitConfirm <* endPrompt
     where
 	waitConfirm = do
 	    cmds <- getInput IMTextInput
@@ -176,11 +176,11 @@ confirm prompt = do
 
 -- | TODO: draw cursor
 textInput :: UIMonad uiM => String -> Int -> Bool -> Bool -> Maybe [String] -> Maybe String -> uiM (Maybe String)
-textInput prompt maxlen hidden endOnMax mposss init = getText (fromMaybe "" init, Nothing) <* drawMessage ""
+textInput prompt maxlen hidden endOnMax mposss init = getText (fromMaybe "" init, Nothing) <* endPrompt
     where
 	getText :: UIMonad uiM => (String, Maybe String) -> uiM (Maybe String)
 	getText (s,mstem) = do
-	    drawMessage $ prompt ++ " " ++ if hidden then replicate (length s) '*' else s
+	    drawPrompt $ prompt ++ " " ++ if hidden then replicate (length s) '*' else s
 	    if endOnMax && isNothing mstem && maxlen <= length s
 	    then return $ Just $ take maxlen s
 	    else do

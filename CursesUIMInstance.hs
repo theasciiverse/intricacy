@@ -289,6 +289,8 @@ instance UIMonad (StateT UIState IO) where
 	    cGlyph = Glyph '!' 0 a0
 
     drawMessage = say
+    drawPrompt s = say s >> (liftIO $ void $ Curses.cursSet Curses.CursorVisible)
+    endPrompt = say "" >> (liftIO $ void $ Curses.cursSet Curses.CursorInvisible)
     drawError = sayError
 
     showHelp mode = do

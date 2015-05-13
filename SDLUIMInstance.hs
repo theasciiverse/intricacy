@@ -209,6 +209,8 @@ instance UIMonad (StateT UIState IO) where
 	drawMainState' _ = return ()
 
     drawMessage = say
+    drawPrompt s = say $ s ++ "_"
+    endPrompt = say ""
     drawError = sayError
 
     reportAlerts = playAlertSounds

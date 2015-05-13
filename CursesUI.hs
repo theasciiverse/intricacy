@@ -126,7 +126,8 @@ drawMsgLine = void.runMaybeT $ do
     lift $ do
 	(h,w) <- liftIO Curses.scrSize
 	liftIO $ clearLine $ h-1
-	drawStr attr col (CVec (h-1) 0) $ take (w-1) str
+	let str' = take (w-1) str
+	drawStr attr col (CVec (h-1) 0) str'
 setMsgLine attr col str = do
     modify $ \s -> s { message = Just (attr,col,str) }
     drawMsgLine
