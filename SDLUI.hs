@@ -93,12 +93,13 @@ data UIOptions = UIOptions
     , showBlocks::ShowBlocks
     , whsButtons::Maybe WrHoSel
     , useBackground::Bool
+    , fullscreen::Bool
     , showButtonText::Bool
     , useSounds::Bool
     , uiAnimTime::Word32
     }
     deriving (Eq, Ord, Show, Read)
-defaultUIOptions = UIOptions False ShowBlocksBlocking Nothing True True True 50
+defaultUIOptions = UIOptions False ShowBlocksBlocking Nothing True False True True 50
 modifyUIOptions f = modify $ \s -> s { uiOptions = f $ uiOptions s }
 
 renderToMain :: RenderM a -> UIM a
@@ -340,19 +341,22 @@ helpAtMousePos _ _ = return Nothing
 
 
 data UIOptButton a = UIOptButton { getUIOpt::UIOptions->a, setUIOpt::a->UIOptions->UIOptions,
-    uiOptVals::[a], uiOptPos::HexVec, uiOptGlyph::a->Glyph, uiOptDescr::a->String }
+    uiOptVals::[a], uiOptPos::HexVec, uiOptGlyph::a->Glyph, uiOptDescr::a->String,
+    onSet :: Maybe (a -> UIM ()) }
 
 -- non-uniform type, so can't use a list...
 uiOB1 = UIOptButton useFiveColouring (\v o -> o {useFiveColouring=v}) [True,False]
 	(periphery 0 <+> 2 <*> hu) useFiveColourButton
 	(\v -> if v then "Adjacent pieces get different colours" else
 	"Pieces are coloured according to type")
+	Nothing
 uiOB2 = UIOptButton showBlocks (\v o -> o {showBlocks=v}) [ShowBlocksBlocking,ShowBlocksAll,ShowBlocksNone]
-	(periphery 0 <+> 2 <*> hu <+> 1 <*> neg hv) showBlocksButton
+	(periphery 0 <+> 2 <*> hu <+> 2 <*> neg hv) showBlocksButton
 	(\v -> case v of
 	    ShowBlocksBlocking -> "Blocking forces are annotated"
 	    ShowBlocksAll -> "Blocked and blocking forces are annotated"
 	    ShowBlocksNone -> "Blockage annotations disabled")
+	Nothing
 uiOB3 = UIOptButton whsButtons (\v o -> o {whsButtons=v}) [Nothing, Just WHSSelected, Just WHSWrench, Just WHSHook]
 	(periphery 3 <+> 3 <*> hv) whsButtonsButton
 	(\v -> case v of
@@ -361,14 +365,22 @@ uiOB3 = UIOptButton whsButtons (\v o -> o {whsButtons=v}) [Nothing, Just WHSSele
 		WHSSelected -> "selected piece"
 		WHSWrench -> "wrench"
 		WHSHook -> "hook")
+	Nothing
 uiOB4 = UIOptButton showButtonText (\v o -> o {showButtonText=v}) [True,False]
 	(periphery 0 <+> 2 <*> hu <+> 2 <*> hv) showButtonTextButton
 	(\v -> if v then "Help text enabled" else
 	"Help text disabled")
-uiOB5 = UIOptButton useSounds (\v o -> o {useSounds=v}) [True,False]
-	(periphery 0 <+> 2 <*> hu <+> 2 <*> neg hv) useSoundsButton
+	Nothing
+uiOB5 = UIOptButton fullscreen (\v o -> o {fullscreen=v}) [True,False]
+	(periphery 0 <+> 4 <*> hu <+> 2 <*> hv) fullscreenButton
+	(\v -> if v then "Fullscreen mode" else
+	"Windowed mode")
+	(Just $ const $ initVideo 0 0)
+uiOB6 = UIOptButton useSounds (\v o -> o {useSounds=v}) [True,False]
+	(periphery 0 <+> 3 <*> hu <+> hv) useSoundsButton
 	(\v -> if v then "Sound effects enabled" else
 	"Sound effects disabled")
+	Nothing
 
 drawUIOptionButtons :: InputMode -> UIM ()
 drawUIOptionButtons mode = do
@@ -377,9 +389,10 @@ drawUIOptionButtons mode = do
 	drawUIOptionButton uiOB2
 	unless (mode == IMReplay) $ drawUIOptionButton uiOB3
 #ifdef SOUND
-	drawUIOptionButton uiOB5
+	drawUIOptionButton uiOB6
 #endif
     drawUIOptionButton uiOB4
+    drawUIOptionButton uiOB5
 drawUIOptionButton b = do
     value <- gets $ (getUIOpt b).uiOptions
     renderToMain $ mapM_ (\g -> drawAtRel g (uiOptPos b))
@@ -388,10 +401,13 @@ describeUIOptionButton b = do
     value <- gets $ (getUIOpt b).uiOptions
     return $ uiOptDescr b value
 -- XXX: hand-hacking lenses...
-toggleUIOption (UIOptButton getopt setopt vals _ _ _) = do
+toggleUIOption (UIOptButton getopt setopt vals _ _ _ monSet) = do
     value <- gets $ getopt.uiOptions
     let value' = head $ drop (1 + (fromMaybe 0 $ elemIndex value vals)) $ cycle vals
     modifyUIOptions $ setopt value'
+    case monSet of
+	Nothing -> return ()
+	Just onSet -> onSet value'
 
 readUIConfigFile :: UIM ()
 readUIConfigFile = do
@@ -656,7 +672,8 @@ drawButtons mode = do
 
 initVideo :: Int -> Int -> UIM ()
 initVideo w h = do
-    liftIO $ setVideoMode w h 0 [Resizable]
+    fs <- fullscreen <$> gets uiOptions
+    liftIO $ setVideoMode w h 0 [if fs then Fullscreen else Resizable]
 
     -- see what size we actually got:
     vinfo <- liftIO $ getVideoInfo

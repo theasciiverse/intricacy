@@ -297,6 +297,17 @@ whsButtonsButton (Just whs) centre size surf = do
 	miniCentre h = SVec `uncurry` corner centre miniSize h
 	col = dim white
 
+fullscreenButton :: Bool -> Glyph
+fullscreenButton fs centre size surf = do
+    aaPolygon' surf corners $ activeCol (not fs)
+    hollowGlyph (activeCol fs) centre size' surf
+    where
+	activeCol True = bright green
+	activeCol False = dim red
+	size' = (2*size`div`3)
+	corners = [ (if dir `elem` [hu,neg hu] then edge else innerCorner) centre size' dir
+	    | dir <- hexDirs ]
+
 cursor :: Glyph
 cursor = hollowGlyph $ bright white
 
