@@ -156,10 +156,10 @@ getButtons mode = do
 	    ++ [ singleButton tr CmdOpen 1 [("open", hu<+>neg hw)] ]
 	IMReplay -> [ markGroup ]
 	IMMeta ->
-	    [ singleButton serverPos CmdSetServer 2 [("set server",2<*>neg hw)]
-	    , singleButton (serverPos<+>neg hu) CmdToggleCacheOnly 0 [("cache only",3<*>hw<+>2<*>neg hu)]
+	    [ singleButton serverPos CmdSetServer 2 [("set server",2<*>neg hw<+>hv)]
+	    , singleButton (serverPos<+>neg hu) CmdToggleCacheOnly 0 [("cache",hv<+>6<*>neg hu),("only",hw<+>5<*>neg hu)]
 	    , singleButton lockLinePos CmdSelectLock 1 [("select lock",2<*>neg hw<+>hv)]
-	    , singleButton (miniLockPos <+> 2<*>hv <+> neg hu) CmdEdit 2 [("edit",hv<+>4<*>neg hu),("lock",hw<+>4<*>neg hu)]
+	    , singleButton (miniLockPos <+> 2<*>hv <+> neg hu) CmdEdit 2 [("edit",hv<+>5<*>neg hu),("lock",hw<+>5<*>neg hu)]
 	    , singleButton (codenamePos <+> neg hu) (CmdSelCodename Nothing) 2 [("code",hv<+>5<*>neg hu),("name",hw<+>5<*>neg hu)]
 	    , singleButton (serverPos <+> 2<*>neg hv <+> 2<*>hw) CmdTutorials 1 [("play",hu<+>neg hw),("tut",hu<+>neg hv)]
 	    ]
