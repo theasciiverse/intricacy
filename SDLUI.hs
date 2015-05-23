@@ -685,7 +685,7 @@ initVideo w h = do
     modify $ \ds -> ds { gsSurface = Just gssurf, lastDrawArgs = Nothing }
 
     (_,size) <- getGeom
-    let fontfn = "VeraMono.ttf"
+    let fontfn = "VeraMoBd.ttf"
     fontpath <- liftIO $ getDataPath fontfn
     font <- liftIO $ TTF.tryOpenFont fontpath size
     smallFont <- liftIO $ TTF.tryOpenFont fontpath (2*size`div`3)
