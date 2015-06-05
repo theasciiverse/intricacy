@@ -486,7 +486,7 @@ blankRow v = do
 	liftM3 (,,) renderSurf renderSCentre renderSize
     let SVec _ y = scrCentre <+> (hexVec2SVec size v)
 	w = surfaceGetWidth surf
-	h = ceiling $ fromIntegral size * 2 / sqrt 3
+	h = ceiling $ fromIntegral (size * 3 `div` 2) * 2 / sqrt 3
     fillRectBG $ Just $ Rect 0 (y-h`div`2) w h
 
 drawCursorAt :: Maybe HexPos -> RenderM ()
