@@ -154,8 +154,8 @@ processCommand' IMMeta (CmdSelCodename mname) = void.runMaybeT $ do
     name <- msum [ liftMaybe $ mname
 	, do
 	    newCodename <- (map toUpper <$>) $ MaybeT $ lift $
-		textInput (if mauth == Nothing then "Select codename (3 characters):" else "Codename:")
-		    3 False True Nothing Nothing
+		textInput "Select codename:"
+		    3 False False Nothing Nothing
 	    guard $ length newCodename == 3
 	    return newCodename
 	]

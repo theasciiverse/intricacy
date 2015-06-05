@@ -214,7 +214,7 @@ instance UIMonad (StateT UIState IO) where
 	drawMainState' _ = return ()
 
     drawMessage = say
-    drawPrompt s = say $ s ++ "_"
+    drawPrompt full s = say $ s ++ (if full then "" else "_")
     endPrompt = say ""
     drawError = sayError
 
