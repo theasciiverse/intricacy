@@ -138,7 +138,9 @@ instance UIMonad (StateT UIState IO) where
 				(if reg then CmdRegister else CmdAuth)
 				(if isNothing ourName then 2 else 0)
 				[(if reg then "reg" else "auth", 3<*>hw)]
-		    lift.renderToMain $ renderStrColAtLeft messageCol "Viewing:" (codenamePos<+>hv<+>neg hu)
+		    lift.renderToMain $ renderStrColAtLeft messageCol
+			(if home then "Home" else "Viewing:")
+			(codenamePos<+>hv)
 		    (if isJust muirc then drawName else drawNullName) name codenamePos
 		    lift $ registerSelectable codenamePos 0 (SelSelectedCodeName name)
 		    drawRelScore name (codenamePos<+>hu)
@@ -486,7 +488,7 @@ instance UIMonad (StateT UIState IO) where
 	    let bdgWidth = (screenWidthHexes-6) `div` 3
 		showKeys chs = intercalate "/" (map showKeyFriendly chs)
 		maxkeyslen = maximum . (0:) $ map (length.showKeys.map fst) $ groupBy ((==) `on` snd) bdgs
-		mouseHelpStrs = ["Mouse commands:", "Right-click on a button to set a keybinding;"]
+		extraHelpStrs = ["Mouse commands:", "Right-click on a button to set a keybinding;"]
 		    ++ case mode of
 			IMPlay -> ["Click on tool to select, drag to move;",
 			    "Click by tool to move; right-click to wait;", "Scroll wheel to rotate hook;",
@@ -496,9 +498,17 @@ instance UIMonad (StateT UIState IO) where
 			    "While holding right-click: left-click to advance time, middle-click to delete;",
 			    "Scroll wheel to rotate selected piece; scroll wheel while held down to undo/redo."]
 			IMReplay -> ["Scroll wheel with right button held down to undo/redo."]
-			IMMeta -> ["Left-clicking on something does most obvious thing;",
-			    "Right-clicking does second-most obvious thing."]
+			IMMeta -> ["Left-clicking on something does most obvious thing;"
+			    , "Right-clicking does second-most obvious thing."
+			    , ""
+			    , "Basic game instructions:"
+			    , "Choose [C]odename, then [R]egister it;"
+			    , "select other players, and [S]olve their locks;"
+			    , "[E]dit then [P]lace a lock of your own;"
+			    , "you can then [D]eclare your solutions."
+			    , "Make other players green by solving their locks and not letting yours be solved!"]
 	    renderStrColAt messageCol "Keybindings:" $ (screenHeightHexes`div`4)<*>(hv<+>neg hw)
+	    let keybindingsHeight = screenHeightHexes - (3 + length extraHelpStrs)
 	    sequence_ [ with $ renderStrColAtLeft messageCol
 			( keysStr ++ ": " ++ desc )
 			$ (x*bdgWidth-(screenWidthHexes-6)`div`2)<*>hu <+> neg hv <+>
@@ -515,13 +525,13 @@ instance UIMonad (StateT UIState IO) where
 				then withFont smallFont
 				else id
 			]
-		    (map (`divMod` (screenHeightHexes-9)) [0..])
+		    (map (`divMod` keybindingsHeight) [0..])
 		, (x+1)*bdgWidth < screenWidthHexes]
 	    sequence_ [ renderStrColAt messageCol str
-			$ (3-screenHeightHexes`div`4-y`div`2)<*>(hv<+>neg hw)
-			  <+> hv
+			$ (screenHeightHexes`div`4 - y`div`2)<*>(hv<+>neg hw)
+			  <+> hw
 			  <+> (y`mod`2)<*>hw
-		| (str,y) <- zip mouseHelpStrs [0..] ]
+		| (str,y) <- zip extraHelpStrs [keybindingsHeight..] ]
 	refresh
 
 drawShortMouseHelp mode = do
