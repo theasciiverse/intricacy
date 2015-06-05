@@ -302,7 +302,7 @@ helpOfSelectable (SelReadNote note) = Just $
 helpOfSelectable SelReadNoteSlot = Just $
     "Reading three notes on this lock would let you piece together enough to unriddle its secrets."
 helpOfSelectable (SelSecured note) = let ActiveLock owner idx = noteOn note in
-    Just $ "Secured note on "++owner++"'s lock "++[lockIndexChar idx]++"."
+    Just $ "Secured note on "++owner++"'s lock "++[lockIndexChar idx]++". RMB to attempt to read."
 helpOfSelectable (SelSolution note) = Just $ case noteBehind note of
     Just (ActiveLock owner idx) -> owner ++
 	" has secured their note on this lock behind their lock " ++ [lockIndexChar idx] ++ "."
