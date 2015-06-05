@@ -70,6 +70,10 @@ thickLine surf from@(x,y) to@(x',y') thickness col = do
 	(map (uncurry addHalf) [(from,perp),(to,perp),(from,mperp),(to,mperp)])
 	(dim col) (bright col)
 
+thickLines surf verts thickness col =
+    sequence_ [ thickLine surf v v' thickness col |
+	(v,v') <- zip (take (length verts - 1) verts) (drop 1 verts) ]
+
 type Glyph = SVec -> Int -> Surface -> IO ()
 
 ysize :: Int -> Int
@@ -125,12 +129,12 @@ tileGlyph (BlockTile adjs) col centre size surf =
 		]
 
 tileGlyph (SpringTile extn dir) col centre size surf =
-    aaLines surf points $ brightness col
+    thickLines surf points 1 $ brightness col
 	where
 	    n = 3*case extn of
 		Stretched -> 1
 		Relaxed -> 2
-		Compressed -> 3
+		Compressed -> 4
 	    brightness = if extn == Relaxed then dim else bright
 	    dir' = if dir == zero then hu else dir
 	    (sx,sy) = corner centre size (hextant dir' - 1)
