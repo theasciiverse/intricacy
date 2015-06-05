@@ -506,7 +506,7 @@ instance UIMonad (StateT UIState IO) where
 			    , "select other players, and [S]olve their locks;"
 			    , "[E]dit then [P]lace a lock of your own;"
 			    , "you can then [D]eclare your solutions."
-			    , "Make other players green by solving their locks and not letting yours be solved!"]
+			    , "Make other players green by solving their locks and not letting them solve yours."]
 	    renderStrColAt messageCol "Keybindings:" $ (screenHeightHexes`div`4)<*>(hv<+>neg hw)
 	    let keybindingsHeight = screenHeightHexes - (3 + length extraHelpStrs)
 	    sequence_ [ with $ renderStrColAtLeft messageCol
