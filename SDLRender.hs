@@ -208,10 +208,10 @@ blockedPush dir col centre size surf = do
 		, innerCorner centre size $ rotate (-1) dir
 		, innerCorner centre size dir ]
 -}
-    void $ aaLine surf `uncurry` base `uncurry` tip $ col
+    void $ thickLine surf base tip 1 col
     --void $ aaLine surf `uncurry` from' `uncurry` to' $ col
-    void $ aaLine surf `uncurry` tip `uncurry` (arms!!0) $ col
-    void $ aaLine surf `uncurry` tip `uncurry` (arms!!1) $ col
+    void $ thickLine surf tip (arms!!0) 1 col
+    void $ thickLine surf tip (arms!!1) 1 col
     where
 	--base@(bx,by) = innerCorner centre size dir
 	SVec bx' by' = centre
