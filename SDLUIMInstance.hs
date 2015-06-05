@@ -108,10 +108,10 @@ instance UIMonad (StateT UIState IO) where
 		    (fst<$>mlock)
 		registerSelectable miniLockPos 1 SelOurLock
 	    lift $ when (not $ null path) $ do
-		renderToMain $ renderStrColAtLeft messageCol path $ lockLinePos <+> hu
+		renderToMain $ renderStrColAtLeft messageCol (take 16 path) $ lockLinePos <+> hu
 		registerSelectable (lockLinePos <+> 2<*>hu) 1 SelLockPath
 		sequence_
-		    [ registerButton (miniLockPos <+> 2<*>neg hv <+> hu <+> dv) cmd 1
+		    [ registerButton (miniLockPos <+> 2<*>neg hv <+> 2<*>hu <+> dv) cmd 1
 			[(dirText,hu<+>neg hw),("lock",hu<+>neg hv)]
 		    | (dv,cmd,dirText) <- [(zero,CmdPrevLock,"prev"),(neg hw,CmdNextLock,"next")] ]
 	    lift $ do
@@ -121,7 +121,7 @@ instance UIMonad (StateT UIState IO) where
 		    $ serverPos <+> hu
 
 	    when (length names > 1) $ lift $ registerButton
-		(codenamePos <+> 2<*>neg hu <+> hw) CmdBackCodename 0 [("back",2<*>hw<+>neg hv<+>neg hu)]
+		(codenamePos <+> 2<*>neg hu <+> hw) CmdBackCodename 0 [("back",3<*>hw)]
 
 	    runMaybeT $ do
 		name <- MaybeT (return selName)
@@ -134,8 +134,11 @@ instance UIMonad (StateT UIState IO) where
 			maybe (return ()) (setMsgLineNoRefresh errorCol) err
 			when (fresh && (isNothing ourName || home || isNothing muirc)) $
 			    let reg = (isNothing muirc && isNothing ourName) || home
-			    in registerButton (codenamePos <+> hw <+> 2<*>hu)
-				(if reg then CmdRegister else CmdAuth) 2 [(if reg then "reg" else "auth", hu<+>neg hv)]
+			    in registerButton (codenamePos <+> neg hv <+> hu)
+				(if reg then CmdRegister else CmdAuth)
+				(if isNothing ourName then 2 else 0)
+				[(if reg then "reg" else "auth", 3<*>hw)]
+		    lift.renderToMain $ renderStrColAtLeft messageCol "Viewing:" (codenamePos<+>hv<+>neg hu)
 		    (if isJust muirc then drawName else drawNullName) name codenamePos
 		    lift $ registerSelectable codenamePos 0 (SelSelectedCodeName name)
 		    drawRelScore name (codenamePos<+>hu)
@@ -146,23 +149,22 @@ instance UIMonad (StateT UIState IO) where
 				    [ \pos -> (lift $ registerSelectable pos 1 (SelOldLock ls)) >> drawOldLock ls pos
 				    | ls <- retired ]
 				lift $ registerButton retiredPos CmdShowRetired pubWheelAngle [("retired",hu<+>neg hw)]
-				lift $ registerButton (retiredPos <+> hw) (CmdPlayLockSpec Nothing) 1 [("play",hu<+>neg hw),("no.",hu<+>neg hv)]
+				lift $ registerButton (retiredPos <+> hv) (CmdPlayLockSpec Nothing) 1 [("play",hu<+>neg hw),("no.",hu<+>neg hv)]
 			    Nothing -> do
 				sequence_ [ drawLockInfo (ActiveLock (codename uinfo) i) mlockinfo |
 				    (i,mlockinfo) <- assocs $ userLocks uinfo ]
-				let mmiscpos = (serverPos <+> 2<*>neg hv)
 				when (isJust $ msum $ elems $ userLocks uinfo) $ lift $ do
-				    registerButton mmiscpos (CmdSolve Nothing) 2 [("solve",hu<+>neg hw),("lock",hu<+>neg hv)]
-				    registerButton (mmiscpos<+>neg hv) (CmdViewSolution Nothing) 0 [("view",hu<+>neg hw),("soln",hu<+>neg hv)]
+				    registerButton interactButtonsPos (CmdSolve Nothing) 2 [("solve",hu<+>neg hw),("lock",hu<+>neg hv)]
+				    registerButton (interactButtonsPos<+>hw) (CmdViewSolution Nothing) 1 [("view",hu<+>neg hw),("soln",hu<+>neg hv)]
 				let tested = maybe False (isJust.snd) mlock
 				when (isJust mlock && home) $ lift $ registerButton
-				    (miniLockPos <+> 3<*>hv) (CmdPlaceLock Nothing) (if tested then 2 else 0) [("place",hv<+>5<*>neg hu),("lock",hw<+>4<*>neg hu)]
+				    (miniLockPos <+> 4<*>neg hw <+> neg hu) (CmdPlaceLock Nothing) (if tested then 2 else 0) [("place",hu<+>neg hw),("lock",hu<+>neg hv)]
 				lift $ registerButton retiredPos CmdShowRetired pubWheelAngle [("retired",hu<+>neg hw)]
 
 	    when home $ do
 		unless (null undecls) $ do
-		    lift.renderToMain $ renderStrColAtLeft messageCol "Undeclared:" (undeclsPos<+>2<*>hv)
-		    lift $ registerButton (undeclsPos<+>2<*>hv<+>neg hu) (CmdDeclare Nothing) 2 [("decl",hv<+>4<*>neg hu),("soln",hw<+>4<*>neg hu)]
+		    lift.renderToMain $ renderStrColAtLeft messageCol "Undeclared:" (undeclsPos<+>2<*>hv<+>neg hu)
+		    lift $ registerButton (undeclsPos<+>hw<+>neg hu) (CmdDeclare Nothing) 2 [("decl",hv<+>4<*>neg hu),("soln",hw<+>4<*>neg hu)]
 		    fillArea (undeclsPos<+>hv)
 			(map (undeclsPos<+>) $ hexDisc 1 ++ [hu<+>neg hw, neg hu<+>hv])
 			[ \pos -> (lift $ registerSelectable pos 0 (SelUndeclared undecl)) >> drawActiveLock al pos
@@ -176,14 +178,16 @@ instance UIMonad (StateT UIState IO) where
 
 	    when (ourName /= selName) $ void $ runMaybeT $ do
 		when (isJust ourName) $
-		    lift.lift $ registerButton (codenamePos <+> neg hu <+> hw) CmdHome 1 [("home",hu<+>neg hv)]
+		    lift.lift $ registerButton (codenamePos <+> neg hu <+> hw) CmdHome 1 [("home",3<*>hw)]
 		sel <- liftMaybe selName
 		us <- liftMaybe ourName
 		ourUInfo <- mgetUInfo us
 		selUInfo <- mgetUInfo sel
 		let accesses = map (uncurry getAccessInfo) [(ourUInfo,sel),(selUInfo,us)]
+		let posLeft = codenamePos<+>3<*>hw
+		let posRight = codenamePos<+>3<*>neg hv
 		lift $ do
-		    fillArea (codenamePos<+>3<*>hv<+>hw) (map ((codenamePos<+>3<*>hv)<+>) [zero,hw,neg hv])
+		    fillArea (posLeft<+>hw) (map (posLeft<+>) [zero,hw,neg hv])
 			[ \pos -> (lift $ registerSelectable pos 0 (SelScoreLock (Just sel) accessed $ ActiveLock us i)) >>
 			    drawNameWithCharAndCol us white (lockIndexChar i) col pos
 			| i <- [0..2]
@@ -192,7 +196,7 @@ instance UIMonad (StateT UIState IO) where
 				| accessed == Just AccessedPub = dim pubColour
 				| isJust accessed = dim $ scoreColour $ -3
 				| otherwise = obscure $ scoreColour 3 ]
-		    fillArea (codenamePos<+>2<*>neg hw) (map ((codenamePos<+>3<*>neg hw)<+>) [zero,hw,neg hv])
+		    fillArea (posRight<+>hw) (map (posRight<+>) [zero,hw,neg hv])
 			[ \pos -> (lift $ registerSelectable pos 0 (SelScoreLock Nothing accessed $ ActiveLock sel i)) >>
 			    drawNameWithCharAndCol sel white (lockIndexChar i) col pos
 			| i <- [0..2]
@@ -204,8 +208,9 @@ instance UIMonad (StateT UIState IO) where
 		(usUnacc,selUnacc) <- MaybeT $ (snd<$>) <$> getRelScoreDetails sel
 		lift.lift.renderToMain $ sequence_ [renderStrColAt (scoreColour score) (sign:show (abs score)) pos
 			| (sign,score,pos) <-
-			    [ ('-',usUnacc-3,codenamePos<+>3<*>hv<+>neg hw)
-			    , ('+',3-selUnacc,codenamePos<+>3<*>neg hw<+>hv) ] ]
+			    [ ('-',usUnacc-3,posLeft<+>neg hv<+>hw)
+			    , ('+',3-selUnacc,posRight<+>neg hv<+>hw) ] ]
+
 	drawMainState' _ = return ()
 
     drawMessage = say

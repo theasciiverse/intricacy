@@ -156,11 +156,11 @@ getButtons mode = do
 	    ++ [ singleButton tr CmdOpen 1 [("open", hu<+>neg hw)] ]
 	IMReplay -> [ markGroup ]
 	IMMeta ->
-	    [ singleButton serverPos CmdSetServer 2 [("set server",2<*>neg hw<+>hv)]
+	    [ singleButton serverPos CmdSetServer 0 [("set server",2<*>neg hw<+>hv)]
 	    , singleButton (serverPos<+>neg hu) CmdToggleCacheOnly 0 [("cache",hv<+>6<*>neg hu),("only",hw<+>5<*>neg hu)]
 	    , singleButton lockLinePos CmdSelectLock 1 [("select lock",2<*>neg hw<+>hv)]
-	    , singleButton (miniLockPos <+> 2<*>hv <+> neg hu) CmdEdit 2 [("edit",hv<+>5<*>neg hu),("lock",hw<+>5<*>neg hu)]
-	    , singleButton (codenamePos <+> neg hu) (CmdSelCodename Nothing) 2 [("code",hv<+>5<*>neg hu),("name",hw<+>5<*>neg hu)]
+	    , singleButton (miniLockPos <+> 4<*>hv<+> 2<*>hu) CmdEdit 2 [("edit",hv<+>5<*>neg hu),("lock",hw<+>5<*>neg hu)]
+	    , singleButton (codenamePos <+> hv <+> 2<*>neg hu) (CmdSelCodename Nothing) 2 [("code",hv<+>5<*>neg hu),("name",hw<+>5<*>neg hu)]
 	    , singleButton (serverPos <+> 2<*>neg hv <+> 2<*>hw) CmdTutorials 1 [("play",hu<+>neg hw),("tut",hu<+>neg hv)]
 	    ]
 
@@ -765,13 +765,13 @@ say = setMsgLine messageCol
 sayError = setMsgLine errorCol
 
 miniLockPos = (-9)<*>hw <+> hu
-lockLinePos = 2<*>(hu <+> neg hw) <+> miniLockPos
-serverPos = 12<*>hv <+> 6<*>neg hu
+lockLinePos = 2<*>hu <+> 3<*>neg hw <+> miniLockPos
+serverPos = 13<*>hv <+> 5<*>neg hu
 serverWaitPos = serverPos <+> hw <+> neg hu
-nextPagePos = serverPos <+> 5<*>neg hv
 randomNamesPos = 9<*>hv <+> neg hu
-codenamePos = (-4)<*>hw <+> 4<*>hv
-undeclsPos = hv <+> neg hw <+> codenamePos
+codenamePos = (-6)<*>hw <+> 6<*>hv
+undeclsPos = 7<*>hw <+> 6<*>neg hv <+> serverPos
 accessedOursPos = 2<*>hw <+> codenamePos
 locksPos = hw<+>neg hv
-retiredPos = locksPos <+> 10<*>hu <+> (-4)<*>hv
+retiredPos = locksPos <+> 11<*>hu <+> neg hv
+interactButtonsPos = 9<*>neg hu <+> 8<*>hw
