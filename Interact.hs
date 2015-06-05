@@ -150,10 +150,12 @@ processCommand' im CmdJumpMark = void.runMaybeT $ do
     lift $ jumpMark ch
 processCommand' im CmdReset = jumpMark startMark
 processCommand' IMMeta (CmdSelCodename mname) = void.runMaybeT $ do
+    mauth <- gets curAuth
     name <- msum [ liftMaybe $ mname
 	, do
 	    newCodename <- (map toUpper <$>) $ MaybeT $ lift $
-		textInput "Codename:" 3 False True Nothing Nothing
+		textInput (if mauth == Nothing then "Select codename (3 characters):" else "Codename:")
+		    3 False True Nothing Nothing
 	    guard $ length newCodename == 3
 	    return newCodename
 	]
