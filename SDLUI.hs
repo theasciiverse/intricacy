@@ -156,11 +156,11 @@ getButtons mode = do
 	    ++ [ singleButton tr CmdOpen 1 [("open", hu<+>neg hw)] ]
 	IMReplay -> [ markGroup ]
 	IMMeta ->
-	    [ singleButton serverPos CmdSetServer 0 [("set server",2<*>neg hw<+>hv)]
+	    [ singleButton serverPos CmdSetServer 0 [("server",3<*>hw)]
 	    , singleButton (serverPos<+>neg hu) CmdToggleCacheOnly 0 [("cache",hv<+>6<*>neg hu),("only",hw<+>5<*>neg hu)]
 	    , singleButton retiredPos CmdShowRetired 5 [("retired",hu<+>neg hw)]
-	    , singleButton (codenamePos <+> hv <+> 2<*>neg hu) (CmdSelCodename Nothing) 2 [("code",hv<+>5<*>neg hu),("name",hw<+>5<*>neg hu)]
-	    , singleButton (serverPos <+> 2<*>neg hv <+> 2<*>hw) CmdTutorials 1 [("play",hu<+>neg hw),("tut",hu<+>neg hv)]
+	    , singleButton (codenamePos <+> 2<*>neg hu) (CmdSelCodename Nothing) 2 [("code",hv<+>5<*>neg hu),("name",hw<+>5<*>neg hu)]
+	    , singleButton (serverPos <+> 2<*>neg hv <+> 2<*>hw) CmdTutorials 3 [("play",hu<+>neg hw),("tut",hu<+>neg hv)]
 	    ]
 
 	_ -> []
@@ -299,9 +299,9 @@ helpOfSelectable (SelScoreLock Nothing (Just AccessedEmpty) (ActiveLock name _))
 helpOfSelectable (SelReadNote note) = Just $
     "You have read "++noteAuthor note++"'s note on this lock."
 helpOfSelectable SelReadNoteSlot = Just $
-    "Reading three notes on this lock would let you piece together enough to unriddle its secrets."
+    "Reading three notes on this lock would let you unriddle its secrets."
 helpOfSelectable (SelSecured note) = let ActiveLock owner idx = noteOn note in
-    Just $ "Secured note on "++owner++"'s lock "++[lockIndexChar idx]++". Right-click to attempt to read."
+    Just $ "Secured note on "++owner++"'s lock "++[lockIndexChar idx]++". Right-click to attempt to decipher."
 helpOfSelectable (SelSolution note) = Just $ case noteBehind note of
     Just (ActiveLock owner idx) -> owner ++
 	" has secured their note on this lock behind their lock " ++ [lockIndexChar idx] ++ "."
@@ -764,12 +764,12 @@ say = setMsgLine messageCol
 sayError = setMsgLine errorCol
 
 miniLockPos = (-9)<*>hw <+> hu
-lockLinePos = 2<*>hu <+> 3<*>neg hw <+> miniLockPos
-serverPos = 13<*>hv <+> 5<*>neg hu
+lockLinePos = 4<*>hu <+> miniLockPos
+serverPos = 12<*>hv <+> 7<*>neg hu
 serverWaitPos = serverPos <+> hw <+> neg hu
-randomNamesPos = 9<*>hv <+> neg hu
+randomNamesPos = 9<*>hv <+> 2<*> neg hu
 codenamePos = (-6)<*>hw <+> 6<*>hv
-undeclsPos = 7<*>hw <+> 6<*>neg hv <+> serverPos
+undeclsPos = 13<*>neg hu
 accessedOursPos = 2<*>hw <+> codenamePos
 locksPos = hw<+>neg hv
 retiredPos = locksPos <+> 11<*>hu <+> neg hv

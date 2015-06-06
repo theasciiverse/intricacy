@@ -226,7 +226,7 @@ handleRequest dbpath req@(ClientRequest pv auth action) = do
 		    then ServedSolution <$> getSolution note
 		    else if case behindMLinfo of
 				Nothing -> True
-				Just behindInfo -> uname `elem` accessedBy behindInfo
+				Just behindInfo -> public behindInfo || uname `elem` accessedBy behindInfo
 			    || note `elem` notesRead uinfo
 			then if public onLinfo || uname `elem` accessedBy onLinfo
 			    then ServedSolution <$> getSolution note

@@ -121,15 +121,12 @@ instance UIMonad (StateT UIState IO) where
 			    smallFont <- gets dispFontSmall
 			    renderToMain $ withFont smallFont $ renderStrColAtLeft (opaquify $ dim errorCol) "(stale)" $ serverWaitPos
 			maybe (return ()) (setMsgLineNoRefresh errorCol) err
-			when (fresh && (isNothing ourName || home || isNothing muirc)) $
-			    let reg = (isNothing muirc && isNothing ourName) || home
-			    in registerButton (codenamePos <+> neg hv <+> hu)
+			when (fresh && (isNothing ourName || isNothing muirc)) $
+			    let reg = isNothing muirc && isNothing ourName
+			    in registerButton (codenamePos <+> 2<*>hu)
 				(if reg then CmdRegister else CmdAuth)
 				(if isNothing ourName then 2 else 0)
 				[(if reg then "reg" else "auth", 3<*>hw)]
-		    lift.renderToMain $ renderStrColAtLeft messageCol
-			(if home then "Home" else "Viewing:")
-			(codenamePos<+>hv)
 		    (if isJust muirc then drawName else drawNullName) name codenamePos
 		    lift $ registerSelectable codenamePos 0 (SelSelectedCodeName name)
 		    drawRelScore name (codenamePos<+>hu)
@@ -148,6 +145,8 @@ instance UIMonad (StateT UIState IO) where
 				    registerButton (interactButtonsPos<+>hw) (CmdViewSolution Nothing) 1 [("view",hu<+>neg hw),("soln",hu<+>neg hv)]
 
 	    when home $ do
+		lift.renderToMain $ renderStrColAt messageCol
+		    "Home" (codenamePos<+>hw<+>neg hv)
 		unless (null undecls) $ do
 		    lift.renderToMain $ renderStrColAtLeft messageCol "Undeclared:" (undeclsPos<+>2<*>hv<+>neg hu)
 		    lift $ registerButton (undeclsPos<+>hw<+>neg hu) (CmdDeclare Nothing) 2 [("decl",hv<+>4<*>neg hu),("soln",hw<+>4<*>neg hu)]
@@ -160,10 +159,9 @@ instance UIMonad (StateT UIState IO) where
 			(\lock -> drawMiniLock lock miniLockPos)
 			(fst<$>mlock)
 		    registerSelectable miniLockPos 1 SelOurLock
-		    registerButton (miniLockPos <+> 4<*>hv<+> 2<*>hu) CmdEdit 2
-			[("edit",hv<+>5<*>neg hu),("lock",hw<+>5<*>neg hu)]
-		    registerButton lockLinePos CmdSelectLock 1
-			[("select lock",2<*>neg hw<+>hv)]
+		    registerButton (miniLockPos<+>3<*>neg hw<+>2<*>hu) CmdEdit 2
+			[("edit",hu<+>neg hw),("lock",hu<+>neg hv)]
+		    registerButton lockLinePos CmdSelectLock 1 []
 		lift $ when (not $ null path) $ do
 		    renderToMain $ renderStrColAtLeft messageCol (take 16 path) $ lockLinePos <+> hu
 		    registerSelectable (lockLinePos <+> 2<*>hu) 1 SelLockPath
@@ -173,7 +171,7 @@ instance UIMonad (StateT UIState IO) where
 			| (dv,cmd,dirText) <- [(zero,CmdPrevLock,"prev"),(neg hw,CmdNextLock,"next")] ]
 		let tested = maybe False (isJust.snd) mlock
 		when (isJust mlock && home) $ lift $ registerButton
-		    (miniLockPos <+> 4<*>neg hw <+> neg hu) (CmdPlaceLock Nothing)
+		    (miniLockPos<+>2<*>neg hw<+>3<*>hu) (CmdPlaceLock Nothing)
 			(if tested then 2 else 1)
 			[("place",hu<+>neg hw),("lock",hu<+>neg hv)]
 	    rnames <- liftIO $ atomically $ readTVar rnamestvar
