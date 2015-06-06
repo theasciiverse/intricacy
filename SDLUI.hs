@@ -282,17 +282,17 @@ helpOfSelectable (SelUndeclared _) = Just
 helpOfSelectable (SelRandom _) = Just
     "Random set of guild members. Colours show relative esteem, bright red (-3) to bright green (+3)."
 helpOfSelectable (SelScoreLock (Just name) Nothing _) = Just $
-    "Your lock, to the secrets of which "++name++" is not privy."
+    "Your lock, the secrets to which "++name++" is not privy."
 helpOfSelectable (SelScoreLock (Just name) (Just AccessedPrivy) _) = Just $
-    "Your lock, to the secrets of which "++name++" is privy: -1 to relative esteem."
+    "Your lock, the secrets to which "++name++" is privy: -1 to relative esteem."
 helpOfSelectable (SelScoreLock (Just name) (Just AccessedPub) _) = Just $
     "Your lock, the secrets of which have been publically revealed: -1 to relative esteem."
 helpOfSelectable (SelScoreLock (Just name) (Just AccessedEmpty) _) = Just $
     "Your empty lock slot; "++name++" is privy to the secrets of all your locks: -1 to relative esteem."
 helpOfSelectable (SelScoreLock Nothing Nothing (ActiveLock name _)) = Just $
-    name++"'s lock, to the secrets of which you are not privy."
+    name++"'s lock, the secrets to which you are not privy."
 helpOfSelectable (SelScoreLock Nothing (Just AccessedPrivy) (ActiveLock name _)) = Just $
-    name++"'s lock, to the secrets of which you are privy: +1 to relative esteem."
+    name++"'s lock, the secrets to which you are privy: +1 to relative esteem."
 helpOfSelectable (SelScoreLock Nothing (Just AccessedPub) (ActiveLock name _)) = Just $
     name++"'s lock, the secrets of which have been publically revealed: +1 to relative esteem."
 helpOfSelectable (SelScoreLock Nothing (Just AccessedEmpty) (ActiveLock name _)) = Just $
@@ -302,7 +302,7 @@ helpOfSelectable (SelReadNote note) = Just $
 helpOfSelectable SelReadNoteSlot = Just $
     "Reading three notes on this lock would let you piece together enough to unriddle its secrets."
 helpOfSelectable (SelSecured note) = let ActiveLock owner idx = noteOn note in
-    Just $ "Secured note on "++owner++"'s lock "++[lockIndexChar idx]++". RMB to attempt to read."
+    Just $ "Secured note on "++owner++"'s lock "++[lockIndexChar idx]++". Right-click to attempt to read."
 helpOfSelectable (SelSolution note) = Just $ case noteBehind note of
     Just (ActiveLock owner idx) -> owner ++
 	" has secured their note on this lock behind their lock " ++ [lockIndexChar idx] ++ "."
