@@ -74,6 +74,9 @@ thickLines surf verts thickness col =
     sequence_ [ thickLine surf v v' thickness col |
 	(v,v') <- zip (take (length verts - 1) verts) (drop 1 verts) ]
 
+thickPolygon surf verts thickness col =
+    thickLines surf (verts ++ take 1 verts) thickness col
+
 type Glyph = SVec -> Int -> Surface -> IO ()
 
 ysize :: Int -> Int
@@ -303,14 +306,15 @@ whsButtonsButton (Just whs) centre size surf = do
 
 fullscreenButton :: Bool -> Glyph
 fullscreenButton fs centre size surf = do
-    aaPolygon' surf corners $ activeCol (not fs)
-    hollowGlyph (activeCol fs) centre size' surf
+    thickPolygon surf corners 1 $ activeCol (not fs)
+    thickPolygon surf corners' 1 $ activeCol fs
     where
-	activeCol True = bright green
-	activeCol False = dim red
+	activeCol True = opaquify $ dim green
+	activeCol False = opaquify $ dim red
 	size' = (2*size`div`3)
 	corners = [ (if dir `elem` [hu,neg hu] then edge else innerCorner) centre size' dir
 	    | dir <- hexDirs ]
+	corners' = map (corner centre size') [0..5]
 
 cursor :: Glyph
 cursor = hollowGlyph $ bright white
