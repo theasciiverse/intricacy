@@ -9,6 +9,7 @@
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
 {-# LANGUAGE FlexibleInstances #-}
+{-# OPTIONS_GHC -cpp #-}
 module SDLUIMInstance () where
 
 import Graphics.UI.SDL hiding (flip)
@@ -604,9 +605,9 @@ updateHoverStr mode = do
 	, guard (mPos == uiOptPos uiOB3) >> describeUIOptionButton uiOB3
 	, guard (mPos == uiOptPos uiOB4) >> describeUIOptionButton uiOB4
 	, guard (mPos == uiOptPos uiOB5) >> describeUIOptionButton uiOB5
-	#ifdef SOUND
+#ifdef SOUND
 	, guard (mPos == uiOptPos uiOB6) >> describeUIOptionButton uiOB6
-	#endif
+#endif
 	]
     modify $ \ds -> ds { hoverStr = hstr }
     where

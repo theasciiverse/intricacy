@@ -1,10 +1,8 @@
 This is an abbreviated summary; see the git log for gory details.
 
 0.4.2:
-    Tutorial adjustments
-    Misc graphical tweaks to increase visibility
-    MetaUI layout tweaks
-    Fix sound lag on Windows
+    Adjustments to graphics, tutorial, and metagame UI, to increase clarity.
+    Fix sound lag on Windows.
 0.4.1:
     Concurrency on server; no more freezes while it checks a solution.
     Misc minor UI fixes.
