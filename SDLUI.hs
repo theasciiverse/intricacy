@@ -158,8 +158,7 @@ getButtons mode = do
 	IMMeta ->
 	    [ singleButton serverPos CmdSetServer 0 [("set server",2<*>neg hw<+>hv)]
 	    , singleButton (serverPos<+>neg hu) CmdToggleCacheOnly 0 [("cache",hv<+>6<*>neg hu),("only",hw<+>5<*>neg hu)]
-	    , singleButton lockLinePos CmdSelectLock 1 [("select lock",2<*>neg hw<+>hv)]
-	    , singleButton (miniLockPos <+> 4<*>hv<+> 2<*>hu) CmdEdit 2 [("edit",hv<+>5<*>neg hu),("lock",hw<+>5<*>neg hu)]
+	    , singleButton retiredPos CmdShowRetired 5 [("retired",hu<+>neg hw)]
 	    , singleButton (codenamePos <+> hv <+> 2<*>neg hu) (CmdSelCodename Nothing) 2 [("code",hv<+>5<*>neg hu),("name",hw<+>5<*>neg hu)]
 	    , singleButton (serverPos <+> 2<*>neg hv <+> 2<*>hw) CmdTutorials 1 [("play",hu<+>neg hw),("tut",hu<+>neg hv)]
 	    ]
@@ -775,3 +774,4 @@ accessedOursPos = 2<*>hw <+> codenamePos
 locksPos = hw<+>neg hv
 retiredPos = locksPos <+> 11<*>hu <+> neg hv
 interactButtonsPos = 9<*>neg hu <+> 8<*>hw
+scoresPos = codenamePos <+> 5<*>hu <+> 2<*>neg hv

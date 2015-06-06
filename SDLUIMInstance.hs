@@ -103,25 +103,13 @@ instance UIMonad (StateT UIState IO) where
 	    let home = isJust ourName && ourName == selName
 	    lift $ renderToMain $ (erase >> drawCursorAt Nothing)
 	    lift $ do
-		maybe (drawEmptyMiniLock miniLockPos)
-		    (\lock -> drawMiniLock lock miniLockPos)
-		    (fst<$>mlock)
-		registerSelectable miniLockPos 1 SelOurLock
-	    lift $ when (not $ null path) $ do
-		renderToMain $ renderStrColAtLeft messageCol (take 16 path) $ lockLinePos <+> hu
-		registerSelectable (lockLinePos <+> 2<*>hu) 1 SelLockPath
-		sequence_
-		    [ registerButton (miniLockPos <+> 2<*>neg hv <+> 2<*>hu <+> dv) cmd 1
-			[(dirText,hu<+>neg hw),("lock",hu<+>neg hv)]
-		    | (dv,cmd,dirText) <- [(zero,CmdPrevLock,"prev"),(neg hw,CmdNextLock,"next")] ]
-	    lift $ do
 		smallFont <- gets dispFontSmall
 		renderToMain $ withFont smallFont $ renderStrColAtLeft messageCol
 			(saddrStr saddr ++ if cOnly then " (cache only)" else "")
 		    $ serverPos <+> hu
 
 	    when (length names > 1) $ lift $ registerButton
-		(codenamePos <+> 2<*>neg hu <+> hw) CmdBackCodename 0 [("back",3<*>hw)]
+		(codenamePos <+> neg hu <+> 2<*>hw) CmdBackCodename 0 [("back",3<*>hw)]
 
 	    runMaybeT $ do
 		name <- MaybeT (return selName)
@@ -150,7 +138,6 @@ instance UIMonad (StateT UIState IO) where
 				    (map (locksPos<+>) $ zero:[rotate n $ 4<*>hu<->4<*>hw | n <- [0,2,3,5]])
 				    [ \pos -> (lift $ registerSelectable pos 1 (SelOldLock ls)) >> drawOldLock ls pos
 				    | ls <- retired ]
-				lift $ registerButton retiredPos CmdShowRetired pubWheelAngle [("retired",hu<+>neg hw)]
 				lift $ registerButton (retiredPos <+> hv) (CmdPlayLockSpec Nothing) 1 [("play",hu<+>neg hw),("no.",hu<+>neg hv)]
 			    Nothing -> do
 				sequence_ [ drawLockInfo (ActiveLock (codename uinfo) i) mlockinfo |
@@ -158,10 +145,6 @@ instance UIMonad (StateT UIState IO) where
 				when (isJust $ msum $ elems $ userLocks uinfo) $ lift $ do
 				    registerButton interactButtonsPos (CmdSolve Nothing) 2 [("solve",hu<+>neg hw),("lock",hu<+>neg hv)]
 				    registerButton (interactButtonsPos<+>hw) (CmdViewSolution Nothing) 1 [("view",hu<+>neg hw),("soln",hu<+>neg hv)]
-				let tested = maybe False (isJust.snd) mlock
-				when (isJust mlock && home) $ lift $ registerButton
-				    (miniLockPos <+> 4<*>neg hw <+> neg hu) (CmdPlaceLock Nothing) (if tested then 2 else 0) [("place",hu<+>neg hw),("lock",hu<+>neg hv)]
-				lift $ registerButton retiredPos CmdShowRetired pubWheelAngle [("retired",hu<+>neg hw)]
 
 	    when home $ do
 		unless (null undecls) $ do
@@ -171,6 +154,27 @@ instance UIMonad (StateT UIState IO) where
 			(map (undeclsPos<+>) $ hexDisc 1 ++ [hu<+>neg hw, neg hu<+>hv])
 			[ \pos -> (lift $ registerSelectable pos 0 (SelUndeclared undecl)) >> drawActiveLock al pos
 			| undecl@(Undeclared _ _ al) <- undecls ]
+		lift $ do
+		    maybe (drawEmptyMiniLock miniLockPos)
+			(\lock -> drawMiniLock lock miniLockPos)
+			(fst<$>mlock)
+		    registerSelectable miniLockPos 1 SelOurLock
+		    registerButton (miniLockPos <+> 4<*>hv<+> 2<*>hu) CmdEdit 2
+			[("edit",hv<+>5<*>neg hu),("lock",hw<+>5<*>neg hu)]
+		    registerButton lockLinePos CmdSelectLock 1
+			[("select lock",2<*>neg hw<+>hv)]
+		lift $ when (not $ null path) $ do
+		    renderToMain $ renderStrColAtLeft messageCol (take 16 path) $ lockLinePos <+> hu
+		    registerSelectable (lockLinePos <+> 2<*>hu) 1 SelLockPath
+		    sequence_
+			[ registerButton (miniLockPos <+> 2<*>neg hv <+> 2<*>hu <+> dv) cmd 1
+			    [(dirText,hu<+>neg hw),("lock",hu<+>neg hv)]
+			| (dv,cmd,dirText) <- [(zero,CmdPrevLock,"prev"),(neg hw,CmdNextLock,"next")] ]
+		let tested = maybe False (isJust.snd) mlock
+		when (isJust mlock && home) $ lift $ registerButton
+		    (miniLockPos <+> 4<*>neg hw <+> neg hu) (CmdPlaceLock Nothing)
+			(if tested then 2 else 1)
+			[("place",hu<+>neg hw),("lock",hu<+>neg hv)]
 	    rnames <- liftIO $ atomically $ readTVar rnamestvar
 	    unless (null rnames) $
 		fillArea randomNamesPos
@@ -180,15 +184,16 @@ instance UIMonad (StateT UIState IO) where
 
 	    when (ourName /= selName) $ void $ runMaybeT $ do
 		when (isJust ourName) $
-		    lift.lift $ registerButton (codenamePos <+> neg hu <+> hw) CmdHome 1 [("home",3<*>hw)]
+		    lift.lift $ registerButton (codenamePos <+> hw <+> neg hv) CmdHome 1 [("home",3<*>hw)]
 		sel <- liftMaybe selName
 		us <- liftMaybe ourName
 		ourUInfo <- mgetUInfo us
 		selUInfo <- mgetUInfo sel
 		let accesses = map (uncurry getAccessInfo) [(ourUInfo,sel),(selUInfo,us)]
-		let posLeft = codenamePos<+>3<*>hw
-		let posRight = codenamePos<+>3<*>neg hv
+		let posLeft = scoresPos <+> hw <+> neg hu
+		let posRight = posLeft <+> 3<*>hu
 		lift $ do
+		    drawRelScore sel scoresPos
 		    fillArea (posLeft<+>hw) (map (posLeft<+>) [zero,hw,neg hv])
 			[ \pos -> (lift $ registerSelectable pos 0 (SelScoreLock (Just sel) accessed $ ActiveLock us i)) >>
 			    drawNameWithCharAndCol us white (lockIndexChar i) col pos
@@ -504,7 +509,7 @@ instance UIMonad (StateT UIState IO) where
 			    , "Basic game instructions:"
 			    , "Choose [C]odename, then [R]egister it;"
 			    , "select other players, and [S]olve their locks;"
-			    , "[E]dit then [P]lace a lock of your own;"
+			    , "go [H]ome, then [E]dit and [P]lace a lock of your own;"
 			    , "you can then [D]eclare your solutions."
 			    , "Make other players green by solving their locks and not letting them solve yours."]
 	    renderStrColAt messageCol "Keybindings:" $ (screenHeightHexes`div`4)<*>(hv<+>neg hw)
