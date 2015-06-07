@@ -228,12 +228,13 @@ processCommand' IMMeta CmdAuth = void.runMaybeT $ do
 	    modify $ \ms -> ms {curAuth = Just $ Auth name passwd}
 	    resp <- curServerAction $ Authenticate
 	    case resp of
-		ServerAck -> (lift $ drawMessage "Authenticated.")
-		ServerMessage msg -> (lift $ drawMessage $ "Server: " ++ msg)
+		ServerAck -> lift $ drawMessage "Authenticated."
+		ServerMessage msg -> lift $ drawMessage $ "Server: " ++ msg
 		ServerError err -> do
 		    lift $ drawError err
 		    modify $ \ms -> ms {curAuth = auth}
 		_ -> lift $ drawMessage $ "Bad server response: " ++ show resp
+	    refreshUInfoUI
 processCommand' IMMeta (CmdSolve midx) = void.runMaybeT $ do
     name <- mgetCurName
     uinfo <- mgetUInfo name
