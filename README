@@ -5,45 +5,6 @@ A game of competitive puzzle-design.
 http://mbays.freeshell.org/intricacy/
 
 
-Compiling
-=========
-Dependencies:
-    EITHER
-	sdl
-	sdl-ttf
-	sdl-gfx
-    OR
-	curses
-
-To compile the game on *nix with SDL graphics:
-    Install ghc, cabal, and development packages for the SDL dependencies
-    above, then run
-	cabal update && cabal install
-    which should result in various haskell packages being compiled and
-    installed, probably in ~/.cabal/ . The game can then be run as
-	~/.cabal/bin/intricacy 
-    Running cabal install as root should install it somewhere global.
-
-To compile a curses-only (ascii graphics) build:
-	cabal install -f -SDL
-
-To compile the server:
-	cabal install -f Server -f -Game
-
-    The server will be installed in
-	~/.cabal/bin/intricacy-server
-    The server runs on port 27001 by default. It writes the game database to
-    a directory 'intricacydb' under the directory from which it is run.
-
-To compile for windows:
-    This should work as above once you have the dependencies installed
-    properly. Good luck with that. The mingw32-compiled libraries in winlibs
-    may or may not help.
-
-To compile for OSX, or android or whatever other wacky system:
-    No idea, sorry. But please tell me if you manage!
-
-
 Playing
 =======
 Press 'T' on the starting screen to play the tutorials, which should lead you
@@ -66,7 +27,12 @@ follows:
     * The lone hex with optional arrow toggles "blockage annotations". These
 	are there to help you figure out what's going on when you can't
 	understand why a piece refuses to move. An orange arrow indicates a
-	blocked force, and a purple arrow a force which blocked another force.
+	blocked force, a purple arrow indicates a force which blocked another
+	force.
+    * The soundwave icon toggles sound.
+    * The narrow hex enscribed within a wide hex toggles between fullscreen
+	and windowed mode. The resolution used when switching to fullscreen 
+	is that of the window prior to fullscreening.
 
 Config files are saved in ~/.intricacy/ on unixoids, or something like
 "...\Application Data\intricacy\" on windows. In particular, the locks you
