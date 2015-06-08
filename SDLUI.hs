@@ -301,13 +301,13 @@ helpOfSelectable (SelReadNote note) = Just $
 helpOfSelectable SelReadNoteSlot = Just $
     "Reading three notes on this lock would let you unriddle its secrets."
 helpOfSelectable (SelSecured note) = let ActiveLock owner idx = noteOn note in
-    Just $ "Secured note on "++owner++"'s lock "++[lockIndexChar idx]++". Right-click to attempt to decipher."
+    Just $ "Secured note on "++owner++"'s lock "++[lockIndexChar idx]++"."
 helpOfSelectable (SelSolution note) = Just $ case noteBehind note of
     Just (ActiveLock owner idx) -> owner ++
 	" has secured their note on this lock behind their lock " ++ [lockIndexChar idx] ++ "."
     Nothing -> noteAuthor note ++ "'s note on this lock is public knowledge."
 helpOfSelectable (SelAccessed name) = Just $
-    name ++ " did not pick this lock, but is privy to its secrets."
+    name ++ " did not pick this lock, but by reading three notes became privy its secrets."
 helpOfSelectable (SelPublicLock) = Just
     "Notes behind retired or public locks are public; locks with three public notes are public."
 helpOfSelectable (SelAccessedInfo meth) = Just $ case meth of
@@ -321,7 +321,7 @@ helpOfSelectable (SelOldLock ls) = Just $
 helpOfSelectable SelLockPath = Just $
     "Select a lock by its name. The names you give your locks are not revealed to others."
 helpOfSelectable SelPrivyHeader = Just $
-    "Guild members privy to this lock's secrets, hence able to read its secured notes."
+    "Fellow uild members privy to this lock's secrets, hence able to read its secured notes."
 helpOfSelectable SelNotesHeader = Just $
     "Secured notes. Notes are obfuscated sketches of method, proving success but revealing little."
 
