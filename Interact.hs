@@ -416,7 +416,11 @@ processCommand' IMMeta CmdShowRetired = void.runMaybeT $ do
     newRL <- lift (gets retiredLocks) >>= \rl -> case rl of
 	Nothing -> do
 	    RCLockSpecs lss <- MaybeT $ getFreshRecBlocking $ RecRetiredLocks name
-	    return $ Just lss
+	    if null lss
+		then do
+		    lift.lift $ drawError "Player has no retired locks."
+		    return Nothing
+		else return $ Just lss
 	Just _ -> return Nothing
     lift $ modify $ \ms -> ms {retiredLocks = newRL}
 

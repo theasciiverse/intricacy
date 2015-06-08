@@ -130,6 +130,8 @@ instance UIMonad (StateT UIState IO) where
 		    (if isJust muirc then drawName else drawNullName) name codenamePos
 		    lift $ registerSelectable codenamePos 0 (SelSelectedCodeName name)
 		    drawRelScore name (codenamePos<+>hu)
+		    when (isJust muirc) $ lift $
+			registerButton retiredPos CmdShowRetired 5 [("retired",hu<+>neg hw)]
 		    for_ muirc $ \(RCUserInfo (_,uinfo)) -> case mretired of
 			    Just retired -> do
 				fillArea locksPos
