@@ -768,7 +768,7 @@ drawLockInfo al@(ActiveLock name i) (Just lockinfo) = do
 		    "Read:" $ readPos
 		when (length read == 3) $ lift $ registerSelectable readPos 0 (SelAccessedInfo AccessedReadNotes)
 		fillArea (accessedPos<+>neg hu) [ accessedPos <+> i<*>hu | i <- [-1..1] ]
-		    $ take 3 $ [ \pos -> (lift $ registerSelectable pos 0 (SelReadNote note)) >> drawName (noteAuthor note) pos
+		    $ take 3 $ [ \pos -> (lift $ registerSelectable pos 0 (SelReadNote note)) >> drawNote note pos
 			| note <- read ] ++ (repeat $ \pos -> (lift $ registerSelectable pos 0 SelReadNoteSlot >>
 				renderToMain (drawAtRel (hollowGlyph $ dim green) pos)))
 
