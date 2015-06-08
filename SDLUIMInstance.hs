@@ -434,8 +434,8 @@ instance UIMonad (StateT UIState IO) where
 			cmd <- MaybeT $ cmdAtMousePos pos mode (Just True)
 			return [cmd]
 		    , case mode of
-			IMPlay -> return [ CmdWait ]
-			_ -> return [ CmdSelect ] ]
+			IMPlay -> return [ CmdClear, CmdWait ]
+			_ -> return [ CmdClear, CmdSelect ] ]
 	    processEvent (MouseButtonUp _ _ ButtonRight) = do
 		modify $ \s -> s { rightButtonDown = Nothing }
 		return [ CmdUnselect ]

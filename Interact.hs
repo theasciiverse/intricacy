@@ -137,6 +137,9 @@ processCommand' im (CmdBind mcmd)= lift $ (>> endPrompt) $ runMaybeT $ do
 processCommand' _ CmdToggleColourMode = lift toggleColourMode
 processCommand' _ CmdSuspend = lift suspend
 processCommand' _ CmdRedraw = lift redraw
+processCommand' im CmdClear = do
+    lift $ drawMessage ""
+    when (im == IMMeta) $ modify $ \ms -> ms { retiredLocks = Nothing }
 processCommand' im CmdMark = void.runMaybeT $ do
     guard $ im `elem` [IMEdit, IMPlay, IMReplay]
     str <- MaybeT $ lift $ textInput "Mark: " 1 False True Nothing Nothing

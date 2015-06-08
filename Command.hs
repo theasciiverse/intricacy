@@ -43,7 +43,7 @@ data Command
     | CmdRegister | CmdAuth
     | CmdNextPage | CmdPrevPage
     | CmdToggleColourMode
-    | CmdRedraw | CmdRefresh | CmdSuspend
+    | CmdRedraw | CmdRefresh | CmdSuspend | CmdClear
     | CmdQuit | CmdForceQuit
     | CmdHelp | CmdBind (Maybe Command)
     | CmdNone
