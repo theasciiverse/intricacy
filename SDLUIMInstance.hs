@@ -121,7 +121,7 @@ instance UIMonad (StateT UIState IO) where
 			    smallFont <- gets dispFontSmall
 			    renderToMain $ withFont smallFont $ renderStrColAtLeft (opaquify $ dim errorCol) "(stale)" $ serverWaitPos
 			maybe (return ()) (setMsgLineNoRefresh errorCol) err
-			when (fresh && (isNothing ourName || isNothing muirc)) $
+			when (fresh && (isNothing ourName || isNothing muirc || home)) $
 			    let reg = isNothing muirc && isNothing ourName
 			    in registerButton (codenamePos <+> 2<*>hu)
 				(if reg then CmdRegister else CmdAuth)
