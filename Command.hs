@@ -45,7 +45,7 @@ data Command
     | CmdToggleColourMode
     | CmdRedraw | CmdRefresh | CmdSuspend
     | CmdQuit | CmdForceQuit
-    | CmdHelp | CmdBind
+    | CmdHelp | CmdBind (Maybe Command)
     | CmdNone
     deriving (Eq, Ord, Show, Read)
 data WrHoSel = WHSWrench | WHSHook | WHSSelected
@@ -99,7 +99,7 @@ describeCommand (CmdPlaceLock mli) = "place lock"
 	++ maybe "" ((' ':).(:"").lockIndexChar) mli
 describeCommand CmdRegister = "register codename"
 describeCommand CmdAuth = "authenticate"
-describeCommand CmdBind = "bind key"
+describeCommand (CmdBind _) = "bind key"
 describeCommand CmdToggleColourMode = "toggle lock colour mode"
 describeCommand CmdQuit = "quit"
 describeCommand CmdHelp = "help"

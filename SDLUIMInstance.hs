@@ -230,7 +230,9 @@ instance UIMonad (StateT UIState IO) where
 
     getChRaw = do
 	events <- liftIO getEvents
-	maybe getChRaw (return.Just) $ listToMaybe $ [ ch
+	if not.null $ [ True | MouseButtonDown _ _ ButtonRight <- events ]
+	then return Nothing
+	else maybe getChRaw (return.Just) $ listToMaybe $ [ ch
 	    | KeyDown (Keysym _ _ ch) <- events
 	    , ch /= '\0' ]
 
@@ -426,8 +428,8 @@ instance UIMonad (StateT UIState IO) where
 		    [ do
 			cmd <- MaybeT $ cmdAtMousePos pos mode Nothing
 			guard $ mode /= IMTextInput
-			modify $ \s -> s { settingBinding = Just cmd }
-			return []
+			-- modify $ \s -> s { settingBinding = Just cmd }
+			return [ CmdBind $ Just cmd ]
 		    , do
 			cmd <- MaybeT $ cmdAtMousePos pos mode (Just True)
 			return [cmd]

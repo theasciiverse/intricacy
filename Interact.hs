@@ -123,16 +123,17 @@ processCommand' :: UIMonad uiM => InputMode -> Command -> MainStateT uiM ()
 processCommand' im CmdHelp = lift $ do
     showHelp im
     void $ textInput "[press a key or RMB]" 1 False True Nothing Nothing
-processCommand' im CmdBind = lift $ (>> drawMessage "") $ runMaybeT $ do
-	lift $ drawMessage "Command to bind: "
-	cmd <- msum $ repeat $ do
+processCommand' im (CmdBind mcmd)= lift $ (>> endPrompt) $ runMaybeT $ do
+    cmd <- liftMaybe mcmd `mplus` do
+	lift $ drawPrompt False "Command to bind: "
+	msum $ repeat $ do
 	    cmd <- MaybeT $ listToMaybe <$> getInput im
 	    guard $ not.null $ describeCommand cmd
 	    return cmd
-	lift $ drawMessage ("key to bind to \"" ++ describeCommand cmd ++ "\" (repeat binding to delete): ")
-	ch <- MaybeT getChRaw
-	guard $ ch /= '\ESC'
-	lift $ setUIBinding im cmd ch
+    lift $ drawPrompt False ("key to bind to \"" ++ describeCommand cmd ++ "\" (repeat existing user binding to delete): ")
+    ch <- MaybeT getChRaw
+    guard $ ch /= '\ESC'
+    lift $ setUIBinding im cmd ch
 processCommand' _ CmdToggleColourMode = lift toggleColourMode
 processCommand' _ CmdSuspend = lift suspend
 processCommand' _ CmdRedraw = lift redraw

@@ -101,7 +101,7 @@ miscGlobal = lowerToo
     [ ('Q', CmdQuit)
     , (ctrl 'C', CmdQuit)
     , ('?', CmdHelp)
-    , (ctrl 'B', CmdBind)
+    , (ctrl 'B', CmdBind Nothing)
     , (ctrl 'L', CmdRedraw)
     , (ctrl 'Z', CmdSuspend)
     , ('%', CmdToggleColourMode)
