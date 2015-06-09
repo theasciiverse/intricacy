@@ -490,7 +490,7 @@ instance UIMonad (StateT UIState IO) where
 		    modify $ \ds -> ds { mousePos = newPos }
 		    updateHoverStr mode
 
-    showHelp mode = do
+    showHelp mode 0 = do
 	bdgs <- nub <$> getBindings mode
 	smallFont <- gets dispFontSmall
 	renderToMain $ do
@@ -543,6 +543,43 @@ instance UIMonad (StateT UIState IO) where
 			  <+> (y`mod`2)<*>hw
 		| (str,y) <- zip extraHelpStrs [keybindingsHeight..] ]
 	refresh
+	return True
+    showHelp IMMeta 1 = do
+	renderToMain $ do
+	    erase
+	    let headPos = (screenHeightHexes`div`4)<*>(hv<+>neg hw)
+	    renderStrColAt messageCol "Intricacy" headPos
+	    sequence_
+		[ renderStrColAt messageCol str $
+		    headPos
+		      <+> (y`div`2)<*>(hw<+>neg hv)
+		      <+> (y`mod`2)<*>hw
+		| (y,str) <- zip [2..]
+		    [ "By ruthlessly guarded secret arrangement, the Council's agents can pick any lock in the city."
+		    , "The Guild's task is to design apparently secure locks with fatal, but hidden, flaws."
+		    , "The ritual game of \"Intricacy\" is played to determine the best designs."
+		    , "Players attempt to design locks which can be picked only by one who knows the secret,"
+		    , "and try to discover the secret flaws in the designs of their colleagues."
+		    , ""
+		    , "You may put forward up to three prototype locks. They will guard the secrets you discover."
+		    , "If you pick a colleague's lock, the rules require that you write a note describing your solution."
+		    , "The composition and deciphering of notes is an art in itself, whose details do not concern us here,"
+		    , "but a note must prove that the author found a solution, while aiming not to explain it in full."
+		    , "To declare your success, you must secure your note behind a lock of your own."
+		    , "If you are able to unlock a lock, you automatically read all the notes it secures."
+		    , "If you read three notes on a lock, you will piece together the clues and find out how to solve it."
+		    , ""
+		    , "The traditional way to determine your success in the game is to compare yourself with your peers."
+		    , "Your esteem relative to another player ranges from +3 to -3 (higher is better), calculated thusly:"
+		    , "Take the number of their locks you can solve, and subtract the number of your locks they can solve."
+		    , "Undeclared solutions don't count. Empty lock slots are considered solved if all actual locks are."
+		    , ""
+		    , "If the secrets to one of your locks become widely disseminated, you may wish to replace it."
+		    , "Once replaced, a lock is \"retired\"; any notes it secured become \"public\" and are read by all."
+		    ]
+		]
+	return True
+    showHelp _ _ = return False
 
 drawShortMouseHelp mode = do
     mwhs <- gets $ whsButtons.uiOptions

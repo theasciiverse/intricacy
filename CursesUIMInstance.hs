@@ -293,7 +293,7 @@ instance UIMonad (StateT UIState IO) where
     endPrompt = say "" >> (liftIO $ void $ Curses.cursSet Curses.CursorInvisible)
     drawError = sayError
 
-    showHelp mode = do
+    showHelp mode 0 = do
 	bdgs <- nub <$> getBindings mode
 	erase
 	(h,w) <- liftIO Curses.scrSize
@@ -316,6 +316,8 @@ instance UIMonad (StateT UIState IO) where
 		(map (`divMod` (h-3)) [0..])
 	    , (x+1)*bdgWidth < w]
 	refresh
+	return True
+    showHelp _ _ = return False
 
     getChRaw = (charify<$>) $ liftIO $ CursesH.getKey (return ())
     setUIBinding mode cmd ch =

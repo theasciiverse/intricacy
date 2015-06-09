@@ -120,9 +120,11 @@ processCommand IMPlay CmdOpen = do
 processCommand im cmd = lift $ processCommand' im cmd
 
 processCommand' :: UIMonad uiM => InputMode -> Command -> MainStateT uiM ()
-processCommand' im CmdHelp = lift $ do
-    showHelp im
-    void $ textInput "[press a key or RMB]" 1 False True Nothing Nothing
+processCommand' im CmdHelp = lift $
+    let showPage n = showHelp im n >>? do
+	    void $ textInput "[press a key or RMB]" 1 False True Nothing Nothing
+	    showPage $ n+1
+    in showPage 0
 processCommand' im (CmdBind mcmd)= lift $ (>> endPrompt) $ runMaybeT $ do
     cmd <- liftMaybe mcmd `mplus` do
 	lift $ drawPrompt False "Command to bind: "

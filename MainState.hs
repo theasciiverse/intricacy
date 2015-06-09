@@ -56,7 +56,7 @@ class (Applicative m, MonadIO m) => UIMonad m where
     drawPrompt :: Bool -> String -> m ()
     endPrompt :: m ()
     drawError :: String -> m ()
-    showHelp :: InputMode -> m ()
+    showHelp :: InputMode -> Int -> m Bool
     getInput :: InputMode -> m [ Command ]
     getChRaw :: m ( Maybe Char )
     unblockInput :: m (IO ())
