@@ -191,12 +191,23 @@ tileGlyph BallTile col centre size surf =
     rimmedCircle surf centre rad (faint col) (obscure col)
     where rad = (7*size)`div`8
 
-blockedArm :: HexDir -> TorqueDir -> Pixel -> Glyph
+blockedArm,turnedArm :: HexDir -> TorqueDir -> Pixel -> Glyph
 blockedArm armdir tdir col centre size surf =
     void $ aaLine surf `uncurry` from `uncurry` to $ col
 	where
 	    from = innerCorner centre size $ rotate (2*tdir) armdir
 	    to = edge centre size $ rotate tdir armdir
+
+turnedArm armdir tdir col centre size surf =
+    sequence_ [ arc surf (fromIntegral x) (fromIntegral y) (fromIntegral $ n*size `div` 4)
+	a1 a2 col | n <- [8,9] ]
+    where
+	SVec x y = centre <+> hexVec2SVec size (neg armdir)
+	a0 = fromIntegral $ -60*hextant armdir
+	a1' = a0 + fromIntegral tdir * 10
+	a2' = a0 + fromIntegral tdir * 30
+	a1 = min a1' a2'
+	a2 = max a1' a2'
 
 blockedBlock :: Tile -> HexDir -> Pixel -> Glyph
 blockedBlock tile dir col centre size =
@@ -518,6 +529,18 @@ drawBlocked st colouring blocking (Push idx dir) = do
 	| pos <- footprint
 	, (dir<+>pos) `notElem` fullfootprint ]
     -- drawAt (blockedPush dir $ bright orange) $ placedPos $ getpp st idx
+
+drawApplied :: GameState -> PieceColouring -> Force -> RenderM ()
+drawApplied st colouring (Torque idx dir) = do
+    let (pos,arms) = case getpp st idx of
+	    PlacedPiece pos (Pivot arms) -> (pos,arms)
+	    PlacedPiece pos (Hook arm _) -> (pos,[arm])
+	    _ -> (pos,[])
+	col = dim $ colourOf colouring idx
+    sequence_ [ drawAt (turnedArm arm dir col) (arm <+> pos) |
+	    arm <- arms ]
+drawApplied _ _ _ = return ()
+
 
 blitAt :: Surface -> HexVec -> RenderM ()
 blitAt surface v = do

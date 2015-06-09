@@ -99,7 +99,7 @@ data UIOptions = UIOptions
     , uiAnimTime::Word32
     }
     deriving (Eq, Ord, Show, Read)
-defaultUIOptions = UIOptions False ShowBlocksBlocking Nothing True False True True 50
+defaultUIOptions = UIOptions False ShowBlocksBlocking Nothing True False True True 75
 modifyUIOptions f = modify $ \s -> s { uiOptions = f $ uiOptions s }
 
 renderToMain :: RenderM a -> UIM a
@@ -531,12 +531,26 @@ drawMainGameState' args@(DrawArgs highlight colourFixed alerts st uiopts) = do
 	else do
 	    modify $ \ds -> ds { lastDrawArgs = Just args }
 
-	    let animSts = [ st | AlertIntermediateState st <- alerts ] ++ [st]
-	    let drawSt = animSts !! animFrameToDraw
+	    -- split the alerts at intermediate states, and associate alerts
+	    -- to the right states:
+	    let (globalAlerts,transitoryAlerts) = partition isGlobalAlert alerts
+		splitAlerts frameAs (AlertIntermediateState st' : as) =
+		    (frameAs,st') : splitAlerts [] as
+		splitAlerts frameAs (a:as) =
+		    splitAlerts (a:frameAs) as
+		splitAlerts frameAs [] = [(frameAs,st)]
+		isGlobalAlert (AlertAppliedForce _) = False
+		isGlobalAlert (AlertIntermediateState _) = False
+		isGlobalAlert _ = True
+	    let animAlertedStates =
+		    let ass = splitAlerts [] transitoryAlerts
+		    in if last ass == ([],st) then ass else ass ++ [([],st)]
+	    let frames = length animAlertedStates
+	    let (drawAlerts',drawSt) = animAlertedStates !! animFrameToDraw
+	    let drawAlerts = drawAlerts' ++ globalAlerts
 	    -- let drawAlerts = takeWhile (/= AlertIntermediateState drawSt) alerts
-	    let drawAlerts = alerts
 	    nextIsSet <- isJust <$> gets nextAnimFrameAt
-	    when (not nextIsSet && length animSts > animFrameToDraw+1) $ do
+	    when (not nextIsSet && frames > animFrameToDraw+1) $ do
 		time <- uiAnimTime <$> gets uiOptions
 		modify $ \ds -> ds { nextAnimFrameAt = Just $ now + time }
 
@@ -564,6 +578,8 @@ drawMainGameState' args@(DrawArgs highlight colourFixed alerts st uiopts) = do
 		    -- AlertResistedForce force <- drawAlerts ]
 		    ++ [ drawAt collisionMarker pos
 			| AlertCollision pos <- drawAlerts ]
+		    ++ [ drawApplied drawSt colouring force
+			| AlertAppliedForce force <- drawAlerts ]
 	    vidSurf <- liftIO getVideoSurface
 	    liftIO $ blitSurface gsSurf Nothing vidSurf Nothing
 
