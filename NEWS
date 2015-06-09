@@ -1,5 +1,8 @@
 This is an abbreviated summary; see the git log for gory details.
 
+0.4.3:
+    Metagame help page.
+    Animation to indicate direction of rotation of pieces.
 0.4.2:
     Adjustments to graphics, tutorial, and metagame UI, to increase clarity.
     Fix sound lag on Windows.
