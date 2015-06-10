@@ -78,8 +78,6 @@ thickLines surf verts thickness col =
 thickPolygon surf verts thickness col =
     thickLines surf (verts ++ take 1 verts) thickness col
 
-type Glyph = SVec -> Int -> Surface -> IO ()
-
 ysize :: Int -> Int
 ysize = (map (\size -> round $ fi size / sqrt 3) [0..] !!)
 
@@ -117,9 +115,34 @@ edge (SVec x y) size dir = (fi $ x+dx, fi $ y+dy)
 	    | not (isHexDir dir) = error "edge: not a hexdir"
 	    | otherwise = map (\z -> -z) $ f $ neg dir
 
-tileGlyph :: Tile -> Pixel -> Glyph
+data ShowBlocks = ShowBlocksBlocking | ShowBlocksAll | ShowBlocksNone
+    deriving (Eq, Ord, Show, Read)
 
-tileGlyph (BlockTile adjs) col centre size surf =
+data Glyph
+    = TileGlyph Tile Pixel
+    | OwnedTileGlyph PieceColouring [PieceIdx] OwnedTile
+    | BlockedArm HexDir TorqueDir Pixel
+    | TurnedArm HexDir TorqueDir Pixel
+    | BlockedBlock Tile HexDir Pixel
+    | BlockedPush HexDir Pixel
+    | CollisionMarker
+    | HollowGlyph Pixel
+    | HollowInnerGlyph Pixel
+    | FilledHexGlyph Pixel
+    | ButtonGlyph Pixel
+    | UseFiveColourButton Bool
+    | ShowBlocksButton ShowBlocks
+    | ShowButtonTextButton Bool
+    | UseSoundsButton Bool
+    | WhsButtonsButton (Maybe WrHoSel)
+    | FullscreenButton Bool
+    | Cursor
+    | UnfreshGlyph
+    | PlayerGlyph Pixel
+    deriving (Eq, Ord, Show)
+
+renderGlyph :: Glyph -> SVec -> Int -> Surface -> IO ()
+renderGlyph (TileGlyph (BlockTile adjs) col) centre size surf =
     rimmedPolygon surf corners col $ bright col
 	where
 	    corners = concat [
@@ -132,7 +155,7 @@ tileGlyph (BlockTile adjs) col centre size surf =
 		, let adjAt r = rotate r dir `elem` adjs
 		]
 
-tileGlyph (SpringTile extn dir) col centre size surf =
+renderGlyph (TileGlyph (SpringTile extn dir) col) centre size surf =
     thickLines surf points 1 $ brightness col
 	where
 	    n = 3*case extn of
@@ -150,7 +173,7 @@ tileGlyph (SpringTile extn dir) col centre size surf =
 		, let (x,y) = if i`mod`3==0 then (sx,sy) else (offx,offy)
 		, let (dx,dy) = ((i*(ex-sx))`div`n, (i*(ey-sy))`div`n) ]
 
-tileGlyph (PivotTile dir) col centre size surf = do
+renderGlyph (TileGlyph (PivotTile dir) col) centre size surf = do
     rimmedCircle surf centre rad col $ bright col
     when (dir /= zero)
 	$ void $ aaLine surf `uncurry` from `uncurry` to $ bright col
@@ -160,19 +183,19 @@ tileGlyph (PivotTile dir) col centre size surf = do
 	    from = edge centre rad $ neg dir
 	    to = edge centre rad dir
 
-tileGlyph (ArmTile dir _) col centre size surf =
+renderGlyph (TileGlyph (ArmTile dir _) col) centre size surf =
     void $ thickLine surf from to 1 col
 	where
 	    dir' = if dir == zero then hu else dir
 	    from = edge centre size $ neg dir'
 	    to = innerCorner centre size dir'
 
-tileGlyph HookTile col centre size surf =
+renderGlyph (TileGlyph HookTile col) centre size surf =
     rimmedCircle surf centre rad col $ bright col
 	where
 	    rad = (7*size)`div`8
 
-tileGlyph (WrenchTile mom) col centre size surf = do
+renderGlyph (TileGlyph (WrenchTile mom) col) centre size surf = do
     rimmedCircle surf centre (size`div`3) col $ bright col
     when (mom /= zero) $
 	let
@@ -188,18 +211,17 @@ tileGlyph (WrenchTile mom) col centre size surf = do
 	    [ aaLine surf (fx+dx) (fy+dy) (tx+dx) (ty+dy) $ col
 	    | [dx,dy] <- shifts ]
 
-tileGlyph BallTile col centre size surf =
+renderGlyph (TileGlyph BallTile col) centre size surf =
     rimmedCircle surf centre rad (faint col) (obscure col)
     where rad = (7*size)`div`8
 
-blockedArm,turnedArm :: HexDir -> TorqueDir -> Pixel -> Glyph
-blockedArm armdir tdir col centre size surf =
+renderGlyph (BlockedArm armdir tdir col) centre size surf =
     void $ aaLine surf `uncurry` from `uncurry` to $ col
 	where
 	    from = innerCorner centre size $ rotate (2*tdir) armdir
 	    to = edge centre size $ rotate tdir armdir
 
-turnedArm armdir tdir col centre size surf =
+renderGlyph (TurnedArm armdir tdir col) centre size surf =
     sequence_ [ arc surf (fi x) (fi y) (fi $ n*size `div` 4)
 	a1 a2 col | n <- [8,9] ]
     where
@@ -210,16 +232,14 @@ turnedArm armdir tdir col centre size surf =
 	a1 = min a1' a2'
 	a2 = max a1' a2'
 
-blockedBlock :: Tile -> HexDir -> Pixel -> Glyph
-blockedBlock tile dir col centre size =
-    tileGlyph tile col (shift <+> centre) size
+renderGlyph (BlockedBlock tile dir col) centre size surf =
+    renderGlyph (TileGlyph tile col) (shift <+> centre) size surf
 	where
 	    shift = SVec (x'-x) (y'-y)
 	    (x,y) = innerCorner centre size dir
 	    (x',y') = edge centre size dir
 
-blockedPush :: HexDir -> Pixel -> Glyph
-blockedPush dir col centre size surf = do
+renderGlyph (BlockedPush dir col) centre size surf = do
 {-
     void $ rimmedPolygon surf verts (obscure col) (dim col)
 	where verts =
@@ -242,8 +262,7 @@ blockedPush dir col centre size surf = do
 	--from' = corner centre size $ hextant dir
 	--to' = corner centre size $ (hextant dir) - 1
 
-collisionMarker :: Glyph
-collisionMarker centre@(SVec x y) size surf = void $ do
+renderGlyph CollisionMarker centre@(SVec x y) size surf = void $ do
     -- rimmedCircle surf centre (size`div`3) (bright purple) $ bright purple
     aaLine surf `uncurry` start `uncurry` end $ col
     circleAt surf centre rad col
@@ -252,72 +271,61 @@ collisionMarker centre@(SVec x y) size surf = void $ do
 	rad = ysize size
 	col = dim purple
 
-hollowGlyph :: Pixel -> Glyph
-hollowGlyph col centre size surf =
+renderGlyph (HollowGlyph col) centre size surf =
     aaPolygon' surf corners $ opaquify col
     where corners = map (corner centre size) [0..5]
-hollowInnerGlyph col centre size surf =
+renderGlyph (HollowInnerGlyph col) centre size surf =
     aaPolygon' surf corners $ opaquify col
     where corners = [ innerCorner centre size dir | dir <- hexDirs ]
 
-filledHexGlyph :: Pixel -> Glyph
-filledHexGlyph col centre size surf =
+renderGlyph (FilledHexGlyph col) centre size surf =
     rimmedPolygon surf corners col $ brightish col
     where corners = map (corner centre size) [0..5]
 
-buttonGlyph :: Pixel -> Glyph
-buttonGlyph = tileGlyph (BlockTile [])
+renderGlyph (ButtonGlyph col) centre size surf =
+    renderGlyph (TileGlyph (BlockTile []) col) centre size surf
 
-useFiveColourButton :: Bool -> Glyph
-useFiveColourButton using centre size surf = do
-    mapM_ (\h -> tileGlyph (BlockTile [])
-	    (dim $ colourWheel (if using then h`div`2 else 1))
+renderGlyph (UseFiveColourButton using) centre size surf = do
+    mapM_ (\h -> renderGlyph (TileGlyph (BlockTile [])
+	    (dim $ colourWheel (if using then h`div`2 else 1)))
 	    (SVec `uncurry` corner centre (size`div`2) h) (size`div`2) surf)
 	[0,2,4]
 
-data ShowBlocks = ShowBlocksBlocking | ShowBlocksAll | ShowBlocksNone
-    deriving (Eq, Ord, Show, Read)
-
-showBlocksButton :: ShowBlocks -> Glyph
-showBlocksButton showing centre size surf = do
-    tileGlyph (BlockTile []) (dim red) centre size surf
+renderGlyph (ShowBlocksButton showing) centre size surf = do
+    renderGlyph (TileGlyph (BlockTile []) (dim red)) centre size surf
     when (showing == ShowBlocksAll) $
-	blockedPush hu (bright orange) centre size surf
+	renderGlyph (BlockedPush hu (bright orange)) centre size surf
     when (showing /= ShowBlocksNone) $
-	blockedPush hw (bright purple) centre size surf
+	renderGlyph (BlockedPush hw (bright purple)) centre size surf
 
-showButtonTextButton :: Bool -> Glyph
-showButtonTextButton showing centre@(SVec x y) size surf = do
-    buttonGlyph (dim yellow) (SVec `uncurry` edge centre (size`div`2) (neg hu)) (size`div`2) surf
+renderGlyph (ShowButtonTextButton showing) centre@(SVec x y) size surf = do
+    renderGlyph (ButtonGlyph (dim yellow)) (SVec `uncurry` edge centre (size`div`2) (neg hu)) (size`div`2) surf
     when showing $
 	sequence_ [ pixel surf (fi $ x+size`div`3+(i*size`div`4)) (fi $ y - size`div`4) (bright white)
 	    | i <- [-1..1] ]
 
-useSoundsButton :: Bool -> Glyph
-useSoundsButton use centre@(SVec x y) size surf = sequence_
+renderGlyph (UseSoundsButton use) centre@(SVec x y) size surf = sequence_
     [ arc surf (fi $ x - (size`div`2)) (fi y) r (-20) 20
 	(if use then bright green else dim red)
     | r <- map fi $ map (*(size`div`3)) [1,2,3] ]
 
-whsButtonsButton :: Maybe WrHoSel -> Glyph
-whsButtonsButton Nothing centre size surf =
-    buttonGlyph (dim red) centre (size`div`3) surf
-    >> sequence_ [ buttonGlyph (dim purple)
+renderGlyph (WhsButtonsButton Nothing) centre size surf =
+    renderGlyph (ButtonGlyph (dim red)) centre (size`div`3) surf
+    >> sequence_ [ renderGlyph (ButtonGlyph (dim purple))
 	(SVec `uncurry` edge centre (size`div`2) dir) (size`div`3) surf
 	| dir <- hexDirs ]
-whsButtonsButton (Just whs) centre size surf = do
+renderGlyph (WhsButtonsButton (Just whs)) centre size surf = do
     when (whs /= WHSHook) $
-	tileGlyph (WrenchTile zero) col (miniCentre 0) miniSize surf
+	renderGlyph (TileGlyph (WrenchTile zero) col) (miniCentre 0) miniSize surf
     when (whs /= WHSWrench) $ do
-	tileGlyph HookTile col (miniCentre 4) miniSize surf
-	tileGlyph (ArmTile hv False) col (miniCentre 2) miniSize surf
+	renderGlyph (TileGlyph HookTile col) (miniCentre 4) miniSize surf
+	renderGlyph (TileGlyph (ArmTile hv False) col) (miniCentre 2) miniSize surf
     where
 	miniSize = size `div` 2
 	miniCentre h = SVec `uncurry` corner centre miniSize h
 	col = dim white
 
-fullscreenButton :: Bool -> Glyph
-fullscreenButton fs centre size surf = do
+renderGlyph (FullscreenButton fs) centre size surf = do
     thickPolygon surf corners 1 $ activeCol (not fs)
     thickPolygon surf corners' 1 $ activeCol fs
     where
@@ -328,16 +336,20 @@ fullscreenButton fs centre size surf = do
 	    | dir <- hexDirs ]
 	corners' = map (corner centre size') [0..5]
 
-cursor :: Glyph
-cursor = hollowGlyph $ bright white
+renderGlyph Cursor centre size surf = renderGlyph (HollowGlyph $ bright white) centre size surf 
 
-unfreshGlyph centre@(SVec x y) size surf = do
+renderGlyph (UnfreshGlyph) centre@(SVec x y) size surf = do
     let col = bright red
-    hollowInnerGlyph col centre size surf
+    renderGlyph (HollowInnerGlyph col) centre size surf
     sequence_ [pixel surf (fi $ x+(i*size`div`4)) (fi y) col
 	| i <- [-1..1] ]
 
-playerGlyph col centre size surf = filledHexGlyph col centre size surf
+renderGlyph (PlayerGlyph col) centre size surf = renderGlyph (FilledHexGlyph col) centre size surf 
+
+renderGlyph (OwnedTileGlyph colouring highlight (owner,t)) centre size surf =
+    let col = colourOf colouring owner
+    in renderGlyph (TileGlyph t $ (if owner `elem` highlight then bright else dim) col)
+	centre size surf
 
 setPixelAlpha alpha (Pixel v) = Pixel $ v `div` 0x100 * 0x100 + alpha
 bright = setPixelAlpha 0xff
@@ -381,11 +393,6 @@ colourOf colouring idx =
     case Map.lookup idx colouring of
 	    Nothing -> white
 	    Just n -> colourWheel n
-
-ownedTileGlyph :: PieceColouring -> [PieceIdx] -> OwnedTile -> Glyph
-ownedTileGlyph colouring highlight (owner,t) =
-    let col = colourOf colouring owner
-    in tileGlyph t $ (if owner `elem` highlight then bright else dim) col
 
 data SVec = SVec { cx, cy :: Int }
     deriving (Eq, Ord, Show)
@@ -461,7 +468,7 @@ fillRectBG mrect = do
 	mbgsurf
 
 drawBasicBG :: Int -> RenderM ()
-drawBasicBG maxR = sequence_ [ drawAtRel (hollowGlyph $ colAt v) v | v <- hexDisc maxR ]
+drawBasicBG maxR = sequence_ [ drawAtRel (HollowGlyph $ colAt v) v | v <- hexDisc maxR ]
     where
 	colAt v@(HexVec hx hy hz) = let
 		[r,g,b] = map (\h -> fi $ ((0xff*)$ 5 + abs h)`div`maxR) [hx,hy,hz]
@@ -473,13 +480,13 @@ drawAt gl pos = do
 	centre <- asks renderHCentre
 	drawAtRel gl (pos <-> centre)
 
--- TODO: it would make a lot of sense to cache and blit frequently used
--- glyphs.
+-- Glyph caching:
+--  
 drawAtRel :: Glyph -> HexVec -> RenderM ()
 drawAtRel gl v = do
 	(surf, scrCentre, size) <- asks $ liftM3 (,,) renderSurf renderSCentre renderSize
 	let cpos = scrCentre <+> (hexVec2SVec size v)
-	liftIO $ gl cpos size surf
+	liftIO $ renderGlyph gl cpos size surf
 
 messageCol = white
 dimWhiteCol = Pixel 0xa0a0a000
@@ -514,7 +521,7 @@ blankRow v = do
     fillRectBG $ Just $ Rect 0 (y-h`div`2) w h
 
 drawCursorAt :: Maybe HexPos -> RenderM ()
-drawCursorAt (Just pos) = drawAt cursor pos
+drawCursorAt (Just pos) = drawAt Cursor pos
 drawCursorAt _ = return ()
 
 drawBlocked :: GameState -> PieceColouring -> Bool -> Force -> RenderM ()
@@ -524,13 +531,13 @@ drawBlocked st colouring blocking (Torque idx dir) = do
 	    PlacedPiece pos (Hook arm _) -> (pos,[arm])
 	    _ -> (pos,[])
 	col = if blocking then bright $ purple else dim $ colourOf colouring idx
-    sequence_ [ drawAt (blockedArm arm dir col) (arm <+> pos) |
+    sequence_ [ drawAt (BlockedArm arm dir col) (arm <+> pos) |
 	arm <- arms ]
 drawBlocked st colouring blocking (Push idx dir) = do
     let footprint = plPieceFootprint $ getpp st idx
 	fullfootprint = fullFootprint st idx
 	col = bright $ if blocking then purple else orange
-    sequence_ [ drawAt (blockedPush dir col) pos
+    sequence_ [ drawAt (BlockedPush dir col) pos
 	| pos <- footprint
 	, (dir<+>pos) `notElem` fullfootprint ]
     -- drawAt (blockedPush dir $ bright orange) $ placedPos $ getpp st idx
@@ -542,7 +549,7 @@ drawApplied st colouring (Torque idx dir) = do
 	    PlacedPiece pos (Hook arm _) -> (pos,[arm])
 	    _ -> (pos,[])
 	col = dim $ colourOf colouring idx
-    sequence_ [ drawAt (turnedArm arm dir col) (arm <+> pos) |
+    sequence_ [ drawAt (TurnedArm arm dir col) (arm <+> pos) |
 	    arm <- arms ]
 drawApplied _ _ _ = return ()
 

@@ -276,7 +276,7 @@ instance UIMonad (StateT UIState IO) where
 	let pos = serverWaitPos
 	return $ \ticks -> void $ flip runStateT curState $ do
 	    when (ticks>2) $ renderToMain $ do
-		mapM (drawAtRel (filledHexGlyph $ bright black)) [ pos <+> i<*>hu | i <- [0..3] ]
+		mapM (drawAtRel (FilledHexGlyph $ bright black)) [ pos <+> i<*>hu | i <- [0..3] ]
 		withFont (dispFontSmall curState) $
 		    renderStrColAtLeft errorCol ("waiting..."++replicate (ticks`mod`3) '.') $ pos
 	    refresh
@@ -698,7 +698,7 @@ drawName name pos = nameCol name >>= drawNameCol name pos
 drawNullName name pos = drawNameCol name pos $ invisible white
 drawNameCol name pos col = do
     lift.renderToMain $ do
-	drawAtRel (playerGlyph col) pos
+	drawAtRel (PlayerGlyph col) pos
 	renderStrColAt buttonTextCol name pos
 drawRelScore name pos = do
     col <- nameCol name
@@ -728,7 +728,7 @@ drawNameWithCharAndCol name charcol char col pos = do
     let down = SVec 0 $ ysize size
     smallFont <- lift $ gets dispFontSmall
     lift.renderToMain $ do
-	drawAtRel (playerGlyph col) pos
+	drawAtRel (PlayerGlyph col) pos
 	displaceRender up $
 	    renderStrColAt buttonTextCol name pos
 	displaceRender down $ withFont smallFont $
@@ -818,7 +818,7 @@ drawLockInfo al@(ActiveLock name i) (Just lockinfo) = do
 		fillArea (accessedPos<+>neg hu) [ accessedPos <+> i<*>hu | i <- [-1..1] ]
 		    $ take 3 $ [ \pos -> (lift $ registerSelectable pos 0 (SelReadNote note)) >> drawNote note pos
 			| note <- read ] ++ (repeat $ \pos -> (lift $ registerSelectable pos 0 SelReadNoteSlot >>
-				renderToMain (drawAtRel (hollowGlyph $ dim green) pos)))
+				renderToMain (drawAtRel (HollowGlyph $ dim green) pos)))
 
     lift $ do
 	renderToMain $ displaceRender (SVec size 0) $ renderStrColAt (brightish white) "NOTES" $ notesPos <+> hv

@@ -344,19 +344,19 @@ data UIOptButton a = UIOptButton { getUIOpt::UIOptions->a, setUIOpt::a->UIOption
 
 -- non-uniform type, so can't use a list...
 uiOB1 = UIOptButton useFiveColouring (\v o -> o {useFiveColouring=v}) [True,False]
-	(periphery 0 <+> 2 <*> hu) useFiveColourButton
+	(periphery 0 <+> 2 <*> hu) UseFiveColourButton
 	(\v -> if v then "Adjacent pieces get different colours" else
 	"Pieces are coloured according to type")
 	Nothing
 uiOB2 = UIOptButton showBlocks (\v o -> o {showBlocks=v}) [ShowBlocksBlocking,ShowBlocksAll,ShowBlocksNone]
-	(periphery 0 <+> 2 <*> hu <+> 2 <*> neg hv) showBlocksButton
+	(periphery 0 <+> 2 <*> hu <+> 2 <*> neg hv) ShowBlocksButton
 	(\v -> case v of
 	    ShowBlocksBlocking -> "Blocking forces are annotated"
 	    ShowBlocksAll -> "Blocked and blocking forces are annotated"
 	    ShowBlocksNone -> "Blockage annotations disabled")
 	Nothing
 uiOB3 = UIOptButton whsButtons (\v o -> o {whsButtons=v}) [Nothing, Just WHSSelected, Just WHSWrench, Just WHSHook]
-	(periphery 3 <+> 3 <*> hv) whsButtonsButton
+	(periphery 3 <+> 3 <*> hv) WhsButtonsButton
 	(\v -> case v of
 	    Nothing -> "Showing mouse controls; click to show keyboard control buttons."
 	    Just whs -> "Showing buttons for controlling " ++ case whs of
@@ -365,17 +365,17 @@ uiOB3 = UIOptButton whsButtons (\v o -> o {whsButtons=v}) [Nothing, Just WHSSele
 		WHSHook -> "hook")
 	Nothing
 uiOB4 = UIOptButton showButtonText (\v o -> o {showButtonText=v}) [True,False]
-	(periphery 0 <+> 2 <*> hu <+> 2 <*> hv) showButtonTextButton
+	(periphery 0 <+> 2 <*> hu <+> 2 <*> hv) ShowButtonTextButton
 	(\v -> if v then "Help text enabled" else
 	"Help text disabled")
 	Nothing
 uiOB5 = UIOptButton fullscreen (\v o -> o {fullscreen=v}) [True,False]
-	(periphery 0 <+> 4 <*> hu <+> 2 <*> hv) fullscreenButton
+	(periphery 0 <+> 4 <*> hu <+> 2 <*> hv) FullscreenButton
 	(\v -> if v then "Fullscreen mode" else
 	"Windowed mode")
 	(Just $ const $ initVideo 0 0)
 uiOB6 = UIOptButton useSounds (\v o -> o {useSounds=v}) [True,False]
-	(periphery 0 <+> 3 <*> hu <+> hv) useSoundsButton
+	(periphery 0 <+> 3 <*> hu <+> hv) UseSoundsButton
 	(\v -> if v then "Sound effects enabled" else
 	"Sound effects disabled")
 	Nothing
@@ -394,7 +394,7 @@ drawUIOptionButtons mode = do
 drawUIOptionButton b = do
     value <- gets $ (getUIOpt b).uiOptions
     renderToMain $ mapM_ (\g -> drawAtRel g (uiOptPos b))
-	[hollowGlyph $ obscure purple, uiOptGlyph b value]
+	[HollowGlyph $ obscure purple, uiOptGlyph b value]
 describeUIOptionButton b = do
     value <- gets $ (getUIOpt b).uiOptions
     return $ uiOptDescr b value
@@ -467,10 +467,10 @@ drawPaintButtons = do
     renderToMain $ sequence_ [
 	do
 	    let gl = case paintTiles!!i of
-		    Nothing -> hollowInnerGlyph $ dim purple
-		    Just t -> tileGlyph t $ dim purple
+		    Nothing -> HollowInnerGlyph $ dim purple
+		    Just t -> TileGlyph t $ dim purple
 	    drawAtRel gl pos
-	    when selected $ drawAtRel cursor pos
+	    when selected $ drawAtRel Cursor pos
 	| i <- take (length paintTiles) [0..]
 	, let pos = paintButtonStart <+> i<*>hv
 	, let selected = i == pti
@@ -565,7 +565,7 @@ drawMainGameState' args@(DrawArgs highlight colourFixed alerts st uiopts) = do
 	    renderToMainWithSurf gsSurf $ do
 		erase
 		sequence_ [ drawAt glyph pos |
-		    (pos,glyph) <- Map.toList $ fmap (ownedTileGlyph colouring highlight) board
+		    (pos,glyph) <- Map.toList $ fmap (OwnedTileGlyph colouring highlight) board
 		    ]
 
 		when (showBlocks uiopts /= ShowBlocksNone) $ sequence_
@@ -576,7 +576,7 @@ drawMainGameState' args@(DrawArgs highlight colourFixed alerts st uiopts) = do
 			| AlertBlockingForce force <- drawAlerts ]
 		    -- ++ [ drawBlocked drawSt colouring True force |
 		    -- AlertResistedForce force <- drawAlerts ]
-		    ++ [ drawAt collisionMarker pos
+		    ++ [ drawAt CollisionMarker pos
 			| AlertCollision pos <- drawAlerts ]
 		    ++ [ drawApplied drawSt colouring force
 			| AlertAppliedForce force <- drawAlerts ]
@@ -644,7 +644,7 @@ drawMiniLock lock v = do
 		    then boardColouring st coloured Map.empty
 		    else pieceTypeColouring st coloured
 		draw = sequence_ [ drawAt glyph pos |
-		    (pos,glyph) <- Map.toList $ fmap (ownedTileGlyph colouring []) $ stateBoard st ]
+		    (pos,glyph) <- Map.toList $ fmap (OwnedTileGlyph colouring []) $ stateBoard st ]
 	    liftIO $ runReaderT draw $
 		RenderContext surf Nothing (PHS zero) (SVec (width`div`2) (height`div`2)) minisize Nothing
 	    clearOldMiniLocks
@@ -657,7 +657,7 @@ clearOldMiniLocks =
 clearMiniLocks = modify $ \ds -> ds { miniLocks = Map.empty}
 
 drawEmptyMiniLock v =
-    renderToMain $ recentreAt v $ rescaleRender 6 $ drawAtRel (hollowInnerGlyph $ dim white) zero
+    renderToMain $ recentreAt v $ rescaleRender 6 $ drawAtRel (HollowInnerGlyph $ dim white) zero
 
 getBindingStr :: InputMode -> UIM (Command -> String)
 getBindingStr mode = do
@@ -674,7 +674,7 @@ drawButtons mode = do
     showBT <- showButtonText <$> gets uiOptions
     smallFont <- gets dispFontSmall
     renderToMain $ sequence_ $ concat [ [ do
-		drawAtRel (buttonGlyph col) v
+		drawAtRel (ButtonGlyph col) v
 		renderStrColAt buttonTextCol bdg v
 		when showBT $
 		    withFont smallFont $ recentreAt v $ rescaleRender (1/4) $
