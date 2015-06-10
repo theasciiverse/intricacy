@@ -55,6 +55,7 @@ import Util
 data UIState = UIState { scrHeight::Int, scrWidth::Int
     , gsSurface::Maybe Surface
     , bgSurface::Maybe Surface
+    , cachedGlyphs::CachedGlyphs
     , lastDrawArgs::Maybe DrawArgs
     , miniLocks::Map Lock Surface
     , metaSelectables::Map HexVec Selectable
@@ -81,7 +82,7 @@ data UIState = UIState { scrHeight::Int, scrWidth::Int
     }
     deriving (Eq, Ord, Show)
 type UIM = StateT UIState IO
-nullUIState = UIState 0 0 Nothing Nothing Nothing Map.empty Map.empty []
+nullUIState = UIState 0 0 Nothing Nothing emptyCachedGlyphs Nothing Map.empty Map.empty []
     defaultUIOptions Nothing Map.empty Nothing Nothing 0 0 Nothing Nothing Nothing
     (zero,False) Nothing Nothing (PHS zero) Map.empty 0 Nothing 25
 #ifdef SOUND
@@ -112,8 +113,10 @@ renderToMainWithSurf surf m = do
     centre <- gets dispCentre
     mfont <- gets dispFont
     bgsurf <- gets bgSurface
-    liftIO $ runReaderT m $ RenderContext surf bgsurf centre scrCentre size mfont
-
+    cgs <- gets cachedGlyphs
+    (a,cgs') <- liftIO $ runRenderM m cgs $ RenderContext surf bgsurf centre scrCentre size mfont
+    modify $ \s -> s { cachedGlyphs = cgs' }
+    return a
 
 refresh :: UIM ()
 refresh = do
@@ -645,7 +648,7 @@ drawMiniLock lock v = do
 		    else pieceTypeColouring st coloured
 		draw = sequence_ [ drawAt glyph pos |
 		    (pos,glyph) <- Map.toList $ fmap (OwnedTileGlyph colouring []) $ stateBoard st ]
-	    liftIO $ runReaderT draw $
+	    liftIO $ runRenderM draw emptyCachedGlyphs $
 		RenderContext surf Nothing (PHS zero) (SVec (width`div`2) (height`div`2)) minisize Nothing
 	    clearOldMiniLocks
 	    modify $ \ds -> ds { miniLocks = Map.insert lock surf $ miniLocks ds }

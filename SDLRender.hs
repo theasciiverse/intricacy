@@ -16,9 +16,11 @@ import qualified Graphics.UI.SDL.TTF as TTF
 import Data.Monoid
 import Control.Monad
 import Control.Monad.IO.Class
+import Control.Monad.Trans.State
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.Class
+import Data.Map (Map)
 import qualified Data.Map as Map
 import Data.List (maximumBy)
 import Data.Function (on)
@@ -140,6 +142,18 @@ data Glyph
     | UnfreshGlyph
     | PlayerGlyph Pixel
     deriving (Eq, Ord, Show)
+
+type SizedGlyph = (Glyph,Int)
+data CachedGlyphs = CachedGlyphs (Map SizedGlyph Surface) [SizedGlyph]
+    deriving (Eq, Ord, Show)
+emptyCachedGlyphs = CachedGlyphs Map.empty []
+
+renderGlyphCaching :: Glyph -> SVec -> Int -> Surface -> RenderM ()
+-- Glyph caching:
+--  We aim to cache glyphs which are "currently" being regularly drawn, so
+--  they can be blitted from RAM rather than being drawn afresh each time.
+--  Rather than track statistics, we adopt the following probabilistic scheme.
+renderGlyphCaching gl centre size surf = liftIO $ renderGlyph gl centre size surf
 
 renderGlyph :: Glyph -> SVec -> Int -> Surface -> IO ()
 renderGlyph (TileGlyph (BlockTile adjs) col) centre size surf =
@@ -436,7 +450,10 @@ data RenderContext = RenderContext
     , renderSize :: Int
     , renderFont :: Maybe TTF.Font
     }
-type RenderM = ReaderT RenderContext IO
+type RenderM = ReaderT RenderContext (StateT CachedGlyphs IO)
+
+runRenderM :: RenderM a -> CachedGlyphs -> RenderContext -> IO (a,CachedGlyphs)
+runRenderM m cgs rc = runStateT (runReaderT m rc) cgs
 
 displaceRender :: SVec -> RenderM a -> RenderM a
 displaceRender disp = local displace
@@ -480,13 +497,11 @@ drawAt gl pos = do
 	centre <- asks renderHCentre
 	drawAtRel gl (pos <-> centre)
 
--- Glyph caching:
---  
 drawAtRel :: Glyph -> HexVec -> RenderM ()
 drawAtRel gl v = do
 	(surf, scrCentre, size) <- asks $ liftM3 (,,) renderSurf renderSCentre renderSize
 	let cpos = scrCentre <+> (hexVec2SVec size v)
-	liftIO $ renderGlyph gl cpos size surf
+	renderGlyphCaching gl cpos size surf
 
 messageCol = white
 dimWhiteCol = Pixel 0xa0a0a000
