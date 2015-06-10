@@ -304,11 +304,15 @@ instance UIMonad (StateT UIState IO) where
     getInput mode = do
 	fps <- gets fps
 	events <- liftIO $ nubMouseMotions <$> getEventsTimeout (10^6`div`fps)
-	oldUIState <- get
-	cmds <- concat <$> mapM processEvent events
-	setPaintFromCmds cmds
-	addRefresh <- needRefresh oldUIState
-	return $ cmds ++ if addRefresh then [CmdRefresh] else []
+	(cmds,uiChanged) <- if null events then return ([],False) else do
+	    oldUIState <- get
+	    cmds <- concat <$> mapM processEvent events
+	    setPaintFromCmds cmds
+	    newUIState <- get
+	    return (cmds,uistatesMayVisiblyDiffer oldUIState newUIState)
+	now <- liftIO getTicks
+	animFrameReady <- maybe False (<now) <$> gets nextAnimFrameAt
+	return $ cmds ++ if uiChanged || animFrameReady then [CmdRefresh] else []
 	where
 	    nubMouseMotions evs =
 		-- drop all but last mouse motion event
@@ -326,11 +330,6 @@ instance UIMonad (StateT UIState IO) where
 			    pt' <- pt
 			    CmdTile t <- Just cmd
 			    guard $ ((==)`on`tileType) t pt') ]
-	    needRefresh old = do
-		new <- get
-		now <- liftIO getTicks
-		anim <- maybe False (<now) <$> gets nextAnimFrameAt
-		return $ anim || uistatesMayVisiblyDiffer old new
 
 	    uistatesMayVisiblyDiffer uis1 uis2 =
 		uis1 { mousePos = (zero,False), lastFrameTicks=0 }
@@ -610,13 +609,23 @@ drawShortMouseHelp mode = do
 	    [ "Wheel: advance/regress time" ]
 	shortMouseHelp _ = []
 
+-- waitEvent' : copy of SDL.Events.waitEvent, with the timeout increased
+-- drastically to reduce CPU load when idling.
+waitEvent' :: IO Event
+waitEvent' = loop
+    where loop = do pumpEvents
+                    event <- pollEvent
+                    case event of
+                      NoEvent -> threadDelay 10000 >> loop
+                      _ -> return event
+
 getEvents = do
-    e <- waitEvent
+    e <- waitEvent'
     es <- pollEvents
     return $ e:es
 
 getEventsTimeout us = do
-    es <- maybeToList <$> timeout us waitEvent
+    es <- maybeToList <$> timeout us waitEvent'
     es' <- pollEvents
     return $ es++es'
 

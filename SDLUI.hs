@@ -542,7 +542,7 @@ drawMainGameState' args@(DrawArgs highlight colourFixed alerts st uiopts) = do
 		isGlobalAlert (AlertAppliedForce _) = False
 		isGlobalAlert (AlertIntermediateState _) = False
 		isGlobalAlert _ = True
-	    let animAlertedStates =
+	    let animAlertedStates = nub $
 		    let ass = splitAlerts [] transitoryAlerts
 		    in if last ass == ([],st) then ass else ass ++ [([],st)]
 	    let frames = length animAlertedStates
