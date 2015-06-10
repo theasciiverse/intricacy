@@ -473,7 +473,7 @@ drawPaintButtons = do
 		    Nothing -> HollowInnerGlyph $ dim purple
 		    Just t -> TileGlyph t $ dim purple
 	    drawAtRel gl pos
-	    when selected $ drawAtRel Cursor pos
+	    when selected $ drawAtRel cursorGlyph pos
 	| i <- take (length paintTiles) [0..]
 	, let pos = paintButtonStart <+> i<*>hv
 	, let selected = i == pti
@@ -568,7 +568,7 @@ drawMainGameState' args@(DrawArgs highlight colourFixed alerts st uiopts) = do
 	    renderToMainWithSurf gsSurf $ do
 		erase
 		sequence_ [ drawAt glyph pos |
-		    (pos,glyph) <- Map.toList $ fmap (OwnedTileGlyph colouring highlight) board
+		    (pos,glyph) <- Map.toList $ fmap (ownedTileGlyph colouring highlight) board
 		    ]
 
 		when (showBlocks uiopts /= ShowBlocksNone) $ sequence_
@@ -639,7 +639,7 @@ drawMiniLock lock v = do
 	    let width = size*2*(miniLocksize*2+1)
 	    let height = ceiling $ fi size * sqrt 3 * fi (miniLocksize*2+1+1)
 	    surf <- liftIO $ createRGBSurface [] width height 16 0 0 0 0
-	    liftIO $ setColorKey surf [SrcColorKey] $ Pixel 0
+	    liftIO $ setColorKey surf [SrcColorKey,RLEAccel] $ Pixel 0
 	    uiopts <- gets uiOptions
 	    let st = snd $ reframe lock
 		coloured = colouredPieces False st
@@ -647,7 +647,7 @@ drawMiniLock lock v = do
 		    then boardColouring st coloured Map.empty
 		    else pieceTypeColouring st coloured
 		draw = sequence_ [ drawAt glyph pos |
-		    (pos,glyph) <- Map.toList $ fmap (OwnedTileGlyph colouring []) $ stateBoard st ]
+		    (pos,glyph) <- Map.toList $ fmap (ownedTileGlyph colouring []) $ stateBoard st ]
 	    liftIO $ runRenderM draw emptyCachedGlyphs $
 		RenderContext surf Nothing (PHS zero) (SVec (width`div`2) (height`div`2)) minisize Nothing
 	    clearOldMiniLocks

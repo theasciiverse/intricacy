@@ -22,9 +22,12 @@ import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.Class
 import Data.Map (Map)
 import qualified Data.Map as Map
+import qualified Data.List as List
 import Data.List (maximumBy)
 import Data.Function (on)
 import GHC.Int (Int16)
+import Control.Applicative hiding ((<*>))
+import System.Random (randomRIO)
 
 import Hex
 import GameState
@@ -122,7 +125,6 @@ data ShowBlocks = ShowBlocksBlocking | ShowBlocksAll | ShowBlocksNone
 
 data Glyph
     = TileGlyph Tile Pixel
-    | OwnedTileGlyph PieceColouring [PieceIdx] OwnedTile
     | BlockedArm HexDir TorqueDir Pixel
     | TurnedArm HexDir TorqueDir Pixel
     | BlockedBlock Tile HexDir Pixel
@@ -138,22 +140,75 @@ data Glyph
     | UseSoundsButton Bool
     | WhsButtonsButton (Maybe WrHoSel)
     | FullscreenButton Bool
-    | Cursor
     | UnfreshGlyph
-    | PlayerGlyph Pixel
     deriving (Eq, Ord, Show)
 
 type SizedGlyph = (Glyph,Int)
 data CachedGlyphs = CachedGlyphs (Map SizedGlyph Surface) [SizedGlyph]
     deriving (Eq, Ord, Show)
 emptyCachedGlyphs = CachedGlyphs Map.empty []
+maxCachedGlyphs = 100
 
 renderGlyphCaching :: Glyph -> SVec -> Int -> Surface -> RenderM ()
 -- Glyph caching:
 --  We aim to cache glyphs which are "currently" being regularly drawn, so
 --  they can be blitted from RAM rather than being drawn afresh each time.
 --  Rather than track statistics, we adopt the following probabilistic scheme.
-renderGlyphCaching gl centre size surf = liftIO $ renderGlyph gl centre size surf
+renderGlyphCaching gl centre size surf = do
+    CachedGlyphs cmap clist <- lift get
+    let cacheFull = Map.size cmap >= maxCachedGlyphs
+    let mcsurf = Map.lookup sgl cmap
+    -- with probability 1 in (maxCachedGlyphs`div`2), we put this glyph at the
+    -- head of the cached list, throwing away the tail to make room if needed.
+    cacheIt <- (((cacheable &&) . (not cacheFull ||)) <$>) $
+	liftIO $ (==0) <$> randomRIO (0::Int,maxCachedGlyphs`div`2)
+    case mcsurf of
+	Nothing -> if cacheIt
+	    then do
+		csurf <- newGlyphSurf
+		renderOnCache csurf
+		addToCache cacheFull csurf
+		blitGlyph csurf
+	    else
+		liftIO $ renderGlyph gl centre size surf
+	Just csurf -> do
+	    when cacheIt promote
+	    blitGlyph csurf
+    where
+	sgl = (gl,size)
+	cacheable = case gl of
+	    -- some glyphs need to be drawn with blending - those involving
+	    -- anti-aliasing which bleed over the edge of the hex or which
+	    -- may be drawn on top of an existing glyph.
+	    TileGlyph (BlockTile adjs) _ -> null adjs
+	    FilledHexGlyph _ -> False
+	    HollowGlyph _ -> False
+	    BlockedBlock _ _ _ -> False
+	    BlockedPush _ _ -> False
+	    CollisionMarker -> False
+	    _ -> True
+	w = size*2 + 1
+	h = ysize size*4 + 1
+	newGlyphSurf = do
+	    -- csurf <- liftIO $ createRGBSurface [] w h 32 0xff000000 0x00ff0000 0x0000ff00 0x000000ff
+	    csurf <- liftIO $ createRGBSurface [] w h 16 0 0 0 0
+	    liftIO $ setColorKey csurf [SrcColorKey,RLEAccel] $ Pixel 0
+	    return csurf
+	renderOnCache csurf =
+	    liftIO $ renderGlyph gl (SVec (w`div`2) (h`div`2)) size csurf
+	addToCache cacheFull csurf = do
+	    CachedGlyphs cmap clist <- lift get
+	    let cmap' = Map.insert sgl csurf cmap
+	    lift $ put $ if cacheFull
+		then CachedGlyphs (Map.delete (last clist) cmap') (sgl:List.init clist)
+		else CachedGlyphs cmap' (sgl:clist)
+	promote = do
+	    CachedGlyphs cmap clist <- lift get
+	    lift $ put $ CachedGlyphs cmap (sgl:List.delete sgl clist)
+	blitGlyph csurf =
+	    let SVec x y = centre
+	    in void $ liftIO $ blitSurface csurf Nothing surf $ Just $
+		Rect (x-w`div`2) (y-h`div`2) (w+1) (h+1)
 
 renderGlyph :: Glyph -> SVec -> Int -> Surface -> IO ()
 renderGlyph (TileGlyph (BlockTile adjs) col) centre size surf =
@@ -350,20 +405,19 @@ renderGlyph (FullscreenButton fs) centre size surf = do
 	    | dir <- hexDirs ]
 	corners' = map (corner centre size') [0..5]
 
-renderGlyph Cursor centre size surf = renderGlyph (HollowGlyph $ bright white) centre size surf 
-
 renderGlyph (UnfreshGlyph) centre@(SVec x y) size surf = do
     let col = bright red
     renderGlyph (HollowInnerGlyph col) centre size surf
     sequence_ [pixel surf (fi $ x+(i*size`div`4)) (fi y) col
 	| i <- [-1..1] ]
 
-renderGlyph (PlayerGlyph col) centre size surf = renderGlyph (FilledHexGlyph col) centre size surf 
+playerGlyph col = FilledHexGlyph col
 
-renderGlyph (OwnedTileGlyph colouring highlight (owner,t)) centre size surf =
+cursorGlyph = HollowGlyph $ bright white
+
+ownedTileGlyph colouring highlight (owner,t) =
     let col = colourOf colouring owner
-    in renderGlyph (TileGlyph t $ (if owner `elem` highlight then bright else dim) col)
-	centre size surf
+    in TileGlyph t $ (if owner `elem` highlight then bright else dim) col
 
 setPixelAlpha alpha (Pixel v) = Pixel $ v `div` 0x100 * 0x100 + alpha
 bright = setPixelAlpha 0xff
@@ -536,7 +590,7 @@ blankRow v = do
     fillRectBG $ Just $ Rect 0 (y-h`div`2) w h
 
 drawCursorAt :: Maybe HexPos -> RenderM ()
-drawCursorAt (Just pos) = drawAt Cursor pos
+drawCursorAt (Just pos) = drawAt cursorGlyph pos
 drawCursorAt _ = return ()
 
 drawBlocked :: GameState -> PieceColouring -> Bool -> Force -> RenderM ()

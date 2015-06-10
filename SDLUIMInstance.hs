@@ -698,7 +698,7 @@ drawName name pos = nameCol name >>= drawNameCol name pos
 drawNullName name pos = drawNameCol name pos $ invisible white
 drawNameCol name pos col = do
     lift.renderToMain $ do
-	drawAtRel (PlayerGlyph col) pos
+	drawAtRel (playerGlyph col) pos
 	renderStrColAt buttonTextCol name pos
 drawRelScore name pos = do
     col <- nameCol name
@@ -728,7 +728,7 @@ drawNameWithCharAndCol name charcol char col pos = do
     let down = SVec 0 $ ysize size
     smallFont <- lift $ gets dispFontSmall
     lift.renderToMain $ do
-	drawAtRel (PlayerGlyph col) pos
+	drawAtRel (playerGlyph col) pos
 	displaceRender up $
 	    renderStrColAt buttonTextCol name pos
 	displaceRender down $ withFont smallFont $
