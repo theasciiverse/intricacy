@@ -494,10 +494,10 @@ getGeom = do
     -- |size is the greatest integer such that
     -- and [2*size*screenWidthHexes <= width
     --	, 3*ysize size*screenHeightHexes <= height]
-    --	where ysize size = round $ fromIntegral size / sqrt 3
+    --	where ysize size = round $ fi size / sqrt 3
     -- Minimum allowed size is 2 (get segfaults on SDL_FreeSurface with 1).
     let size = max 2 $ minimum [ w`div`(2*screenWidthHexes)
-	    , floor $ sqrt 3 * (0.5 + (fromIntegral $ h`div`(3*screenHeightHexes)))]
+	    , floor $ sqrt 3 * (0.5 + (fi $ h`div`(3*screenHeightHexes)))]
     return (scrCentre, size)
 
 data DrawArgs = DrawArgs [PieceIdx] Bool [Alert] GameState UIOptions
@@ -634,7 +634,7 @@ drawMiniLock lock v = do
 	    (_, size) <- getGeom
 	    let minisize = size `div` (ceiling $ lockSize lock % miniLocksize)
 	    let width = size*2*(miniLocksize*2+1)
-	    let height = ceiling $ fromIntegral size * sqrt 3 * fromIntegral (miniLocksize*2+1+1)
+	    let height = ceiling $ fi size * sqrt 3 * fi (miniLocksize*2+1+1)
 	    surf <- liftIO $ createRGBSurface [] width height 16 0 0 0 0
 	    liftIO $ setColorKey surf [SrcColorKey] $ Pixel 0
 	    uiopts <- gets uiOptions

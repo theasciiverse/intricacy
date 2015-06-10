@@ -252,7 +252,7 @@ instance UIMonad (StateT UIState IO) where
 	    liftIO $ setCaption "intricacy" "intricacy"
 	    w <- gets scrWidth
 	    h <- gets scrHeight
-	    liftIO $ warpMouse (fromIntegral $ w`div`2) (fromIntegral $ h`div`2)
+	    liftIO $ warpMouse (fi $ w`div`2) (fi $ h`div`2)
 	    renderToMain $ erase
 	    liftIO $ enableUnicode True
 	    liftIO $ enableKeyRepeat 250 30
@@ -285,7 +285,7 @@ instance UIMonad (StateT UIState IO) where
 	(scrCentre, size) <- getGeom
 	centre <- gets dispCentre
 	let SVec x y = hexVec2SVec size (pos<->centre) <+> scrCentre
-	liftIO $ warpMouse (fromIntegral x) (fromIntegral y)
+	liftIO $ warpMouse (fi x) (fi y)
 	lbp <- gets leftButtonDown
 	rbp <- gets rightButtonDown
 	let [lbp',rbp'] = fmap (fmap (\_ -> (pos<->centre))) [lbp,rbp]
@@ -359,7 +359,7 @@ instance UIMonad (StateT UIState IO) where
 		    drag bp = do
 			fromPos@(HexVec x y z) <- bp
 			-- check we've dragged at least a full hex's distance:
-			guard $ not.all (\(a,b) -> abs ((fromIntegral a) - b) < 1.0) $ [(x,sx),(y,sy),(z,sz)]
+			guard $ not.all (\(a,b) -> abs ((fi a) - b) < 1.0) $ [(x,sx),(y,sy),(z,sz)]
 			let dir = hexVec2HexDirOrZero $ mPos <-> fromPos
 			guard $ dir /= zero
 			return $ CmdDrag (fromPos<+>centre) dir
@@ -478,10 +478,10 @@ instance UIMonad (StateT UIState IO) where
 	    getMousePos = do
 		(scrCentre, size) <- getGeom
 		(x,y,_) <- lift getMouseState
-		let sv = (SVec (fromIntegral x) (fromIntegral y)) <+> neg scrCentre
+		let sv = (SVec (fi x) (fi y)) <+> neg scrCentre
 		let mPos@(HexVec x y z) = sVec2HexVec size sv
 		let (sx,sy,sz) = sVec2dHV size sv
-		let isCentral = all (\(a,b) -> abs ((fromIntegral a) - b) < 0.5) $
+		let isCentral = all (\(a,b) -> abs ((fi a) - b) < 0.5) $
 			[(x,sx),(y,sy),(z,sz)]
 		return ((mPos,isCentral),(sx,sy,sz))
 	    updateMousePos mode newPos = do
@@ -714,7 +714,7 @@ drawNameWithChar name charcol char pos = do
     col <- nameCol name
     drawNameWithCharAndCol name charcol char col pos
 drawNameWithCharAndCol name charcol char col pos = do
-    size <- fromIntegral.snd <$> lift getGeom
+    size <- fi.snd <$> lift getGeom
     let up = SVec 0 $ - (ysize size - size`div`2)
     let down = SVec 0 $ ysize size
     smallFont <- lift $ gets dispFontSmall

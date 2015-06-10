@@ -30,6 +30,7 @@ import GameStateTypes
 import BoardColouring
 import Physics
 import Command
+import Util
 
 -- aaPolygon seems to be a bit buggy in sdl-gfx-0.6.0
 aaPolygon' surf verts col =
@@ -49,10 +50,10 @@ rimmedPolygon surf verts fillCol rimCol = do
     return ()
 
 circleAt surf centre@(SVec x y) rad col =
-    aaCircle' surf (fromIntegral x) (fromIntegral y) (fromIntegral rad) col
+    aaCircle' surf (fi x) (fi y) (fi rad) col
 
 filledCircleAt surf centre@(SVec x y) rad col =
-    filledCircle surf (fromIntegral x) (fromIntegral y) (fromIntegral rad) col
+    filledCircle surf (fi x) (fi y) (fi rad) col
 
 rimmedCircle surf centre@(SVec x y) rad fillCol rimCol = void $ do
     filledCircleAt surf centre rad fillCol
@@ -61,7 +62,7 @@ rimmedCircle surf centre@(SVec x y) rad fillCol rimCol = void $ do
 thickLine :: Surface -> (Int16,Int16) -> (Int16,Int16) -> Float -> Pixel -> IO ()
 thickLine surf from@(x,y) to@(x',y') thickness col = do
     let (dx,dy) = (x'-x,y'-y)
-	[rdx,rdy] = map fromIntegral [dx,dy]
+	[rdx,rdy] = map fi [dx,dy]
 	s = thickness / (sqrt $ rdx^2 + rdy^2)
 	perp@(px,py) = (round $ s*rdy, round $ s*(-rdx))
 	mperp = (-px,-py)
@@ -80,10 +81,10 @@ thickPolygon surf verts thickness col =
 type Glyph = SVec -> Int -> Surface -> IO ()
 
 ysize :: Int -> Int
-ysize size = round $ fromIntegral size / sqrt 3
+ysize size = round $ fi size / sqrt 3
 
 corner :: Integral i => SVec -> Int -> Int -> (i,i)
-corner (SVec x y) size hextant = (fromIntegral $ x+dx, fromIntegral $ y+dy)
+corner (SVec x y) size hextant = (fi $ x+dx, fi $ y+dy)
     where
 	[dx,dy] = f hextant
 	f 0 = [size, -ysize size]
@@ -94,7 +95,7 @@ corner (SVec x y) size hextant = (fromIntegral $ x+dx, fromIntegral $ y+dy)
 	    | otherwise = f (n`mod`6)
 
 innerCorner :: Integral i => SVec -> Int -> HexDir -> (i,i)
-innerCorner (SVec x y) size dir = (fromIntegral $ x+dx, fromIntegral $ y+dy)
+innerCorner (SVec x y) size dir = (fi $ x+dx, fi $ y+dy)
     where
 	[dx,dy] = f dir
 	f dir
@@ -106,7 +107,7 @@ innerCorner (SVec x y) size dir = (fromIntegral $ x+dx, fromIntegral $ y+dy)
 	isize = size `div` 3
 
 edge :: Integral i => SVec -> Int -> HexDir -> (i,i)
-edge (SVec x y) size dir = (fromIntegral $ x+dx, fromIntegral $ y+dy)
+edge (SVec x y) size dir = (fi $ x+dx, fi $ y+dy)
     where
 	[dx,dy] = f dir
 	f dir
@@ -199,13 +200,13 @@ blockedArm armdir tdir col centre size surf =
 	    to = edge centre size $ rotate tdir armdir
 
 turnedArm armdir tdir col centre size surf =
-    sequence_ [ arc surf (fromIntegral x) (fromIntegral y) (fromIntegral $ n*size `div` 4)
+    sequence_ [ arc surf (fi x) (fi y) (fi $ n*size `div` 4)
 	a1 a2 col | n <- [8,9] ]
     where
 	SVec x y = centre <+> hexVec2SVec size (neg armdir)
-	a0 = fromIntegral $ -60*hextant armdir
-	a1' = a0 + fromIntegral tdir * 10
-	a2' = a0 + fromIntegral tdir * 30
+	a0 = fi $ -60*hextant armdir
+	a1' = a0 + fi tdir * 10
+	a2' = a0 + fi tdir * 30
 	a1 = min a1' a2'
 	a2 = max a1' a2'
 
@@ -233,7 +234,7 @@ blockedPush dir col centre size surf = do
     where
 	--base@(bx,by) = innerCorner centre size dir
 	SVec bx' by' = centre
-	base@(bx,by) = (fromIntegral bx',fromIntegral by')
+	base@(bx,by) = (fi bx',fi by')
 	tip@(tx,hy) = edge centre size dir
 	arms = [(bx + (tx-bx)`div`2 + dir*(hy-by)`div`4,
 	    by + (hy-by)`div`2 - dir*(tx-bx)`div`4) | dir <- [-1,1]]
@@ -289,14 +290,14 @@ showButtonTextButton :: Bool -> Glyph
 showButtonTextButton showing centre@(SVec x y) size surf = do
     buttonGlyph (dim yellow) (SVec `uncurry` edge centre (size`div`2) (neg hu)) (size`div`2) surf
     when showing $
-	sequence_ [ pixel surf (fromIntegral $ x+size`div`3+(i*size`div`4)) (fromIntegral $ y - size`div`4) (bright white)
+	sequence_ [ pixel surf (fi $ x+size`div`3+(i*size`div`4)) (fi $ y - size`div`4) (bright white)
 	    | i <- [-1..1] ]
 
 useSoundsButton :: Bool -> Glyph
 useSoundsButton use centre@(SVec x y) size surf = sequence_
-    [ arc surf (fromIntegral $ x - (size`div`2)) (fromIntegral y) r (-20) 20
+    [ arc surf (fi $ x - (size`div`2)) (fi y) r (-20) 20
 	(if use then bright green else dim red)
-    | r <- map fromIntegral $ map (*(size`div`3)) [1,2,3] ]
+    | r <- map fi $ map (*(size`div`3)) [1,2,3] ]
 
 whsButtonsButton :: Maybe WrHoSel -> Glyph
 whsButtonsButton Nothing centre size surf =
@@ -333,7 +334,7 @@ cursor = hollowGlyph $ bright white
 unfreshGlyph centre@(SVec x y) size surf = do
     let col = bright red
     hollowInnerGlyph col centre size surf
-    sequence_ [pixel surf (fromIntegral $ x+(i*size`div`4)) (fromIntegral y) col
+    sequence_ [pixel surf (fi $ x+(i*size`div`4)) (fi y) col
 	| i <- [-1..1] ]
 
 playerGlyph col centre size surf = filledHexGlyph col centre size surf
@@ -402,7 +403,7 @@ hexVec2SVec size (HexVec x y z) =
 sVec2dHV :: Int -> SVec -> (Double,Double,Double)
 sVec2dHV size (SVec sx sy) =
     let sx',sy',size' :: Double
-	[sx',sy',size',ysize'] = map fromIntegral [sx,sy,size,ysize size]
+	[sx',sy',size',ysize'] = map fi [sx,sy,size,ysize size]
 	y' = -sy' / ysize' / 3
 	x' = ((sx' / size') - y') / 2
 	z' = -((sx' / size') + y') / 2
@@ -415,7 +416,7 @@ sVec2HexVec size sv =
 	rounded = Map.map round unrounded
 	maxdiff = fst $ maximumBy (compare `on` snd) $
 	    [ (i, abs $ c'-c) | i <- [1..3],
-		let c' = unrounded Map.! i, let c = fromIntegral $ rounded Map.! i]
+		let c' = unrounded Map.! i, let c = fi $ rounded Map.! i]
 	[x,y,z] = map snd $ Map.toList $
 	    Map.adjust (\x -> x - (sum $ Map.elems rounded)) maxdiff rounded
     in HexVec x y z
@@ -441,7 +442,7 @@ recentreAt v m = do
 
 rescaleRender :: RealFrac n => n -> RenderM a -> RenderM a
 rescaleRender r = local resize
-    where resize rc = rc { renderSize = round $ r * (fromIntegral $ renderSize rc) }
+    where resize rc = rc { renderSize = round $ r * (fi $ renderSize rc) }
 
 withFont :: Maybe TTF.Font -> RenderM a -> RenderM a
 withFont font = local refont
@@ -463,8 +464,8 @@ drawBasicBG :: Int -> RenderM ()
 drawBasicBG maxR = sequence_ [ drawAtRel (hollowGlyph $ colAt v) v | v <- hexDisc maxR ]
     where
 	colAt v@(HexVec hx hy hz) = let
-		[r,g,b] = map (\h -> fromIntegral $ ((0xff*)$ 5 + abs h)`div`maxR) [hx,hy,hz]
-		a = fromIntegral $ (0x90 * (maxR - abs (hexLen v)))`div`maxR
+		[r,g,b] = map (\h -> fi $ ((0xff*)$ 5 + abs h)`div`maxR) [hx,hy,hz]
+		a = fi $ (0x90 * (maxR - abs (hexLen v)))`div`maxR
 	    in rgbaToPixel (r,g,b,a)
 
 drawAt :: Glyph -> HexPos -> RenderM ()
@@ -483,7 +484,7 @@ errorCol = red
 
 pixelToColor p =
     let (r,g,b,_) = pixelToRGBA p
-    in Color (fromIntegral r) (fromIntegral g) (fromIntegral b)
+    in Color (fi r) (fi g) (fi b)
 
 renderStrColAtLeft = renderStrColAt' False
 renderStrColAt = renderStrColAt' True
@@ -505,7 +506,7 @@ blankRow v = do
 	liftM3 (,,) renderSurf renderSCentre renderSize
     let SVec _ y = scrCentre <+> (hexVec2SVec size v)
 	w = surfaceGetWidth surf
-	h = ceiling $ fromIntegral (size * 3 `div` 2) * 2 / sqrt 3
+	h = ceiling $ fi (size * 3 `div` 2) * 2 / sqrt 3
     fillRectBG $ Just $ Rect 0 (y-h`div`2) w h
 
 drawCursorAt :: Maybe HexPos -> RenderM ()

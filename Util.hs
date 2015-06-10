@@ -29,3 +29,7 @@ unlessM c a = c >>= flip unless a
 -- same precedence as ($), allowing e.g. foo bar >>! error $ "failed " ++ meep
 infixr 0 >>?
 infixr 0 >>!
+
+-- |fi: just a straight abbreviation for fromIntegral
+fi :: (Integral a, Num b) => a -> b
+fi = fromIntegral
