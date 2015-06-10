@@ -81,7 +81,7 @@ thickPolygon surf verts thickness col =
 type Glyph = SVec -> Int -> Surface -> IO ()
 
 ysize :: Int -> Int
-ysize size = round $ fi size / sqrt 3
+ysize = (map (\size -> round $ fi size / sqrt 3) [0..] !!)
 
 corner :: Integral i => SVec -> Int -> Int -> (i,i)
 corner (SVec x y) size hextant = (fi $ x+dx, fi $ y+dy)
@@ -472,6 +472,10 @@ drawAt :: Glyph -> HexPos -> RenderM ()
 drawAt gl pos = do
 	centre <- asks renderHCentre
 	drawAtRel gl (pos <-> centre)
+
+-- TODO: it would make a lot of sense to cache and blit frequently used
+-- glyphs.
+drawAtRel :: Glyph -> HexVec -> RenderM ()
 drawAtRel gl v = do
 	(surf, scrCentre, size) <- asks $ liftM3 (,,) renderSurf renderSCentre renderSize
 	let cpos = scrCentre <+> (hexVec2SVec size v)

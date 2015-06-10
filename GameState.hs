@@ -245,9 +245,10 @@ plPieceBoard (idx,pp) = fmap (\x -> (idx,x)) $ plPieceMap pp
 
 plPieceMap :: PlacedPiece -> Map HexPos Tile
 plPieceMap (PlacedPiece pos (Block pattern)) =
-    Map.fromList [ (rel <+> pos, BlockTile adjs)
+    let pattSet = Set.fromList pattern
+    in Map.fromList [ (rel <+> pos, BlockTile adjs)
 	| rel <- pattern
-	, let adjs = filter (\dir -> rel <+> dir `elem` pattern) hexDirs ]
+	, let adjs = filter (\dir -> (rel <+> dir) `Set.member` pattSet) hexDirs ]
 plPieceMap (PlacedPiece pos (Pivot arms)) =
     let overarmed = length arms > 2 in
     Map.fromList $ (pos, PivotTile $ if overarmed then (head arms) else zero ) :
