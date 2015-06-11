@@ -555,7 +555,7 @@ instance UIMonad (StateT UIState IO) where
 		      <+> (y`mod`2)<*>hw
 		| (y,str) <- zip [2..]
 		    [ "By ruthlessly guarded secret arrangement, the Council's agents can pick any lock in the city."
-		    , "The Guild maintains this by producing apparently secure locks with fatal, but hidden, flaws."
+		    , "The Guild produces the necessary locks - apparently secure, but with fatal hidden flaws."
 		    , "The ritual game known as \"Intricacy\" is played to determine the best designs."
 		    , "Players attempt to design locks which can be picked only by one who knows the secret,"
 		    , "and try to discover the secret flaws in the designs of their colleagues."
@@ -574,7 +574,7 @@ instance UIMonad (StateT UIState IO) where
 		    , "Undeclared solutions don't count. Empty lock slots are considered solved if all actual locks are."
 		    , ""
 		    , "If the secrets to one of your locks become widely disseminated, you may wish to replace it."
-		    , "Once replaced, a lock is \"retired\"; any notes it secured become \"public\" and are read by all."
+		    , "Once replaced, a lock is \"retired\"; any notes it was securing are read by everyone."
 		    ]
 		]
 	return True
