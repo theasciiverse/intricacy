@@ -403,3 +403,28 @@ testAuth = isJust <$> gets curAuth >>? do
 	    lift $ drawMessage err
 	    modify $ \ms -> ms {curAuth = Nothing}
 	_ -> return ()
+
+metagameHelpText :: [String]
+metagameHelpText =
+    [ "By ruthlessly guarded secret arrangement, the Council's agents can pick any lock in the city."
+    , "The Guild produces the necessary locks - apparently secure, but with fatal hidden flaws."
+    , "The ritual game known as \"Intricacy\" is played to determine the best designs."
+    , "Players attempt to design locks which can be picked only by one who knows the secret,"
+    , "and try to discover the secret flaws in the designs of their colleagues."
+    , ""
+    , "You may put forward up to three prototype locks. They will guard the secrets you discover."
+    , "If you pick a colleague's lock, the rules require that a note be written describing your solution."
+    , "The composition and deciphering of notes is an art in itself, whose details do not concern us here,"
+    , "but a note proves that the author found a solution, while revealing as little detail as possible."
+    , "To declare your success, you must secure your note behind a lock of your own."
+    , "If you are able to unlock a lock, you automatically read all the notes it secures."
+    , "If you read three notes on a lock, you will piece together the clues and work out how to solve it."
+    , ""
+    , "Players are judged relative to each of their peers. There are no absolute rankings."
+    , "Your esteem relative to another player ranges from +3 (best) to -3 (worst), calculated thusly:"
+    , "Take the number of their locks you can solve, and subtract the number of your locks they can solve."
+    , "Undeclared solutions don't count. Empty lock slots are considered solved if all actual locks are."
+    , ""
+    , "If the secrets to one of your locks become widely disseminated, you may wish to replace it."
+    , "Once replaced, a lock is \"retired\"; any notes it was securing are read by everyone."
+    ]

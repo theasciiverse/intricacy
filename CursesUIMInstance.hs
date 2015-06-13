@@ -317,6 +317,12 @@ instance UIMonad (StateT UIState IO) where
 	    , (x+1)*bdgWidth < w]
 	refresh
 	return True
+    showHelp IMMeta HelpPageGame = do
+	erase
+	(h,w) <- liftIO Curses.scrSize
+	sequence_ [drawStrCentred a0 white (CVec line $ w`div`2) str |
+	    (line,str) <- zip [0..h-2] $ ["Intricacy",""] ++ metagameHelpText ]
+	return True
     showHelp _ _ = return False
 
     getChRaw = (charify<$>) $ liftIO $ CursesH.getKey (return ())
