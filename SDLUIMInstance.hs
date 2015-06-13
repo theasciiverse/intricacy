@@ -489,7 +489,7 @@ instance UIMonad (StateT UIState IO) where
 		    modify $ \ds -> ds { mousePos = newPos }
 		    updateHoverStr mode
 
-    showHelp mode 0 = do
+    showHelp mode HelpPageInput = do
 	bdgs <- nub <$> getBindings mode
 	smallFont <- gets dispFontSmall
 	renderToMain $ do
@@ -543,7 +543,7 @@ instance UIMonad (StateT UIState IO) where
 		| (str,y) <- zip extraHelpStrs [keybindingsHeight..] ]
 	refresh
 	return True
-    showHelp IMMeta 1 = do
+    showHelp IMMeta HelpPageGame = do
 	renderToMain $ do
 	    erase
 	    let headPos = (screenHeightHexes`div`4)<*>(hv<+>neg hw)

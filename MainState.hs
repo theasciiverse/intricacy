@@ -56,7 +56,7 @@ class (Applicative m, MonadIO m) => UIMonad m where
     drawPrompt :: Bool -> String -> m ()
     endPrompt :: m ()
     drawError :: String -> m ()
-    showHelp :: InputMode -> Int -> m Bool
+    showHelp :: InputMode -> HelpPage -> m Bool
     getInput :: InputMode -> m [ Command ]
     getChRaw :: m ( Maybe Char )
     unblockInput :: m (IO ())
@@ -126,6 +126,9 @@ data MainState
 	}
 
 type MainStateT = StateT MainState
+
+data HelpPage = HelpPageInput | HelpPageGame
+    deriving (Eq, Ord, Show, Enum)
 
 ms2im :: MainState -> InputMode
 ms2im mainSt = case mainSt of

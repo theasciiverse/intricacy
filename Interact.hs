@@ -121,10 +121,9 @@ processCommand im cmd = lift $ processCommand' im cmd
 
 processCommand' :: UIMonad uiM => InputMode -> Command -> MainStateT uiM ()
 processCommand' im CmdHelp = lift $
-    let showPage n = showHelp im n >>? do
+    let showPage p = showHelp im p >>? do
 	    void $ textInput "[press a key or RMB]" 1 False True Nothing Nothing
-	    showPage $ n+1
-    in showPage 0
+    in sequence_ $ map showPage $ enumFrom HelpPageInput
 processCommand' im (CmdBind mcmd)= lift $ (>> endPrompt) $ runMaybeT $ do
     cmd <- liftMaybe mcmd `mplus` do
 	lift $ drawPrompt False "Command to bind: "
@@ -412,10 +411,17 @@ processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
 		mauth <- gets curAuth
 		cbdg <- lift $ getUIBinding IMMeta $ CmdSelCodename Nothing
 		rbdg <- lift $ getUIBinding IMMeta CmdRegister
-		lift $ drawMessage $ if isNothing mauth
-		    then "Tutorial completed! To play on the server, pick a codename ('"++cbdg++
-			"') and register it ('"++rbdg++"')."
-		    else "Tutorial completed!"
+		if isNothing mauth
+		    then do
+			let showPage p = lift $ showHelp IMMeta p >>? do
+				void $ textInput
+				    "[Tutorial completed! Press a key or RMB to continue; you can review this help later with '?']"
+				    1 False True Nothing Nothing
+			showPage HelpPageGame
+			lift $ drawMessage $ 
+			    "Tutorial completed! To play on the server, pick a codename ('"++cbdg++
+			    "') and register it ('"++rbdg++"')."
+		    else lift $ drawMessage $ "Tutorial completed!"
     dotut i
 processCommand' IMMeta CmdShowRetired = void.runMaybeT $ do
     name <- mgetCurName

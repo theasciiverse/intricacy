@@ -293,7 +293,7 @@ instance UIMonad (StateT UIState IO) where
     endPrompt = say "" >> (liftIO $ void $ Curses.cursSet Curses.CursorInvisible)
     drawError = sayError
 
-    showHelp mode 0 = do
+    showHelp mode HelpPageInput = do
 	bdgs <- nub <$> getBindings mode
 	erase
 	(h,w) <- liftIO Curses.scrSize
