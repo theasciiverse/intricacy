@@ -180,7 +180,11 @@ renderGlyphCaching gl centre size surf = do
 	    -- some glyphs need to be drawn with blending - those involving
 	    -- anti-aliasing which bleed over the edge of the hex or which
 	    -- may be drawn on top of an existing glyph.
+	    -- TODO: we should find a way to deal with at least some of these;
+	    -- springs in particular are common and expensive to draw.
+	    -- Maybe we could truncate the spring glyphs to a hex?
 	    TileGlyph (BlockTile adjs) _ -> null adjs
+	    TileGlyph (SpringTile extn dir) _ -> False
 	    FilledHexGlyph _ -> False
 	    HollowGlyph _ -> False
 	    BlockedBlock _ _ _ -> False
