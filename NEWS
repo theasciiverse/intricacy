@@ -1,16 +1,10 @@
 This is an abbreviated summary; see the git log for gory details.
 
-0.4.4:
-    Optimisations.
-0.4.3:
-    Metagame help page.
-    Animation to indicate direction of rotation of pieces.
-0.4.2:
+0.5:
     Adjustments to graphics, tutorial, and metagame UI, to increase clarity.
-    Fix sound lag on Windows.
-0.4.1:
     Concurrency on server; no more freezes while it checks a solution.
-    Misc minor UI fixes.
+    Misc optimisations.
+    Fix sound lag on Windows.
     
 0.4:
     Sound effects (thanks linley).
