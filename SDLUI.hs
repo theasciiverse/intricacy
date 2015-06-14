@@ -100,7 +100,7 @@ data UIOptions = UIOptions
     , uiAnimTime::Word32
     }
     deriving (Eq, Ord, Show, Read)
-defaultUIOptions = UIOptions False ShowBlocksBlocking Nothing True False True True 75
+defaultUIOptions = UIOptions False ShowBlocksBlocking Nothing True False True True 100
 modifyUIOptions f = modify $ \s -> s { uiOptions = f $ uiOptions s }
 
 renderToMain :: RenderM a -> UIM a
