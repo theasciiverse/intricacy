@@ -375,17 +375,18 @@ getRelScoreDetails name = runMaybeT $ do
     guard $ ourName /= name
     uinfo <- mgetUInfo name
     ourUInfo <- mgetUInfo ourName
-    let (pos,neg) = (countUnaccessedBy ourUInfo name, countUnaccessedBy uinfo ourName)
+    let (neg,pos) = (countPoints ourUInfo uinfo, countPoints uinfo ourUInfo)
     return $ (pos-neg,(pos,neg))
     where
-	countUnaccessedBy ui name = length $ filter isNothing $ getAccessInfo ui name
+	countPoints mugu masta = length $ filter (maybe False winsPoint) $ getAccessInfo mugu masta
 
 accessedAL :: (UIMonad uiM) => ActiveLock -> MainStateT uiM Bool
 accessedAL (ActiveLock name idx) = (isJust <$>) $ runMaybeT $ do
     ourName <- mgetOurName
     guard $ ourName /= name
     uinfo <- mgetUInfo name
-    guard $ isJust $ getAccessInfo uinfo ourName !! idx
+    ourUInfo <- mgetUInfo ourName
+    guard $ isJust $ getAccessInfo uinfo ourUInfo !! idx
 
 getNotesReadOn :: UIMonad uiM => LockInfo -> MainStateT uiM [NoteInfo]
 getNotesReadOn lockinfo = (fromMaybe [] <$>) $ runMaybeT $ do
@@ -421,10 +422,11 @@ metagameHelpText =
     , "If you read three notes on a lock, you will piece together the clues and work out how to solve it."
     , ""
     , "Players are judged relative to each of their peers. There are no absolute rankings."
-    , "Your esteem relative to another player ranges from +3 (best) to -3 (worst), calculated thusly:"
-    , "Take the number of their locks you can solve, and subtract the number of your locks they can solve."
-    , "Undeclared solutions don't count. Empty lock slots are considered solved if all actual locks are."
-    , ""
+    , "You win a point of esteem against another player for one of their locks if either:"
+    , "you have declared a note on the lock and the lock's owner has not read that note,"
+    , "or if you have read three notes on the lock."
+    , "Relative esteem ranges from +3 (best) to -3 (worst), and is calculated as"
+    , "the number of their locks which win you a point minus the number of your locks which win them one."
     , "If the secrets to one of your locks become widely disseminated, you may wish to replace it."
-    , "Once replaced, a lock is \"retired\"; any notes it was securing are read by everyone."
+    , "However: once replaced, a lock is \"retired\", and the notes it secured are read by everyone."
     ]

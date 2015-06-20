@@ -68,16 +68,17 @@ Full details of the metagame mechanics
 the bit with the 3-letter codenames and the three lock slots and notes and so
 on.)
 
+A player accesses a lock slot when one of the following holds
+    (i) the player has read three notes on the lock in the slot;
+    (ii) the player has solved the lock in the slot, and declared the solution;
+    (iii) there's no lock in the slot, and the player has accessed all the slots
+	which do have locks in them.
+
 Scoring is always relative - each player has a score relative to each other
 player. That score is the number of the second player's lock slots to which
 the first player has access, minus the number of the first player's lock slots
-to which the second player has access.
-
-A player accesses a lock slot when one of the following holds
-    * the player has solved the lock in the slot, and declared the solution;
-    * the player has read three notes on the lock in the slot;
-    * there's no lock in the slot, and the player has accessed all the slots
-	which do have locks in them.
+to which the second player has access; but a point is not awarded for
+case (ii) if the owner of the lock has read the note.
 
 A player reads every note in every lock the player accesses. When a lock is
 replaced ('retired'), each note secured by the lock becomes 'public', and is

@@ -190,7 +190,7 @@ instance UIMonad (StateT UIState IO) where
 		us <- liftMaybe ourName
 		ourUInfo <- mgetUInfo us
 		selUInfo <- mgetUInfo sel
-		let accesses = map (uncurry getAccessInfo) [(ourUInfo,sel),(selUInfo,us)]
+		let accesses = map (uncurry getAccessInfo) [(ourUInfo,selUInfo),(selUInfo,ourUInfo)]
 		let posLeft = scoresPos <+> hw <+> neg hu
 		let posRight = posLeft <+> 3<*>hu
 		size <- snd <$> (lift.lift) getGeom
@@ -205,7 +205,7 @@ instance UIMonad (StateT UIState IO) where
 			, let accessed = accesses !! 0 !! i
 			, let col
 				| accessed == Just AccessedPub = dim pubColour
-				| isJust accessed = dim $ scoreColour $ -3
+				| (maybe False winsPoint) accessed = dim $ scoreColour $ -3
 				| otherwise = obscure $ scoreColour 3 ]
 		    fillArea (posRight<+>hw) (map (posRight<+>) [zero,hw,neg hv])
 			[ \pos -> (lift $ registerSelectable pos 0 (SelScoreLock Nothing accessed $ ActiveLock sel i)) >>
@@ -214,16 +214,16 @@ instance UIMonad (StateT UIState IO) where
 			, let accessed = accesses !! 1 !! i
 			, let col
 				| accessed == Just AccessedPub = obscure pubColour
-				| isJust accessed = dim $ scoreColour $ 3
+				| (maybe False winsPoint) accessed = dim $ scoreColour $ 3
 				| otherwise = obscure $ scoreColour $ -3 ]
-		(usUnacc,selUnacc) <- MaybeT $ (snd<$>) <$> getRelScoreDetails sel
+		(posScore,negScore) <- MaybeT $ (snd<$>) <$> getRelScoreDetails sel
 		lift.lift $ sequence_
 		    [ do
 			renderToMain $ renderStrColAt (scoreColour score) (sign:show (abs score)) pos
 			registerSelectable pos 0 SelRelScoreComponent
 		    | (sign,score,pos) <-
-			[ ('-',usUnacc-3,posLeft<+>neg hv<+>hw)
-			, ('+',3-selUnacc,posRight<+>neg hv<+>hw) ] ]
+			[ ('-',negScore,posLeft<+>neg hv<+>hw)
+			, ('+',posScore,posRight<+>neg hv<+>hw) ] ]
 
 	drawMainState' _ = return ()
 
