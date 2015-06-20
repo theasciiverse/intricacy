@@ -28,6 +28,7 @@ import Data.Foldable (for_)
 import Data.Time.Clock
 import System.IO
 import System.FilePath
+import System.Directory (renameFile)
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Binary as B
 import Data.Array
@@ -37,6 +38,13 @@ import Data.List
 import Data.Function (on)
 import Pipes
 import qualified Pipes.Prelude as P
+
+import Text.Feed.Import (parseFeedFromFile)
+import Text.Feed.Export (xmlFeed)
+import Text.Feed.Constructor
+import Text.XML.Light.Output (showTopElement)
+import Data.Time.RFC822
+import Data.Time.LocalTime
 
 import System.Environment
 import System.Console.GetOpt
@@ -52,7 +60,7 @@ import Maxlocksize
 
 defaultPort = 27001 -- 27001 == ('i'<<8) + 'y'
 
-data Opt = RequestDelay Int | Daemon | LogFile FilePath | Port Int | DBDir FilePath | ServerLockSize Int
+data Opt = RequestDelay Int | Daemon | LogFile FilePath | Port Int | DBDir FilePath | ServerLockSize Int | FeedPath FilePath
     deriving (Eq, Ord, Show)
 options =
     [ Option ['p'] ["port"] (ReqArg (Port . read) "PORT") $ "TCP port to listen on (default: " ++ show defaultPort ++ ")"
@@ -61,6 +69,7 @@ options =
     , Option ['l'] ["logfile"] (ReqArg LogFile "PATH") "Log to file"
     , Option ['d'] ["dir"] (ReqArg DBDir "PATH") "directory for server database [default: intricacydb]"
     , Option ['s'] ["locksize"] (ReqArg (ServerLockSize . read) "SIZE") "size of locks (only takes effect when creating a new database) [default: 8]"
+    , Option ['f'] ["feed"] (ReqArg FeedPath "PATH") "write news feed to this path"
     ]
 parseArgs :: [String] -> IO ([Opt],[String])
 parseArgs argv =
@@ -80,13 +89,14 @@ main = do
     let delay = fromMaybe 0 $ listToMaybe [ d | RequestDelay d <- opts ]
 	port = fromMaybe defaultPort $ listToMaybe [ p | Port p <- opts ]
 	dbpath = fromMaybe "intricacydb" $ listToMaybe [ p | DBDir p <- opts ]
+	mfeedPath = listToMaybe [ p | FeedPath p <- opts ]
 	locksize = min maxlocksize $ fromMaybe 8 $ listToMaybe [ s | ServerLockSize s <- opts ]
     withDB dbpath $ setDefaultServerInfo locksize
     writeFile (lockFilePath dbpath) ""
     logh <- case listToMaybe [ f | LogFile f <- opts ] of
 	Nothing -> return stdout
 	Just path -> openFile path AppendMode
-    streamServer serverSpec{address = IPv4 "" port, threading=Threaded} $ handler dbpath delay logh
+    streamServer serverSpec{address = IPv4 "" port, threading=Threaded} $ handler dbpath delay logh mfeedPath
     sleepForever
 
 setDefaultServerInfo locksize = do
@@ -109,8 +119,8 @@ lockFilePath dbpath = dbpath ++ [pathSeparator] ++ "lockfile"
 
 logit h s = hPutStrLn h s >> hFlush h
 
-handler :: FilePath -> Int -> Handle -> Handle -> Address -> IO ()
-handler dbpath delay logh hdl addr = handle ((\e -> return ()) :: SomeException -> IO ()) $
+handler :: FilePath -> Int -> Handle -> Maybe FilePath -> Handle -> Address -> IO ()
+handler dbpath delay logh mfeedPath hdl addr = handle ((\e -> return ()) :: SomeException -> IO ()) $
     handler' hdl addr
     where handler' hdl addr = do
 	    response <- handle (\e -> return $ ServerError $ show (e::SomeException)) $ do
@@ -123,7 +133,7 @@ handler dbpath delay logh hdl addr = handle ((\e -> return ()) :: SomeException 
 		    hashedHostname = take 8 $ hash hostname
 		now <- liftIO getCurrentTime
 		logit logh $ show now ++ ": " ++ hashedHostname ++ " >>> " ++ showRequest request
-		response <- handleRequest dbpath request
+		response <- handleRequest dbpath mfeedPath request
 		when (delay > 0) $ threadDelay delay
 		now' <- liftIO getCurrentTime
 		logit logh $ show now' ++ ": " ++ hashedHostname ++ " <<< " ++ showResponse response
@@ -146,8 +156,8 @@ showResponse (ServedLock lock) = "ServedLock lock:\n" ++ unlines (lockToAscii lo
 showResponse (ServedSolution soln) = "ServedSolution [SOLN]"
 showResponse resp = show resp
 
-handleRequest :: FilePath -> ClientRequest -> IO ServerResponse
-handleRequest dbpath req@(ClientRequest pv auth action) = do
+handleRequest :: FilePath -> Maybe FilePath -> ClientRequest -> IO ServerResponse
+handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
     let lockMode = case action of
 	    Authenticate -> ReadMode
 	    GetServerInfo -> ReadMode
@@ -198,7 +208,10 @@ handleRequest dbpath req@(ClientRequest pv auth action) = do
 		Authenticate -> do
 		    checkAuth auth
 		    return $ ServerMessage $ "Welcome, " ++ authUser (fromJust auth)
-		Register -> newUser auth >> return ServerAck
+		Register -> do
+		    newUser auth
+		    doNews $ "New user " ++ authUser (fromJust auth) ++ " registered."
+		    return ServerAck
 		ResetPassword passwd -> resetPassword auth passwd >> return ServerAck
 		GetServerInfo -> ServedServerInfo <$> getServerInfo
 		GetLock ls -> ServedLock <$> getLock ls
@@ -239,6 +252,9 @@ handleRequest dbpath req@(ClientRequest pv auth action) = do
 		    let note = NoteInfo name (Just behind) target
 		    erroredDB $ putRecord (RecNote note) (RCSolution soln)
 		    execStateT (declareNote note behind) [] >>= applyDeltasToRecords
+		    doNews $ name ++ " declares solution to "
+			++ alockStr target ++ ", securing their note behind "
+			++ alockStr behind ++ "."
 		    return ServerAck
 		SetLock lock@(frame,_) idx soln -> do
 		    info <- getUserInfoOfAuth auth
@@ -261,6 +277,7 @@ handleRequest dbpath req@(ClientRequest pv auth action) = do
 		    for_ oldLockInfo $ \oldui -> do
 			lss <- getRetired name
 			erroredDB $ putRecord (RecRetiredLocks name) $ RCLockSpecs $ (lockSpec oldui):lss
+		    doNews $ "New lock " ++ alockStr al ++ "."
 		    return ServerAck
 		GetRandomNames n -> do
 		    names <- erroredDB $ listUsers
@@ -418,3 +435,15 @@ handleRequest dbpath req@(ClientRequest pv auth action) = do
 	    (applyDeltas info . map snd . filter ((==name).fst)) <$> get
 	getCurrALock al@(ActiveLock name idx) =
 	     (fromJust.(!idx).userLocks) <$> getCurrUserInfo name
+	doNews news = case mfeedPath of
+	    Nothing -> return ()
+	    Just feedPath -> lift $ void $ forkIO $ do
+		let baseFeed = withFeedTitle "Intricacy updates" $ newFeed $ RSSKind Nothing
+		feed <- (parseFeedFromFile feedPath) `catchAll`
+		    (const $ return baseFeed)
+		time <- formatTimeRFC822 <$> getZonedTime
+		let item = withItemTitle news $ withItemDescription news $
+			withItemPubDate time $ newItem $ RSSKind Nothing
+		-- TODO: purge old entries
+		writeFile feedPath $ showTopElement $ xmlFeed $
+		    withFeedLastUpdate time $ addItem item feed

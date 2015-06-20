@@ -87,7 +87,11 @@ type Hint = GameState
 
 lockIndexChar :: LockIndex -> Char
 lockIndexChar i = toEnum $ i + fromEnum 'A'
+
 charLockIndex c = fromEnum (toUpper c) - fromEnum 'A'
+
+alockStr :: ActiveLock -> String
+alockStr (ActiveLock name idx) = name ++ [':',lockIndexChar idx]
 
 applyDeltas :: UserInfo -> [UserInfoDelta] -> UserInfo
 applyDeltas = foldr applyDelta

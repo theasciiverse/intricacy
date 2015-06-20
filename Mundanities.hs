@@ -26,6 +26,9 @@ import Paths_intricacy
 catchIO :: IO a -> (IOError -> IO a) -> IO a
 catchIO = E.catch
 
+catchAll :: IO a -> (E.SomeException -> IO a) -> IO a
+catchAll = E.catch
+
 readReadFile :: (Read a) => FilePath -> IO (Maybe a)
 readReadFile file =
     (tryRead . BSC.unpack <$> BS.readFile file)
