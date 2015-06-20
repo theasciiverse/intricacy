@@ -1,5 +1,10 @@
 This is an abbreviated summary; see the git log for gory details.
 
+0.5.1:
+    New scoring system - you don't get the point for a solution if the lock
+	owner has read your note.
+    Server produces RSS feeds.
+    Improve handling of switching server.
 0.5:
     Adjustments to graphics, tutorial, and metagame UI, to increase clarity.
     Concurrency on server; no more freezes while it checks a solution.
