@@ -188,7 +188,11 @@ processCommand' IMMeta CmdSetServer = void.runMaybeT $ do
     modify $ \ms -> ms { curServer = newSaddr }
     guard.not $ nullSaddr newSaddr
     msum [ void.MaybeT $ getFreshRecBlocking RecServerInfo
-	, modify $ \ms -> ms { curServer = saddr } ]
+	, modify (\ms -> ms { curServer = saddr }) >> mzero ]
+    lift $ do
+	modify $ \ms -> ms {curAuth = Nothing}
+	invalidateAllUInfo
+	refreshUInfoUI
 processCommand' IMMeta CmdToggleCacheOnly =
     not <$> gets cacheOnly >>= \c -> modify $ \ms -> ms {cacheOnly = c}
 
