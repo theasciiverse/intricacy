@@ -372,7 +372,7 @@ uiOB2 = UIOptButton showBlocks (\v o -> o {showBlocks=v}) [ShowBlocksBlocking,Sh
 uiOB3 = UIOptButton whsButtons (\v o -> o {whsButtons=v}) [Nothing, Just WHSSelected, Just WHSWrench, Just WHSHook]
 	(periphery 3 <+> 3 <*> hv) WhsButtonsButton
 	(\v -> case v of
-	    Nothing -> "Showing mouse controls; click to show keyboard control buttons."
+	    Nothing -> "Click to show keyboard control buttons."
 	    Just whs -> "Showing buttons for controlling " ++ case whs of
 		WHSSelected -> "selected piece"
 		WHSWrench -> "wrench"
@@ -385,8 +385,8 @@ uiOB4 = UIOptButton showButtonText (\v o -> o {showButtonText=v}) [True,False]
 	Nothing
 uiOB5 = UIOptButton fullscreen (\v o -> o {fullscreen=v}) [True,False]
 	(periphery 0 <+> 4 <*> hu <+> 2 <*> hv) FullscreenButton
-	(\v -> if v then "Fullscreen mode" else
-	"Windowed mode")
+	(\v -> if v then "Currently in fullscreen mode; click to toggle" else
+	"Currently in windowed mode; click to toggle")
 	(Just $ const $ initVideo 0 0)
 uiOB6 = UIOptButton useSounds (\v o -> o {useSounds=v}) [True,False]
 	(periphery 0 <+> 3 <*> hu <+> hv) UseSoundsButton
