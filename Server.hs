@@ -384,7 +384,7 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
 	addReadNote note@(NoteInfo _ _ target) name = do
 	    info <- getCurrUserInfo name
 	    tlock <- getCurrALock target
-	    unless (name `elem` accessedBy tlock || note `elem` notesRead info) $ do
+	    unless (note `elem` notesRead info) $ do
 		addDelta name $ AddRead note
 		checkSuffReadNotes target name
 	accessLock name target@(ActiveLock tname ti) tlock = do
@@ -416,10 +416,11 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
 	checkSuffReadNotes target name = do
 	    info <- getCurrUserInfo name
 	    tlock <- getCurrALock target
-	    let countRead = fromIntegral $ length $
-		    filter (\n -> isNothing (noteBehind n) || n `elem` notesRead info) $ lockSolutions tlock
-	    when (countRead == notesNeeded && not (public tlock) && name /= lockOwner target) $
-		accessLock name target tlock
+	    unless (name `elem` accessedBy tlock || public tlock || name == lockOwner target) $ do
+		let countRead = fromIntegral $ length $
+			filter (\n -> isNothing (noteBehind n) || n `elem` notesRead info) $ lockSolutions tlock
+		when (countRead == notesNeeded) $
+		    accessLock name target tlock
 	checkSuffPubNotes al@(ActiveLock name idx) = do
 	    info <- getCurrUserInfo name
 	    let Just lock = userLocks info ! idx
