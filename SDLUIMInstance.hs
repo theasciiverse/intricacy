@@ -193,7 +193,10 @@ instance UIMonad (StateT UIState IO) where
 		let accesses = map (uncurry getAccessInfo) [(ourUInfo,sel),(selUInfo,us)]
 		let posLeft = scoresPos <+> hw <+> neg hu
 		let posRight = posLeft <+> 3<*>hu
+		size <- snd <$> (lift.lift) getGeom
 		lift $ do
+		    lift.renderToMain $ displaceRender (SVec size 0) $ renderStrColAt (brightish white) "ESTEEM" $ scoresPos <+> hv
+		    lift $ sequence_ [ registerSelectable (scoresPos<+>v) 0 SelRelScore | v <- [hv, hv<+>hu] ]
 		    drawRelScore sel scoresPos
 		    fillArea (posLeft<+>hw) (map (posLeft<+>) [zero,hw,neg hv])
 			[ \pos -> (lift $ registerSelectable pos 0 (SelScoreLock (Just sel) accessed $ ActiveLock us i)) >>
@@ -214,10 +217,13 @@ instance UIMonad (StateT UIState IO) where
 				| isJust accessed = dim $ scoreColour $ 3
 				| otherwise = obscure $ scoreColour $ -3 ]
 		(usUnacc,selUnacc) <- MaybeT $ (snd<$>) <$> getRelScoreDetails sel
-		lift.lift.renderToMain $ sequence_ [renderStrColAt (scoreColour score) (sign:show (abs score)) pos
-			| (sign,score,pos) <-
-			    [ ('-',usUnacc-3,posLeft<+>neg hv<+>hw)
-			    , ('+',3-selUnacc,posRight<+>neg hv<+>hw) ] ]
+		lift.lift $ sequence_
+		    [ do
+			renderToMain $ renderStrColAt (scoreColour score) (sign:show (abs score)) pos
+			registerSelectable pos 0 SelRelScoreComponent
+		    | (sign,score,pos) <-
+			[ ('-',usUnacc-3,posLeft<+>neg hv<+>hw)
+			, ('+',3-selUnacc,posRight<+>neg hv<+>hw) ] ]
 
 	drawMainState' _ = return ()
 
@@ -686,7 +692,7 @@ drawRelScore name pos = do
 	lift $ do
 	    renderToMain $ renderStrColAt col
 		((if score > 0 then "+" else "") ++ show score) pos
-	    registerSelectable pos 0 (SelRelScore score)
+	    registerSelectable pos 0 SelRelScore
 
 drawNote note pos = case noteBehind note of
     Just al -> drawActiveLock al pos

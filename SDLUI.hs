@@ -206,7 +206,8 @@ data Selectable = SelOurLock
     | SelLock ActiveLock
     | SelLockUnset Bool ActiveLock
     | SelSelectedCodeName Codename
-    | SelRelScore Int
+    | SelRelScore
+    | SelRelScoreComponent
     | SelScoreLock (Maybe Codename) (Maybe AccessedReason) ActiveLock
     | SelUndeclared Undeclared
     | SelReadNote NoteInfo
@@ -270,8 +271,10 @@ helpOfSelectable SelOurLock = Just
     "Design a lock."
 helpOfSelectable (SelSelectedCodeName name) = Just $
     "Currently viewing "++name++"."
-helpOfSelectable (SelRelScore score) = Just $
+helpOfSelectable SelRelScore = Just $
     "The extent to which you are held in higher esteem than this fellow guild member."
+helpOfSelectable SelRelScoreComponent = Just $
+    "Contribution to total relative esteem."
 helpOfSelectable (SelLock (ActiveLock name i)) = Just $
     name++"'s lock "++[lockIndexChar i]++"."
 helpOfSelectable (SelLockUnset True _) = Just
@@ -323,7 +326,7 @@ helpOfSelectable (SelOldLock ls) = Just $
 helpOfSelectable SelLockPath = Just $
     "Select a lock by its name. The names you give your locks are not revealed to others."
 helpOfSelectable SelPrivyHeader = Just $
-    "Fellow uild members privy to this lock's secrets, hence able to read its secured notes."
+    "Fellow guild members privy to this lock's secrets, hence able to read its secured notes."
 helpOfSelectable SelNotesHeader = Just $
     "Secured notes. Notes are obfuscated sketches of method, proving success but revealing little."
 
