@@ -43,7 +43,7 @@ import Text.Feed.Import (parseFeedFromFile)
 import Text.Feed.Export (xmlFeed)
 import Text.Feed.Constructor
 import Text.XML.Light.Output (showTopElement)
-import Data.Time.RFC822
+import Data.Time.Format
 import Data.Time.LocalTime
 
 import System.Environment
@@ -440,7 +440,7 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
 		let baseFeed = withFeedTitle "Intricacy updates" $ newFeed $ RSSKind Nothing
 		feed <- (parseFeedFromFile feedPath) `catchAll`
 		    (const $ return baseFeed)
-		time <- formatTimeRFC822 <$> getZonedTime
+		time <- formatTime defaultTimeLocale rfc822DateFormat <$> getZonedTime
 		let item = withItemTitle news $ withItemDescription news $
 			withItemPubDate time $ newItem $ RSSKind Nothing
 		-- TODO: purge old entries

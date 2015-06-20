@@ -3,7 +3,7 @@ Compiling Intricacy
 
 Dependencies:
     EITHER
-	sdl
+	sdl version 1.2
 	sdl-ttf
 	sdl-gfx
     OR
