@@ -467,7 +467,7 @@ instance UIMonad (StateT UIState IO) where
 		mb <- isJust <$> gets middleButtonDown
 		if ((rb || mb || mode == IMReplay) && mode /= IMEdit)
 		    || (mb && mode == IMEdit)
-		then return [ if dw == 1 then CmdUndo else CmdRedo ]
+		then return [ if dw == 1 then CmdRedo else CmdUndo ]
 		else if mode /= IMEdit || rb
 		then return [ CmdRotate WHSSelected dw ]
 		else do
