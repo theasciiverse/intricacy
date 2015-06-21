@@ -1,5 +1,7 @@
 This is an abbreviated summary; see the git log for gory details.
 
+0.5.2:
+    Fix cache paths on windows.
 0.5.1:
     New scoring system - you don't get the point for a solution if the lock
 	owner has read your note.
