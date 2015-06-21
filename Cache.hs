@@ -96,5 +96,5 @@ knownServers = flip catchIO (const $ return []) $ do
 
 withCache :: ServerAddr -> DBM a -> IO a
 withCache saddr m = do
-    cachedir <- (++[pathSeparator]++saddrStr saddr) `liftM` confFilePath "cache"
+    cachedir <- (++[pathSeparator]++saddrPath saddr) `liftM` confFilePath "cache"
     runReaderT m cachedir

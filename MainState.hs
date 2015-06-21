@@ -150,7 +150,7 @@ initMetaState = do
 	liftM (fromMaybe (defaultServerAddr, Nothing, "")) . readReadFile
     let names = maybeToList $ authUser <$> auth
     undecls <- if nullSaddr saddr then return [] else
-	confFilePath ("undeclared" ++ [pathSeparator] ++ saddrStr saddr) >>=
+	confFilePath ("undeclared" ++ [pathSeparator] ++ saddrPath saddr) >>=
 	liftM (fromMaybe []) . readReadFile
     mlock <- fullLockPath path >>= readLock
     return $ MetaState saddr undecls False auth names flag errtvar invaltvar rnamestvar Map.empty Map.empty Nothing path mlock 0
@@ -168,7 +168,7 @@ readLock path = runMaybeT $ msum
 writeMetaState (MetaState { curServer=saddr, undeclareds=undecls, curAuth=auth, curLockPath=path }) = do
     confFilePath "metagame.conf" >>= flip writeReadFile (saddr, auth, path)
     unless (nullSaddr saddr) $
-	confFilePath ("undeclared" ++ [pathSeparator] ++ saddrStr saddr) >>= flip writeReadFile undecls
+	confFilePath ("undeclared" ++ [pathSeparator] ++ saddrPath saddr) >>= flip writeReadFile undecls
 
 getTitle :: UIMonad uiM => MainStateT uiM (Maybe String)
 getTitle = ms2im <$> get >>= \im -> case im of

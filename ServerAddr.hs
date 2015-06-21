@@ -23,6 +23,9 @@ defaultServerAddr = ServerAddr "thegonz.net" defaultPort
 
 saddrStr (ServerAddr h p) = h ++ if p==defaultPort then "" else ':':show p
 
+-- |windows doesn't like ':' in paths, so use '#' instead
+saddrPath (ServerAddr h p) = h ++ if p==defaultPort then "" else '#':show p
+
 strToSaddr str =
     case elemIndex ':' str of
 	Nothing -> Just $ ServerAddr str defaultPort
