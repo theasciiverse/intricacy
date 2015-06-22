@@ -29,6 +29,8 @@ To compile the server:
     The server runs on port 27001 by default. It writes the game database to
     a directory 'intricacydb' under the directory from which it is run.
 
+    Run 'intricacy-server -h' for various options.
+
 To compile for windows:
     This should work as above once you have the dependencies installed
     properly. Good luck with that. The mingw32-compiled libraries in winlibs

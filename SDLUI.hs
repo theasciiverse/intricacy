@@ -286,9 +286,9 @@ helpOfSelectable (SelUndeclared _) = Just
 helpOfSelectable (SelRandom _) = Just
     "Random set of guild members. Colours show relative esteem, bright red (-3) to bright green (+3)."
 helpOfSelectable (SelScoreLock (Just name) Nothing _) = Just $
-    "Your lock, the secrets to which "++name++" is not privy."
+    "Your lock, the secrets of which "++name++" is not privy to."
 helpOfSelectable (SelScoreLock (Just name) (Just AccessedPrivyRead) _) = Just $
-    "Your lock, the secrets to which "++name++" has read three notes on: -1 to relative esteem."
+    "Your lock, the secrets of which "++name++" has read three notes on: -1 to relative esteem."
 helpOfSelectable (SelScoreLock (Just name) (Just (AccessedPrivySolved False)) _) = Just $
     "Your lock, on which "++name++" has declared a note which you have not read: -1 to relative esteem."
 helpOfSelectable (SelScoreLock (Just name) (Just (AccessedPrivySolved True)) _) = Just $
@@ -298,9 +298,9 @@ helpOfSelectable (SelScoreLock (Just name) (Just AccessedPub) _) = Just $
 helpOfSelectable (SelScoreLock (Just name) (Just AccessedEmpty) _) = Just $
     "Your empty lock slot; "++name++" is privy to the secrets of all your locks: -1 to relative esteem."
 helpOfSelectable (SelScoreLock Nothing Nothing (ActiveLock name _)) = Just $
-    name++"'s lock, the secrets to which you are not privy."
+    name++"'s lock, the secrets of which you are not privy to."
 helpOfSelectable (SelScoreLock Nothing (Just AccessedPrivyRead) (ActiveLock name _)) = Just $
-    name++"'s lock, the secrets to which you have read three notes on: +1 to relative esteem."
+    name++"'s lock, the secrets of which you have read three notes on: +1 to relative esteem."
 helpOfSelectable (SelScoreLock Nothing (Just (AccessedPrivySolved False)) (ActiveLock name _)) = Just $
     name++"'s lock, on which you have declared a note which "++name++" has not read: +1 to relative esteem."
 helpOfSelectable (SelScoreLock Nothing (Just (AccessedPrivySolved True)) (ActiveLock name _)) = Just $
@@ -372,11 +372,11 @@ uiOB2 = UIOptButton showBlocks (\v o -> o {showBlocks=v}) [ShowBlocksBlocking,Sh
 uiOB3 = UIOptButton whsButtons (\v o -> o {whsButtons=v}) [Nothing, Just WHSSelected, Just WHSWrench, Just WHSHook]
 	(periphery 3 <+> 3 <*> hv) WhsButtonsButton
 	(\v -> case v of
-	    Nothing -> "Click to show keyboard control buttons."
+	    Nothing -> "Click to show (and rebind) keyboard control buttons."
 	    Just whs -> "Showing buttons for controlling " ++ case whs of
 		WHSSelected -> "selected piece"
 		WHSWrench -> "wrench"
-		WHSHook -> "hook")
+		WHSHook -> "hook; right-click to rebind")
 	Nothing
 uiOB4 = UIOptButton showButtonText (\v o -> o {showButtonText=v}) [True,False]
 	(periphery 0 <+> 2 <*> hu <+> 2 <*> hv) ShowButtonTextButton
