@@ -175,37 +175,37 @@ class Monoid g => Grp g where
 instance (Grp g1, Grp g2) => Grp (g1,g2) where
     neg (a,b) = (neg a, neg b)
 
-infixl 6 <+>
-infixl 6 <->
+infixl 6 +^
+infixl 6 -^
 class Action a b where
-    (<+>) :: a -> b -> b
+    (+^) :: a -> b -> b
 instance Monoid m => Action m m where
-    (<+>) = mappend
+    (+^) = mappend
 
 class Differable a b c where
-    (<->) :: a -> b -> c
+    (-^) :: a -> b -> c
 instance Grp g => Differable g g g where
-    x <-> y = x <+> (neg y)
+    x -^ y = x +^ (neg y)
 
 newtype PHS g = PHS { getPHS :: g }
     deriving (Eq, Ord, Show, Read)
 
 instance Grp g => Action g (PHS g) where
-    x <+> (PHS y) = PHS (x <+> y)
+    x +^ (PHS y) = PHS (x +^ y)
 instance Grp g => Differable (PHS g) (PHS g) g where
-    (PHS x) <-> (PHS y) = x <-> y
+    (PHS x) -^ (PHS y) = x -^ y
     
-infixl 7 <*>
+infixl 7 *^
 class MultAction a b where
-    (<*>) :: a -> b -> b
+    (*^) :: a -> b -> b
     
 instance (Grp a, Integral n) => MultAction n a where
-    0 <*> _              = zero
-    1 <*> x              = x
-    n <*> x
-	| n < 0     = (-n) <*> (neg x)
-	| even n    = (n `div` 2) <*> (x <+> x)
-	| otherwise = x <+> ((n `div` 2) <*> (x <+> x))
+    0 *^ _              = zero
+    1 *^ x              = x
+    n *^ x
+	| n < 0     = (-n) *^ (neg x)
+	| even n    = (n `div` 2) *^ (x +^ x)
+	| otherwise = x +^ ((n `div` 2) *^ (x +^ x))
 
 \end{code}
 
@@ -238,7 +238,7 @@ test1 = index (tup2hv (-3,-3,6), tup2hv (3,3,-6)) (r!!5) == 5
 
 a :: PHS HexVec
 a = PHS zero
-test2 = hu <+> a
+test2 = hu +^ a
 -}
 \end{code}
 \end{document}

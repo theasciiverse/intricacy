@@ -72,8 +72,8 @@ drawActiveLock pos al@(ActiveLock name i) = do
 
 drawNameWithChar :: CVec -> Codename -> ColPair -> Char -> MainStateT UIM ()
 drawNameWithChar pos name charcol char = do
-    drawName False (pos <+> CVec 0 (-1)) name
-    lift $ drawStr bold charcol (pos <+> CVec 0 1) [':',char]
+    drawName False (pos +^ CVec 0 (-1)) name
+    lift $ drawStr bold charcol (pos +^ CVec 0 1) [':',char]
 
 drawNote :: CVec -> NoteInfo -> MainStateT UIM ()
 drawNote pos note = case noteBehind note of
@@ -102,7 +102,7 @@ fillBox (CVec t l) (CVec b r) width grav draws = do
 	    [ map (CVec j) [ l+margin + (width+1)*i | i <- [0..(r-l-(2*margin))`div`(width+1)] ]
 	    | j <- [t..b]
 	    , let margin = if (j-starty)`mod`2 == 0 then half else width ]
-	dist v = sqlen $ v <-> gravCentre
+	dist v = sqlen $ v -^ gravCentre
 	sqlen (CVec y x) = (y*(width+1))^2+x^2
     selDraws <- do
 	    offset <- gets listOffset

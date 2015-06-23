@@ -63,7 +63,7 @@ drawTile pos tile painting = do
     modify $ \es -> es {lastModPos = pos}
 paintTilePath tile from to = if from == to
     then modify $ \es -> es {lastModPos = to}
-    else let from' = (hexVec2HexDirOrZero $ to<->from) <+> from
+    else let from' = (hexVec2HexDirOrZero $ to-^from) +^ from
 	in drawTile from' tile True >> paintTilePath tile from' to
 
 pushEState :: UIMonad uiM => GameState -> MainStateT uiM ()

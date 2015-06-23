@@ -26,7 +26,7 @@ import qualified Data.List as List
 import Data.List (maximumBy)
 import Data.Function (on)
 import GHC.Int (Int16)
-import Control.Applicative hiding ((<*>))
+import Control.Applicative
 import System.Random (randomRIO)
 
 import Hex
@@ -298,7 +298,7 @@ renderGlyph (TurnedArm armdir tdir col) centre size surf =
     sequence_ [ arc surf (fi x) (fi y) (fi $ n*size `div` 4)
 	a1 a2 col | n <- [8,9] ]
     where
-	SVec x y = centre <+> hexVec2SVec size (neg armdir)
+	SVec x y = centre +^ hexVec2SVec size (neg armdir)
 	a0 = fi $ -60*hextant armdir
 	a1' = a0 + fi tdir * 10
 	a2' = a0 + fi tdir * 30
@@ -306,7 +306,7 @@ renderGlyph (TurnedArm armdir tdir col) centre size surf =
 	a2 = max a1' a2'
 
 renderGlyph (BlockedBlock tile dir col) centre size surf =
-    renderGlyph (TileGlyph tile col) (shift <+> centre) size surf
+    renderGlyph (TileGlyph tile col) (shift +^ centre) size surf
 	where
 	    shift = SVec (x'-x) (y'-y)
 	    (x,y) = innerCorner centre size dir
@@ -515,7 +515,7 @@ runRenderM m cgs rc = runStateT (runReaderT m rc) cgs
 
 displaceRender :: SVec -> RenderM a -> RenderM a
 displaceRender disp = local displace
-    where displace rc = rc { renderSCentre = renderSCentre rc <+> disp }
+    where displace rc = rc { renderSCentre = renderSCentre rc +^ disp }
 
 recentreAt :: HexVec -> RenderM a -> RenderM a
 recentreAt v m = do
@@ -553,12 +553,12 @@ drawBasicBG maxR = sequence_ [ drawAtRel (HollowGlyph $ colAt v) v | v <- hexDis
 drawAt :: Glyph -> HexPos -> RenderM ()
 drawAt gl pos = do
 	centre <- asks renderHCentre
-	drawAtRel gl (pos <-> centre)
+	drawAtRel gl (pos -^ centre)
 
 drawAtRel :: Glyph -> HexVec -> RenderM ()
 drawAtRel gl v = do
 	(surf, scrCentre, size) <- asks $ liftM3 (,,) renderSurf renderSCentre renderSize
-	let cpos = scrCentre <+> (hexVec2SVec size v)
+	let cpos = scrCentre +^ (hexVec2SVec size v)
 	renderGlyphCaching gl cpos size surf
 
 messageCol = white
@@ -578,8 +578,8 @@ renderStrColAt' centred c str v = void $ runMaybeT $ do
     fsurf <- MaybeT $ liftIO $ TTF.tryRenderTextBlended font str $ pixelToColor c
     (surf, scrCentre, size) <- lift $ asks $
 	liftM3 (,,) renderSurf renderSCentre renderSize
-    let SVec x y = scrCentre <+> (hexVec2SVec size v)
-	    <+> neg (SVec 0 ((surfaceGetHeight fsurf-1)`div`2) <+>
+    let SVec x y = scrCentre +^ (hexVec2SVec size v)
+	    +^ neg (SVec 0 ((surfaceGetHeight fsurf-1)`div`2) +^
 		if centred
 		    then SVec ((surfaceGetWidth fsurf)`div`2) 0
 		    else SVec 0 0)
@@ -588,7 +588,7 @@ renderStrColAt' centred c str v = void $ runMaybeT $ do
 blankRow v = do
     (surf, scrCentre, size) <- asks $
 	liftM3 (,,) renderSurf renderSCentre renderSize
-    let SVec _ y = scrCentre <+> (hexVec2SVec size v)
+    let SVec _ y = scrCentre +^ (hexVec2SVec size v)
 	w = surfaceGetWidth surf
 	h = ceiling $ fi (size * 3 `div` 2) * 2 / sqrt 3
     fillRectBG $ Just $ Rect 0 (y-h`div`2) w h
@@ -604,7 +604,7 @@ drawBlocked st colouring blocking (Torque idx dir) = do
 	    PlacedPiece pos (Hook arm _) -> (pos,[arm])
 	    _ -> (pos,[])
 	col = if blocking then bright $ purple else dim $ colourOf colouring idx
-    sequence_ [ drawAt (BlockedArm arm dir col) (arm <+> pos) |
+    sequence_ [ drawAt (BlockedArm arm dir col) (arm +^ pos) |
 	arm <- arms ]
 drawBlocked st colouring blocking (Push idx dir) = do
     let footprint = plPieceFootprint $ getpp st idx
@@ -612,7 +612,7 @@ drawBlocked st colouring blocking (Push idx dir) = do
 	col = bright $ if blocking then purple else orange
     sequence_ [ drawAt (BlockedPush dir col) pos
 	| pos <- footprint
-	, (dir<+>pos) `notElem` fullfootprint ]
+	, (dir+^pos) `notElem` fullfootprint ]
     -- drawAt (blockedPush dir $ bright orange) $ placedPos $ getpp st idx
 
 drawApplied :: GameState -> PieceColouring -> Force -> RenderM ()
@@ -622,7 +622,7 @@ drawApplied st colouring (Torque idx dir) = do
 	    PlacedPiece pos (Hook arm _) -> (pos,[arm])
 	    _ -> (pos,[])
 	col = dim $ colourOf colouring idx
-    sequence_ [ drawAt (TurnedArm arm dir col) (arm <+> pos) |
+    sequence_ [ drawAt (TurnedArm arm dir col) (arm +^ pos) |
 	    arm <- arms ]
 drawApplied _ _ _ = return ()
 
@@ -630,7 +630,7 @@ drawApplied _ _ _ = return ()
 blitAt :: Surface -> HexVec -> RenderM ()
 blitAt surface v = do
     (surf, scrCentre, size) <- asks $ liftM3 (,,) renderSurf renderSCentre renderSize
-    let SVec x y = scrCentre <+> (hexVec2SVec size v)
+    let SVec x y = scrCentre +^ (hexVec2SVec size v)
 	w = surfaceGetWidth surface
 	h = surfaceGetHeight surface
     void $ liftIO $ blitSurface surface Nothing surf $ Just $

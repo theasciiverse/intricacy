@@ -16,7 +16,7 @@ import Graphics.UI.SDL hiding (flip)
 import qualified Graphics.UI.SDL as SDL
 import qualified Graphics.UI.SDL.TTF as TTF
 import Control.Concurrent.STM
-import Control.Applicative hiding ((<*>))
+import Control.Applicative
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.Maybe
@@ -148,54 +148,54 @@ getButtons mode = do
     cntxtButtons <- gets contextButtons
     return $ cntxtButtons ++ global ++ case mode of
 	IMEdit -> [
-	    singleButton (tl<+>hv<+>neg hw) CmdTest 1 [("test", hu<+>neg hw)]
-	    , singleButton (tl<+>(neg hw)) CmdPlay 2 [("play", hu<+>neg hw)]
+	    singleButton (tl+^hv+^neg hw) CmdTest 1 [("test", hu+^neg hw)]
+	    , singleButton (tl+^(neg hw)) CmdPlay 2 [("play", hu+^neg hw)]
 	    , markGroup
-	    , singleButton (br<+>2<*>hu) CmdWriteState 2 [("save", hu<+>neg hw)] ]
+	    , singleButton (br+^2*^hu) CmdWriteState 2 [("save", hu+^neg hw)] ]
 	    ++ whsBGs mwhs mode
-	    ++ [ ([Button (paintButtonStart <+> hu <+> i<*>hv) (paintTileCmds!!i) []
+	    ++ [ ([Button (paintButtonStart +^ hu +^ i*^hv) (paintTileCmds!!i) []
 		| i <- take (length paintTiles) [0..] ],(5,0)) ]
 	IMPlay ->
 	    [ markGroup ]
 	    ++ whsBGs mwhs mode
-	    ++ [ singleButton tr CmdOpen 1 [("open", hu<+>neg hw)] ]
+	    ++ [ singleButton tr CmdOpen 1 [("open", hu+^neg hw)] ]
 	IMReplay -> [ markGroup ]
 	IMMeta ->
-	    [ singleButton serverPos CmdSetServer 0 [("server",3<*>hw)]
-	    , singleButton (serverPos<+>neg hu) CmdToggleCacheOnly 0 [("cache",hv<+>6<*>neg hu),("only",hw<+>5<*>neg hu)]
-	    , singleButton (codenamePos <+> 2<*>neg hu) (CmdSelCodename Nothing) 2 [("code",hv<+>5<*>neg hu),("name",hw<+>5<*>neg hu)]
-	    , singleButton (serverPos <+> 2<*>neg hv <+> 2<*>hw) CmdTutorials 3 [("play",hu<+>neg hw),("tut",hu<+>neg hv)]
+	    [ singleButton serverPos CmdSetServer 0 [("server",3*^hw)]
+	    , singleButton (serverPos+^neg hu) CmdToggleCacheOnly 0 [("cache",hv+^6*^neg hu),("only",hw+^5*^neg hu)]
+	    , singleButton (codenamePos +^ 2*^neg hu) (CmdSelCodename Nothing) 2 [("code",hv+^5*^neg hu),("name",hw+^5*^neg hu)]
+	    , singleButton (serverPos +^ 2*^neg hv +^ 2*^hw) CmdTutorials 3 [("play",hu+^neg hw),("tut",hu+^neg hv)]
 	    ]
 
 	_ -> []
 	where
-	    markGroup = ([Button (tl<+>hw) CmdMark [("set",hu<+>neg hw),("mark",hu<+>neg hv)]
-		, Button (tl<+>hw<+>hv) CmdJumpMark [("jump",hu<+>neg hw),("mark",hu<+>neg hv)]
-		, Button (tl<+>hw<+>2<*>hv) CmdReset [("jump",hu<+>neg hw),("start",hu<+>neg hv)]],(0,1))
+	    markGroup = ([Button (tl+^hw) CmdMark [("set",hu+^neg hw),("mark",hu+^neg hv)]
+		, Button (tl+^hw+^hv) CmdJumpMark [("jump",hu+^neg hw),("mark",hu+^neg hv)]
+		, Button (tl+^hw+^2*^hv) CmdReset [("jump",hu+^neg hw),("start",hu+^neg hv)]],(0,1))
 	    global = if mode == IMTextInput then [] else
-		[ singleButton br CmdQuit 0 [("quit",hu<+>neg hw)]
-		, singleButton (tr <+> 3<*>hv <+> 3<*>hu) CmdHelp 3 [("help",hu<+>neg hw)] ]
+		[ singleButton br CmdQuit 0 [("quit",hu+^neg hw)]
+		, singleButton (tr +^ 3*^hv +^ 3*^hu) CmdHelp 3 [("help",hu+^neg hw)] ]
 	    whsBGs :: Maybe WrHoSel -> InputMode -> [ ButtonGroup ]
 	    whsBGs Nothing _ = []
 	    whsBGs (Just whs) mode =
 		let edit = mode == IMEdit
 		in [ ( [ Button bl (if edit then CmdSelect else CmdWait) [] ], (0,0))
-		, ( [ Button (bl<+>dir) (CmdDir whs dir)
-			(if dir==hu then [("move",hu<+>neg hw),(if edit then "piece" else whsStr whs,hu<+>neg hv)] else [])
+		, ( [ Button (bl+^dir) (CmdDir whs dir)
+			(if dir==hu then [("move",hu+^neg hw),(if edit then "piece" else whsStr whs,hu+^neg hv)] else [])
 		    | dir <- hexDirs ], (5,0) )
 		] ++
 		(if whs == WHSWrench then [] else
-		    [ ( [ Button (bl<+>((-2)<*>hv))
+		    [ ( [ Button (bl+^((-2)*^hv))
 			    (CmdRotate whs (-1))
-			    [("turn",hu<+>neg hw),("cw",hu<+>neg hv)]
-			, Button (bl<+>((-2)<*>hw))
+			    [("turn",hu+^neg hw),("cw",hu+^neg hv)]
+			, Button (bl+^((-2)*^hw))
 			    (CmdRotate whs 1)
-			    [("turn",hu<+>neg hw),("ccw",hu<+>neg hv)]
+			    [("turn",hu+^neg hw),("ccw",hu+^neg hv)]
 			], (5,0) )
 		]) ++
 		(if whs /= WHSSelected || mode == IMEdit then [] else
-		    [ ( [ Button (bl<+>(2<*>hv)<+>hw<+>neg hu) (CmdTile $ HookTile) [("select",hu<+>neg hw),("hook",hu<+>neg hv)]
-			, Button (bl<+>(2<*>hv)<+>neg hu) (CmdTile $ WrenchTile zero) [("select",hu<+>neg hw),("wrench",hu<+>neg hv)]
+		    [ ( [ Button (bl+^(2*^hv)+^hw+^neg hu) (CmdTile $ HookTile) [("select",hu+^neg hw),("hook",hu+^neg hv)]
+			, Button (bl+^(2*^hv)+^neg hu) (CmdTile $ WrenchTile zero) [("select",hu+^neg hw),("wrench",hu+^neg hv)]
 			], (2,0) ) ])
 	    tr = periphery 0
 	    tl = periphery 2
@@ -229,7 +229,7 @@ data Selectable = SelOurLock
 registerSelectable :: HexVec -> Int -> Selectable -> UIM ()
 registerSelectable v r s =
     modify $ \ds -> ds {metaSelectables = foldr
-	(`Map.insert` s) (metaSelectables ds) $ map (v<+>) $ hexDisc r}
+	(`Map.insert` s) (metaSelectables ds) $ map (v+^) $ hexDisc r}
 registerButtonGroup :: ButtonGroup -> UIM ()
 registerButtonGroup g = modify $ \ds -> ds {contextButtons = g:contextButtons ds}
 registerButton :: HexVec -> Command -> Int -> [ButtonHelp] -> UIM ()
@@ -240,8 +240,8 @@ clearButtons = modify $ \ds -> ds {contextButtons = []}
 
 registerUndoButtons :: Bool -> Bool -> UIM ()
 registerUndoButtons noUndo noRedo = do
-    unless noUndo $ registerButton (periphery 2<+>hu) CmdUndo 0 [("undo",hu<+>neg hw)]
-    unless noRedo $ registerButton (periphery 2<+>hu<+>neg hv) CmdRedo 2 [("redo",hu<+>neg hw)]
+    unless noUndo $ registerButton (periphery 2+^hu) CmdUndo 0 [("undo",hu+^neg hw)]
+    unless noRedo $ registerButton (periphery 2+^hu+^neg hv) CmdRedo 2 [("redo",hu+^neg hw)]
 
 commandOfSelectable IMMeta SelOurLock _ = CmdEdit
 commandOfSelectable IMMeta (SelLock (ActiveLock _ i)) False = CmdSolve (Just i)
@@ -365,19 +365,19 @@ data UIOptButton a = UIOptButton { getUIOpt::UIOptions->a, setUIOpt::a->UIOption
 
 -- non-uniform type, so can't use a list...
 uiOB1 = UIOptButton useFiveColouring (\v o -> o {useFiveColouring=v}) [True,False]
-	(periphery 0 <+> 2 <*> hu) UseFiveColourButton
+	(periphery 0 +^ 2 *^ hu) UseFiveColourButton
 	(\v -> if v then "Adjacent pieces get different colours" else
 	"Pieces are coloured according to type")
 	Nothing
 uiOB2 = UIOptButton showBlocks (\v o -> o {showBlocks=v}) [ShowBlocksBlocking,ShowBlocksAll,ShowBlocksNone]
-	(periphery 0 <+> 2 <*> hu <+> 2 <*> neg hv) ShowBlocksButton
+	(periphery 0 +^ 2 *^ hu +^ 2 *^ neg hv) ShowBlocksButton
 	(\v -> case v of
 	    ShowBlocksBlocking -> "Blocking forces are annotated"
 	    ShowBlocksAll -> "Blocked and blocking forces are annotated"
 	    ShowBlocksNone -> "Blockage annotations disabled")
 	Nothing
 uiOB3 = UIOptButton whsButtons (\v o -> o {whsButtons=v}) [Nothing, Just WHSSelected, Just WHSWrench, Just WHSHook]
-	(periphery 3 <+> 3 <*> hv) WhsButtonsButton
+	(periphery 3 +^ 3 *^ hv) WhsButtonsButton
 	(\v -> case v of
 	    Nothing -> "Click to show (and rebind) keyboard control buttons."
 	    Just whs -> "Showing buttons for controlling " ++ case whs of
@@ -386,17 +386,17 @@ uiOB3 = UIOptButton whsButtons (\v o -> o {whsButtons=v}) [Nothing, Just WHSSele
 		WHSHook -> "hook; right-click to rebind")
 	Nothing
 uiOB4 = UIOptButton showButtonText (\v o -> o {showButtonText=v}) [True,False]
-	(periphery 0 <+> 2 <*> hu <+> 2 <*> hv) ShowButtonTextButton
+	(periphery 0 +^ 2 *^ hu +^ 2 *^ hv) ShowButtonTextButton
 	(\v -> if v then "Help text enabled" else
 	"Help text disabled")
 	Nothing
 uiOB5 = UIOptButton fullscreen (\v o -> o {fullscreen=v}) [True,False]
-	(periphery 0 <+> 4 <*> hu <+> 2 <*> hv) FullscreenButton
+	(periphery 0 +^ 4 *^ hu +^ 2 *^ hv) FullscreenButton
 	(\v -> if v then "Currently in fullscreen mode; click to toggle" else
 	"Currently in windowed mode; click to toggle")
 	(Just $ const $ initVideo 0 0)
 uiOB6 = UIOptButton useSounds (\v o -> o {useSounds=v}) [True,False]
-	(periphery 0 <+> 3 <*> hu <+> hv) UseSoundsButton
+	(periphery 0 +^ 3 *^ hu +^ hv) UseSoundsButton
 	(\v -> if v then "Sound effects enabled" else
 	"Sound effects disabled")
 	Nothing
@@ -482,7 +482,7 @@ getEffPaintTileIndex = do
     else gets paintTileIndex
 
 paintButtonStart :: HexVec
-paintButtonStart = periphery 0 <+> (- length paintTiles `div` 2)<*>hv
+paintButtonStart = periphery 0 +^ (- length paintTiles `div` 2)*^hv
 
 drawPaintButtons :: UIM ()
 drawPaintButtons = do
@@ -495,16 +495,16 @@ drawPaintButtons = do
 	    drawAtRel gl pos
 	    when selected $ drawAtRel cursorGlyph pos
 	| i <- take (length paintTiles) [0..]
-	, let pos = paintButtonStart <+> i<*>hv
+	, let pos = paintButtonStart +^ i*^hv
 	, let selected = i == pti
 	]
 
-periphery 0 = ((3*maxlocksize)`div`2)<*>hu <+> ((3*maxlocksize)`div`4)<*>hv
+periphery 0 = ((3*maxlocksize)`div`2)*^hu +^ ((3*maxlocksize)`div`4)*^hv
 periphery n = rotate n $ periphery 0
 -- ^ XXX only peripheries 0,2,3,5 are guaranteed to be on-screen!
---messageLineStart = (maxlocksize+1)<*>hw
-messageLineCentre = ((maxlocksize+1)`div`2)<*>hw <+> ((maxlocksize+1+1)`div`2)<*>neg hv
-titlePos = (maxlocksize+1)<*>hv <+> ((maxlocksize+1)`div`2)<*>hu
+--messageLineStart = (maxlocksize+1)*^hw
+messageLineCentre = ((maxlocksize+1)`div`2)*^hw +^ ((maxlocksize+1+1)`div`2)*^neg hv
+titlePos = (maxlocksize+1)*^hv +^ ((maxlocksize+1)`div`2)*^hu
 
 screenWidthHexes,screenHeightHexes::Int
 screenWidthHexes = 32
@@ -802,15 +802,15 @@ drawTitle Nothing = return ()
 say = setMsgLine messageCol
 sayError = setMsgLine errorCol
 
-miniLockPos = (-9)<*>hw <+> hu
-lockLinePos = 4<*>hu <+> miniLockPos
-serverPos = 12<*>hv <+> 7<*>neg hu
-serverWaitPos = serverPos <+> hw <+> neg hu
-randomNamesPos = 9<*>hv <+> 2<*> neg hu
-codenamePos = (-6)<*>hw <+> 6<*>hv
-undeclsPos = 13<*>neg hu
-accessedOursPos = 2<*>hw <+> codenamePos
-locksPos = hw<+>neg hv
-retiredPos = locksPos <+> 11<*>hu <+> neg hv
-interactButtonsPos = 9<*>neg hu <+> 8<*>hw
-scoresPos = codenamePos <+> 5<*>hu <+> 2<*>neg hv
+miniLockPos = (-9)*^hw +^ hu
+lockLinePos = 4*^hu +^ miniLockPos
+serverPos = 12*^hv +^ 7*^neg hu
+serverWaitPos = serverPos +^ hw +^ neg hu
+randomNamesPos = 9*^hv +^ 2*^ neg hu
+codenamePos = (-6)*^hw +^ 6*^hv
+undeclsPos = 13*^neg hu
+accessedOursPos = 2*^hw +^ codenamePos
+locksPos = hw+^neg hv
+retiredPos = locksPos +^ 11*^hu +^ neg hv
+interactButtonsPos = 9*^neg hu +^ 8*^hw
+scoresPos = codenamePos +^ 5*^hu +^ 2*^neg hv

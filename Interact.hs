@@ -463,7 +463,7 @@ processCommand' IMPlay (CmdManipulateToolAt pos) = do
 	    guard $ case tile of {WrenchTile _ -> True; HookTile -> True; _ -> False}
 	    lift $ processCommand' IMPlay $ CmdTile tile
 	] ++ [ do
-	    tile <- liftMaybe $ snd <$> Map.lookup (d<+>pos) board
+	    tile <- liftMaybe $ snd <$> Map.lookup (d+^pos) board
 	    guard $ tileType tile == if wsel then WrenchTile zero else HookTile
 	    lift $ processCommand' IMPlay $ CmdDir WHSSelected $ neg d
 	    | d <- hexDirs ]
@@ -479,7 +479,7 @@ processCommand' IMPlay (CmdDrag pos dir) = do
 		tile' <- liftMaybe $ snd <$> Map.lookup pos' board'
 		guard $ tileType tile' == if wsel then WrenchTile zero else HookTile
 		lift.lift $ warpPointer $ pos'
-	    | pos' <- map (<+>pos) $ hexDisc 2 ]
+	    | pos' <- map (+^pos) $ hexDisc 2 ]
 
 processCommand' IMPlay cmd = do
     wsel <- gets wrenchSelected
@@ -574,7 +574,7 @@ processCommand' IMEdit (CmdDir _ dir) = do
     selPiece <- gets selectedPiece
     frame <- gets esFrame
     case selPiece of
-	Nothing -> modify $ \es -> es {selectedPos = checkEditable frame selPos $ dir <+> selPos}
+	Nothing -> modify $ \es -> es {selectedPos = checkEditable frame selPos $ dir +^ selPos}
 	Just p -> doForce $ Push p dir
 processCommand' IMEdit (CmdMoveTo newPos) = do
     frame <- gets esFrame
@@ -591,7 +591,7 @@ processCommand' IMEdit (CmdDrag pos dir) = do
 		idx' <- liftMaybe $ fst <$> Map.lookup pos' board'
 		guard $ idx' == selIdx
 		lift.lift $ warpPointer $ pos'
-	    | pos' <- [dir<+>pos, pos] ]
+	    | pos' <- [dir+^pos, pos] ]
 processCommand' IMEdit (CmdRotate _ dir) = do
     selPiece <- gets selectedPiece
     case selPiece of

@@ -87,7 +87,7 @@ drawAt gl pos =
 
 drawAtWithGeom :: Glyph -> HexPos -> Geom -> UIM ()
 drawAtWithGeom gl pos geom@(scrCentre,centre) =
-    drawAtCVec gl $ scrCentre <+> (hexVec2CVec $ pos <-> centre)
+    drawAtCVec gl $ scrCentre +^ (hexVec2CVec $ pos -^ centre)
 
 drawAtCVec :: Glyph -> CVec -> UIM ()
 drawAtCVec gl cpos = do
@@ -102,7 +102,7 @@ drawStrGrey :: CVec -> String -> UIM ()
 drawStrGrey = drawStr a0 0
 drawStrCentred :: Curses.Attr -> ColPair -> CVec -> [Char] -> UIM ()
 drawStrCentred attr col v str =
-    drawStr attr col (v <+> CVec 0 (-length str `div` 2)) str
+    drawStr attr col (v +^ CVec 0 (-length str `div` 2)) str
 
 drawCursorAt :: Maybe HexPos -> UIM ()
 drawCursorAt Nothing =
@@ -110,7 +110,7 @@ drawCursorAt Nothing =
 drawCursorAt (Just pos) = do
     geom@(scrCentre,centre) <- getGeom
     liftIO $ Curses.cursSet Curses.CursorVisible
-    liftIO $ move $ scrCentre <+> (hexVec2CVec $ pos <-> centre)
+    liftIO $ move $ scrCentre +^ (hexVec2CVec $ pos -^ centre)
 
 drawState :: [PieceIdx] -> Bool -> [Alert] -> GameState -> UIM ()
 drawState reversed colourFixed alerts st = do

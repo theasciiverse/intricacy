@@ -24,7 +24,7 @@ frameSize :: Frame -> Int
 frameSize (BasicFrame size) = size
 
 bolthole, entrance :: Frame -> HexVec
-bolthole (BasicFrame size) = size<*>hu <+> (size`div`2)<*>hv
+bolthole (BasicFrame size) = size*^hu +^ (size`div`2)*^hv
 entrance f = neg $ bolthole f
 
 boltWidth :: Frame -> Int
@@ -37,26 +37,26 @@ baseState f =
 	(Vector.fromList $ [ framePiece f, bolt ] ++ (initTools f))
 	[]
     where
-	bolt = PlacedPiece (bolthole f <+> origin) $ Block $
-	    [ n<*>hu | n <- [-1..boltWidth f - 1] ] -- ++ [(-2)<*>hu<+>neg hv]
+	bolt = PlacedPiece (bolthole f +^ origin) $ Block $
+	    [ n*^hu | n <- [-1..boltWidth f - 1] ] -- ++ [(-2)*^hu+^neg hv]
 
 framePiece :: Frame -> PlacedPiece
 framePiece f@(BasicFrame size) =
     PlacedPiece origin $ Block $
-	map (bolthole f <+>) (
-	    [ bw<*>hu <+> n<*>hv | n <- [0..bw] ]
-	    ++ [ bw<*>hu <+> i<*>hw <+> n<*>hv | i <- [1..bw-1], n <- [0,bw+i] ])
-	++ (map (entrance f <+>) [neg hu <+> hv, 2 <*> neg hu, neg hu <+> hw,
-		2 <*> hw, neg hv <+> hw])
+	map (bolthole f +^) (
+	    [ bw*^hu +^ n*^hv | n <- [0..bw] ]
+	    ++ [ bw*^hu +^ i*^hw +^ n*^hv | i <- [1..bw-1], n <- [0,bw+i] ])
+	++ (map (entrance f +^) [neg hu +^ hv, 2 *^ neg hu, neg hu +^ hw,
+		2 *^ hw, neg hv +^ hw])
 	++ (concat [
-		map (rotate r) [ (n<*>hu) <+> (size<*>hw) | n <- [0..size-1] ] | r <- [0..5] ] \\
+		map (rotate r) [ (n*^hu) +^ (size*^hw) | n <- [0..size-1] ] | r <- [0..5] ] \\
 	    [bolthole f, entrance f])
     where bw = boltWidth f
 
 initTools :: Frame -> [PlacedPiece]
 initTools f =
-    [ PlacedPiece (entrance f <+> neg hu <+> origin) $ Wrench zero,
-    PlacedPiece (entrance f <+> hw <+> origin) $ Hook (neg hw) NullHF ]
+    [ PlacedPiece (entrance f +^ neg hu +^ origin) $ Wrench zero,
+    PlacedPiece (entrance f +^ hw +^ origin) $ Hook (neg hw) NullHF ]
 
 clearToolArea :: Frame -> GameState -> GameState
 clearToolArea f st = foldr delPieceIn st $ toolsArea f
@@ -64,12 +64,12 @@ clearToolArea f st = foldr delPieceIn st $ toolsArea f
 
 boltArea,toolsArea :: Frame -> [HexPos]
 boltArea f = map PHS
-	[ bolthole f <+> bw<*>hu <+> i<*>hw <+> n<*>hv | i <- [1..bw-1], n <- [1..bw+i-1] ]
+	[ bolthole f +^ bw*^hu +^ i*^hw +^ n*^hv | i <- [1..bw-1], n <- [1..bw+i-1] ]
     where bw = boltWidth f
-toolsArea f = [entrance f <+> v <+> origin | v <- [ neg hu, hw, zero ] ]
+toolsArea f = [entrance f +^ v +^ origin | v <- [ neg hu, hw, zero ] ]
 
 inBounds :: Frame -> HexPos -> Bool
-inBounds f pos = hexLen (pos <-> origin) < frameSize f
+inBounds f pos = hexLen (pos -^ origin) < frameSize f
 inEditable :: Frame -> HexPos -> Bool
 inEditable f pos = inBounds f pos || pos `elem` boltArea f ++ [PHS $ bolthole f] ++ toolsArea f
 checkBounds :: Frame -> HexPos -> HexPos -> HexPos

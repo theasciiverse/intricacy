@@ -10,7 +10,7 @@
 
 module GameState where
 
-import Control.Applicative hiding ((<*>))
+import Control.Applicative
 import Data.Function (on)
 import qualified Data.Map as Map
 import Data.Map (Map)
@@ -36,10 +36,10 @@ getpp st idx = (placedPieces st) ! idx
 
 setpp :: PieceIdx -> PlacedPiece -> GameState -> GameState
 setpp idx pp st@(GameState pps _) =
-    let displacement = (placedPos $ getpp st idx) <-> placedPos pp
+    let displacement = (placedPos $ getpp st idx) -^ placedPos pp
 	updateConn conn@(Connection root@(ridx,rpos) end@(eidx,epos) link)
-	    | ridx == idx = Connection (ridx,rpos<+>displacement) end link
-	    | eidx == idx = Connection root (eidx,epos<+>displacement) link
+	    | ridx == idx = Connection (ridx,rpos+^displacement) end link
+	    | eidx == idx = Connection root (eidx,epos+^displacement) link
 	    | otherwise = conn
     in st {placedPieces = pps // [(idx, pp)]
 	, connections = map updateConn $ connections st }
@@ -57,7 +57,7 @@ components patt
     | otherwise =
 	let c = if zero `Set.member` patt then zero else head $ Set.toList patt
 	    (patt',comp) = floodfill c patt
-	in ( (c, Set.map (<+> neg c) comp) : components patt' )
+	in ( (c, Set.map (+^ neg c) comp) : components patt' )
 
 floodfill :: HexVec -> Set HexVec -> (Set HexVec, Set HexVec)
 floodfill start patt = floodfill' start `execState` (patt, Set.empty)
@@ -68,7 +68,7 @@ floodfill start patt = floodfill' start `execState` (patt, Set.empty)
 	      let patt' = Set.delete start patt
 	      unless (Set.size patt' == Set.size patt) $ do
 		  put (patt', Set.insert start dels)
-		  sequence_ [ floodfill' (dir<+>start) | dir <- hexDirs ]
+		  sequence_ [ floodfill' (dir+^start) | dir <- hexDirs ]
 
 delPiece :: PieceIdx -> GameState -> GameState
 delPiece idx (GameState pps conns) =
@@ -99,18 +99,18 @@ adjustPieces f st =
 addBlockPos :: PieceIdx -> HexPos -> GameState -> GameState
 addBlockPos b pos st =
     let PlacedPiece ppos (Block patt) = getpp st b
-    in setPiece b (Block (pos <-> ppos:patt)) st
+    in setPiece b (Block (pos -^ ppos:patt)) st
 
 addPivotArm :: PieceIdx -> HexPos -> GameState -> GameState
 addPivotArm p pos st =
     let PlacedPiece ppos (Pivot arms) = getpp st p
-    in setPiece p (Pivot (pos <-> ppos:arms)) st
+    in setPiece p (Pivot (pos -^ ppos:arms)) st
 
 locusPos :: GameState -> Locus -> HexPos
-locusPos s (idx,v) = v <+> (placedPos $ getpp s idx)
+locusPos s (idx,v) = v +^ (placedPos $ getpp s idx)
 
 posLocus :: GameState -> HexPos -> Maybe Locus
-posLocus st pos = listToMaybe [ (idx,pos<->ppos) |
+posLocus st pos = listToMaybe [ (idx,pos-^ppos) |
     (idx,pp@(PlacedPiece ppos _)) <- enumVec $ placedPieces st
     , pos `elem` plPieceFootprint pp ]
 
@@ -118,7 +118,7 @@ connectionLength :: GameState -> Connection -> Int
 connectionLength st (Connection root end _) =
     let rootPos = locusPos st root
 	endPos = locusPos st end
-    in hexLen (endPos <-> rootPos) - 1
+    in hexLen (endPos -^ rootPos) - 1
 
 springsAtIdx,springsEndAtIdx,springsRootAtIdx :: GameState -> PieceIdx -> [Connection]
 springsAtIdx st idx =
@@ -180,7 +180,7 @@ delPiecePos :: PieceIdx -> HexPos -> GameState -> (GameState, Maybe PieceIdx)
 -- anything
 delPiecePos idx pos st =
     let PlacedPiece ppos p = getpp st idx
-	v = pos <-> ppos
+	v = pos -^ ppos
     in case p of
         Block patt ->
 	    let (st',midx) = componentify idx $ setpp idx (PlacedPiece ppos $ Block $ patt \\ [v]) st
@@ -194,7 +194,7 @@ componentify idx st = let PlacedPiece ppos p = getpp st idx
     in case p of
         Block patt ->
 	    let comps = components $ Set.fromList patt
-		ppOfComp (v,patt) = PlacedPiece (v<+>ppos) $ Block $ Set.toList patt
+		ppOfComp (v,patt) = PlacedPiece (v+^ppos) $ Block $ Set.toList patt
 	    in case comps of
 		[] -> (delPiece idx st, Nothing)
 		zeroComp:newComps ->
@@ -246,16 +246,16 @@ plPieceBoard (idx,pp) = fmap (\x -> (idx,x)) $ plPieceMap pp
 plPieceMap :: PlacedPiece -> Map HexPos Tile
 plPieceMap (PlacedPiece pos (Block pattern)) =
     let pattSet = Set.fromList pattern
-    in Map.fromList [ (rel <+> pos, BlockTile adjs)
+    in Map.fromList [ (rel +^ pos, BlockTile adjs)
 	| rel <- pattern
-	, let adjs = filter (\dir -> (rel <+> dir) `Set.member` pattSet) hexDirs ]
+	, let adjs = filter (\dir -> (rel +^ dir) `Set.member` pattSet) hexDirs ]
 plPieceMap (PlacedPiece pos (Pivot arms)) =
     let overarmed = length arms > 2 in
     Map.fromList $ (pos, PivotTile $ if overarmed then (head arms) else zero ) :
-	[ (rel <+> pos, ArmTile rel main)
+	[ (rel +^ pos, ArmTile rel main)
 	| (rel,main) <- zip arms $ repeat False ]
 plPieceMap (PlacedPiece pos (Hook arm _)) =
-    Map.fromList $ (pos, HookTile) : [ (arm <+> pos, ArmTile arm True) ]
+    Map.fromList $ (pos, HookTile) : [ (arm +^ pos, ArmTile arm True) ]
 plPieceMap (PlacedPiece pos (Wrench mom)) = Map.singleton pos $ WrenchTile mom
 plPieceMap (PlacedPiece pos Ball) = Map.singleton pos BallTile
 
@@ -288,9 +288,9 @@ connectionBoard :: GameState -> Connection -> GameBoard
 connectionBoard st (Connection root end@(eidx,_) (Spring dir natLen)) =
     let rootPos = locusPos st root
 	endPos = locusPos st end
-	curLen = hexLen (endPos <-> rootPos) - 1
+	curLen = hexLen (endPos -^ rootPos) - 1
     in Map.fromList $
-	[ ((d <*> dir) <+> rootPos, (eidx, SpringTile extension dir))
+	[ ((d *^ dir) +^ rootPos, (eidx, SpringTile extension dir))
 	    | d <- [1..curLen],
 	    let extension | d <= natLen - curLen = Compressed
 			  | curLen-d < 2*(curLen - natLen) = Stretched
@@ -306,7 +306,7 @@ castRay start dir board =
     where castRay' 0 _ = Nothing
 	  castRay' n pos =
 	      case Map.lookup pos board of
-		  Nothing -> castRay' (n-1) (dir<+>pos)
+		  Nothing -> castRay' (n-1) (dir+^pos)
 		  Just (idx,_) -> Just (idx,pos)
 
 validGameState :: GameState -> Bool
@@ -317,7 +317,7 @@ validGameState st@(GameState pps conns) = and
 	    | idx <- ppidxs st
 	    , idx' <- [0..idx-1] ]
     , and [ isHexDir dir
-	    && castRay (dir<+>rpos) dir
+	    && castRay (dir+^rpos) dir
 		(stateBoard $ GameState pps (conns \\ [c]))
 		== Just (eidx, epos)
 	    && springExtensionValid st c

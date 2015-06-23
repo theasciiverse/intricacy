@@ -10,7 +10,7 @@
 
 module BoardColouring where
 
-import Control.Applicative hiding ((<*>))
+import Control.Applicative
 import Control.Monad
 import Data.Function (on)
 import qualified Data.Map as Map
@@ -56,7 +56,7 @@ boardColouring st coloured lastCol =
 	    Set.fromList $ nubBy ((==)`on`fst) [ (pos', neg dir)
 		| dir <- hexDirs
 		, pos <- fullFootprint st idx
-		, let pos' = dir <+> pos
+		, let pos' = dir +^ pos
 		, Just True /= do
 		    (idx',_) <- Map.lookup pos' board
 		    return $ idx == idx'
@@ -82,7 +82,7 @@ boardColouring st coloured lastCol =
 		mNext = listToMaybe
 		    [ (pos', rotate (h-2) basedir)
 		    | h <- [1..5]
-		    , let pos' = (rotate h basedir)<+>pos
+		    , let pos' = (rotate h basedir)+^pos
 		    , (fst <$> Map.lookup pos' board) /= Just idx
 		    ]
 		(path,ns) = case mNext of

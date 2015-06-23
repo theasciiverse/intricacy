@@ -10,7 +10,7 @@
 
 module EditGameState (modTile, mergeTiles) where
 
-import Control.Applicative hiding ((<*>))
+import Control.Applicative
 import Data.Function (on)
 import qualified Data.Map as Map
 import Data.Map (Map)
@@ -70,7 +70,7 @@ modTile tile pos lastPos painting st =
 	   Just (BlockTile _) ->
 	       let adjacentBlocks = [ idx |
 		       dir <- hexDirs
-		       , Just (idx, BlockTile _) <- [Map.lookup (dir <+> pos) board']
+		       , Just (idx, BlockTile _) <- [Map.lookup (dir +^ pos) board']
 		       , not $ protectedPiece idx ]
 		   addToIdx = if lastOK && lastElem adjacentBlocks
 		       then lastMOwner
@@ -81,7 +81,7 @@ modTile tile pos lastPos painting st =
 	   Just (ArmTile armdir _) ->
 	       let adjacentPivots = [ idx |
 		       dir <- if armdir == zero then hexDirs else [armdir, neg armdir]
-		       , Just (idx, PivotTile _) <- [Map.lookup (dir <+> pos) board'] ]
+		       , Just (idx, PivotTile _) <- [Map.lookup (dir +^ pos) board'] ]
 		   addToIdx = if lastOK && lastElem adjacentPivots
 		       then lastMOwner
 		       else nextOfAdjacents adjacentPivots True
@@ -91,12 +91,12 @@ modTile tile pos lastPos painting st =
 	   Just (SpringTile _ _) ->
 	       let possibleSprings = [ Connection root end $ Spring sdir natLen |
 		       sdir <- hexDirs
-		       , let epos = sdir <+> pos
+		       , let epos = sdir +^ pos
 		       , Just (eidx, BlockTile _) <- [Map.lookup epos board']
 		       , not $ protectedPiece eidx
-		       , (ridx, rpos) <- maybeToList $ castRay (neg sdir <+> pos) (neg sdir) board'
+		       , (ridx, rpos) <- maybeToList $ castRay (neg sdir +^ pos) (neg sdir) board'
 		       , Just True == (validSpringRootTile `liftM` Map.lookup rpos board')
-		       , let natLen = hexLen (rpos <-> epos) - 1
+		       , let natLen = hexLen (rpos -^ epos) - 1
 		       , natLen > 0
 		       {-
 		       , null [ conn |
@@ -105,8 +105,8 @@ modTile tile pos lastPos painting st =
 			   , not $ sdir' `elem` [sdir,neg sdir] ]
 		       -}
 		       , not $ connGraphPathExists st' eidx ridx
-		       , let end = (eidx, epos <-> (placedPos $ getpp st' eidx))
-		       , let root = (ridx, rpos <-> (placedPos $ getpp st' ridx))
+		       , let end = (eidx, epos -^ (placedPos $ getpp st' eidx))
+		       , let root = (ridx, rpos -^ (placedPos $ getpp st' ridx))
 		       ]
 		   nextSpring = listToMaybe $ fromMaybe possibleSprings $ do
 		       (_,SpringTile _ _) <- curOwnedTile -- XXX: therefore the indices of st are still valid
@@ -119,7 +119,7 @@ modTile tile pos lastPos painting st =
 	   Just (WrenchTile _) -> addPiece $ Wrench zero
 	   Just HookTile -> let arm = listToMaybe [ dir |
 				    dir <- hexDirs
-				    , isNothing $ Map.lookup (dir <+> pos) board' ]
+				    , isNothing $ Map.lookup (dir +^ pos) board' ]
 			    in case arm of Just armdir -> addPiece $ Hook armdir NullHF
 					   _ -> id
 	   Just (BallTile) -> addPiece Ball
@@ -133,7 +133,7 @@ mergeTiles :: HexPos -> HexDir -> Bool -> GameState -> GameState
 mergeTiles pos dir mergePiece st = fromMaybe st $ do
     let board = stateBoard st
     (idx,tile) <- Map.lookup pos board
-    (idx',tile') <- Map.lookup (dir<+>pos) board
+    (idx',tile') <- Map.lookup (dir+^pos) board
     guard $ idx /= idx'
     guard $ all (not . protectedPiece) [idx,idx']
     case tile of
@@ -142,7 +142,7 @@ mergeTiles pos dir mergePiece st = fromMaybe st $ do
 	    let st' = if mergePiece
 			  then delPiece idx st
 			  else fst $ delPiecePos idx pos st
-	    (idx'',_) <- Map.lookup (dir<+>pos) $ stateBoard st'
+	    (idx'',_) <- Map.lookup (dir+^pos) $ stateBoard st'
 	    return $ if mergePiece
 			 then foldr (addBlockPos idx'') st'
 				$ plPieceFootprint $ getpp st idx
@@ -150,6 +150,6 @@ mergeTiles pos dir mergePiece st = fromMaybe st $ do
 	ArmTile _ _  -> do
 	    PivotTile _ <- Just tile'
 	    let st' = fst $ delPiecePos idx pos st
-	    (idx'',_) <- Map.lookup (dir<+>pos) $ stateBoard st'
+	    (idx'',_) <- Map.lookup (dir+^pos) $ stateBoard st'
 	    return $ addPivotArm idx'' pos st'
 	_ -> mzero

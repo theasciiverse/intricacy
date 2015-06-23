@@ -12,7 +12,7 @@ module AsciiLock (lockToAscii, lockOfAscii, stateToAscii
     , readAsciiLockFile, writeAsciiLockFile, monochromeOTileChar) where
 
 import Data.Function (on)
-import Control.Applicative hiding ((<*>))
+import Control.Applicative
 import Control.Monad
 import Control.Arrow ((&&&))
 import qualified Data.Map as Map
@@ -46,7 +46,7 @@ stateToAscii st =
 lockOfAscii :: AsciiLock -> Maybe Lock
 lockOfAscii lines = do
     board <- asciiToBoard lines
-    let size = maximum $ map (hx . (<->origin)) $ Map.keys board
+    let size = maximum $ map (hx . (-^origin)) $ Map.keys board
 	frame = BasicFrame size
     st <- asciiBoardState frame board
     return (frame, st)
@@ -54,11 +54,11 @@ lockOfAscii lines = do
 boardToAscii :: PieceColouring -> GameBoard -> AsciiLock
 boardToAscii colouring board =
     let asciiBoard :: Map CVec Char
-	asciiBoard = Map.mapKeys (hexVec2CVec . (<->origin))
+	asciiBoard = Map.mapKeys (hexVec2CVec . (-^origin))
 	    $ fmap (monochromeOTileChar colouring) board
 	(miny,maxy) = minmax $ map cy $ Map.keys asciiBoard
 	(minx,maxx) = minmax $ map cx $ Map.keys asciiBoard
-	asciiBoard' = Map.mapKeys (<->CVec miny minx) asciiBoard
+	asciiBoard' = Map.mapKeys (-^CVec miny minx) asciiBoard
     in [ [ Map.findWithDefault ' ' (CVec y x) asciiBoard'
 	    | x <- [0..(maxx-minx)] ]
 	| y <- [0..(maxy-miny)] ]
@@ -75,7 +75,7 @@ asciiToBoard lines =
 	midline = filter ((==midy).cy) $ Map.keys asciiBoard
 	(minx,maxx) = minmax $ map cx $ midline
 	centre = CVec midy (minx+(maxx-minx)`div`2)
-    in Map.mapKeys ((<+>origin) . cVec2HexVec . (<->centre))
+    in Map.mapKeys ((+^origin) . cVec2HexVec . (-^centre))
 	<$> T.mapM monoToOTile asciiBoard
 
 asciiBoardState :: Frame -> GameBoard -> Maybe GameState
@@ -117,20 +117,20 @@ asciiBoardState frame board =
 	addAppendages st = foldM addAppendageOT st $ Map.toList $
 	    Map.filter (not.isBaseTile.snd) board
 	addAppendageOT st (pos,(-1,ArmTile dir _)) =
-	    let rpos = (neg dir<+>pos)
+	    let rpos = (neg dir+^pos)
 	    in case Map.lookup rpos baseBoard of
 		Just (idx,PivotTile _) -> Just $ addPivotArm idx pos st
 		Just (idx,HookTile) -> Just $ setpp idx (PlacedPiece rpos (Hook dir NullHF)) st
 		_ -> Nothing
 	addAppendageOT st (pos,(-1,SpringTile _ dir)) =
-	    let rpos = (neg dir<+>pos)
+	    let rpos = (neg dir+^pos)
 	    in case Map.lookup rpos baseBoard of
 		Just (_,SpringTile _ _) -> Just st
 		Just _ -> do
 		    (_,epos) <- castRay pos dir baseBoard
 		    let twiceNatLen = sum [ extnValue extn
-			    | i <- [1..hexLen (epos<->rpos)-1]
-			    , let pos' = i<*>dir<+>rpos
+			    | i <- [1..hexLen (epos-^rpos)-1]
+			    , let pos' = i*^dir+^rpos
 			    , Just (_,SpringTile extn _) <- [ Map.lookup pos' board ] ]
 			extnValue Compressed = 4
 			extnValue Relaxed = 2

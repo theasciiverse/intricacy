@@ -184,13 +184,13 @@ applyForce f s =
 
 collisionsWithForce :: GameState -> Force -> PieceIdx -> [HexPos]
 collisionsWithForce st (Push idx dir) idx' =
-    intersect (map (dir<+>) $ footprintAtIgnoring st idx idx') (footprintAtIgnoring st idx' idx)
+    intersect (map (dir+^) $ footprintAtIgnoring st idx idx') (footprintAtIgnoring st idx' idx)
 collisionsWithForce st force idx' =
     collisions (applyForce force st) (forceIdx force) idx'
 
 applyForceTo :: PlacedPiece -> Force -> PlacedPiece
 applyForceTo (PlacedPiece pos piece) (Push _ dir) =
-    PlacedPiece (dir <+> pos) piece
+    PlacedPiece (dir +^ pos) piece
 applyForceTo (PlacedPiece pos (Pivot arms)) (Torque _ dir) =
     PlacedPiece pos (Pivot $ map (rotate dir) arms)
 applyForceTo (PlacedPiece pos (Hook arm hf)) (Torque _ dir) =
@@ -219,10 +219,10 @@ pieceResists st force =
 transmittedForce :: GameState -> Source -> HexPos -> HexDir -> Force
 transmittedForce st idx cpos dir =
     let pp@(PlacedPiece _ piece) = getpp st idx
-	rpos = cpos <-> placedPos pp
+	rpos = cpos -^ placedPos pp
 	armPush = case
-		(dir `hexDot` ((rotate 1 rpos) <-> rpos)) `compare`
-		(dir `hexDot` ((rotate (-1) rpos) <-> rpos)) of
+		(dir `hexDot` ((rotate 1 rpos) -^ rpos)) `compare`
+		(dir `hexDot` ((rotate (-1) rpos) -^ rpos)) of
 	    GT -> Torque idx 1
 	    LT -> Torque idx $ -1
 	    EQ -> Push idx dir
@@ -245,9 +245,9 @@ propagateForce st@(GameState _ conns) isPlSource force =
 	    , let dirs = case force of
 		    Push _ dir -> [dir]
 		    Torque _ dir -> [push,claw]
-			where push = arm <-> rotate (-dir) arm
-			      claw = rotate dir arm <-> arm
-			      arm = cpos <-> placedPos (getpp st idx) ]
+			where push = arm -^ rotate (-dir) arm
+			      claw = rotate dir arm -^ arm
+			      arm = cpos -^ placedPos (getpp st idx) ]
 	springTransmissions =
 	    case force of
 		 Push _ dir -> [ ForceChoice [Push idx' dir] |
