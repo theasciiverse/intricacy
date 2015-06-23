@@ -1,5 +1,10 @@
 This is an abbreviated summary; see the git log for gory details.
 
+0.5.3:
+    Change direction of mousewheel movements for undo/redo
+	(to agree with English language metaphors with time: up = future).
+    Tutorial fiddling, including new level on springs.
+    Support ghc-7.10 (hopefully).
 0.5.2:
     Fix cache paths on windows.
 0.5.1:
