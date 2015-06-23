@@ -106,6 +106,7 @@ setDefaultServerInfo locksize = do
 -- | We lock the whole database during each request, using haskell's native
 -- file locking, meaning that we have at any time one writer *xor* any number
 -- of readers.
+withDBLock :: MonadIO m => [Char] -> IOMode -> m b -> m b
 withDBLock dbpath lockMode m = do
     h <- liftIO $ getDBLock lockMode
     ret <- m

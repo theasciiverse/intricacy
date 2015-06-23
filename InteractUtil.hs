@@ -98,6 +98,7 @@ nextLock newer path = do
 	    (\x y -> (if newer then (<) else (>)) x (snd y)) time) <$>
 	(\p -> (,) p <$> getModificationTime p) `mapM` paths
 
+setLockPath :: UIMonad uiM => FilePath -> MainStateT uiM ()
 setLockPath path = do
     lock <- liftIO $ fullLockPath path >>= readLock
     modify $ \ms -> ms {curLockPath = path, curLock = lock}
@@ -143,6 +144,7 @@ setMark ch = get >>= \mst -> case mst of
     ReplayState {} -> put $ mst { rsMarks = Map.insert ch mst $ rsMarks mst }
     _ -> return ()
 
+askLockIndex :: UIMonad uiM => [Char] -> String -> (Int -> Bool) -> MaybeT (MainStateT uiM) Int
 askLockIndex prompt failMessage pred = do
     let ok = filter pred [0,1,2]
     case length ok of
@@ -155,6 +157,7 @@ askLockIndex prompt failMessage pred = do
 	    idx <- MaybeT $ lift $ join . (((charLockIndex<$>).listToMaybe)<$>) <$>
 		textInput prompt' 1 False True Nothing Nothing
 	    if idx `elem` ok then return idx else ask ok
+confirmOrBail :: UIMonad uiM => String -> MaybeT (MainStateT uiM) ()
 confirmOrBail prompt = (guard =<<) $ lift.lift $ confirm prompt
 confirm :: UIMonad uiM => String -> uiM Bool
 confirm prompt = do

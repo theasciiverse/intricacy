@@ -101,6 +101,8 @@ data UIOptions = UIOptions
     }
     deriving (Eq, Ord, Show, Read)
 defaultUIOptions = UIOptions False ShowBlocksBlocking Nothing True False True True 100
+
+modifyUIOptions :: (UIOptions -> UIOptions) -> UIM ()
 modifyUIOptions f = modify $ \s -> s { uiOptions = f $ uiOptions s }
 
 renderToMain :: RenderM a -> UIM a
@@ -224,15 +226,19 @@ data Selectable = SelOurLock
     | SelNotesHeader
     deriving (Eq, Ord, Show)
 
+registerSelectable :: HexVec -> Int -> Selectable -> UIM ()
 registerSelectable v r s =
     modify $ \ds -> ds {metaSelectables = foldr
 	(`Map.insert` s) (metaSelectables ds) $ map (v<+>) $ hexDisc r}
+registerButtonGroup :: ButtonGroup -> UIM ()
 registerButtonGroup g = modify $ \ds -> ds {contextButtons = g:contextButtons ds}
+registerButton :: HexVec -> Command -> Int -> [ButtonHelp] -> UIM ()
 registerButton pos cmd col helps = registerButtonGroup $ singleButton pos cmd col helps
 clearSelectables,clearButtons :: UIM ()
 clearSelectables = modify $ \ds -> ds {metaSelectables = Map.empty}
 clearButtons = modify $ \ds -> ds {contextButtons = []}
 
+registerUndoButtons :: Bool -> Bool -> UIM ()
 registerUndoButtons noUndo noRedo = do
     unless noUndo $ registerButton (periphery 2<+>hu) CmdUndo 0 [("undo",hu<+>neg hw)]
     unless noRedo $ registerButton (periphery 2<+>hu<+>neg hv) CmdRedo 2 [("redo",hu<+>neg hw)]
@@ -347,7 +353,8 @@ cmdAtMousePos pos@(mPos,central) im selMode = do
 	++ maybe [] (\isRight -> [ commandOfSelectable im sel isRight
 	    | Just sel <- [Map.lookup mPos sels] ]) selMode
 
-helpAtMousePos pos@(mPos,_) IMMeta =
+helpAtMousePos :: (HexVec, Bool) -> InputMode -> UIM (Maybe [Char])
+helpAtMousePos (mPos,_) IMMeta =
     join . fmap helpOfSelectable . Map.lookup mPos <$> gets metaSelectables
 helpAtMousePos _ _ = return Nothing
 
@@ -409,6 +416,7 @@ drawUIOptionButton b = do
     value <- gets $ (getUIOpt b).uiOptions
     renderToMain $ mapM_ (\g -> drawAtRel g (uiOptPos b))
 	[HollowGlyph $ obscure purple, uiOptGlyph b value]
+describeUIOptionButton :: UIOptButton a -> MaybeT UIM String
 describeUIOptionButton b = do
     value <- gets $ (getUIOpt b).uiOptions
     return $ uiOptDescr b value
@@ -449,6 +457,7 @@ writeBindings = do
     liftIO makeConfDir
     liftIO $ writeFile path $ show bdgs
 
+getBindings :: InputMode -> UIM [(Char, Command)]
 getBindings mode = do
     uibdgs <- Map.findWithDefault [] mode `liftM` gets uiKeyBindings
     return $ uibdgs ++ bindings mode

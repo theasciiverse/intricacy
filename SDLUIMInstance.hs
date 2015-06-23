@@ -12,7 +12,7 @@
 {-# OPTIONS_GHC -cpp #-}
 module SDLUIMInstance () where
 
-import Graphics.UI.SDL hiding (flip)
+import Graphics.UI.SDL hiding (flip, name)
 import qualified Graphics.UI.SDL as SDL
 import qualified Graphics.UI.SDL.TTF as TTF
 import Control.Concurrent.STM
@@ -707,6 +707,7 @@ drawPublicNote name =
 drawNameWithChar name charcol char pos = do
     col <- nameCol name
     drawNameWithCharAndCol name charcol char col pos
+drawNameWithCharAndCol :: String -> Pixel -> Char -> Pixel -> HexVec -> MainStateT UIM ()
 drawNameWithCharAndCol name charcol char col pos = do
     size <- fi.snd <$> lift getGeom
     let up = SVec 0 $ - (ysize size - size`div`2)
@@ -738,14 +739,14 @@ scoreColour score = Pixel $ case score of
 	(-3) -> 0xff000000
 
 drawLockInfo :: ActiveLock -> Maybe LockInfo -> MainStateT UIM ()
-drawLockInfo al@(ActiveLock name i) Nothing = do
-    let centre = hw<+>neg hv <+> 7*(i-1)<*>hu
+drawLockInfo al@(ActiveLock name idx) Nothing = do
+    let centre = hw<+>neg hv <+> 7*(idx-1)<*>hu
     lift $ drawEmptyMiniLock centre
-    drawNameWithCharAndCol name white (lockIndexChar i) (invisible white) centre
+    drawNameWithCharAndCol name white (lockIndexChar idx) (invisible white) centre
     ourName <- (authUser <$>) <$> gets curAuth
     lift $ registerSelectable centre 3 $ SelLockUnset (ourName == Just name) al
-drawLockInfo al@(ActiveLock name i) (Just lockinfo) = do
-    let centre = locksPos <+> 7*(i-1)<*>hu
+drawLockInfo al@(ActiveLock name idx) (Just lockinfo) = do
+    let centre = locksPos <+> 7*(idx-1)<*>hu
     let accessedByPos = centre <+> 3<*>(hv <+> neg hw)
     let accessedPos = centre <+> 2<*>(hw <+> neg hv)
     let notesPos = centre <+> 3<*>(hw <+> neg hv)

@@ -57,6 +57,7 @@ writeBindings = do
     liftIO makeConfDir
     liftIO $ writeFile path $ show bdgs
 
+getBindings :: InputMode -> UIM [(Char, Command)]
 getBindings mode = do
     uibdgs <- Map.findWithDefault [] mode <$> gets uiKeyBindings
     return $ uibdgs ++ bindings mode
@@ -83,8 +84,11 @@ getGeom = do
 drawAt :: Glyph -> HexPos -> UIM ()
 drawAt gl pos =
     drawAtWithGeom gl pos =<< getGeom
+
+drawAtWithGeom :: Glyph -> HexPos -> Geom -> UIM ()
 drawAtWithGeom gl pos geom@(scrCentre,centre) =
     drawAtCVec gl $ scrCentre <+> (hexVec2CVec $ pos <-> centre)
+
 drawAtCVec :: Glyph -> CVec -> UIM ()
 drawAtCVec gl cpos = do
     cpairs <- gets dispCPairs
@@ -96,6 +100,7 @@ drawStr attr col v str = do
     liftIO $ Curses.attrSet attr (cpairs!!col) >> mvAddStr v str
 drawStrGrey :: CVec -> String -> UIM ()
 drawStrGrey = drawStr a0 0
+drawStrCentred :: Curses.Attr -> ColPair -> CVec -> [Char] -> UIM ()
 drawStrCentred attr col v str =
     drawStr attr col (v <+> CVec 0 (-length str `div` 2)) str
 
@@ -113,6 +118,7 @@ drawState reversed colourFixed alerts st = do
     colouring <- drawStateWithGeom reversed colourFixed lastCol st =<< getGeom
     modify $ \ds -> ds { dispLastCol = colouring }
 
+drawStateWithGeom :: [PieceIdx] -> Bool -> PieceColouring -> GameState -> Geom -> UIM PieceColouring
 drawStateWithGeom reversed colourFixed lastCol st geom = do
     let colouring = boardColouring st (colouredPieces colourFixed st) lastCol
     mono <- gets monochrome
