@@ -403,18 +403,18 @@ instance UIMonad (StateT UIState IO) where
 			    | i <- take (length paintTiles) [0..]
 			    , mPos == paintButtonStart +^ i*^hv ]
 			++ [ toggleUIOption uiOB1 >> updateHoverStr mode >> return []
-			    | mPos == uiOptPos uiOB1 ]
+			    | mPos == uiOptPos uiOB1 && mode `elem` uiOptModes uiOB1 ]
 			++ [ toggleUIOption uiOB2 >> updateHoverStr mode >> return []
-			    | mPos == uiOptPos uiOB2 ]
+			    | mPos == uiOptPos uiOB2 && mode `elem` uiOptModes uiOB2 ]
 			++ [ toggleUIOption uiOB3 >> updateHoverStr mode >> return []
-			    | mPos == uiOptPos uiOB3 ]
+			    | mPos == uiOptPos uiOB3 && mode `elem` uiOptModes uiOB3 ]
 			++ [ toggleUIOption uiOB4 >> updateHoverStr mode >> return []
-			    | mPos == uiOptPos uiOB4 ]
+			    | mPos == uiOptPos uiOB4 && mode `elem` uiOptModes uiOB4 ]
 			++ [ toggleUIOption uiOB5 >> updateHoverStr mode >> return []
-			    | mPos == uiOptPos uiOB5 ]
+			    | mPos == uiOptPos uiOB5 && mode `elem` uiOptModes uiOB5 ]
 #ifdef SOUND
 			++ [ toggleUIOption uiOB6 >> updateHoverStr mode >> return []
-			    | mPos == uiOptPos uiOB6 ]
+			    | mPos == uiOptPos uiOB6 && mode `elem` uiOptModes uiOB6 ]
 #endif
 
 		if rb
@@ -642,13 +642,13 @@ updateHoverStr mode = do
 	    [ return $ "set paint mode: " ++ describeCommand (paintTileCmds!!i)
 	    | i <- take (length paintTiles) [0..]
 	    , mPos == paintButtonStart +^ i*^hv ]
-	, guard (mPos == uiOptPos uiOB1) >> describeUIOptionButton uiOB1
-	, guard (mPos == uiOptPos uiOB2) >> describeUIOptionButton uiOB2
-	, guard (mPos == uiOptPos uiOB3) >> describeUIOptionButton uiOB3
-	, guard (mPos == uiOptPos uiOB4) >> describeUIOptionButton uiOB4
-	, guard (mPos == uiOptPos uiOB5) >> describeUIOptionButton uiOB5
-#ifdef SOUND
-	, guard (mPos == uiOptPos uiOB6) >> describeUIOptionButton uiOB6
+	, guard (mPos == uiOptPos uiOB1 && mode `elem` uiOptModes uiOB1) >> describeUIOptionButton uiOB1
+	, guard (mPos == uiOptPos uiOB2 && mode `elem` uiOptModes uiOB2) >> describeUIOptionButton uiOB2
+	, guard (mPos == uiOptPos uiOB3 && mode `elem` uiOptModes uiOB3) >> describeUIOptionButton uiOB3
+	, guard (mPos == uiOptPos uiOB4 && mode `elem` uiOptModes uiOB4) >> describeUIOptionButton uiOB4
+	, guard (mPos == uiOptPos uiOB5 && mode `elem` uiOptModes uiOB5) >> describeUIOptionButton uiOB5
+#ifdef SOUNt
+	, guard (mPos == uiOptPos uiOB6 && mode `elem` uiOptModes uiOB6) >> describeUIOptionButton uiOB6
 #endif
 	]
     modify $ \ds -> ds { hoverStr = hstr }

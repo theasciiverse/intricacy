@@ -362,21 +362,21 @@ helpAtMousePos _ _ = return Nothing
 
 data UIOptButton a = UIOptButton { getUIOpt::UIOptions->a, setUIOpt::a->UIOptions->UIOptions,
     uiOptVals::[a], uiOptPos::HexVec, uiOptGlyph::a->Glyph, uiOptDescr::a->String,
-    onSet :: Maybe (a -> UIM ()) }
+    uiOptModes::[InputMode], onSet :: Maybe (a -> UIM ()) }
 
 -- non-uniform type, so can't use a list...
 uiOB1 = UIOptButton useFiveColouring (\v o -> o {useFiveColouring=v}) [True,False]
 	(periphery 0 +^ 2 *^ hu) UseFiveColourButton
 	(\v -> if v then "Adjacent pieces get different colours" else
 	"Pieces are coloured according to type")
-	Nothing
+	[IMPlay, IMReplay, IMEdit] Nothing
 uiOB2 = UIOptButton showBlocks (\v o -> o {showBlocks=v}) [ShowBlocksBlocking,ShowBlocksAll,ShowBlocksNone]
 	(periphery 0 +^ 2 *^ hu +^ 2 *^ neg hv) ShowBlocksButton
 	(\v -> case v of
 	    ShowBlocksBlocking -> "Blocking forces are annotated"
 	    ShowBlocksAll -> "Blocked and blocking forces are annotated"
 	    ShowBlocksNone -> "Blockage annotations disabled")
-	Nothing
+	[IMPlay, IMReplay] Nothing
 uiOB3 = UIOptButton whsButtons (\v o -> o {whsButtons=v}) [Nothing, Just WHSSelected, Just WHSWrench, Just WHSHook]
 	(periphery 3 +^ 3 *^ hv) WhsButtonsButton
 	(\v -> case v of
@@ -385,35 +385,32 @@ uiOB3 = UIOptButton whsButtons (\v o -> o {whsButtons=v}) [Nothing, Just WHSSele
 		WHSSelected -> "selected piece"
 		WHSWrench -> "wrench"
 		WHSHook -> "hook; right-click to rebind")
-	Nothing
+	[IMPlay, IMEdit] Nothing
 uiOB4 = UIOptButton showButtonText (\v o -> o {showButtonText=v}) [True,False]
 	(periphery 0 +^ 2 *^ hu +^ 2 *^ hv) ShowButtonTextButton
 	(\v -> if v then "Help text enabled" else
 	"Help text disabled")
-	Nothing
+	[IMPlay, IMEdit, IMReplay, IMMeta] Nothing
 uiOB5 = UIOptButton fullscreen (\v o -> o {fullscreen=v}) [True,False]
 	(periphery 0 +^ 4 *^ hu +^ 2 *^ hv) FullscreenButton
 	(\v -> if v then "Currently in fullscreen mode; click to toggle" else
 	"Currently in windowed mode; click to toggle")
-	(Just $ const $ initVideo 0 0)
+	[IMPlay, IMEdit, IMReplay, IMMeta] (Just $ const $ initVideo 0 0)
 uiOB6 = UIOptButton useSounds (\v o -> o {useSounds=v}) [True,False]
 	(periphery 0 +^ 3 *^ hu +^ hv) UseSoundsButton
 	(\v -> if v then "Sound effects enabled" else
 	"Sound effects disabled")
-	Nothing
+	[IMPlay, IMEdit, IMReplay] Nothing
 
 drawUIOptionButtons :: InputMode -> UIM ()
 drawUIOptionButtons mode = do
-    when (mode `elem` [IMPlay, IMEdit, IMReplay]) $ do
-	drawUIOptionButton uiOB1
-	drawUIOptionButton uiOB2
-	unless (mode == IMReplay) $ drawUIOptionButton uiOB3
-#ifdef SOUND
-	drawUIOptionButton uiOB6
-#endif
-    drawUIOptionButton uiOB4
-    drawUIOptionButton uiOB5
-drawUIOptionButton b = do
+    drawUIOptionButton mode uiOB1
+    drawUIOptionButton mode uiOB2
+    drawUIOptionButton mode uiOB3
+    drawUIOptionButton mode uiOB4
+    drawUIOptionButton mode uiOB5
+    drawUIOptionButton mode uiOB6
+drawUIOptionButton im b = when (im `elem` uiOptModes b) $ do
     value <- gets $ (getUIOpt b).uiOptions
     renderToMain $ mapM_ (\g -> drawAtRel g (uiOptPos b))
 	[HollowGlyph $ obscure purple, uiOptGlyph b value]
@@ -422,7 +419,7 @@ describeUIOptionButton b = do
     value <- gets $ (getUIOpt b).uiOptions
     return $ uiOptDescr b value
 -- XXX: hand-hacking lenses...
-toggleUIOption (UIOptButton getopt setopt vals _ _ _ monSet) = do
+toggleUIOption (UIOptButton getopt setopt vals _ _ _ _ monSet) = do
     value <- gets $ getopt.uiOptions
     let value' = head $ drop (1 + (fromMaybe 0 $ elemIndex value vals)) $ cycle vals
     modifyUIOptions $ setopt value'
