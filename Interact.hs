@@ -56,8 +56,10 @@ instance Error InteractSuccess where
 
 interactUI :: UIMonad uiM => MainStateT uiM InteractSuccess
 interactUI = do
-    lift $ drawMessage ""
-    (==IMMeta) <$> gets ms2im >>? do
+    im <- gets ms2im
+    lift $ onNewMode im
+    when (im == IMEdit) setSelectedPosFromMouse
+    when (im == IMMeta) $ do
 	spawnUnblockerThread
 
 	-- draw before testing auth, lest a timeout mean a blank screen
@@ -92,6 +94,16 @@ interactUI = do
 	    liftIO $ forkIO $ forever $ do
 		atomically $ readTVar flag >>= check >> writeTVar flag False
 		unblock
+
+runSubMainState :: UIMonad uiM => MainState -> MainStateT uiM (InteractSuccess,MainState)
+runSubMainState mSt = lift (runStateT interactUI mSt) <* cleanOnPop
+    where cleanOnPop = do
+	    im <- gets ms2im
+	    lift $ onNewMode im
+	    when (im == IMEdit) setSelectedPosFromMouse
+
+execSubMainState :: UIMonad uiM => MainState -> MainStateT uiM MainState
+execSubMainState = (snd <$>) . runSubMainState
 
 getSomeInput im = do
     cmds <- getInput im
@@ -337,7 +349,7 @@ processCommand' IMMeta (CmdViewSolution mnote) = void.runMaybeT $ do
     ls <- lockSpec <$> MaybeT (return $ userLocks uinfo ! idx)
     RCLock lock <- MaybeT $ getFreshRecBlocking $ RecLock ls
     RCSolution soln <- MaybeT $ getFreshRecBlocking $ RecNote note
-    lift.lift $ execStateT interactUI $ newReplayState (snd.reframe$lock) soln $ Just $
+    lift $ execSubMainState $ newReplayState (snd.reframe$lock) soln $ Just $
 	"viewing solution by " ++ noteAuthor note ++ " to " ++ name ++ [':',lockIndexChar idx]
 
 processCommand' IMMeta (CmdPlaceLock midx) = void.runMaybeT $ do
@@ -387,7 +399,7 @@ processCommand' IMMeta CmdEdit = void.runMaybeT $ do
 	    ]
 	return (baseLock size, Nothing)
     path <- lift $ gets curLockPath
-    newPath <- MaybeT $ lift $ (esPath <$>) $ execStateT interactUI $
+    newPath <- MaybeT $ (esPath <$>) $ execSubMainState $
 	newEditState (reframe lock) msoln (if null path then Nothing else Just path)
     lift $ setLockPath newPath
 processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
@@ -576,9 +588,8 @@ processCommand' IMEdit (CmdDir _ dir) = do
     case selPiece of
 	Nothing -> modify $ \es -> es {selectedPos = checkEditable frame selPos $ dir +^ selPos}
 	Just p -> doForce $ Push p dir
-processCommand' IMEdit (CmdMoveTo newPos) = do
-    frame <- gets esFrame
-    modify $ \es -> es {selectedPos = truncateToEditable frame newPos}
+processCommand' IMEdit (CmdMoveTo newPos) =
+    setSelectedPos newPos
 processCommand' IMEdit (CmdDrag pos dir) = do
     board <- stateBoard.head <$> gets esGameStateStack
     void.runMaybeT $ do
@@ -660,12 +671,20 @@ hashPassword :: String -> String -> String
 -- ^ salt password
 hashPassword name password = hash $ "IY" ++ name ++ password
 
+setSelectedPosFromMouse :: UIMonad uiM => MainStateT uiM ()
+setSelectedPosFromMouse = lift getUIMousePos >>= maybe (return ()) setSelectedPos
+
+setSelectedPos :: Monad m => HexPos -> MainStateT m ()
+setSelectedPos pos = do
+    frame <- gets esFrame
+    modify $ \es -> es {selectedPos = truncateToEditable frame pos}
+
 subPlay :: UIMonad uiM => Lock -> MainStateT uiM ()
 subPlay lock =
-    pushEState =<< psCurrentState <$> (lift $ execStateT interactUI $ newPlayState lock Nothing True)
+    pushEState =<< psCurrentState <$> (execSubMainState $ newPlayState lock Nothing True)
 
 solveLock :: UIMonad uiM => Lock -> Maybe String -> MaybeT (MainStateT uiM) Solution
 solveLock lock title = do
-    (InteractSuccess solved, ps) <- lift.lift $ runStateT interactUI $ newPlayState (reframe lock) title False
+    (InteractSuccess solved, ps) <- lift $ runSubMainState $ newPlayState (reframe lock) title False
     guard $ solved
     return $ reverse $ (map snd) $ psGameStateMoveStack ps

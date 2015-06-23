@@ -62,6 +62,9 @@ instance UIMonad (StateT UIState IO) where
 	lift $ do
 	    drawButtons mode
 	    drawUIOptionButtons mode
+	    gets needHoverUpdate >>? do
+		updateHoverStr mode
+		modify (\ds -> ds {needHoverUpdate=False})
 	    drawMsgLine
 	    drawShortMouseHelp mode
 	    refresh
@@ -296,6 +299,10 @@ instance UIMonad (StateT UIState IO) where
 	rbp <- gets rightButtonDown
 	let [lbp',rbp'] = fmap (fmap (\_ -> (pos-^centre))) [lbp,rbp]
 	modify $ \s -> s {leftButtonDown = lbp', rightButtonDown = rbp'}
+
+    getUIMousePos = do
+	centre <- gets dispCentre
+	(Just.(+^centre).fst) <$> gets mousePos
 
     setYNButtons = do
 	clearButtons
@@ -564,6 +571,8 @@ instance UIMonad (StateT UIState IO) where
 		]
 	return True
     showHelp _ _ = return False
+
+    onNewMode mode = modify (\ds -> ds{needHoverUpdate=True}) >> say ""
 
 drawShortMouseHelp mode = do
     mwhs <- gets $ whsButtons.uiOptions

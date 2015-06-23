@@ -357,7 +357,9 @@ instance UIMonad (StateT UIState IO) where
 	Curses.refresh
 
     warpPointer _ = return ()
+    getUIMousePos = return Nothing
     setYNButtons = return ()
+    onNewMode _ = say ""
 
     toggleColourMode = modify $ \s -> s {monochrome = not $ monochrome s}
 

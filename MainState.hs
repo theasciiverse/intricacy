@@ -65,7 +65,9 @@ class (Applicative m, MonadIO m) => UIMonad m where
     getDrawImpatience :: m ( Int -> IO () )
     toggleColourMode :: m ()
     warpPointer :: HexPos -> m ()
+    getUIMousePos :: m (Maybe HexPos)
     setYNButtons :: m ()
+    onNewMode :: InputMode -> m ()
     suspend,redraw :: m ()
 
     doUI :: m a -> IO (Maybe a)

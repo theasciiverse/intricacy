@@ -71,6 +71,7 @@ data UIState = UIState { scrHeight::Int, scrWidth::Int
     , mousePos::(HexVec,Bool)
     , message::Maybe (Pixel, String)
     , hoverStr :: Maybe String
+    , needHoverUpdate::Bool
     , dispCentre::HexPos
     , dispLastCol::PieceColouring
     , animFrame::Int
@@ -84,7 +85,7 @@ data UIState = UIState { scrHeight::Int, scrWidth::Int
 type UIM = StateT UIState IO
 nullUIState = UIState 0 0 Nothing Nothing emptyCachedGlyphs Nothing Map.empty Map.empty []
     defaultUIOptions Nothing Map.empty Nothing Nothing 0 0 Nothing Nothing Nothing
-    (zero,False) Nothing Nothing (PHS zero) Map.empty 0 Nothing 25
+    (zero,False) Nothing Nothing False (PHS zero) Map.empty 0 Nothing 25
 #ifdef SOUND
     Map.empty
 #endif
