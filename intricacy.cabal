@@ -69,6 +69,9 @@ executable intricacy
               if flag(Sound)
                   Extra-Libraries: SDL_mixer
               ghc-options: -optl-mwindows
+      if os(darwin)
+          -- I'm told OSX doesn't like static builds
+          ghc-options: -dynamic
   else
       Buildable: False
   if flag(Curses)
@@ -107,6 +110,9 @@ executable intricacy-server
         , cryptohash >= 0.8
         , random >= 1.0, pipes >= 4
         , feed >= 0.3.1, xml >= 1.2.6
+      if os(darwin)
+          -- I'm told OSX doesn't like static builds
+          ghc-options: -dynamic
   else
     Buildable: False
   main-is:  Server.hs
