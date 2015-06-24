@@ -1,5 +1,9 @@
 This is an abbreviated summary; see the git log for gory details.
 
+0.5.4:
+    Fixed some UI bugs involving mode transitions and buttons.
+    Hover help on tools in tutorials.
+    Actually support ghc-7.10.
 0.5.3:
     Change direction of mousewheel movements for undo/redo
 	(to agree with English language metaphors with time: up = future).
