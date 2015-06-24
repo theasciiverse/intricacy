@@ -27,13 +27,15 @@ import Lock
 import MainState
 import Interact
 import Util
+import Version
 
-data Opt = LockSize Int | ForceCurses | Help
+data Opt = LockSize Int | ForceCurses | Help | Version
     deriving (Eq, Ord, Show)
 options =
     [ Option ['c'] ["curses"] (NoArg ForceCurses) "force curses UI"
     , Option ['s'] ["locksize"] (ReqArg (LockSize . read) "SIZE") "locksize"
     , Option ['h'] ["help"] (NoArg Help) "show usage information"
+    , Option ['v'] ["version"] (NoArg Version) "show version information"
     ]
 
 usage :: String
@@ -51,6 +53,7 @@ setup = do
     argv <- getArgs
     (opts,args) <- parseArgs argv
     when (Help `elem` opts) $ putStr usage >> exitSuccess
+    when (Version `elem` opts) $ putStrLn version >> exitSuccess
     let size = fromMaybe 8 $ listToMaybe [ size | LockSize size <- opts ]
     curDir <- getCurrentDirectory
     (fromJust <$>) $ runMaybeT $ msum

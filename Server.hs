@@ -48,6 +48,7 @@ import Data.Time.LocalTime
 
 import System.Environment
 import System.Console.GetOpt
+import System.Exit
 
 import Protocol
 import Metagame
@@ -57,10 +58,11 @@ import Database
 import AsciiLock
 import Mundanities
 import Maxlocksize
+import Version
 
 defaultPort = 27001 -- 27001 == ('i'<<8) + 'y'
 
-data Opt = RequestDelay Int | Daemon | LogFile FilePath | Port Int | DBDir FilePath | ServerLockSize Int | FeedPath FilePath
+data Opt = RequestDelay Int | Daemon | LogFile FilePath | Port Int | DBDir FilePath | ServerLockSize Int | FeedPath FilePath | Help | Version
     deriving (Eq, Ord, Show)
 options =
     [ Option ['p'] ["port"] (ReqArg (Port . read) "PORT") $ "TCP port to listen on (default: " ++ show defaultPort ++ ")"
@@ -70,7 +72,14 @@ options =
     , Option ['d'] ["dir"] (ReqArg DBDir "PATH") "directory for server database [default: intricacydb]"
     , Option ['s'] ["locksize"] (ReqArg (ServerLockSize . read) "SIZE") "size of locks (only takes effect when creating a new database) [default: 8]"
     , Option ['f'] ["feed"] (ReqArg FeedPath "PATH") "write news feed to this path"
+    , Option ['h'] ["help"] (NoArg Help) "show usage information"
+    , Option ['v'] ["version"] (NoArg Version) "show version information"
     ]
+
+usage :: String
+usage = usageInfo header options
+    where header = "Usage: intricacy-server [OPTION...]"
+
 parseArgs :: [String] -> IO ([Opt],[String])
 parseArgs argv =
     case getOpt Permute options argv of
@@ -86,6 +95,8 @@ main = do
         then void $ forkIO $ main' opts
         else main' opts
     -}
+    when (Help `elem` opts) $ putStr usage >> exitSuccess
+    when (Version `elem` opts) $ putStrLn version >> exitSuccess
     let delay = fromMaybe 0 $ listToMaybe [ d | RequestDelay d <- opts ]
 	port = fromMaybe defaultPort $ listToMaybe [ p | Port p <- opts ]
 	dbpath = fromMaybe "intricacydb" $ listToMaybe [ p | DBDir p <- opts ]

@@ -86,6 +86,7 @@ data MainState
 	, psGameStateMoveStack::[(GameState, PlayerMove)]
 	, psUndoneStack::[(GameState, PlayerMove)]
 	, psTitle::Maybe String
+	, psIsTut::Bool
 	, psIsSub::Bool
 	, psMarks::Map Char MainState
 	}
@@ -139,7 +140,7 @@ ms2im mainSt = case mainSt of
     EditState {} -> IMEdit
     MetaState {} -> IMMeta
 
-newPlayState (frame,st) title sub = PlayState st frame [] False False [] [] title sub Map.empty
+newPlayState (frame,st) title isTut sub = PlayState st frame [] False False [] [] title isTut sub Map.empty
 newReplayState st soln title = ReplayState st [] soln [] title Map.empty
 newEditState (frame,st) msoln mpath = EditState [st] [] frame mpath
     ((\s->(st,s))<$>msoln) (Just (st, isJust msoln)) Nothing (PHS zero) (PHS zero) Map.empty

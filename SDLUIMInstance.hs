@@ -69,7 +69,7 @@ instance UIMonad (StateT UIState IO) where
 	    drawShortMouseHelp mode
 	    refresh
 	where
-	drawMainState' (PlayState { psCurrentState=st, psLastAlerts=alerts, wrenchSelected=wsel }) = do
+	drawMainState' (PlayState { psCurrentState=st, psLastAlerts=alerts, wrenchSelected=wsel, psIsTut=isTut }) = do
 	    canUndo <- null <$> gets psGameStateMoveStack
 	    canRedo <- null <$> gets psUndoneStack
 	    lift $ do
@@ -77,6 +77,17 @@ instance UIMonad (StateT UIState IO) where
 			(idx, PlacedPiece pos p) <- enumVec $ placedPieces st
 			, or [wsel && isWrench p, not wsel && isHook p] ]
 		drawMainGameState selTools False alerts st
+		lb <- isJust <$> gets leftButtonDown
+		rb <- isJust <$> gets leftButtonDown
+		when isTut $ do
+		    centre <- gets dispCentre
+		    sequence_
+			[ registerSelectable (pos -^ centre) 0 $
+			    if isWrench p then SelToolWrench else SelToolHook
+			| PlacedPiece pos p <- Vector.toList $ placedPieces st
+			, not $ lb || rb
+			, isTool p
+			]
 		registerUndoButtons canUndo canRedo
 	drawMainState' (ReplayState { rsCurrentState=st, rsLastAlerts=alerts } ) = do
 	    canUndo <- null <$> gets rsGameStateMoveStack

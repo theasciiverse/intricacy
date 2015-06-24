@@ -419,7 +419,7 @@ processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
 	let pref = tutdir ++ [pathSeparator] ++ name
 	(lock,_) <- MaybeT $ liftIO $ readLock (pref ++ ".lock")
 	text <- liftIO $ (fromMaybe "" . listToMaybe) <$> (readStrings (pref ++ ".text") `catchIO` const (return []))
-	solveLock lock $ Just $ "Tutorial " ++ show i ++ ": " ++ text
+	solveLockTut lock $ Just $ "Tutorial " ++ show i ++ ": " ++ text
 	if i+1 <= length tuts then do
 		-- confirmOrBail $ "Tutorial level completed! Play next tutorial level (" ++ show (i+1) ++ ")?"
 		dotut $ i+1
@@ -681,10 +681,12 @@ setSelectedPos pos = do
 
 subPlay :: UIMonad uiM => Lock -> MainStateT uiM ()
 subPlay lock =
-    pushEState =<< psCurrentState <$> (execSubMainState $ newPlayState lock Nothing True)
+    pushEState =<< psCurrentState <$> (execSubMainState $ newPlayState lock Nothing False True)
 
-solveLock :: UIMonad uiM => Lock -> Maybe String -> MaybeT (MainStateT uiM) Solution
-solveLock lock title = do
-    (InteractSuccess solved, ps) <- lift $ runSubMainState $ newPlayState (reframe lock) title False
+solveLock,solveLockTut :: UIMonad uiM => Lock -> Maybe String -> MaybeT (MainStateT uiM) Solution
+solveLock = solveLock' False
+solveLockTut = solveLock' True
+solveLock' isTut lock title = do
+    (InteractSuccess solved, ps) <- lift $ runSubMainState $ newPlayState (reframe lock) title isTut False
     guard $ solved
     return $ reverse $ (map snd) $ psGameStateMoveStack ps

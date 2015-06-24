@@ -58,7 +58,7 @@ data UIState = UIState { scrHeight::Int, scrWidth::Int
     , cachedGlyphs::CachedGlyphs
     , lastDrawArgs::Maybe DrawArgs
     , miniLocks::Map Lock Surface
-    , metaSelectables::Map HexVec Selectable
+    , registeredSelectables::Map HexVec Selectable
     , contextButtons::[ButtonGroup]
     , uiOptions::UIOptions
     , settingBinding::Maybe Command
@@ -225,18 +225,20 @@ data Selectable = SelOurLock
     | SelLockPath
     | SelPrivyHeader
     | SelNotesHeader
+    | SelToolHook
+    | SelToolWrench
     deriving (Eq, Ord, Show)
 
 registerSelectable :: HexVec -> Int -> Selectable -> UIM ()
 registerSelectable v r s =
-    modify $ \ds -> ds {metaSelectables = foldr
-	(`Map.insert` s) (metaSelectables ds) $ map (v+^) $ hexDisc r}
+    modify $ \ds -> ds {registeredSelectables = foldr
+	(`Map.insert` s) (registeredSelectables ds) $ map (v+^) $ hexDisc r}
 registerButtonGroup :: ButtonGroup -> UIM ()
 registerButtonGroup g = modify $ \ds -> ds {contextButtons = g:contextButtons ds}
 registerButton :: HexVec -> Command -> Int -> [ButtonHelp] -> UIM ()
 registerButton pos cmd col helps = registerButtonGroup $ singleButton pos cmd col helps
 clearSelectables,clearButtons :: UIM ()
-clearSelectables = modify $ \ds -> ds {metaSelectables = Map.empty}
+clearSelectables = modify $ \ds -> ds {registeredSelectables = Map.empty}
 clearButtons = modify $ \ds -> ds {contextButtons = []}
 
 registerUndoButtons :: Bool -> Bool -> UIM ()
@@ -244,35 +246,35 @@ registerUndoButtons noUndo noRedo = do
     unless noUndo $ registerButton (periphery 2+^hu) CmdUndo 0 [("undo",hu+^neg hw)]
     unless noRedo $ registerButton (periphery 2+^hu+^neg hv) CmdRedo 2 [("redo",hu+^neg hw)]
 
-commandOfSelectable IMMeta SelOurLock _ = CmdEdit
-commandOfSelectable IMMeta (SelLock (ActiveLock _ i)) False = CmdSolve (Just i)
-commandOfSelectable IMMeta (SelLock (ActiveLock _ i)) True = CmdPlaceLock (Just i)
-commandOfSelectable IMMeta (SelScoreLock Nothing _ (ActiveLock _ i)) False = CmdSolve (Just i)
-commandOfSelectable IMMeta (SelScoreLock Nothing _ (ActiveLock _ i)) True = CmdPlaceLock (Just i)
-commandOfSelectable IMMeta (SelScoreLock (Just _) _ _) _ = CmdHome
-commandOfSelectable IMMeta (SelLockUnset True (ActiveLock _ i)) _ = CmdPlaceLock (Just i)
-commandOfSelectable IMMeta (SelSelectedCodeName _) False = CmdSelCodename Nothing
-commandOfSelectable IMMeta (SelSelectedCodeName _) True = CmdHome
-commandOfSelectable IMMeta (SelUndeclared undecl) _ = CmdDeclare $ Just undecl
-commandOfSelectable IMMeta (SelReadNote note) False = CmdSelCodename $ Just $ noteAuthor note
-commandOfSelectable IMMeta (SelReadNote note) True = CmdViewSolution $ Just note
-commandOfSelectable IMMeta (SelSolution note) False = CmdSelCodename $ Just $ noteAuthor note
-commandOfSelectable IMMeta (SelSolution note) True = CmdViewSolution $ Just note
-commandOfSelectable IMMeta (SelAccessed name) _ = CmdSelCodename $ Just name
-commandOfSelectable IMMeta (SelRandom name) _ = CmdSelCodename $ Just name
-commandOfSelectable IMMeta (SelSecured note) False = CmdSelCodename $ Just $ lockOwner $ noteOn note
-commandOfSelectable IMMeta (SelSecured note) True = CmdViewSolution $ Just note
-commandOfSelectable IMMeta (SelOldLock ls) _ = CmdPlayLockSpec $ Just ls
-commandOfSelectable IMMeta (SelLockPath) _ = CmdSelectLock
-commandOfSelectable IMTextInput (SelLock (ActiveLock _ i)) _ = CmdInputSelLock i
-commandOfSelectable IMTextInput (SelScoreLock _ _ (ActiveLock _ i)) _ = CmdInputSelLock i
-commandOfSelectable IMTextInput (SelLockUnset _ (ActiveLock _ i)) _ = CmdInputSelLock i
-commandOfSelectable IMTextInput (SelReadNote note) _ = CmdInputCodename $ noteAuthor note
-commandOfSelectable IMTextInput (SelSolution note) _ = CmdInputCodename $ noteAuthor note
-commandOfSelectable IMTextInput (SelSecured note) _ = CmdInputCodename $ lockOwner $ noteOn note
-commandOfSelectable IMTextInput (SelRandom name) _ = CmdInputCodename name
-commandOfSelectable IMTextInput (SelUndeclared undecl) _ = CmdInputSelUndecl undecl
-commandOfSelectable _ _ _ = CmdNone
+commandOfSelectable IMMeta SelOurLock _ = Just $ CmdEdit
+commandOfSelectable IMMeta (SelLock (ActiveLock _ i)) False = Just $ CmdSolve (Just i)
+commandOfSelectable IMMeta (SelLock (ActiveLock _ i)) True = Just $ CmdPlaceLock (Just i)
+commandOfSelectable IMMeta (SelScoreLock Nothing _ (ActiveLock _ i)) False = Just $ CmdSolve (Just i)
+commandOfSelectable IMMeta (SelScoreLock Nothing _ (ActiveLock _ i)) True = Just $ CmdPlaceLock (Just i)
+commandOfSelectable IMMeta (SelScoreLock (Just _) _ _) _ = Just $ CmdHome
+commandOfSelectable IMMeta (SelLockUnset True (ActiveLock _ i)) _ = Just $ CmdPlaceLock (Just i)
+commandOfSelectable IMMeta (SelSelectedCodeName _) False = Just $ CmdSelCodename Nothing
+commandOfSelectable IMMeta (SelSelectedCodeName _) True = Just $ CmdHome
+commandOfSelectable IMMeta (SelUndeclared undecl) _ = Just $ CmdDeclare $ Just undecl
+commandOfSelectable IMMeta (SelReadNote note) False = Just $ CmdSelCodename $ Just $ noteAuthor note
+commandOfSelectable IMMeta (SelReadNote note) True = Just $ CmdViewSolution $ Just note
+commandOfSelectable IMMeta (SelSolution note) False = Just $ CmdSelCodename $ Just $ noteAuthor note
+commandOfSelectable IMMeta (SelSolution note) True = Just $ CmdViewSolution $ Just note
+commandOfSelectable IMMeta (SelAccessed name) _ = Just $ CmdSelCodename $ Just name
+commandOfSelectable IMMeta (SelRandom name) _ = Just $ CmdSelCodename $ Just name
+commandOfSelectable IMMeta (SelSecured note) False = Just $ CmdSelCodename $ Just $ lockOwner $ noteOn note
+commandOfSelectable IMMeta (SelSecured note) True = Just $ CmdViewSolution $ Just note
+commandOfSelectable IMMeta (SelOldLock ls) _ = Just $ CmdPlayLockSpec $ Just ls
+commandOfSelectable IMMeta (SelLockPath) _ = Just $ CmdSelectLock
+commandOfSelectable IMTextInput (SelLock (ActiveLock _ i)) _ = Just $ CmdInputSelLock i
+commandOfSelectable IMTextInput (SelScoreLock _ _ (ActiveLock _ i)) _ = Just $ CmdInputSelLock i
+commandOfSelectable IMTextInput (SelLockUnset _ (ActiveLock _ i)) _ = Just $ CmdInputSelLock i
+commandOfSelectable IMTextInput (SelReadNote note) _ = Just $ CmdInputCodename $ noteAuthor note
+commandOfSelectable IMTextInput (SelSolution note) _ = Just $ CmdInputCodename $ noteAuthor note
+commandOfSelectable IMTextInput (SelSecured note) _ = Just $ CmdInputCodename $ lockOwner $ noteOn note
+commandOfSelectable IMTextInput (SelRandom name) _ = Just $ CmdInputCodename name
+commandOfSelectable IMTextInput (SelUndeclared undecl) _ = Just $ CmdInputSelUndecl undecl
+commandOfSelectable _ _ _ = Nothing
 
 helpOfSelectable SelOurLock = Just
     "Design a lock."
@@ -344,20 +346,24 @@ helpOfSelectable SelPrivyHeader = Just $
     "Fellow guild members privy to this lock's secrets, hence able to read its secured notes."
 helpOfSelectable SelNotesHeader = Just $
     "Secured notes. Notes are obfuscated sketches of method, proving success but revealing little."
+helpOfSelectable SelToolWrench = Just $ "The wrench, one of your lockpicking tools. Click and drag to move."
+helpOfSelectable SelToolHook = Just $ "The hook, one of your lockpicking tools. Click and drag to move, use mousewheel to turn."
 
 cmdAtMousePos pos@(mPos,central) im selMode = do
     buttons <- (concat . map fst) <$> getButtons im
-    sels <- gets metaSelectables
+    sels <- gets registeredSelectables
     return $ listToMaybe $
 	[ buttonCmd button
 	    | button <- buttons, mPos == buttonPos button, central]
-	++ maybe [] (\isRight -> [ commandOfSelectable im sel isRight
-	    | Just sel <- [Map.lookup mPos sels] ]) selMode
+	++ maybe [] (\isRight ->
+		[ cmd
+		| Just sel <- [Map.lookup mPos sels]
+		, Just cmd <- [ commandOfSelectable im sel isRight ] ])
+	    selMode
 
 helpAtMousePos :: (HexVec, Bool) -> InputMode -> UIM (Maybe [Char])
-helpAtMousePos (mPos,_) IMMeta =
-    join . fmap helpOfSelectable . Map.lookup mPos <$> gets metaSelectables
-helpAtMousePos _ _ = return Nothing
+helpAtMousePos (mPos,_) _ =
+    join . fmap helpOfSelectable . Map.lookup mPos <$> gets registeredSelectables
 
 
 data UIOptButton a = UIOptButton { getUIOpt::UIOptions->a, setUIOpt::a->UIOptions->UIOptions,
