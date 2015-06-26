@@ -203,6 +203,9 @@ processCommand' IMMeta CmdSetServer = void.runMaybeT $ do
 	, modify (\ms -> ms { curServer = saddr }) >> mzero ]
     lift $ do
 	modify $ \ms -> ms {curAuth = Nothing}
+	get >>= liftIO . writeServerSolns saddr
+	(undecls,partials,_) <- liftIO (readServerSolns newSaddr)
+	modify $ \ms -> ms { undeclareds=undecls, partialSolutions=partials }
 	invalidateAllUInfo
 	refreshUInfoUI
 processCommand' IMMeta CmdToggleCacheOnly =
