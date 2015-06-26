@@ -464,9 +464,11 @@ processCommand' IMPlay CmdRedo = do
     ustms <- gets psUndoneStack
     case ustms of
 	[] -> return ()
-	ustm:ustms' -> do
-	    pushPState ustm
-	    modify $ \ps -> ps {psUndoneStack = ustms'}
+	ustm@(_,pm):ustms' -> do
+	    st <- gets psCurrentState
+	    (st',alerts) <- lift $ doPhysicsTick pm st
+	    pushPState (st',pm)
+	    modify $ \ps -> ps {psLastAlerts = alerts, psUndoneStack = ustms'}
 processCommand' IMPlay (CmdManipulateToolAt pos) = do
     board <- stateBoard <$> gets psCurrentState
     wsel <- gets wrenchSelected
