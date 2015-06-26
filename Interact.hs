@@ -414,17 +414,17 @@ processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
 	    -- (length (show (length tuts))) False True Nothing Nothing
     -- i <- liftMaybe $ readMay s
     -- guard $ 1 <= i && i <= length tuts
-    let i = 1
-    let dotut i = do
+    let dotut i msps = do
 	let name = tuts !! (i-1)
 	let pref = tutdir ++ [pathSeparator] ++ name
 	(lock,_) <- MaybeT $ liftIO $ readLock (pref ++ ".lock")
 	text <- liftIO $ (fromMaybe "" . listToMaybe) <$> (readStrings (pref ++ ".text") `catchIO` const (return []))
-	solveLockTut lock $ Just $ "Tutorial " ++ show i ++ ": " ++ text
+	solveLockSaving i msps True lock $ Just $ "Tutorial " ++ show i ++ ": " ++ text
 	if i+1 <= length tuts then do
 		-- confirmOrBail $ "Tutorial level completed! Play next tutorial level (" ++ show (i+1) ++ ")?"
-		dotut $ i+1
+		dotut (i+1) Nothing
 	    else lift $ do
+		modify $ \ms -> ms {tutProgress = (1,Nothing)}
 		mauth <- gets curAuth
 		cbdg <- lift $ getUIBinding IMMeta $ CmdSelCodename Nothing
 		rbdg <- lift $ getUIBinding IMMeta CmdRegister
@@ -439,7 +439,9 @@ processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
 			    "Tutorial completed! To play on the server, pick a codename ('"++cbdg++
 			    "') and register it ('"++rbdg++"')."
 		    else lift $ drawMessage $ "Tutorial completed!"
-    dotut i
+    
+    (onLevel,msps) <- lift $ gets tutProgress
+    dotut onLevel msps
 processCommand' IMMeta CmdShowRetired = void.runMaybeT $ do
     name <- mgetCurName
     newRL <- lift (gets retiredLocks) >>= \rl -> case rl of
@@ -700,8 +702,9 @@ solveLockSaving ls msps isTut lock title = do
 	((maybe newPlayState restorePlayState) msps) (reframe lock) title isTut False
     if solved
 	then do
-	    lift $ modify $ \ms -> ms { partialSolutions = Map.delete ls $ partialSolutions ms }
+	    unless isTut $ lift $ modify $ \ms -> ms { partialSolutions = Map.delete ls $ partialSolutions ms }
 	    return $ reverse $ (map snd) $ psGameStateMoveStack ps
 	else do
-	    lift $ modify $ \ms -> ms { partialSolutions = Map.insert ls (savePlayState ps) $ partialSolutions ms }
+	    lift $ modify $ \ms -> if isTut then ms { tutProgress = (ls,Just $ savePlayState ps) }
+		else ms { partialSolutions = Map.insert ls (savePlayState ps) $ partialSolutions ms }
 	    mzero

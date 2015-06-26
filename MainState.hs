@@ -114,6 +114,7 @@ data MainState
 	{ curServer :: ServerAddr
 	, undeclareds :: [Undeclared]
 	, partialSolutions :: PartialSolutions
+	, tutProgress :: TutProgress
 	, cacheOnly :: Bool
 	, curAuth :: Maybe Auth
 	, codenameStack :: [Codename]
@@ -153,11 +154,12 @@ initMetaState = do
     (saddr, auth, path) <- confFilePath "metagame.conf" >>=
 	liftM (fromMaybe (defaultServerAddr, Nothing, "")) . readReadFile
     let names = maybeToList $ authUser <$> auth
-    (undecls,partials) <- readServerSolns saddr
+    (undecls,partials,tut) <- readServerSolns saddr
     mlock <- fullLockPath path >>= readLock
-    return $ MetaState saddr undecls partials False auth names flag errtvar invaltvar rnamestvar Map.empty Map.empty Nothing path mlock 0
+    return $ MetaState saddr undecls partials tut False auth names flag errtvar invaltvar rnamestvar Map.empty Map.empty Nothing path mlock 0
 
 type PartialSolutions = Map LockSpec SavedPlayState
+type TutProgress = (Int,Maybe SavedPlayState)
 data SavedPlayState = SavedPlayState [PlayerMove] (Map Char [PlayerMove])
     deriving (Eq, Ord, Show, Read)
 
@@ -175,17 +177,20 @@ restorePlayState (SavedPlayState pms markPMs) (frame,st) title isTut sub =
 	tick :: ([(GameState,PlayerMove)],GameState) -> PlayerMove -> ([(GameState,PlayerMove)],GameState)
 	tick (stack,st) pm = ((st,pm):stack,fst . runWriter $ physicsTick pm st)
 
-readServerSolns :: ServerAddr -> IO ([Undeclared],PartialSolutions)
-readServerSolns saddr = if nullSaddr saddr then return ([],Map.empty) else do
+readServerSolns :: ServerAddr -> IO ([Undeclared],PartialSolutions,TutProgress)
+readServerSolns saddr = if nullSaddr saddr then return ([],Map.empty,(1,Nothing)) else do
     undecls <- confFilePath ("undeclared" ++ [pathSeparator] ++ saddrPath saddr) >>=
 	liftM (fromMaybe []) . readReadFile
     partials <- confFilePath ("partialSolutions" ++ [pathSeparator] ++ saddrPath saddr) >>=
 	liftM (fromMaybe Map.empty) . readReadFile
-    return (undecls,partials)
+    tut <- confFilePath "tutProgress" >>=
+	liftM (fromMaybe (1,Nothing)) . readReadFile
+    return (undecls,partials,tut)
 
-writeServerSolns saddr (undecls,partials) = do
+writeServerSolns saddr (undecls,partials,tut) = unless (nullSaddr saddr) $ do
     confFilePath ("undeclared" ++ [pathSeparator] ++ saddrPath saddr) >>= flip writeReadFile undecls
     confFilePath ("partialSolutions" ++ [pathSeparator] ++ saddrPath saddr) >>= flip writeReadFile partials
+    confFilePath ("tutProgress") >>= flip writeReadFile tut
 
 readLock :: FilePath -> IO (Maybe (Lock, Maybe Solution))
 readLock path = runMaybeT $ msum
@@ -197,11 +202,11 @@ readLock path = runMaybeT $ msum
 -- writeLock :: FilePath -> Lock -> IO ()
 -- writeLock path lock = fullLockPath path >>= flip writeReadFile lock
 
-writeMetaState (MetaState { curServer=saddr, undeclareds=undecls, partialSolutions=partials, curAuth=auth, curLockPath=path }) = do
+writeMetaState (MetaState { curServer=saddr, undeclareds=undecls,
+	partialSolutions=partials, tutProgress=tut, curAuth=auth,
+	curLockPath=path }) = do
     confFilePath "metagame.conf" >>= flip writeReadFile (saddr, auth, path)
-    unless (nullSaddr saddr) $ do
-	confFilePath ("undeclared" ++ [pathSeparator] ++ saddrPath saddr) >>= flip writeReadFile undecls
-	confFilePath ("partialSolutions" ++ [pathSeparator] ++ saddrPath saddr) >>= flip writeReadFile partials
+    writeServerSolns saddr (undecls,partials,tut)
 
 getTitle :: UIMonad uiM => MainStateT uiM (Maybe String)
 getTitle = ms2im <$> get >>= \im -> case im of
