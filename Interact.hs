@@ -70,7 +70,7 @@ interactUI = do
 	tbdg <- lift $ getUIBinding IMMeta CmdTutorials
 	isNothing <$> gets curAuth >>?
 	    lift $ drawMessage $ "Welcome. To play the tutorial levels, press '"++tbdg++"'."
-    setMark startMark
+    setMark False startMark
     interactLoop
 
     where
@@ -158,7 +158,7 @@ processCommand' im CmdMark = void.runMaybeT $ do
     str <- MaybeT $ lift $ textInput "Mark: " 1 False True Nothing Nothing
     ch <- liftMaybe $ listToMaybe str
     guard $ ch `notElem` [startMark, '\'']
-    lift $ setMark ch
+    lift $ setMark True ch
 processCommand' im CmdJumpMark = void.runMaybeT $ do
     guard $ im `elem` [IMEdit, IMPlay, IMReplay]
     str <- MaybeT $ lift $ textInput
@@ -271,7 +271,8 @@ processCommand' IMMeta (CmdSolve midx) = void.runMaybeT $ do
 		declare undecl
 	, do
 	    RCLock lock <- MaybeT $ getFreshRecBlocking $ RecLock ls
-	    soln <- solveLock lock $ Just $
+	    mpartial <- Map.lookup ls <$> gets partialSolutions
+	    soln <- solveLockSaving ls mpartial False lock $ Just $
 		"solving " ++ name ++ ":" ++ [lockIndexChar idx] ++ "  (#" ++ show ls ++")"
 	    mourName <- lift $ (authUser <$>) <$> gets curAuth
 	    guard $ mourName /= Just name
@@ -692,3 +693,15 @@ solveLock' isTut lock title = do
     (InteractSuccess solved, ps) <- lift $ runSubMainState $ newPlayState (reframe lock) title isTut False
     guard $ solved
     return $ reverse $ (map snd) $ psGameStateMoveStack ps
+
+solveLockSaving :: UIMonad uiM => LockSpec -> Maybe SavedPlayState -> Bool -> Lock -> Maybe String -> MaybeT (MainStateT uiM) Solution
+solveLockSaving ls msps isTut lock title = do
+    (InteractSuccess solved, ps) <- lift $ runSubMainState $
+	((maybe newPlayState restorePlayState) msps) (reframe lock) title isTut False
+    if solved
+	then do
+	    lift $ modify $ \ms -> ms { partialSolutions = Map.delete ls $ partialSolutions ms }
+	    return $ reverse $ (map snd) $ psGameStateMoveStack ps
+	else do
+	    lift $ modify $ \ms -> ms { partialSolutions = Map.insert ls (savePlayState ps) $ partialSolutions ms }
+	    mzero

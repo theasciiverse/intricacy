@@ -126,7 +126,7 @@ jumpMark ch = do
     void.runMaybeT $ case ms2im mst of
 	IMEdit -> do
 	    st <- liftMaybe $ ch `Map.lookup` esMarks mst
-	    lift $ setMark '\'' >> pushEState st
+	    lift $ setMark True '\'' >> pushEState st
 	IMPlay -> do
 	    mst' <- liftMaybe $ ch `Map.lookup` psMarks mst
 	    put mst' { psMarks = Map.insert '\'' mst $ psMarks mst }
@@ -135,14 +135,15 @@ jumpMark ch = do
 	    put mst' { rsMarks = Map.insert '\'' mst $ rsMarks mst }
 	_ -> return ()
 
-setMark :: (Monad m) => Char -> MainStateT m ()
-setMark ch = get >>= \mst -> case mst of
+setMark :: (Monad m) => Bool -> Char -> MainStateT m ()
+setMark overwrite ch = get >>= \mst -> case mst of
     -- ugh... remind me why I'm not using lens?
     EditState { esMarks = marks, esGameStateStack = (st:_) } ->
-	put $ mst { esMarks = Map.insert ch st marks }
-    PlayState {} -> put $ mst { psMarks = Map.insert ch mst $ psMarks mst }
-    ReplayState {} -> put $ mst { rsMarks = Map.insert ch mst $ rsMarks mst }
+	put $ mst { esMarks = insertMark ch st marks }
+    PlayState {} -> put $ mst { psMarks = insertMark ch mst $ psMarks mst }
+    ReplayState {} -> put $ mst { rsMarks = insertMark ch mst $ rsMarks mst }
     _ -> return ()
+    where insertMark = Map.insertWith $ \new old -> if overwrite then new else old
 
 askLockIndex :: UIMonad uiM => [Char] -> String -> (Int -> Bool) -> MaybeT (MainStateT uiM) Int
 askLockIndex prompt failMessage pred = do
