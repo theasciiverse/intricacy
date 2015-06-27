@@ -242,7 +242,7 @@ instance UIMonad (StateT UIState IO) where
 			renderToMain $ renderStrColAt (scoreColour score) (sign:show (abs score)) pos
 			registerSelectable pos 0 SelRelScoreComponent
 		    | (sign,score,pos) <-
-			[ ('-',negScore,posLeft+^neg hv+^hw)
+			[ ('-',-negScore,posLeft+^neg hv+^hw)
 			, ('+',posScore,posRight+^neg hv+^hw) ] ]
 
 	drawMainState' _ = return ()
