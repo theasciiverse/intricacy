@@ -109,8 +109,8 @@ instance UIMonad (StateT UIState IO) where
 		[ when (null . filter (pred . placedPiece) . Vector.toList $ placedPieces st)
 		    $ registerButton (periphery 0 +^ d) cmd 2 [("place",hu+^neg hw),(tool,hu+^neg hv)]
 		| (pred,tool,cmd,d) <- [
-		    (isWrench, "wrench", CmdTile $ WrenchTile zero, 3*^hu +^ neg hv),
-		    (isHook, "hook", CmdTile $ HookTile, 3*^hu) ] ]
+		    (isWrench, "wrench", CmdTile $ WrenchTile zero, (-4)*^hv +^ hw),
+		    (isHook, "hook", CmdTile $ HookTile, (-3)*^hv +^ hw) ] ]
 	    drawPaintButtons
 	drawMainState' (MetaState {curServer=saddr, undeclareds=undecls,
 		cacheOnly=cOnly, curAuth=auth, codenameStack=names,
