@@ -134,9 +134,10 @@ instance UIMonad (StateT UIState IO) where
 		FetchedRecord fresh err muirc <- lift $ getUInfoFetched 300 name
 		lift $ do
 		    lift $ do
-			unless fresh $ do
+			unless (fresh || cOnly) $ do
 			    smallFont <- gets dispFontSmall
-			    renderToMain $ withFont smallFont $ renderStrColAtLeft (opaquify $ dim errorCol) "(stale)" $ serverWaitPos
+			    renderToMain $ withFont smallFont $
+				renderStrColBelow (opaquify $ dim errorCol) "(updating)" $ codenamePos
 			maybe (return ()) (setMsgLineNoRefresh errorCol) err
 			when (fresh && (isNothing ourName || isNothing muirc || home)) $
 			    let reg = isNothing muirc && isNothing ourName
@@ -212,7 +213,7 @@ instance UIMonad (StateT UIState IO) where
 		let posRight = posLeft +^ 3*^hu
 		size <- snd <$> (lift.lift) getGeom
 		lift $ do
-		    lift.renderToMain $ displaceRender (SVec size 0) $ renderStrColAt (brightish white) "ESTEEM" $ scoresPos +^ hv
+		    lift.renderToMain $ renderStrColAbove (brightish white) "ESTEEM" $ scoresPos
 		    lift $ sequence_ [ registerSelectable (scoresPos+^v) 0 SelRelScore | v <- [hv, hv+^hu] ]
 		    drawRelScore sel scoresPos
 		    fillArea (posLeft+^hw) (map (posLeft+^) [zero,hw,neg hv])

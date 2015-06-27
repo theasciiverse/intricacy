@@ -585,6 +585,13 @@ renderStrColAt' centred c str v = void $ runMaybeT $ do
 		    else SVec 0 0)
     void $ liftIO $ blitSurface fsurf Nothing surf (Just $ Rect x y 0 0)
 
+renderStrColAbove = renderStrColVShifted True
+renderStrColBelow = renderStrColVShifted False
+renderStrColVShifted :: Bool -> Pixel -> String -> HexVec -> RenderM ()
+renderStrColVShifted up c str v = do
+    size <- asks renderSize
+    displaceRender (SVec size 0) $ renderStrColAt c str $ v +^ (if up then hv else hw)
+
 blankRow v = do
     (surf, scrCentre, size) <- asks $
 	liftM3 (,,) renderSurf renderSCentre renderSize
