@@ -115,7 +115,7 @@ instance UIMonad (StateT UIState IO) where
 	drawMainState' (MetaState {curServer=saddr, undeclareds=undecls,
 		cacheOnly=cOnly, curAuth=auth, codenameStack=names,
 		randomCodenames=rnamestvar, retiredLocks=mretired, curLockPath=path,
-		curLock=mlock, listOffset=offset}) = do
+		curLock=mlock, listOffset=offset, asyncCount=count}) = do
 	    let ourName = authUser <$> auth
 	    let selName = listToMaybe names
 	    let home = isJust ourName && ourName == selName
@@ -132,12 +132,14 @@ instance UIMonad (StateT UIState IO) where
 	    runMaybeT $ do
 		name <- MaybeT (return selName)
 		FetchedRecord fresh err muirc <- lift $ getUInfoFetched 300 name
+		pending <- ((>0) <$>) $ liftIO $ atomically $ readTVar count
 		lift $ do
 		    lift $ do
-			unless (fresh || cOnly) $ do
+			unless ((fresh && not pending) || cOnly) $ do
 			    smallFont <- gets dispFontSmall
+			    let str = if pending then "(response pending)" else "(updating)"
 			    renderToMain $ withFont smallFont $
-				renderStrColBelow (opaquify $ dim errorCol) "(updating)" $ codenamePos
+				renderStrColBelow (opaquify $ dim errorCol) str $ codenamePos
 			maybe (return ()) (setMsgLineNoRefresh errorCol) err
 			when (fresh && (isNothing ourName || isNothing muirc || home)) $
 			    let reg = isNothing muirc && isNothing ourName

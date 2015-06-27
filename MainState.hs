@@ -119,6 +119,7 @@ data MainState
 	, curAuth :: Maybe Auth
 	, codenameStack :: [Codename]
 	, newAsync :: TVar Bool
+	, asyncCount :: TVar Int
 	, asyncError :: TVar (Maybe String)
 	, asyncInvalidate :: TVar (Maybe Codenames)
 	, randomCodenames :: TVar [Codename]
@@ -151,12 +152,13 @@ initMetaState = do
     errtvar <- atomically $ newTVar Nothing
     invaltvar <- atomically $ newTVar Nothing
     rnamestvar <- atomically $ newTVar []
+    counttvar <- atomically $ newTVar 0
     (saddr, auth, path) <- confFilePath "metagame.conf" >>=
 	liftM (fromMaybe (defaultServerAddr, Nothing, "")) . readReadFile
     let names = maybeToList $ authUser <$> auth
     (undecls,partials,tut) <- readServerSolns saddr
     mlock <- fullLockPath path >>= readLock
-    return $ MetaState saddr undecls partials tut False auth names flag errtvar invaltvar rnamestvar Map.empty Map.empty Nothing path mlock 0
+    return $ MetaState saddr undecls partials tut False auth names flag counttvar errtvar invaltvar rnamestvar Map.empty Map.empty Nothing path mlock 0
 
 type PartialSolutions = Map LockSpec SavedPlayState
 type TutProgress = (Int,Maybe SavedPlayState)
@@ -342,16 +344,19 @@ curServerActionAsyncThenInvalidate act names = do
     saddr <- gets curServer
     auth <- gets curAuth
     flag <- gets newAsync
+    count <- gets asyncCount
     errtvar <- gets asyncError
     invaltvar <- gets asyncInvalidate
     cOnly <- gets cacheOnly
     void $ liftIO $ forkIO $ do
+	atomically $ modifyTVar count (+1)
 	resp <- if cOnly then return $ ServerError "Can't contact server in cache-only mode"
 		else makeRequest saddr $ ClientRequest protocolVersion auth act
 	case resp of
 	    ServerError err -> atomically $ writeTVar errtvar $ Just err
 	    _ -> atomically $ writeTVar invaltvar names
 	atomically $ writeTVar flag True
+	atomically $ modifyTVar count (+(-1))
 
 checkAsync :: UIMonad uiM => MainStateT uiM ()
 checkAsync = do
