@@ -213,6 +213,10 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
 			"Server only accepts size "++show serverSize++" locks."
 		    unless (validLock $ reframe lock) $ throwError "Invalid lock!"
 		    unless (not.checkSolved $ reframe lock) $ throwError "Lock not locked!"
+		    RCLockHashes hashes <- getRecordErrored RecLockHashes
+			    `catchError` const (return (RCLockHashes []))
+		    let hashed = hash $ show lock
+		    when (hashed `elem` hashes) $ throwError "Lock has already been used"
 		    unless (checkSolution lock soln) $ throwError "Bad solution"
 		_ -> return ()
 	handleRequest' =
@@ -275,10 +279,9 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
 		    RCLockHashes hashes <- getRecordErrored RecLockHashes
 			    `catchError` const (return (RCLockHashes []))
 		    let hashed = hash $ show lock
-		    when (hashed `elem` hashes) $ throwError "Lock has already been used"
-		    ls <- erroredDB $ newLockRecord lock
 		    erroredDB $ putRecord RecLockHashes $ RCLockHashes $ hashed:hashes
 
+		    ls <- erroredDB $ newLockRecord lock
 		    let oldLockInfo = userLocks info ! idx
 		    execStateT (do
 			    when (isJust $ oldLockInfo) $
