@@ -1,5 +1,9 @@
 This is an abbreviated summary; see the git log for gory details.
 
+0.5.5:
+    Save solutions-in-progress of locks and tutorial.
+    Indicate when there's a pending request.
+    Show alerts on redo in play mode.
 0.5.4:
     Fixed some UI bugs involving mode transitions and buttons.
     Hover help on tools in tutorials.

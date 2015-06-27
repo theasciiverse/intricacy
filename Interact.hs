@@ -206,6 +206,8 @@ processCommand' IMMeta CmdSetServer = void.runMaybeT $ do
 	get >>= liftIO . writeServerSolns saddr
 	(undecls,partials,_) <- liftIO (readServerSolns newSaddr)
 	modify $ \ms -> ms { undeclareds=undecls, partialSolutions=partials }
+	rnamestvar <- gets randomCodenames
+	liftIO $ atomically $ writeTVar rnamestvar []
 	invalidateAllUInfo
 	refreshUInfoUI
 processCommand' IMMeta CmdToggleCacheOnly =
