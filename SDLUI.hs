@@ -415,7 +415,9 @@ drawUIOptionButtons mode = do
     drawUIOptionButton mode uiOB3
     drawUIOptionButton mode uiOB4
     drawUIOptionButton mode uiOB5
+#ifdef SOUND
     drawUIOptionButton mode uiOB6
+#endif
 drawUIOptionButton im b = when (im `elem` uiOptModes b) $ do
     value <- gets $ (getUIOpt b).uiOptions
     renderToMain $ mapM_ (\g -> drawAtRel g (uiOptPos b))

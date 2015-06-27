@@ -664,7 +664,7 @@ updateHoverStr mode = do
 	, guard (mPos == uiOptPos uiOB3 && mode `elem` uiOptModes uiOB3) >> describeUIOptionButton uiOB3
 	, guard (mPos == uiOptPos uiOB4 && mode `elem` uiOptModes uiOB4) >> describeUIOptionButton uiOB4
 	, guard (mPos == uiOptPos uiOB5 && mode `elem` uiOptModes uiOB5) >> describeUIOptionButton uiOB5
-#ifdef SOUNt
+#ifdef SOUND
 	, guard (mPos == uiOptPos uiOB6 && mode `elem` uiOptModes uiOB6) >> describeUIOptionButton uiOB6
 #endif
 	]
