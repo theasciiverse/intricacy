@@ -8,6 +8,10 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
+{-# OPTIONS_GHC -cpp #-}
+#ifdef APPLE
+{-# LANGUAGE ForeignFunctionInterface #-}
+#endif
 module Main where
 
 import Init
@@ -16,6 +20,13 @@ import SDLUIMInstance ()
 import qualified CursesUI (UIM)
 import CursesUIMInstance ()
 import MainState
+
+#ifdef APPLE
+foreign export ccall hs_MAIN :: IO ()
+
+hs_MAIN :: IO ()
+hs_MAIN = main
+#endif
 
 main = main'
     (Just (doUI::SDLUI.UIM MainState -> IO (Maybe MainState)))
