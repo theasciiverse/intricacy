@@ -75,8 +75,6 @@ executable intricacy
               ghc-options: -no-hs-main
               include-dirs: /usr/include/SDL /usr/local/include/SDL
               c-sources: c_main.c
-              if flag(Curses)
-                  cc-options: -DCURSES
   else
       Buildable: False
   if flag(Curses)

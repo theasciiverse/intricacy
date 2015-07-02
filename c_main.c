@@ -12,11 +12,7 @@
 #include <SDL.h>
 
 #ifdef __GLASGOW_HASKELL__
-#ifdef CURSES
-#include "MainBoth_stub.h"
-#else
-#include "MainSDL_stub.h"
-#endif
+#include "Main_stub.h"
 extern void __stginit_Main ( void );
 #endif
 
