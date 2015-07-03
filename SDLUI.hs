@@ -718,16 +718,9 @@ drawButtons mode = do
 initVideo :: Int -> Int -> UIM ()
 initVideo w h = do
     fs <- fullscreen <$> gets uiOptions
-    liftIO $ setVideoMode w h 0 [if fs then Fullscreen else Resizable]
+    surf <- liftIO $ setVideoMode w h 0 [if fs then Fullscreen else Resizable]
 
-    when (not fs && (w,h)==(0,0)) $ void $ liftIO $ do
-	-- to work around a bug seen on mac, reset with the dimensions we got:
-	(w',h') <- getDimensions
-	setVideoMode w' h' 0 [Resizable]
-	-- that generates a resize event, so take it off the queue:
-	pollEvents
-
-    (w',h') <- liftIO getDimensions
+    let (w',h') = surfaceGetWidth &&& surfaceGetHeight $ surf
 
     modify $ \ds -> ds { scrWidth = w' }
     modify $ \ds -> ds { scrHeight = h' }
@@ -755,9 +748,6 @@ initVideo w h = do
 	let text = "Warning: font file not found at "++fontpath++".\n"
 	putStr text
 	writeFile "error.log" text
-
-    where
-	getDimensions = (videoInfoWidth &&& videoInfoHeight) <$> getVideoInfo
 
 
 initAudio :: UIM ()
