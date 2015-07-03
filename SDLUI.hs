@@ -723,6 +723,12 @@ initVideo w h = do
     vinfo <- liftIO $ getVideoInfo
     let [w',h'] = map ($vinfo) [videoInfoWidth,videoInfoHeight]
 
+    when (not fs && (w,h)==(0,0)) $
+	-- to work around a bug seen on mac, reset with the dimensions we got.
+	-- FIXME: for some reason this seems to take effect only after drawing
+	-- a complete frame.
+	void $ liftIO $ setVideoMode w' h' 0 [Resizable]
+
     modify $ \ds -> ds { scrWidth = w' }
     modify $ \ds -> ds { scrHeight = h' }
     gssurf <- liftIO $ createRGBSurface [] w' h' 16 0 0 0 0
