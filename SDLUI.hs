@@ -23,6 +23,7 @@ import Data.Maybe
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.Reader
+import Control.Arrow
 import Data.Word
 import Data.Array
 import Data.List
@@ -719,15 +720,14 @@ initVideo w h = do
     fs <- fullscreen <$> gets uiOptions
     liftIO $ setVideoMode w h 0 [if fs then Fullscreen else Resizable]
 
-    -- see what size we actually got:
-    vinfo <- liftIO $ getVideoInfo
-    let [w',h'] = map ($vinfo) [videoInfoWidth,videoInfoHeight]
-
     when (not fs && (w,h)==(0,0)) $ void $ liftIO $ do
 	-- to work around a bug seen on mac, reset with the dimensions we got:
+	(w',h') <- getDimensions
 	setVideoMode w' h' 0 [Resizable]
 	-- that generates a resize event, so take it off the queue:
 	pollEvents
+
+    (w',h') <- liftIO getDimensions
 
     modify $ \ds -> ds { scrWidth = w' }
     modify $ \ds -> ds { scrHeight = h' }
@@ -755,6 +755,10 @@ initVideo w h = do
 	let text = "Warning: font file not found at "++fontpath++".\n"
 	putStr text
 	writeFile "error.log" text
+
+    where
+	getDimensions = (videoInfoWidth &&& videoInfoHeight) <$> getVideoInfo
+
 
 initAudio :: UIM ()
 #ifdef SOUND
