@@ -723,11 +723,11 @@ initVideo w h = do
     vinfo <- liftIO $ getVideoInfo
     let [w',h'] = map ($vinfo) [videoInfoWidth,videoInfoHeight]
 
-    when (not fs && (w,h)==(0,0)) $
-	-- to work around a bug seen on mac, reset with the dimensions we got.
-	-- FIXME: for some reason this seems to take effect only after drawing
-	-- a complete frame.
-	void $ liftIO $ setVideoMode w' h' 0 [Resizable]
+    when (not fs && (w,h)==(0,0)) $ void $ liftIO $ do
+	-- to work around a bug seen on mac, reset with the dimensions we got:
+	setVideoMode w' h' 0 [Resizable]
+	-- that generates a resize event, so take it off the queue:
+	pollEvents
 
     modify $ \ds -> ds { scrWidth = w' }
     modify $ \ds -> ds { scrHeight = h' }
@@ -789,6 +789,14 @@ initAudio = do
 #else
 initAudio = return ()
 #endif
+
+pollEvents = do
+    e <- pollEvent
+    case e of
+	NoEvent -> return []
+	_ -> do
+	    es <- pollEvents
+	    return $ e:es
 
 drawMsgLine = void.runMaybeT $ do
     (col,str) <- msum

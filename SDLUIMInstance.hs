@@ -640,14 +640,6 @@ getEventsTimeout us = do
     es' <- pollEvents
     return $ es++es'
 
-pollEvents = do
-    e <- pollEvent
-    case e of
-	NoEvent -> return []
-	_ -> do
-	    es <- pollEvents
-	    return $ e:es
-
 updateHoverStr :: InputMode -> UIM ()
 updateHoverStr mode = do
     p@(mPos,isCentral) <- gets mousePos
