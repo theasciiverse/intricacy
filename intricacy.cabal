@@ -70,6 +70,8 @@ executable intricacy
                   Extra-Libraries: SDL_mixer
               ghc-options: -optl-mwindows
           if os(darwin)
+              -- network-fancy-0.2.1+ causes a ___xpg_strerror_r link error
+              build-depends: network-fancy < 0.2.1
               -- workaround for SDL on OS X, borrowed from TimePiece-0.0.5
               cpp-options: -DAPPLE
               ghc-options: -no-hs-main
