@@ -715,35 +715,29 @@ drawButtons mode = do
 	]
     where enumerate = zip [0..]
 
+initKeyboard :: IO ()
+initKeyboard = void $ enableUnicode True >> enableKeyRepeat 250 30
+
 initVideo :: Int -> Int -> UIM ()
 initVideo w h = do
+    liftIO $ (((w,h)==(0,0) &&) . (InitVideo `elem`) <$> wasInit [InitVideo]) >>?
+	-- reset video so that passing (0,0) to setVideoMode sets to
+	-- current screen res rather than current window size
+	(quitSubSystem [InitVideo] >> initSubSystem [InitVideo] >> initKeyboard)
+
     fs <- fullscreen <$> gets uiOptions
-    let standardDims = [(1024,768),(800,600),(640,480),(0,0)]
-	tryDims = (if (w,h)==(0,0) then id else ((w,h):)) standardDims
-    liftIO $ if fs then void.runMaybeT $ msum
-	    [ MaybeT $ trySetVideoMode w' h' 0 [Fullscreen]
-	    | (w',h') <- tryDims ]
-	else do
-	    trySetVideoMode w h 0 [Resizable]
-	    when ((w,h)==(0,0)) $ void $ do
-		-- set window to largest of a set of "standard" dimensions which
-		-- seems like it should fit, after slicing off some room for the
-		-- window manager to take up. This should satisfy those who don't like
-		-- it defaulting to taking up the whole screen, and should also mostly
-		-- (though not robustly, since we're only guessing how much to slice)
-		-- work around a bug seen on mac, whereby a resizable window created
-		-- with (w,h)=(0,0), or even with the (w,h) given by getDimensions
-		-- after creating such a window, is reported to be larger than it
-		-- actually is.
-		(w',h') <- getDimensions
-		let slice (w'',h'') = (4*w`div`5,4*h`div`5)
-		    within (a,b) (c,d) = a <= c && b <= d
-		    tryDims' = concat [[dim,slice dim] | dim <- tryDims ]
-		    (w'',h'') = fromMaybe (0,0) $ listToMaybe $
-			filter (`within` slice (w',h')) $ tryDims'
-		setVideoMode w'' h'' 0 [Resizable]
-		-- that generates a resize event, so take it off the queue:
-		pollEvents
+    liftIO $ do
+	setVideoMode w h 0 $ if fs then [Fullscreen] else [Resizable]
+	when (not fs && (w,h)==(0,0)) $ void $ do
+	    -- reset with smaller dimensions than we first get, to work around a
+	    -- bug seen on mac, whereby a resizable window created with
+	    -- (w,h)=(0,0), or even with the (w,h) given by getDimensions after
+	    -- creating such a window, is reported to be larger than it is.
+	    (w',h') <- getDimensions
+	    let (w'',h'') = (4*w'`div`5,4*h'`div`5)
+	    setVideoMode w'' h'' 0 [Resizable]
+	    -- that generates a resize event, so take it off the queue:
+	    pollEvents
 
     (w',h') <- liftIO getDimensions
 

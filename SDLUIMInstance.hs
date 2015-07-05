@@ -270,7 +270,12 @@ instance UIMonad (StateT UIState IO) where
     getUIBinding mode cmd = ($cmd) <$> getBindingStr mode
 
     initUI = liftM isJust (runMaybeT $ do
-	catchIOErrorMT $ SDL.init [InitVideo]
+	catchIOErrorMT $ SDL.init
+#ifdef SOUND
+            [InitVideo,InitAudio]
+#else
+            [InitVideo]
+#endif
 	catchIOErrorMT TTF.init
 	lift $ do
 	    readUIConfigFile
@@ -280,8 +285,7 @@ instance UIMonad (StateT UIState IO) where
 	    h <- gets scrHeight
 	    liftIO $ warpMouse (fi $ w`div`2) (fi $ h`div`2)
 	    renderToMain $ erase
-	    liftIO $ enableUnicode True
-	    liftIO $ enableKeyRepeat 250 30
+	    liftIO $ initKeyboard
 	    initAudio
 	    readBindings
 	)
