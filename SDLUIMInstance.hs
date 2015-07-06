@@ -280,12 +280,11 @@ instance UIMonad (StateT UIState IO) where
 	lift $ do
 	    readUIConfigFile
 	    initVideo 0 0
-	    liftIO $ setCaption "intricacy" "intricacy"
+	    liftIO $ initMisc
 	    w <- gets scrWidth
 	    h <- gets scrHeight
 	    liftIO $ warpMouse (fi $ w`div`2) (fi $ h`div`2)
 	    renderToMain $ erase
-	    liftIO $ initKeyboard
 	    initAudio
 	    readBindings
 	)

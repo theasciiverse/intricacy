@@ -715,15 +715,15 @@ drawButtons mode = do
 	]
     where enumerate = zip [0..]
 
-initKeyboard :: IO ()
-initKeyboard = void $ enableUnicode True >> enableKeyRepeat 250 30
+initMisc :: IO ()
+initMisc = void $ enableUnicode True >> enableKeyRepeat 250 30 >> setCaption "intricacy" "intricacy"
 
 initVideo :: Int -> Int -> UIM ()
 initVideo w h = do
     liftIO $ (((w,h)==(0,0) &&) . (InitVideo `elem`) <$> wasInit [InitVideo]) >>?
 	-- reset video so that passing (0,0) to setVideoMode sets to
 	-- current screen res rather than current window size
-	(quitSubSystem [InitVideo] >> initSubSystem [InitVideo] >> initKeyboard)
+	(quitSubSystem [InitVideo] >> initSubSystem [InitVideo] >> initMisc)
 
     fs <- fullscreen <$> gets uiOptions
     liftIO $ do
