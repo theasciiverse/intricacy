@@ -727,17 +727,15 @@ initVideo w h = do
 
     fs <- fullscreen <$> gets uiOptions
     liftIO $ do
-	setVideoMode w h 0 $ if fs then [Fullscreen] else [Resizable]
-	when (not fs && (w,h)==(0,0)) $ void $ do
-	    -- reset with smaller dimensions than we first get, to work around a
-	    -- bug seen on mac, whereby a resizable window created with
-	    -- (w,h)=(0,0), or even with the (w,h) given by getDimensions after
-	    -- creating such a window, is reported to be larger than it is.
+	(w',h') <- if (fs || (w,h)/=(0,0)) then return (w,h) else do
+	    -- use smaller dimensions than the screen's, to work around a bug
+	    -- seen on mac, whereby a resizable window created with
+	    -- (w,h)=(0,0), or even with the (w,h) given by getDimensions
+	    -- after creating such a window, is reported to be larger than it
+	    -- is.
 	    (w',h') <- getDimensions
-	    let (w'',h'') = (4*w'`div`5,4*h'`div`5)
-	    setVideoMode w'' h'' 0 [Resizable]
-	    -- that generates a resize event, so take it off the queue:
-	    pollEvents
+	    return $ (4*w'`div`5,4*h'`div`5)
+	setVideoMode w' h' 0 $ if fs then [Fullscreen] else [Resizable]
 
     (w',h') <- liftIO getDimensions
 
