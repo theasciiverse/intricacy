@@ -296,7 +296,7 @@ refreshUInfoUI = void.runMaybeT $ do
     modify $ \ms -> ms { listOffset = 0 }
     mourNameSelected >>? getRandomNames
     lift $ modify $ \ms -> ms {retiredLocks = Nothing}
-    lift.lift $ drawMessage ""
+    --lift.lift $ drawMessage ""
     where
 	getRandomNames = do
 	    rnamestvar <- gets randomCodenames
