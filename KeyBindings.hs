@@ -186,11 +186,16 @@ metaBindings = lowerToo
     , ('<', CmdPrevPage)
     ] ++ miscGlobal
 
+impatienceBindings = lowerToo $
+    [ ('Q', CmdQuit)
+    , (ctrl 'C', CmdQuit) ]
+
 bindings :: InputMode -> KeyBindings
 bindings IMEdit = editBindings
 bindings IMPlay = playBindings
 bindings IMMeta = metaBindings
 bindings IMReplay = replayBindings
+bindings IMImpatience = impatienceBindings
 bindings _ = []
 
 findBindings :: KeyBindings -> Command -> [Char]

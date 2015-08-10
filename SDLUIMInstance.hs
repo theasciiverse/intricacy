@@ -300,15 +300,22 @@ instance UIMonad (StateT UIState IO) where
     suspend = return ()
     redraw = return ()
 
-    getDrawImpatience = do
-	curState <- get
-	let pos = serverWaitPos
-	return $ \ticks -> void $ flip runStateT curState $ do
-	    when (ticks>2) $ renderToMain $ do
-		mapM (drawAtRel (FilledHexGlyph $ bright black)) [ pos +^ i*^hu | i <- [0..3] ]
-		withFont (dispFontSmall curState) $
-		    renderStrColAtLeft errorCol ("waiting..."++replicate (ticks`mod`3) '.') $ pos
-	    refresh
+    impatience ticks = do
+	liftIO $ threadDelay 50000
+	if (ticks>20) then do
+		let pos = serverWaitPos
+		smallFont <- gets dispFontSmall
+		renderToMain $ do
+		    mapM (drawAtRel (FilledHexGlyph $ bright black)) [ pos +^ i*^hu | i <- [0..3] ]
+		    withFont smallFont $
+			renderStrColAtLeft errorCol ("waiting..."++replicate ((ticks`div`5)`mod`3) '.') $ pos
+		clearButtons
+		registerButton (pos +^ neg hv) CmdQuit 0 [("abort",hu+^neg hw)]
+		drawButtons IMImpatience
+		refresh
+		cmds <- getInput IMImpatience
+		return $ CmdQuit `elem` cmds
+	    else return False
 
     warpPointer pos = do
 	(scrCentre, size) <- getGeom

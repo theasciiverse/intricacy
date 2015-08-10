@@ -10,5 +10,5 @@
 
 module InputMode where
 
-data InputMode = IMEdit | IMPlay | IMReplay | IMMeta | IMTextInput
+data InputMode = IMEdit | IMPlay | IMReplay | IMMeta | IMTextInput | IMImpatience
     deriving (Eq, Ord, Show, Read)

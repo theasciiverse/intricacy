@@ -62,7 +62,7 @@ class (Applicative m, MonadIO m) => UIMonad m where
     unblockInput :: m (IO ())
     setUIBinding :: InputMode -> Command -> Char -> m ()
     getUIBinding :: InputMode -> Command -> m String
-    getDrawImpatience :: m ( Int -> IO () )
+    impatience :: Int -> m Bool
     toggleColourMode :: m ()
     warpPointer :: HexPos -> m ()
     getUIMousePos :: m (Maybe HexPos)
@@ -337,7 +337,8 @@ curServerAction act = do
     auth <- gets curAuth
     cOnly <- gets cacheOnly
     if cOnly then return $ ServerError "Can't contact server in cache-only mode"
-	else lift $ withImpatience $ liftIO $ makeRequest saddr $ ClientRequest protocolVersion auth act
+	else (fromMaybe (ServerError "Request aborted") <$>) $
+	    lift $ withImpatience $ makeRequest saddr $ ClientRequest protocolVersion auth act
 
 curServerActionAsyncThenInvalidate :: UIMonad uiM => Protocol.Action -> Maybe Codenames -> MainStateT uiM ()
 curServerActionAsyncThenInvalidate act names = do
@@ -384,30 +385,32 @@ getFreshRecBlocking :: UIMonad uiM => Record -> MainStateT uiM (Maybe RecordCont
 getFreshRecBlocking rec = do
     tvar <- getRecordCachedFromCur False rec
     cOnly <- gets cacheOnly
-    fetched <- lift $ withImpatience $ liftIO $ atomically $ do
+    mfetched <- lift $ withImpatience $ atomically $ do
 	fetched@(FetchedRecord fresh _ _) <- readTVar tvar
 	check $ fresh || cOnly
 	return fetched
-    case fetchError fetched of
-	Nothing -> return $ fetchedRC fetched
-	Just err -> lift (drawError err) >> return Nothing
+    case mfetched of
+	Nothing -> lift (drawError "Request aborted") >> return Nothing
+	Just fetched ->
+	    case fetchError fetched of
+		Nothing -> return $ fetchedRC fetched
+		Just err -> lift (drawError err) >> return Nothing
 
--- |draw indication that we're waiting for the server while we do so
-withImpatience :: UIMonad uiM => uiM a -> uiM a
+-- |indicate waiting for server, and allow cancellation
+withImpatience :: UIMonad uiM => IO a -> uiM (Maybe a)
 withImpatience m = do
-    drawImpatience <- getDrawImpatience
-    finishedTV <- liftIO $ atomically $ newTVar False
+    finishedTV <- liftIO $ atomically $ newTVar Nothing
+    id <- liftIO $ forkIO $ m >>= atomically . writeTVar finishedTV . Just
     let waitImpatiently ticks = do
-	    wakeTV <- atomically $ newTVar False
-	    forkIO $ threadDelay (10^6) >> atomically (writeTVar wakeTV True)
-	    finished <- atomically $ do
-		wake <- readTVar wakeTV
-		finished <- readTVar finishedTV
-		check $ wake || finished
-		return finished
-	    when (not finished) $ drawImpatience (ticks+1) >> waitImpatiently (ticks+1)
-    liftIO $ forkIO $ waitImpatiently 0
-    m <* (liftIO $ atomically $ writeTVar finishedTV True)
+	finished <- liftIO $ atomically $ readTVar finishedTV
+	if isJust finished
+	    then return finished
+	    else do
+		abort <- impatience ticks
+		if abort
+		    then liftIO $ killThread id >> return Nothing
+		    else waitImpatiently $ ticks+1
+    waitImpatiently 0
 
 
 getRelScore :: (UIMonad uiM) => Codename -> MainStateT uiM (Maybe Int)

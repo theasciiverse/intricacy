@@ -14,6 +14,7 @@ module CursesUIMInstance () where
 import qualified UI.HSCurses.Curses as Curses
 import qualified UI.HSCurses.CursesHelper as CursesH
 import Control.Concurrent.STM
+import Control.Concurrent
 import Control.Applicative
 import Data.Char (ord)
 import Data.Monoid
@@ -366,7 +367,12 @@ instance UIMonad (StateT UIState IO) where
 
     toggleColourMode = modify $ \s -> s {monochrome = not $ monochrome s}
 
-    getDrawImpatience = return $ \_ -> return ()
+    impatience ticks = do
+	when (ticks>20) $ say "Waiting for server (^C to abort)..."
+	unblock <- unblockInput
+	liftIO $ forkIO $ threadDelay 50000 >> unblock
+	cmds <- getInput IMImpatience
+	return $ CmdQuit `elem` cmds
 
     getInput mode = do
 	let userResizeCode = 1337  -- XXX: chosen not to conflict with HSCurses codes
