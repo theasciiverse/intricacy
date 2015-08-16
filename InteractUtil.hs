@@ -173,7 +173,7 @@ confirm prompt = do
 		Nothing -> waitConfirm
 	ansOfCmd (CmdInputChar 'y') = Just True
 	ansOfCmd (CmdInputChar 'Y') = Just True
-	ansOfCmd CmdRedraw = Nothing
+	ansOfCmd CmdRedraw = Just False
 	ansOfCmd CmdRefresh = Nothing
 	ansOfCmd CmdUnselect = Nothing
 	ansOfCmd _ = Just False
@@ -229,7 +229,6 @@ textInput prompt maxlen hidden endOnMax mposss init = getText (fromMaybe "" init
 		    Right $ (name++[':',lockIndexChar idx], Nothing)
 		applyCmd x (CmdInputCodename name) =
 		    Right $ (name, Nothing)
-		applyCmd x CmdRedraw = Right x
 		applyCmd x CmdRefresh = Right x
 		applyCmd x CmdUnselect = Right x
 		applyCmd _ _ = Left False
