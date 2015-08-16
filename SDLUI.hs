@@ -292,33 +292,33 @@ helpOfSelectable (SelLockUnset True _) = Just
 helpOfSelectable (SelLockUnset False _) = Just
     "An empty lock slot."
 helpOfSelectable (SelUndeclared _) = Just
-    "Declare yourself privy to a lock's secrets by securing a note on it behind a lock of your own."
+    "Declare yourself able to unlock a lock by securing a note on it behind a lock of your own."
 helpOfSelectable (SelRandom _) = Just
     "Random set of guild members. Colours show relative esteem, bright red (-3) to bright green (+3)."
 helpOfSelectable (SelScoreLock (Just name) Nothing _) = Just $
-    "Your lock, the secrets of which "++name++" is not privy to."
+    "Your lock, which "++name++" can not unlock."
 helpOfSelectable (SelScoreLock (Just name) (Just AccessedPrivyRead) _) = Just $
-    "Your lock, the secrets of which "++name++" has read three notes on: -1 to relative esteem."
+    "Your lock, on which "++name++" has read three notes: -1 to relative esteem."
 helpOfSelectable (SelScoreLock (Just name) (Just (AccessedPrivySolved False)) _) = Just $
     "Your lock, on which "++name++" has declared a note which you have not read: -1 to relative esteem."
 helpOfSelectable (SelScoreLock (Just name) (Just (AccessedPrivySolved True)) _) = Just $
-    "Your lock, on which "++name++" has declared a note which you have read."
+    "Your lock, on which "++name++" has declared a note which you have, however, read."
 helpOfSelectable (SelScoreLock (Just name) (Just AccessedPub) _) = Just $
     "Your lock, the secrets of which have been publically revealed: -1 to relative esteem."
 helpOfSelectable (SelScoreLock (Just name) (Just AccessedEmpty) _) = Just $
-    "Your empty lock slot; "++name++" is privy to the secrets of all your locks: -1 to relative esteem."
+    "Your empty lock slot; "++name++" can unlock all your locks: -1 to relative esteem."
 helpOfSelectable (SelScoreLock Nothing Nothing (ActiveLock name _)) = Just $
-    name++"'s lock, the secrets of which you are not privy to."
+    name++"'s lock, which you can not unlock."
 helpOfSelectable (SelScoreLock Nothing (Just AccessedPrivyRead) (ActiveLock name _)) = Just $
-    name++"'s lock, the secrets of which you have read three notes on: +1 to relative esteem."
+    name++"'s lock, on which you have read three notes: +1 to relative esteem."
 helpOfSelectable (SelScoreLock Nothing (Just (AccessedPrivySolved False)) (ActiveLock name _)) = Just $
     name++"'s lock, on which you have declared a note which "++name++" has not read: +1 to relative esteem."
 helpOfSelectable (SelScoreLock Nothing (Just (AccessedPrivySolved True)) (ActiveLock name _)) = Just $
-    name++"'s lock, on which you have declared a note which "++name++" has read."
+    name++"'s lock, on which you have declared a note which "++name++" has, however, read."
 helpOfSelectable (SelScoreLock Nothing (Just AccessedPub) (ActiveLock name _)) = Just $
     name++"'s lock, the secrets of which have been publically revealed: +1 to relative esteem."
 helpOfSelectable (SelScoreLock Nothing (Just AccessedEmpty) (ActiveLock name _)) = Just $
-    name++"'s empty lock slot; you are privy to the secrets of all "++name++"'s locks: +1 to relative esteem."
+    name++"'s empty lock slot; you can unlock all "++name++"'s locks: +1 to relative esteem."
 helpOfSelectable (SelReadNote note) = Just $
     "You have read "++noteAuthor note++"'s note on this lock."
 helpOfSelectable SelReadNoteSlot = Just $
@@ -330,7 +330,7 @@ helpOfSelectable (SelSolution note) = Just $ case noteBehind note of
 	" has secured their note on this lock behind their lock " ++ [lockIndexChar idx] ++ "."
     Nothing -> noteAuthor note ++ "'s note on this lock is public knowledge."
 helpOfSelectable (SelAccessed name) = Just $
-    name ++ " did not pick this lock, but by reading three notes became privy its secrets."
+    name ++ " did not pick this lock, but learnt how to unlock it by reading three notes on it."
 helpOfSelectable (SelPublicLock) = Just
     "Notes behind retired or public locks are public; locks with three public notes are public."
 helpOfSelectable (SelAccessedInfo meth) = Just $ case meth of
@@ -344,7 +344,7 @@ helpOfSelectable (SelOldLock ls) = Just $
 helpOfSelectable SelLockPath = Just $
     "Select a lock by its name. The names you give your locks are not revealed to others."
 helpOfSelectable SelPrivyHeader = Just $
-    "Fellow guild members privy to this lock's secrets, hence able to read its secured notes."
+    "Fellow guild members able to unlock this lock, hence able to read its secured notes."
 helpOfSelectable SelNotesHeader = Just $
     "Secured notes. Notes are obfuscated sketches of method, proving success but revealing little."
 helpOfSelectable SelToolWrench = Just $ "The wrench, one of your lockpicking tools. Click and drag to move."

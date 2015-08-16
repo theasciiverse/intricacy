@@ -792,7 +792,7 @@ drawLockInfo al@(ActiveLock name idx) (Just lockinfo) = do
 
     size <- snd <$> lift getGeom
     lift $ do
-	renderToMain $ displaceRender (SVec size 0) $ renderStrColAt (brightish white) "PRIVY" $ accessedByPos +^ hv
+	renderToMain $ displaceRender (SVec size 0) $ renderStrColAt (brightish white) "UNLOCKED BY" $ accessedByPos +^ hv
 	registerSelectable (accessedByPos +^ hv) 0 SelPrivyHeader
 	registerSelectable (accessedByPos +^ hv +^ hu) 0 SelPrivyHeader
     if public lockinfo
@@ -835,7 +835,7 @@ drawLockInfo al@(ActiveLock name idx) (Just lockinfo) = do
 				renderToMain (drawAtRel (HollowGlyph $ dim green) pos)))
 
     lift $ do
-	renderToMain $ displaceRender (SVec size 0) $ renderStrColAt (brightish white) "NOTES" $ notesPos +^ hv
+	renderToMain $ displaceRender (SVec size 0) $ renderStrColAt (brightish white) "SECURING" $ notesPos +^ hv
 	registerSelectable (notesPos +^ hv) 0 SelNotesHeader
 	registerSelectable (notesPos +^ hv +^ hu) 0 SelNotesHeader
     if null $ notesSecured lockinfo
