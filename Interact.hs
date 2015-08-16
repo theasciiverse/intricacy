@@ -511,9 +511,10 @@ processCommand' IMPlay cmd = do
 		Just $ WrenchPush dir
 	    | otherwise = Just $ HookPush dir
 	torque whs dir
-	    | whs == WHSHook || (whs == WHSSelected && not wsel)=
+	    {- | whs == WHSHook || (whs == WHSSelected && not wsel)=
 		Just $ HookTorque dir
-	    | otherwise = Nothing
+	    | otherwise = Nothing -}
+	    = Just $ HookTorque dir
 	(wsel', pm) =
 	    case cmd of
 		CmdTile (WrenchTile _) -> (True, Nothing)
