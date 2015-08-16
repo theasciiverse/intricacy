@@ -1,5 +1,8 @@
 This is an abbreviated summary; see the git log for gory details.
 
+0.5.7:
+    Allow cancellation of server requests if the server doesn't respond.
+    Minor UI tweaks.
 0.5.6:
     Support OS X (thanks Kevin Eaves).
     Rework setting dimensions.
