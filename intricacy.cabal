@@ -12,6 +12,7 @@ build-type:          Simple
 cabal-version:       >=1.8
 data-files: VeraMoBd.ttf tutorial/*.lock tutorial/*.text sounds/*.ogg
 extra-doc-files: README BUILD NEWS tutorial-extra/*.lock tutorial-extra/README
+extra-source-files: Main_stub.h
 
 description:
     A networked game with client-server architecture. The core game is a
@@ -101,7 +102,7 @@ executable intricacy
       EditGameState, Frame, GameState, GameStateTypes, GraphColouring, Hex, Init,
       InputMode, Interact, InteractUtil, KeyBindings, Lock, MainState,
       Maxlocksize, Metagame, Mundanities, Physics, Protocol, SDLRender, SDLUI,
-      SDLUIMInstance, ServerAddr, Util
+      SDLUIMInstance, ServerAddr, Util, Version
 
 executable intricacy-server
   if flag(Server)
@@ -120,4 +121,4 @@ executable intricacy-server
   main-is:  Server.hs
   other-modules: AsciiLock, BinaryInstances, BoardColouring, CVec, Database,
       Debug, Frame, GameState, GameStateTypes, GraphColouring, Hex, Lock,
-      Maxlocksize, Metagame, Mundanities, Physics, Protocol, Util
+      Maxlocksize, Metagame, Mundanities, Physics, Protocol, Util, Version
