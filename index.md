@@ -27,7 +27,7 @@ Latest version is 0.5.7 ([NEWS](NEWS)).
 * Source: download the [source tarball](intricacy-0.5.7.tar.gz), or
      <tt>git clone http://mbays.freeshell.org/intricacy/.git</tt>
 * [Windows binary](intricacy-0.5.7-win32.zip)
-* [Mac OS X binary](intricacy-0.5.6-mac32.zip) (version 0.5.6) - thanks to Kevin Eaves for
+* [Mac OS X binary](intricacy-0.5.7-mac32.zip) - thanks to Kevin Eaves for
     providing this package.
 * Cabal: <tt>cabal update && cabal install intricacy</tt>
     <small>(requires the haskell package manager 'cabal', and SDL dependencies).</small>

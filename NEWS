@@ -1,5 +1,7 @@
 This is an abbreviated summary; see the git log for gory details.
 
+0.5.7.1:
+    Fix missing files in source dist.
 0.5.7:
     Allow cancellation of server requests if the server doesn't respond.
     Minor UI tweaks.
