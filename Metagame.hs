@@ -71,8 +71,10 @@ getAccessInfo accessedUInfo accessorUInfo =
 	mlinfos
 
 countRead :: UserInfo -> LockInfo -> Int
-countRead reader tlock = fromIntegral $ length $
-	filter (\n -> isNothing (noteBehind n) || n `elem` notesRead reader) $ lockSolutions tlock
+countRead reader tlock = fromIntegral $ length
+	$ filter (\n -> (isNothing (noteBehind n) || n `elem` notesRead reader)
+	    && noteAuthor n /= codename reader)
+	$ lockSolutions tlock
 
 data UserInfoDelta
     = AddRead NoteInfo
