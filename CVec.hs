@@ -26,3 +26,6 @@ hexVec2CVec :: HexVec -> CVec
 hexVec2CVec (HexVec x y z) = CVec (-y) (x-z)
 cVec2HexVec :: CVec -> HexVec
 cVec2HexVec (CVec y x) = HexVec ((x+y)`div`2) (-y) ((y-x)`div`2)
+
+truncateCVec :: CVec -> CVec
+truncateCVec (CVec x y) = CVec (max 0 x) (max 0 y)

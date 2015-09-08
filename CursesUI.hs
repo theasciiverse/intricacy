@@ -102,7 +102,8 @@ drawStrGrey :: CVec -> String -> UIM ()
 drawStrGrey = drawStr a0 0
 drawStrCentred :: Curses.Attr -> ColPair -> CVec -> [Char] -> UIM ()
 drawStrCentred attr col v str =
-    drawStr attr col (v +^ CVec 0 (-length str `div` 2)) str
+    drawStr attr col (truncateCVec $ (v +^ CVec 0 (-length str `div` 2))) str
+
 
 drawCursorAt :: Maybe HexPos -> UIM ()
 drawCursorAt Nothing =

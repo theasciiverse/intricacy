@@ -324,8 +324,22 @@ instance UIMonad (StateT UIState IO) where
     showHelp IMMeta HelpPageGame = do
 	erase
 	(h,w) <- liftIO Curses.scrSize
-	sequence_ [drawStrCentred a0 white (CVec line $ w`div`2) str |
-	    (line,str) <- zip [0..h-2] $ ["Intricacy",""] ++ metagameHelpText ]
+	if w >= maximum (map length metagameHelpText)
+	    then sequence_ [drawStrCentred a0 white (CVec line $ w`div`2) str |
+		    (line,str) <- zip [0..h-2] $ ["Intricacy",""] ++ metagameHelpText ]
+	    else do
+		let wrap max = wrap' max max
+		    wrap' _ _ [] = []
+		    wrap' max left (w:ws) = if 1+length w > left
+			then if left == max
+			    then take max w ++ "\n" ++
+				wrap' max max (drop max w : ws)
+			    else '\n' : wrap' max max (w:ws)
+			else let prepend = if left == max then w else ' ':w
+			    in prepend ++ wrap' max (left - length prepend) ws
+		sequence_ [drawStrCentred a0 white (CVec line $ w`div`2) str |
+		    (line,str) <- zip [0..h] $
+			lines (wrap w $ words $ intercalate " " metagameHelpText) ]
 	return True
     showHelp _ _ = return False
 
