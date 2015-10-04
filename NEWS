@@ -1,5 +1,8 @@
 This is an abbreviated summary; see the git log for gory details.
 
+0.5.7.2:
+    Fix ghc-7.10 compiler warnings.
+    Minor fixes for curses mode.
 0.5.7.1:
     Fix missing files in source dist.
 0.5.7:
