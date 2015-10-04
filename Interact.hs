@@ -16,7 +16,7 @@ import qualified Data.Vector as Vector
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Control.Monad.Writer
-import Control.Monad.Trans.Error
+import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Data.Maybe
 import Data.Char
@@ -51,8 +51,6 @@ import InteractUtil
 import Util
 
 newtype InteractSuccess = InteractSuccess Bool
-instance Error InteractSuccess where
-    noMsg = InteractSuccess False
 
 interactUI :: UIMonad uiM => MainStateT uiM InteractSuccess
 interactUI = do
@@ -82,7 +80,7 @@ interactUI = do
 		mourNameSelected >>? lift purgeInvalidUndecls
 	    drawMainState
 	    cmds <- lift $ getSomeInput im
-	    runErrorT (mapM_ (processCommand im) cmds) >>=
+	    runExceptT (mapM_ (processCommand im) cmds) >>=
 		either
 		    ((lift (drawMessage "") >>) . return)
 		    (const interactLoop)
@@ -109,25 +107,25 @@ getSomeInput im = do
     cmds <- getInput im
     if null cmds then getSomeInput im else return cmds
 
-processCommand :: UIMonad uiM => InputMode -> Command -> ErrorT InteractSuccess (MainStateT uiM) ()
+processCommand :: UIMonad uiM => InputMode -> Command -> ExceptT InteractSuccess (MainStateT uiM) ()
 processCommand im CmdQuit = do
     case im of
-	IMReplay -> throwError $ InteractSuccess False
+	IMReplay -> throwE $ InteractSuccess False
 	IMPlay -> lift (or <$> sequence [gets psIsSub, null <$> gets psGameStateMoveStack])
-	    >>? throwError $ InteractSuccess False
-	IMEdit -> lift editStateUnsaved >>! throwError $ InteractSuccess True
+	    >>? throwE $ InteractSuccess False
+	IMEdit -> lift editStateUnsaved >>! throwE $ InteractSuccess True
 	_ -> return ()
     title <- lift $ getTitle
     (lift . lift . confirm) ("Really quit"
 	    ++ (if im == IMEdit then " without saving" else "")
 	    ++ maybe "" (" from "++) title ++ "?")
-	>>? throwError $ InteractSuccess False
-processCommand im CmdForceQuit = throwError $ InteractSuccess False
+	>>? throwE $ InteractSuccess False
+processCommand im CmdForceQuit = throwE $ InteractSuccess False
 processCommand IMPlay CmdOpen = do
     st <- gets psCurrentState
     frame <- gets psFrame
     if checkSolved (frame,st)
-	then throwError $ InteractSuccess True
+	then throwE $ InteractSuccess True
 	else lift.lift $ drawError "Locked!"
 processCommand im cmd = lift $ processCommand' im cmd
 

@@ -16,7 +16,6 @@ import qualified Data.Vector as Vector
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Control.Monad.Writer
-import Control.Monad.Trans.Error
 import Control.Monad.Trans.Maybe
 import Data.Maybe
 import Data.Char
@@ -236,8 +235,6 @@ getCurTestSoln = runMaybeT $ do
     st <- MaybeT $ gets $ headMay.esGameStateStack
     guard $ st == st'
     return soln
-
-instance Error () where noMsg = ()
 
 mgetOurName :: (UIMonad uiM) => MaybeT (MainStateT uiM) Codename
 mgetOurName = MaybeT $ (authUser <$>) <$> gets curAuth

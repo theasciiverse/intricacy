@@ -16,7 +16,7 @@ import Control.Concurrent (threadDelay,forkIO)
 import Control.Applicative
 import Control.Monad
 import Control.Monad.Trans.State
-import Control.Monad.Trans.Error
+import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans
@@ -181,7 +181,7 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
 	    _ -> ReadWriteMode
 
     -- check solutions prior to write-locking database:
-    eresp <- runErrorT $ do
+    eresp <- runExceptT $ do
 	withDBLock dbpath ReadMode $ checkRequest
 	withDBLock dbpath lockMode $ handleRequest'
     case eresp of
@@ -190,34 +190,34 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
 
     where
 	checkRequest = do
-	    when (pv /= protocolVersion) $ throwError "Bad protocol version"
+	    when (pv /= protocolVersion) $ throwE "Bad protocol version"
 	    case action of
 		DeclareSolution soln ls target idx -> do
 		    info <- getUserInfoOfAuth auth
 		    lock <- getLock ls
 		    tinfo <- getALock target
-		    when (ls /= lockSpec tinfo) $ throwError "Lock no longer in use!"
-		    when (public tinfo) $ throwError "Lock solution already public knowledge!"
+		    when (ls /= lockSpec tinfo) $ throwE "Lock no longer in use!"
+		    when (public tinfo) $ throwE "Lock solution already public knowledge!"
 		    let name = codename info
 		    let behind = ActiveLock name idx
 		    when (name `elem` map noteAuthor (lockSolutions tinfo)) $
-			throwError "Note already taken on that lock!"
+			throwE "Note already taken on that lock!"
 		    when (name == lockOwner target) $
-			throwError "That's your lock!"
+			throwE "That's your lock!"
 		    behindLock <- getALock behind
-		    when (public behindLock) $ throwError "Your lock is cracked!"
-		    unless (checkSolution lock soln) $ throwError "Bad solution"
+		    when (public behindLock) $ throwE "Your lock is cracked!"
+		    unless (checkSolution lock soln) $ throwE "Bad solution"
 		SetLock lock@(frame,_) idx soln -> do
 		    ServerInfo serverSize _ <- getServerInfo
-		    when (frame /= BasicFrame serverSize) $ throwError $
+		    when (frame /= BasicFrame serverSize) $ throwE $
 			"Server only accepts size "++show serverSize++" locks."
-		    unless (validLock $ reframe lock) $ throwError "Invalid lock!"
-		    unless (not.checkSolved $ reframe lock) $ throwError "Lock not locked!"
+		    unless (validLock $ reframe lock) $ throwE "Invalid lock!"
+		    unless (not.checkSolved $ reframe lock) $ throwE "Lock not locked!"
 		    RCLockHashes hashes <- getRecordErrored RecLockHashes
-			    `catchError` const (return (RCLockHashes []))
+			    `catchE` const (return (RCLockHashes []))
 		    let hashed = hash $ show lock
-		    when (hashed `elem` hashes) $ throwError "Lock has already been used"
-		    unless (checkSolution lock soln) $ throwError "Bad solution"
+		    when (hashed `elem` hashes) $ throwE "Lock has already been used"
+		    unless (checkSolution lock soln) $ throwE "Bad solution"
 		_ -> return ()
 	handleRequest' =
 	    case action of
@@ -244,7 +244,7 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
 				]
 			    , return $ ServedUserInfo (curV,info)
 			    ]
-		    ) `catchError` \_ -> return ServerCodenameFree
+		    ) `catchE` \_ -> return ServerCodenameFree
 		GetSolution note -> do
 		    uinfo <- getUserInfoOfAuth auth
 		    let uname = codename uinfo
@@ -259,8 +259,8 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
 			    || note `elem` notesRead uinfo
 			then if public onLinfo || uname `elem` accessedBy onLinfo
 			    then ServedSolution <$> getSolution note
-			    else throwError "You can't wholly decipher that note."
-			else throwError "You don't have access to that note."
+			    else throwE "You can't wholly decipher that note."
+			else throwE "You don't have access to that note."
 		DeclareSolution soln ls target idx -> do
 		    info <- getUserInfoOfAuth auth
 		    let name = codename info
@@ -277,7 +277,7 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
 		    let name = codename info
 		    let al = ActiveLock name idx
 		    RCLockHashes hashes <- getRecordErrored RecLockHashes
-			    `catchError` const (return (RCLockHashes []))
+			    `catchE` const (return (RCLockHashes []))
 		    let hashed = hash $ show lock
 		    erroredDB $ putRecord RecLockHashes $ RCLockHashes $ hashed:hashes
 
@@ -312,21 +312,21 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
 			>-> P.take n -- try to take as many as we were asked for
 		    liftIO newStdGen
 		    return $ ServedRandomNames shuffled
-		_ -> throwError "BUG: bad request"
-	erroredIO :: IO a -> ErrorT String IO a
+		_ -> throwE "BUG: bad request"
+	erroredIO :: IO a -> ExceptT String IO a
 	erroredIO c = do
 	    ret <- liftIO $ catchIO (Right <$> c) (return.Left)
 	    case ret of
-		Left e -> throwError $ "Server IO error: " ++ show e
+		Left e -> throwE $ "Server IO error: " ++ show e
 		Right x -> return x
-	erroredDB :: DBM a -> ErrorT String IO a
+	erroredDB :: DBM a -> ExceptT String IO a
 	erroredDB = erroredIO . withDB dbpath
-	getRecordErrored :: Record -> ErrorT String IO RecordContents
+	getRecordErrored :: Record -> ExceptT String IO RecordContents
 	getRecordErrored rec = do
 	    mrc <- lift $ withDB dbpath $ getRecord rec
 	    case mrc of
 		Just rc -> return rc
-		Nothing -> throwError $ "Bad record on server! Record was: " ++ show rec
+		Nothing -> throwE $ "Bad record on server! Record was: " ++ show rec
 	getLock ls = do
 	    RCLock lock <- getRecordErrored $ RecLock ls
 	    return lock
@@ -343,10 +343,10 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
 	    info <- getUserInfo name
 	    checkValidLockIndex idx
 	    case ((!idx).userLocks) info of
-		Nothing -> throwError "Lock not set"
+		Nothing -> throwE "Lock not set"
 		Just lockinfo -> return lockinfo
 	checkValidLockIndex idx =
-	    unless (0<=idx && idx < maxLocks) $ throwError "Bad lock index"
+	    unless (0<=idx && idx < maxLocks) $ throwE "Bad lock index"
 	getUserInfo name = do
 	    RCUserInfo (version,info) <- getRecordErrored $ RecUserInfo name
 	    return info
@@ -355,31 +355,31 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
 	    let Just (Auth name _) = auth
 	    getUserInfo name
 
-	checkAuth :: Maybe Auth -> ErrorT String IO ()
-	checkAuth Nothing = throwError "Authentication required"
+	checkAuth :: Maybe Auth -> ExceptT String IO ()
+	checkAuth Nothing = throwE "Authentication required"
 	checkAuth (Just (Auth name pw)) = do
 	    exists <- checkCodeName name
-	    unless exists $ throwError "No such user"
+	    unless exists $ throwE "No such user"
 	    RCPassword pw' <- getRecordErrored (RecPassword name)
-	    when (pw /= pw') $ throwError "Wrong password"
-	newUser :: Maybe Auth -> ErrorT String IO ()
-	newUser Nothing = throwError "Require authentication"
+	    when (pw /= pw') $ throwE "Wrong password"
+	newUser :: Maybe Auth -> ExceptT String IO ()
+	newUser Nothing = throwE "Require authentication"
 	newUser (Just (Auth name pw)) = do
 	    exists <- checkCodeName name
-	    when exists $ throwError "Codename taken"
+	    when exists $ throwE "Codename taken"
 	    erroredDB $ putRecord (RecPassword name) (RCPassword pw)
 	    erroredDB $ putRecord (RecUserInfo name) (RCUserInfo $ (1,initUserInfo name))
 	    erroredDB $ putRecord (RecUserInfoLog name) (RCUserInfoDeltas [])
-	resetPassword Nothing pw = throwError "Authentication required"
+	resetPassword Nothing pw = throwE "Authentication required"
 	resetPassword auth@(Just (Auth name _)) newpw = do
 	    checkAuth auth
 	    erroredDB $ putRecord (RecPassword name) (RCPassword newpw)
-	checkCodeName :: Codename -> ErrorT String IO Bool
+	checkCodeName :: Codename -> ExceptT String IO Bool
 	checkCodeName name = do
-	    unless (validCodeName name) $ throwError "Invalid codename"
+	    unless (validCodeName name) $ throwE "Invalid codename"
 	    liftIO $ withDB dbpath $ recordExists $ RecPassword name
 	--- | TODO: journalling so we can survive death during database writes?
-	applyDeltasToRecords :: [(Codename, UserInfoDelta)] -> ErrorT String IO ()
+	applyDeltasToRecords :: [(Codename, UserInfoDelta)] -> ExceptT String IO ()
 	applyDeltasToRecords nds = sequence_ $ [applyDeltasToRecord name deltas
 		| group <- groupBy ((==) `on` fst) nds
 		, let name = fst $ head group

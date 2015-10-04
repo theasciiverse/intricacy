@@ -15,7 +15,6 @@ import Control.Applicative
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Control.Monad.Writer
-import Control.Monad.Trans.Error
 import Control.Monad.Trans.Maybe
 import Data.Maybe
 import Data.Char
