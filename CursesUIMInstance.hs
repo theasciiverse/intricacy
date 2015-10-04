@@ -400,5 +400,5 @@ instance UIMonad (StateT UIState IO) where
 		    unblockBinding = (toEnum 0, CmdRefresh) -- c.f. unblockInput above
 		flip (maybe $ return []) mch $ \ch ->
 		    if mode == IMTextInput
-		    then return [CmdInputChar ch]
+		    then return $ [ CmdInputChar ch `fromMaybe` lookup ch [unblockBinding] ]
 		    else (maybeToList . lookup ch . (unblockBinding:)) <$> getBindings mode
