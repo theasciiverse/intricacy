@@ -97,6 +97,7 @@ executable intricacy
         -- False... but this will have to do for now:
         build-depends: Unsatisfiable >= 1337
 
+  ghc-options: -fno-warn-tabs
   other-modules: AsciiLock, BinaryInstances, BoardColouring, Cache, Command,
       CursesRender, CursesUI, CursesUIMInstance, CVec, Database, Debug,
       EditGameState, Frame, GameState, GameStateTypes, GraphColouring, Hex, Init,
@@ -119,6 +120,7 @@ executable intricacy-server
   else
     Buildable: False
   main-is:  Server.hs
+  ghc-options: -fno-warn-tabs
   other-modules: AsciiLock, BinaryInstances, BoardColouring, CVec, Database,
       Debug, Frame, GameState, GameStateTypes, GraphColouring, Hex, Lock,
       Maxlocksize, Metagame, Mundanities, Physics, Protocol, Util, Version
