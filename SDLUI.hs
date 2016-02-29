@@ -389,8 +389,8 @@ uiOB3 = UIOptButton whsButtons (\v o -> o {whsButtons=v}) [Nothing, Just WHSSele
 	(\v -> case v of
 	    Nothing -> "Click to show (and rebind) keyboard control buttons."
 	    Just whs -> "Showing buttons for controlling " ++ case whs of
-		WHSSelected -> "selected piece"
-		WHSWrench -> "wrench"
+		WHSSelected -> "selected piece; right-click to rebind"
+		WHSWrench -> "wrench; right-click to rebind"
 		WHSHook -> "hook; right-click to rebind")
 	[IMPlay, IMEdit] Nothing
 uiOB4 = UIOptButton showButtonText (\v o -> o {showButtonText=v}) [True,False]
