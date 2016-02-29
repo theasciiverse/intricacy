@@ -325,7 +325,7 @@ instance UIMonad (StateT UIState IO) where
 	erase
 	(h,w) <- liftIO Curses.scrSize
 	if w >= maximum (map length metagameHelpText)
-	    then sequence_ [drawStrCentred a0 white (CVec line $ w`div`2) str |
+	    then sequence_ [drawStrCentred a0 magenta (CVec line $ w`div`2) str |
 		    (line,str) <- zip [0..h-2] $ ["Intricacy",""] ++ metagameHelpText ]
 	    else do
 		let wrap max = wrap' max max
@@ -337,7 +337,7 @@ instance UIMonad (StateT UIState IO) where
 			    else '\n' : wrap' max max (w:ws)
 			else let prepend = if left == max then w else ' ':w
 			    in prepend ++ wrap' max (left - length prepend) ws
-		sequence_ [drawStrCentred a0 white (CVec line $ w`div`2) str |
+		sequence_ [drawStrCentred a0 magenta (CVec line $ w`div`2) str |
 		    (line,str) <- zip [0..h] $
 			lines (wrap w $ words $ intercalate " " metagameHelpText) ]
 	return True

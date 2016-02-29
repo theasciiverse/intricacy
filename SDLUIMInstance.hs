@@ -587,9 +587,9 @@ instance UIMonad (StateT UIState IO) where
 	renderToMain $ do
 	    erase
 	    let headPos = (screenHeightHexes`div`4)*^(hv+^neg hw)
-	    renderStrColAt messageCol "Intricacy" headPos
+	    renderStrColAt purple "Intricacy" headPos
 	    sequence_
-		[ renderStrColAt messageCol str $
+		[ renderStrColAt purple str $
 		    headPos
 		      +^ (y`div`2)*^(hw+^neg hv)
 		      +^ (y`mod`2)*^hw
