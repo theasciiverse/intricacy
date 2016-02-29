@@ -181,13 +181,10 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
 	    _ -> ReadWriteMode
 
     -- check solutions prior to write-locking database:
-    eresp <- runExceptT $ do
-	withDBLock dbpath ReadMode $ checkRequest
-	withDBLock dbpath lockMode $ handleRequest'
-    case eresp of
-	Left error -> return $ ServerError error
-	Right resp -> return resp
-
+    (withDBLock dbpath ReadMode $ runExceptT checkRequest) >>= 
+	either (return . ServerError) (const $
+	withDBLock dbpath lockMode $ runExceptT handleRequest' >>= 
+	    either (return . ServerError) return)
     where
 	checkRequest = do
 	    when (pv /= protocolVersion) $ throwE "Bad protocol version"
