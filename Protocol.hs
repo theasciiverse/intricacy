@@ -29,6 +29,7 @@ data Action
     = Authenticate
     | Register
     | ResetPassword Password
+    | SetEmail String
     | GetServerInfo
     | GetLock LockSpec
     | GetRetired Codename
@@ -89,6 +90,7 @@ instance Binary Action where
     put (GetRandomNames n) = put (9::Word8) >> put n
     put (ResetPassword pw) = put (10::Word8) >> put pw
     put (GetRetired name) = put (11::Word8) >> put name
+    put (SetEmail address) = put (12::Word8) >> put address
     get = do
 	tag <- get :: Get Word8
 	case tag of
@@ -104,6 +106,7 @@ instance Binary Action where
 	    9 -> liftM GetRandomNames get
 	    10 -> liftM ResetPassword get
 	    11 -> liftM GetRetired get
+	    12 -> liftM SetEmail get
 
 instance Binary Auth where
     put (Auth name pw) = put name >> put pw

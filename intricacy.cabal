@@ -117,6 +117,7 @@ executable intricacy-server
         , cryptohash >= 0.8
         , random >= 1.0, pipes >= 4
         , feed >= 0.3.1, xml >= 1.2.6
+        , email-validate >= 1.0.0, text, smtp-mail >= 0.1.4.1
   else
     Buildable: False
   main-is:  Server.hs

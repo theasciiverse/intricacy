@@ -37,6 +37,7 @@ hash = CS.unpack . digestToHexByteString . sha1 . CL.pack
 
 data Record
     = RecPassword Codename
+    | RecEmail Codename
     | RecUserInfo Codename
     | RecUserInfoLog Codename
     | RecLock LockSpec
@@ -44,6 +45,7 @@ data Record
     | RecLockHashes
     | RecRetiredLocks Codename
     | RecServerInfo
+    | RecServerEmail
     deriving (Eq, Ord, Show)
 data RecordContents
     = RCPassword Password
@@ -54,6 +56,7 @@ data RecordContents
     | RCLockHashes [String]
     | RCLockSpecs [LockSpec]
     | RCServerInfo ServerInfo
+    | RCEmail CS.ByteString
     deriving (Eq, Ord, Show)
 
 rcOfServerResp (ServedServerInfo x) = RCServerInfo x
@@ -68,6 +71,7 @@ invariantRecord (RecUserInfoLog _) = False
 invariantRecord (RecPassword _) = False
 invariantRecord (RecRetiredLocks _) = False
 invariantRecord (RecNote _) = False
+invariantRecord (RecEmail _) = False
 invariantRecord _ = True
 
 askForRecord RecServerInfo = GetServerInfo
@@ -91,6 +95,7 @@ getRecord rec = do
 	h <- openFile path ReadMode
 	getRecordh rec h <* hClose h
 getRecordh (RecPassword _) h = ((RCPassword <$>) . tryRead) <$> hGetStrict h
+getRecordh (RecEmail _) h = ((RCEmail <$>) . tryRead) <$> hGetStrict h
 getRecordh (RecUserInfo _) h = ((RCUserInfo <$>) . tryRead) <$> hGetStrict h
 getRecordh (RecUserInfoLog _) h = ((RCUserInfoDeltas <$>) . tryRead) <$> hGetStrict h
 getRecordh (RecLock _) h = ((RCLock <$>) . tryRead) <$> hGetStrict h
@@ -98,6 +103,7 @@ getRecordh (RecNote _) h = ((RCSolution <$>) . tryRead) <$> hGetStrict h
 getRecordh RecLockHashes h = ((RCLockHashes <$>) . tryRead) <$> hGetStrict h
 getRecordh (RecRetiredLocks name) h = ((RCLockSpecs <$>) . tryRead) <$> hGetStrict h
 getRecordh RecServerInfo h = ((RCServerInfo <$>) . tryRead) <$> hGetStrict h
+getRecordh RecServerEmail h = ((RCEmail <$>) . tryRead) <$> hGetStrict h
 
 hGetStrict h = CS.unpack <$> concatMWhileNonempty (repeat $ CS.hGet h 1024)
     where concatMWhileNonempty (m:ms) = do
@@ -115,6 +121,7 @@ putRecord rec rc = do
 	putRecordh rc h
 	hClose h
 putRecordh (RCPassword hpw) h = hPutStr h $ show hpw
+putRecordh (RCEmail addr) h = hPutStr h $ show addr
 putRecordh (RCUserInfo info) h = hPutStr h $ show info
 putRecordh (RCUserInfoDeltas deltas) h = hPutStr h $ show deltas
 putRecordh (RCLock lock) h = hPutStr h $ show lock
@@ -160,6 +167,7 @@ recordPath rec =
     (++ ([pathSeparator] ++ recordPath' rec)) <$> ask
     where
 	recordPath' (RecPassword name) = userDir name ++ "passwd"
+	recordPath' (RecEmail name) = userDir name ++ "email"
 	recordPath' (RecUserInfo name) = userDir name ++ "info"
 	recordPath' (RecUserInfoLog name) = userDir name ++ "log"
 	recordPath' (RecLock ls) = locksDir ++ show ls
@@ -168,6 +176,7 @@ recordPath rec =
 	recordPath' (RecRetiredLocks name) = userDir name ++ "retired"
 	recordPath' RecLockHashes = "lockHashes"
 	recordPath' RecServerInfo = "serverInfo"
+	recordPath' RecServerEmail = "serverEmail"
 
 	userDir name = "users" ++ [pathSeparator] ++ pathifyName name ++ [pathSeparator]
 	alockFN (ActiveLock name idx) = pathifyName name ++":"++ show idx

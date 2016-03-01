@@ -30,7 +30,10 @@ import System.IO
 import System.FilePath
 import System.Directory (renameFile)
 import qualified Data.ByteString.Lazy as L
+import qualified Data.ByteString.Char8 as CS
 import qualified Data.Binary as B
+import qualified Data.Text as TS
+import qualified Data.Text.Lazy as TL
 import Data.Array
 import Control.Exception
 import System.IO.Error
@@ -45,6 +48,9 @@ import Text.Feed.Constructor
 import Text.XML.Light.Output (showTopElement)
 import Data.Time.Format
 import Data.Time.LocalTime
+
+import qualified Text.Email.Validate
+import qualified Network.Mail.SMTP as SMTP
 
 import System.Environment
 import System.Console.GetOpt
@@ -226,6 +232,7 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
 		    doNews $ "New user " ++ authUser (fromJust auth) ++ " registered."
 		    return ServerAck
 		ResetPassword passwd -> resetPassword auth passwd >> return ServerAck
+		SetEmail address -> setEmail auth address >> return ServerAck
 		GetServerInfo -> ServedServerInfo <$> getServerInfo
 		GetLock ls -> ServedLock <$> getLock ls
 		GetRetired name -> ServedRetired <$> getRetired name
@@ -268,6 +275,7 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
 		    doNews $ name ++ " declares solution to "
 			++ alockStr target ++ ", securing their note behind "
 			++ alockStr behind ++ "."
+		    mailDeclaration target behind
 		    return ServerAck
 		SetLock lock@(frame,_) idx soln -> do
 		    info <- getUserInfoOfAuth auth
@@ -371,6 +379,14 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
 	resetPassword auth@(Just (Auth name _)) newpw = do
 	    checkAuth auth
 	    erroredDB $ putRecord (RecPassword name) (RCPassword newpw)
+	setEmail Nothing _ = throwE "Authentication required"
+	setEmail auth@(Just (Auth name _)) addressStr = do
+	    checkAuth auth
+	    serverAddr <- erroredDB $ getRecord RecServerEmail
+	    when (isNothing serverAddr) $ throwE "This server is not configured to support email notifications."
+	    let addr = CS.pack addressStr
+	    when (not $ CS.null addr || Text.Email.Validate.isValid addr) $ throwE "Invalid email address"
+	    erroredDB $ putRecord (RecEmail name) (RCEmail addr)
 	checkCodeName :: Codename -> ExceptT String IO Bool
 	checkCodeName name = do
 	    unless (validCodeName name) $ throwE "Invalid codename"
@@ -458,3 +474,19 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
 		-- TODO: purge old entries
 		writeFile feedPath $ showTopElement $ xmlFeed $
 		    withFeedLastUpdate time $ addItem item feed
+	mailDeclaration target@(ActiveLock name _) behind@(ActiveLock solverName _) = runMaybeT $ do
+	    let makeAddr :: CS.ByteString -> SMTP.Address
+		makeAddr bs = SMTP.Address Nothing $ TS.pack $ CS.unpack bs
+	    RCEmail serverAddr <-  MaybeT $ erroredDB $ getRecord RecServerEmail
+	    RCEmail playerAddr <- MaybeT $ erroredDB $ getRecord $ RecEmail name
+	    guard $ not $ CS.null playerAddr
+	    lift.lift $ SMTP.sendMail "localhost" $ SMTP.simpleMail (makeAddr serverAddr)
+		[makeAddr playerAddr] [] []
+		(TS.pack $ "[Intricacy] " ++ alockStr target ++" solved by " ++ solverName)
+		[SMTP.plainTextPart $ TL.pack $ "A solution to your lock " ++ alockStr target ++ " has been declared by " ++ solverName ++
+		    " and secured behind " ++ alockStr behind ++ "." ++
+		    "\n\n-----\n\nYou received this email from the game Intricacy" ++
+		    "\n\thttp://sdf.org/~mbays/intricacy ." ++
+		    "\nYou can disable notifications in-game by pressing 'R' on your home" ++
+		    "\nscreen and setting an empty address." ++
+		    "\nAlternatively, just reply to this email with the phrase \"stop bugging me\"." ]

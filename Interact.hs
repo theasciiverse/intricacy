@@ -214,31 +214,52 @@ processCommand' IMMeta CmdToggleCacheOnly =
 processCommand' IMMeta CmdRegister = void.runMaybeT $ do
     newName <- mgetCurName
     mauth <- gets curAuth
+    let inputPassword = (hashPassword newName <$>) $ MaybeT $ lift $
+	    textInput "Enter new password:" 64 True False Nothing Nothing
     let isUs = maybe False ((==newName).authUser) mauth
-    confirmOrBail $ if isUs then "Really reset password?" else "Register codename "++newName++"?"
-    passwd <- (hashPassword newName <$>) $ MaybeT $ lift $
-	textInput "Enter new password:" 64 True False Nothing Nothing
-    lift $ if isUs
-	then do
-	    resp <- curServerAction $ ResetPassword passwd
-	    case resp of
-		ServerAck -> do
-		    lift $ drawMessage "New password set."
-		    modify $ \ms -> ms {curAuth = Just $ Auth newName passwd}
-		ServerError err -> lift $ drawError err
-		_ -> lift $ drawMessage $ "Bad server response: " ++ show resp
+    if isUs
+	then msum [ do
+		confirmOrBail "Reset password?"
+		passwd <- inputPassword
+		lift $ do
+		    resp <- curServerAction $ ResetPassword passwd
+		    case resp of
+			ServerAck -> do
+			    lift $ drawMessage "New password set."
+			    modify $ \ms -> ms {curAuth = Just $ Auth newName passwd}
+			ServerError err -> lift $ drawError err
+			_ -> lift $ drawMessage $ "Bad server response: " ++ show resp
+	    , do
+		confirmOrBail "Configure email notifications?"
+		setNotifications
+	    ]
 	else do
-	    modify $ \ms -> ms {curAuth = Just $ Auth newName passwd}
-	    resp <- curServerAction Register
-	    case resp of
-		ServerAck -> do
-		    invalidateUInfo newName
-		    refreshUInfoUI
-		    lift $ drawMessage "Registered!"
-		ServerError err -> do
-		    lift $ drawError err
-		    modify $ \ms -> ms {curAuth = Nothing}
-		_ -> lift $ drawMessage $ "Bad server response: " ++ show resp
+	    passwd <- inputPassword
+	    lift $ do
+		modify $ \ms -> ms {curAuth = Just $ Auth newName passwd}
+		resp <- curServerAction Register
+		case resp of
+		    ServerAck -> do
+			invalidateUInfo newName
+			refreshUInfoUI
+			conf <- lift $ confirm "Registered! Would you like to be notified by email when someone solves your lock?"
+			rbdg <- lift $ getUIBinding IMMeta CmdRegister
+			if conf then void $ runMaybeT setNotifications else lift $ drawMessage "Notifications disabled."
+		    ServerError err -> do
+			lift $ drawError err
+			modify $ \ms -> ms {curAuth = Nothing}
+		    _ -> lift $ drawMessage $ "Bad server response: " ++ show resp
+
+    where setNotifications = do
+	    address <- MaybeT $ lift $ textInput "Enter address, or leave blank to disable notifications:" 128 False False Nothing Nothing
+	    lift $ do
+		resp <- curServerAction $ SetEmail address
+		case resp of
+		    ServerAck -> lift $ drawMessage $ if null address then "Notifications disabled." else "Address set."
+		    ServerError err -> lift $ drawError err
+		    _ -> lift $ drawMessage $ "Bad server response: " ++ show resp
+
+	
 processCommand' IMMeta CmdAuth = void.runMaybeT $ do
     auth <- lift $ gets curAuth
     if isJust auth then do
