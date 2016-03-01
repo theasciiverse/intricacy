@@ -217,6 +217,9 @@ processCommand' IMMeta (CmdRegister adjustReg) = void.runMaybeT $ do
 	    textInput "Enter new password:" 64 True False Nothing Nothing
     if adjustReg
 	then msum [ do
+		confirmOrBail "Log out?"
+		modify $ \ms -> ms {curAuth = Nothing}
+	    , do
 		confirmOrBail "Reset password?"
 		passwd <- inputPassword
 		lift $ do

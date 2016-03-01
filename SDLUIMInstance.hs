@@ -142,9 +142,9 @@ instance UIMonad (StateT UIState IO) where
 				renderStrColBelow (opaquify $ dim errorCol) str $ codenamePos
 			maybe (return ()) (setMsgLineNoRefresh errorCol) err
 			when (fresh && (isNothing ourName || isNothing muirc || home)) $
-			    let reg = isNothing muirc && isNothing ourName
+			    let reg = isNothing muirc || isJust ourName
 			    in registerButton (codenamePos +^ 2*^hu)
-				(if reg then CmdRegister True else CmdAuth)
+				(if reg then CmdRegister $ isJust ourName else CmdAuth)
 				(if isNothing ourName then 2 else 0)
 				[(if reg then "reg" else "auth", 3*^hw)]
 		    (if isJust muirc then drawName else drawNullName) name codenamePos
