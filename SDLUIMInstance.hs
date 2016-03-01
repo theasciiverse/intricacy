@@ -537,27 +537,29 @@ instance UIMonad (StateT UIState IO) where
 	    let bdgWidth = (screenWidthHexes-6) `div` 3
 		showKeys chs = intercalate "/" (map showKeyFriendly chs)
 		maxkeyslen = maximum . (0:) $ map (length.showKeys.map fst) $ groupBy ((==) `on` snd) bdgs
-		extraHelpStrs = ["Mouse commands:", "Right-click on a button to set a keybinding;"]
+		extraHelpStrs = [["Mouse commands:", "Right-click on a button to set a keybinding;"]
+			++ case mode of
+			    IMPlay -> ["Click on tool to select, drag to move;",
+				"Click by tool to move; right-click to wait;", "Scroll wheel to rotate hook;",
+				"Scroll wheel with right button held down to undo/redo."]
+			    IMEdit -> ["Left-click to draw selected; scroll to change selection;",
+				"Right-click on piece to select, drag to move;",
+				"While holding right-click: left-click to advance time, middle-click to delete;",
+				"Scroll wheel to rotate selected piece; scroll wheel while held down to undo/redo."]
+			    IMReplay -> ["Scroll wheel with right button held down to undo/redo."]
+			    IMMeta -> ["Left-clicking on something does most obvious thing;"
+				, "Right-clicking does second-most obvious thing."]]
 		    ++ case mode of
-			IMPlay -> ["Click on tool to select, drag to move;",
-			    "Click by tool to move; right-click to wait;", "Scroll wheel to rotate hook;",
-			    "Scroll wheel with right button held down to undo/redo."]
-			IMEdit -> ["Left-click to draw selected; scroll to change selection;",
-			    "Right-click on piece to select, drag to move;",
-			    "While holding right-click: left-click to advance time, middle-click to delete;",
-			    "Scroll wheel to rotate selected piece; scroll wheel while held down to undo/redo."]
-			IMReplay -> ["Scroll wheel with right button held down to undo/redo."]
-			IMMeta -> ["Left-clicking on something does most obvious thing;"
-			    , "Right-clicking does second-most obvious thing."
-			    , ""
-			    , "Basic game instructions:"
+			IMMeta -> [[
+			    "Basic game instructions:"
 			    , "Choose [C]odename, then [R]egister it;"
 			    , "select other players, and [S]olve their locks;"
 			    , "go [H]ome, then [E]dit and [P]lace a lock of your own;"
 			    , "you can then [D]eclare your solutions."
-			    , "Make other players green by solving their locks and not letting them solve yours."]
-	    renderStrColAt messageCol "Keybindings:" $ (screenHeightHexes`div`4)*^(hv+^neg hw)
-	    let keybindingsHeight = screenHeightHexes - (3 + length extraHelpStrs)
+			    , "Make other players green by solving their locks and not letting them solve yours."]]
+			_ -> []
+	    renderStrColAt cyan "Keybindings:" $ (screenHeightHexes`div`4)*^(hv+^neg hw)
+	    let keybindingsHeight = screenHeightHexes - (3 + length extraHelpStrs + sum (map length extraHelpStrs))
 	    sequence_ [ with $ renderStrColAtLeft messageCol
 			( keysStr ++ ": " ++ desc )
 			$ (x*bdgWidth-(screenWidthHexes-6)`div`2)*^hu +^ neg hv +^
@@ -576,24 +578,24 @@ instance UIMonad (StateT UIState IO) where
 			]
 		    (map (`divMod` keybindingsHeight) [0..])
 		, (x+1)*bdgWidth < screenWidthHexes]
-	    sequence_ [ renderStrColAt messageCol str
+	    sequence_ [ renderStrColAt (if firstLine then cyan else messageCol) str
 			$ (screenHeightHexes`div`4 - y`div`2)*^(hv+^neg hw)
 			  +^ hw
 			  +^ (y`mod`2)*^hw
-		| (str,y) <- zip extraHelpStrs [keybindingsHeight..] ]
+		| ((str,firstLine),y) <- (intercalate [("",False)] $ (map (`zip` (True:repeat False)) extraHelpStrs)) `zip` [(keybindingsHeight+1)..] ]
 	refresh
 	return True
     showHelp IMMeta HelpPageGame = do
 	renderToMain $ do
 	    erase
 	    let headPos = (screenHeightHexes`div`4)*^(hv+^neg hw)
-	    renderStrColAt purple "Intricacy" headPos
+	    renderStrColAt red "INTRICACY" headPos
 	    sequence_
 		[ renderStrColAt purple str $
 		    headPos
 		      +^ (y`div`2)*^(hw+^neg hv)
 		      +^ (y`mod`2)*^hw
-		| (y,str) <- zip [2..]
+		| (y,str) <- zip [1..]
 		    metagameHelpText
 		]
 	return True

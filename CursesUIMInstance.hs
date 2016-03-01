@@ -304,8 +304,8 @@ instance UIMonad (StateT UIState IO) where
 	let bdgWidth = 35
 	    showKeys chs = intercalate "/" (map showKey chs)
 	    maxkeyslen = maximum $ map (length.showKeys.map fst) $ groupBy ((==) `on` snd) bdgs
-	drawStrCentred a0 white (CVec 0 (w`div`2)) "Bindings:"
-	sequence_ [ drawStr a0 white (CVec (y+2) (x*bdgWidth) ) $
+	drawStrCentred a0 cyan (CVec 0 (w`div`2)) "Bindings:"
+	sequence_ [ drawStr a0 cyan (CVec (y+2) (x*bdgWidth) ) $
 		keysStr ++ replicate pad ' ' ++ ": " ++ desc |
 	    ((keysStr,pad,desc),(x,y)) <- zip [(keysStr,pad,desc)
 		    | group <- groupBy ((==) `on` snd) $ sortBy (compare `on` snd) bdgs
@@ -326,7 +326,7 @@ instance UIMonad (StateT UIState IO) where
 	(h,w) <- liftIO Curses.scrSize
 	if w >= maximum (map length metagameHelpText)
 	    then sequence_ [drawStrCentred a0 magenta (CVec line $ w`div`2) str |
-		    (line,str) <- zip [0..h-2] $ ["Intricacy",""] ++ metagameHelpText ]
+		    (line,str) <- zip [0..h-2] $ ["INTRICACY",""] ++ metagameHelpText ]
 	    else do
 		let wrap max = wrap' max max
 		    wrap' _ _ [] = []
