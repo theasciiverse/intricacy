@@ -19,7 +19,12 @@ data ServerAddr = ServerAddr {hostname::String, port::Int}
 nullSaddr (ServerAddr host _) = null host
 
 defaultPort=27001 -- == ('i'<<8) + 'y'
-defaultServerAddr = ServerAddr "thegonz.net" defaultPort
+defaultServerAddr = ServerAddr "i.thegonz.net" defaultPort
+oldDefaultServerAddrs = [ServerAddr "thegonz.net" defaultPort]
+
+updateDefaultSAddr :: ServerAddr -> ServerAddr
+updateDefaultSAddr saddr | saddr `elem` oldDefaultServerAddrs = defaultServerAddr
+updateDefaultSAddr saddr = saddr
 
 saddrStr (ServerAddr h p) = h ++ if p==defaultPort then "" else ':':show p
 

@@ -152,8 +152,9 @@ initMetaState = do
     invaltvar <- atomically $ newTVar Nothing
     rnamestvar <- atomically $ newTVar []
     counttvar <- atomically $ newTVar 0
-    (saddr, auth, path) <- confFilePath "metagame.conf" >>=
+    (saddr', auth, path) <- confFilePath "metagame.conf" >>=
 	liftM (fromMaybe (defaultServerAddr, Nothing, "")) . readReadFile
+    let saddr = updateDefaultSAddr saddr'
     let names = maybeToList $ authUser <$> auth
     (undecls,partials,tut) <- readServerSolns saddr
     mlock <- fullLockPath path >>= readLock
