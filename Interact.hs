@@ -192,11 +192,11 @@ processCommand' IMMeta CmdBackCodename = do
 processCommand' IMMeta CmdSetServer = void.runMaybeT $ do
     saddr <- gets curServer
     saddrs <- liftIO $ knownServers
-    newSaddr <- MaybeT $ ((>>= strToSaddr) <$>) $
+    newSaddr' <- MaybeT $ ((>>= strToSaddr) <$>) $
 	lift $ textInput "Set server:" 256 False False
 	    (Just $ map saddrStr saddrs) (Just $ saddrStr saddr)
+    let newSaddr = if nullSaddr newSaddr' then defaultServerAddr else newSaddr'
     modify $ \ms -> ms { curServer = newSaddr }
-    guard.not $ nullSaddr newSaddr
     msum [ void.MaybeT $ getFreshRecBlocking RecServerInfo
 	, modify (\ms -> ms { curServer = saddr }) >> mzero ]
     lift $ do
