@@ -239,7 +239,7 @@ instance UIMonad (StateT UIState IO) where
 			when (fresh && (isNothing ourName || home || isNothing muirc)) $
 			    drawStrGrey (CVec 2 (w`div`2+1+9)) =<<
 				(bindingsStr IMMeta $
-				    if (isNothing muirc && isNothing ourName) || home then [CmdRegister] else [CmdAuth])
+				    if (isNothing muirc && isNothing ourName) || home then [CmdRegister $ isJust ourName] else [CmdAuth])
 		    for_ muirc $ \(RCUserInfo (_,uinfo)) -> case mretired of
 			Just retired -> do
 			    (h,w) <- liftIO Curses.scrSize

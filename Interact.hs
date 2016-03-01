@@ -211,13 +211,11 @@ processCommand' IMMeta CmdSetServer = void.runMaybeT $ do
 processCommand' IMMeta CmdToggleCacheOnly =
     not <$> gets cacheOnly >>= \c -> modify $ \ms -> ms {cacheOnly = c}
 
-processCommand' IMMeta CmdRegister = void.runMaybeT $ do
-    newName <- mgetCurName
-    mauth <- gets curAuth
-    let inputPassword = (hashPassword newName <$>) $ MaybeT $ lift $
+processCommand' IMMeta (CmdRegister adjustReg) = void.runMaybeT $ do
+    regName <- mgetCurName
+    let inputPassword = (hashPassword regName <$>) $ MaybeT $ lift $
 	    textInput "Enter new password:" 64 True False Nothing Nothing
-    let isUs = maybe False ((==newName).authUser) mauth
-    if isUs
+    if adjustReg
 	then msum [ do
 		confirmOrBail "Reset password?"
 		passwd <- inputPassword
@@ -226,7 +224,7 @@ processCommand' IMMeta CmdRegister = void.runMaybeT $ do
 		    case resp of
 			ServerAck -> do
 			    lift $ drawMessage "New password set."
-			    modify $ \ms -> ms {curAuth = Just $ Auth newName passwd}
+			    modify $ \ms -> ms {curAuth = Just $ Auth regName passwd}
 			ServerError err -> lift $ drawError err
 			_ -> lift $ drawMessage $ "Bad server response: " ++ show resp
 	    , do
@@ -236,14 +234,13 @@ processCommand' IMMeta CmdRegister = void.runMaybeT $ do
 	else do
 	    passwd <- inputPassword
 	    lift $ do
-		modify $ \ms -> ms {curAuth = Just $ Auth newName passwd}
+		modify $ \ms -> ms {curAuth = Just $ Auth regName passwd}
 		resp <- curServerAction Register
 		case resp of
 		    ServerAck -> do
-			invalidateUInfo newName
+			invalidateUInfo regName
 			refreshUInfoUI
 			conf <- lift $ confirm "Registered! Would you like to be notified by email when someone solves your lock?"
-			rbdg <- lift $ getUIBinding IMMeta CmdRegister
 			if conf then void $ runMaybeT setNotifications else lift $ drawMessage "Notifications disabled."
 		    ServerError err -> do
 			lift $ drawError err
@@ -451,7 +448,7 @@ processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
 		modify $ \ms -> ms {tutProgress = (1,Nothing)}
 		mauth <- gets curAuth
 		cbdg <- lift $ getUIBinding IMMeta $ CmdSelCodename Nothing
-		rbdg <- lift $ getUIBinding IMMeta CmdRegister
+		rbdg <- lift $ getUIBinding IMMeta (CmdRegister False)
 		if isNothing mauth
 		    then do
 			let showPage p = lift $ showHelp IMMeta p >>? do

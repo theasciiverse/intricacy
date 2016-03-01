@@ -40,7 +40,7 @@ data Command
     | CmdViewSolution (Maybe NoteInfo)
     | CmdSelectLock | CmdNextLock | CmdPrevLock
     | CmdEdit | CmdPlaceLock (Maybe LockIndex)
-    | CmdRegister | CmdAuth
+    | CmdRegister Bool | CmdAuth
     | CmdNextPage | CmdPrevPage
     | CmdToggleColourMode
     | CmdRedraw | CmdRefresh | CmdSuspend | CmdClear
@@ -97,7 +97,8 @@ describeCommand CmdPrevPage = "page back through lists"
 describeCommand CmdEdit = "edit lock"
 describeCommand (CmdPlaceLock mli) = "place lock"
 	++ maybe "" ((' ':).(:"").lockIndexChar) mli
-describeCommand CmdRegister = "register codename"
+describeCommand (CmdRegister False) = "register codename"
+describeCommand (CmdRegister True) = "adjust registration details"
 describeCommand CmdAuth = "authenticate"
 describeCommand (CmdBind _) = "bind key"
 describeCommand CmdToggleColourMode = "toggle lock colour mode"

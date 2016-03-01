@@ -144,7 +144,7 @@ instance UIMonad (StateT UIState IO) where
 			when (fresh && (isNothing ourName || isNothing muirc || home)) $
 			    let reg = isNothing muirc && isNothing ourName
 			    in registerButton (codenamePos +^ 2*^hu)
-				(if reg then CmdRegister else CmdAuth)
+				(if reg then CmdRegister True else CmdAuth)
 				(if isNothing ourName then 2 else 0)
 				[(if reg then "reg" else "auth", 3*^hw)]
 		    (if isJust muirc then drawName else drawNullName) name codenamePos
