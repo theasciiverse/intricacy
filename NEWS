@@ -1,36 +1,16 @@
 This is an abbreviated summary; see the git log for gory details.
 
-0.5.7.2:
-    Fix ghc-7.10 compiler warnings.
-    Minor fixes for curses mode.
-0.5.7.1:
-    Fix missing files in source dist.
-0.5.7:
-    Allow cancellation of server requests if the server doesn't respond.
-    Minor UI tweaks.
-0.5.6:
-    Support OS X (thanks Kevin Eaves).
-    Rework setting dimensions.
-0.5.5:
-    Save solutions-in-progress of locks and tutorial.
-    Indicate when there's a pending request.
-    Show alerts on redo in play mode.
-0.5.4:
-    Fixed some UI bugs involving mode transitions and buttons.
-    Hover help on tools in tutorials.
-    Actually support ghc-7.10.
-0.5.3:
-    Change direction of mousewheel movements for undo/redo
-	(to agree with English language metaphors with time: up = future).
-    Tutorial fiddling, including new level on springs.
-    Support ghc-7.10 (hopefully).
-0.5.2:
-    Fix cache paths on windows.
-0.5.1:
+0.6:
     New scoring system - you don't get the point for a solution if the lock
 	owner has read your note.
+    Server optionally notifies users by email when their locks are solved.
     Server produces RSS feeds.
-    Improve handling of switching server.
+    Save solutions-in-progress of locks and tutorial.
+    Indicate when there's a pending network request, and allow cancellation.
+    Support ghc-7.10.
+    Support OS X (thanks Kevin Eaves).
+    Further tweaks to UI and tutorials.
+
 0.5:
     Adjustments to graphics, tutorial, and metagame UI, to increase clarity.
     Concurrency on server; no more freezes while it checks a solution.
