@@ -122,7 +122,7 @@ instance UIMonad (StateT UIState IO) where
 	    lift $ renderToMain $ (erase >> drawCursorAt Nothing)
 	    lift $ do
 		smallFont <- gets dispFontSmall
-		renderToMain $ withFont smallFont $ renderStrColAtLeft messageCol
+		renderToMain $ withFont smallFont $ renderStrColAtLeft purple
 			(saddrStr saddr ++ if cOnly then " (cache only)" else "")
 		    $ serverPos +^ hu
 
