@@ -39,6 +39,7 @@ data Action
     | DeclareSolution Solution LockSpec ActiveLock LockIndex
     | SetLock Lock LockIndex Solution
     | GetRandomNames Int
+    | UndefinedAction
     deriving (Eq, Ord, Show, Read)
 
 data Auth = Auth {authUser :: Codename, authPasswd :: Password}
@@ -67,6 +68,7 @@ data ServerResponse
     | ServedRandomNames [Codename]
     | ServerCodenameFree
     | ServerFresh
+    | ServerUndefinedResponse
     deriving (Eq, Ord, Show, Read)
 
 data ServerInfo = ServerInfo {serverLockSize :: Int, serverInfoString::String}
@@ -107,6 +109,7 @@ instance Binary Action where
 	    10 -> liftM ResetPassword get
 	    11 -> liftM GetRetired get
 	    12 -> liftM SetEmail get
+            _ -> return UndefinedAction
 
 instance Binary Auth where
     put (Auth name pw) = put name >> put pw
@@ -142,6 +145,7 @@ instance Binary ServerResponse where
 	    10 -> return ServerCodenameFree
 	    11 -> return ServerFresh
 	    12 -> liftM ServedRetired get
+            _ -> return ServerUndefinedResponse
 instance Binary ServerInfo where
     put (ServerInfo sz str) = put sz >> put str
     get = liftM2 ServerInfo get get

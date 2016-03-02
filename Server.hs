@@ -224,6 +224,7 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
 		_ -> return ()
 	handleRequest' =
 	    case action of
+                UndefinedAction -> throwE "Request not recognised by this server"
 		Authenticate -> do
 		    checkAuth auth
 		    return $ ServerMessage $ "Welcome, " ++ authUser (fromJust auth)
