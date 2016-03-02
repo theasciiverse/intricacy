@@ -4,11 +4,10 @@
 
 A game of competitive puzzle-design.
 
-At its core, this is an abstract turn-based puzzle game in which you pick a
-lock by co-ordinating a pair of tools to manipulate its mechanism. The locks
-you pick are designed by other players; once you have figured out the secret
-of how to pick a lock, you must secure that secret behind a lock of your own
-devising.
+Pick locks by co-ordinating a pair of tools to manipulate its mechanism. The
+locks you pick are designed by other players; once you have figured out the
+secret of how to pick a lock, you must secure that secret behind a lock of
+your own devising.
 
 Free software, released under the GPLv3.
 
