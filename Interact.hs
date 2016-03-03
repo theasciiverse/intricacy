@@ -211,11 +211,13 @@ processCommand' IMMeta CmdSetServer = void.runMaybeT $ do
 processCommand' IMMeta CmdToggleCacheOnly =
     not <$> gets cacheOnly >>= \c -> modify $ \ms -> ms {cacheOnly = c}
 
-processCommand' IMMeta (CmdRegister adjustReg) = void.runMaybeT $ do
+processCommand' IMMeta (CmdRegister _) = void.runMaybeT $ do
     regName <- mgetCurName
+    mauth <- gets curAuth
+    let isUs = maybe False ((==regName).authUser) mauth
     let inputPassword = (hashPassword regName <$>) $ MaybeT $ lift $
 	    textInput "Enter new password:" 64 True False Nothing Nothing
-    if adjustReg
+    if isUs
 	then msum [ do
 		confirmOrBail "Log out?"
 		modify $ \ms -> ms {curAuth = Nothing}
