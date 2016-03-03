@@ -1,5 +1,8 @@
 This is an abbreviated summary; see the git log for gory details.
 
+0.6.1:
+    Fix stupid bug preventing registration via keyboard command.
+
 0.6:
     New scoring system - you don't get the point for a solution if the lock
 	owner has read your note.
