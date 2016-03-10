@@ -42,12 +42,14 @@ Latest version is 0.6.1 ([NEWS](NEWS)).
 
 ##Discuss
 * [Web forum](http://intricacy.thegonz.net/forum/)
-* Mailing list: mail mbays@sdf.org with subject line '[intricacy-discuss] subscribe'.
+* Mailing list: mail mbays+intricacy@paunix.org with subject line '[intricacy-discuss] subscribe'.
 * IRC channel: #intricacy on irc.freenode.org
 
+<!--
 ##Introductory video
 Download: [47MB ogg theora 15m](intricacy.ogv)
 
 Stream: tell your video player to stream from
     <tt>http://mbays.freeshell.org/intricacy/intricacy.ogv</tt>,
 or [use youtube](http://www.youtube.com/watch?v=lmuSNe4bGAM).
+-->
