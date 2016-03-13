@@ -145,8 +145,10 @@ resolveForces plForces eForces eDominates st =
 		    else [i,j]
 
 	stopWrench idx = setPiece idx (Wrench zero)
-	stopBlockedWrenches fs st' = foldr stopWrench st' [
-	    forceIdx f | f <- fs, isWrench.placedPiece $ getForcedpp st' f ]
+	stopBlockedWrenches blocked unblocked st' = foldr stopWrench st' $
+            forcedWrenches blocked \\ forcedWrenches unblocked
+            where forcedWrenches fs = [ forceIdx f
+                    | f <- fs, isWrench.placedPiece $ getForcedpp st' f ]
 	divertedWrenches fs = [ idx
 	    | Push idx dir <- fs
 	    , Wrench mom <- [placedPiece $ getpp st idx]
@@ -165,7 +167,7 @@ resolveForces plForces eForces eDominates st =
 	tell $ map AlertBlockedForce blocked
 	tell $ map AlertAppliedForce unblocked
 	tell $ map AlertDivertedWrench $ divertedWrenches unblocked
-	return $ stopBlockedWrenches blocked $ foldr applyForce st unblocked
+	return $ stopBlockedWrenches blocked unblocked $ foldr applyForce st unblocked
 
 resolveSinglePlForce :: Force -> GameState -> Writer [Alert] GameState
 resolveSinglePlForce force st = resolveForces

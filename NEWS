@@ -1,5 +1,11 @@
 This is an abbreviated summary; see the git log for gory details.
 
+0.6.2:
+    Fix obscure but actual bug in core game physics:
+        wrenches were being blocked when they shouldn't be.
+        See TST:C on the main server for an example - it can be solved only in
+        intricacy versions prior to this one.
+
 0.6.1:
     Fix stupid bug preventing registration via keyboard command.
 
