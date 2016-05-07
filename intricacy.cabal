@@ -78,24 +78,25 @@ executable intricacy
               ghc-options: -no-hs-main
               include-dirs: /usr/include/SDL /usr/local/include/SDL
               c-sources: c_main.c
+      if flag(Curses)
+          build-depends: hscurses >=1.4
+      if flag(SDL)
+          if flag(Curses)
+            main-is: MainBoth.hs
+          else
+            main-is: MainSDL.hs
+      else
+          if flag(Curses)
+            main-is: MainCurses.hs
+          else
+            Buildable: False
+            -- XXX: there must be a neater way to prevent the cabal flag sat
+            -- solver from thinking it's acceptable to have both SDL and Curses be
+            -- False... but this will have to do for now:
+            build-depends: Unsatisfiable >= 1337
   else
+      main-is: MainBoth.hs
       Buildable: False
-  if flag(Curses)
-      build-depends: hscurses >=1.4
-  if flag(SDL)
-      if flag(Curses)
-        main-is: MainBoth.hs
-      else
-        main-is: MainSDL.hs
-  else
-      if flag(Curses)
-        main-is: MainCurses.hs
-      else
-        Buildable: False
-        -- XXX: there must be a neater way to prevent the cabal flag sat
-        -- solver from thinking it's acceptable to have both SDL and Curses be
-        -- False... but this will have to do for now:
-        build-depends: Unsatisfiable >= 1337
 
   ghc-options: -fno-warn-tabs
   other-modules: AsciiLock, BinaryInstances, BoardColouring, Cache, Command,
