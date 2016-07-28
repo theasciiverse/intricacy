@@ -1,19 +1,22 @@
 #Intricacy
 
-##About
+<i>A game of competitive puzzle-design.</i>
 
-A game of competitive puzzle-design.
+By ruthlessly guarded secret arrangement, the Council's agents can pick any
+lock in the city. The Guild produces the necessary locks - apparently secure,
+but with fatal hidden flaws. A ritual game is played to determine the best
+designs; to master it, you must build locks which can be picked only by one
+who knows the secret, and you must discover the secret flaws in the locks
+designed by your colleagues.
 
-Pick locks by co-ordinating a pair of tools to manipulate its mechanism. The
-locks you pick are designed by other players; once you have figured out the
-secret of how to pick a lock, you must secure that secret behind a lock of
-your own devising.
+Coordinate a pair of tools to pick locks designed by other players in a
+mechanistic turn-based puzzle game; construct intricate locks of your own to
+protect the secrets you discover.
 
 Free software, released under the GPLv3.
 
 Written in Haskell, with SDL and Curses user interfaces.
 
-##Screenshots
 [![Metagame](screenshots/metagame.small.png)](screenshots/metagame.png)
 [![Picking a lock](screenshots/playing.small.png)](screenshots/playing.png)
 [![Editing a lock](screenshots/editing.small.png)](screenshots/editing.png)
