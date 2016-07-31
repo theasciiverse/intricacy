@@ -105,9 +105,13 @@ setLockPath path = do
 declare undecl@(Undeclared soln ls al) = do
     ourName <- mgetOurName
     ourUInfo <- mgetUInfo ourName
-    pbdg <- lift.lift $ getUIBinding IMMeta $ CmdPlaceLock Nothing
+    [pbdg,ebdg,hbdg] <- mapM (lift.lift . getUIBinding IMMeta)
+        [ CmdPlaceLock Nothing, CmdEdit, CmdHome ]
+    haveLock <- isJust <$> gets curLock
     idx <- askLockIndex "Secure behind which lock?"
-	("You first need to place ('"++pbdg++"') a lock to secure your solution behind.")
+	(if haveLock
+            then "First you must place ('"++pbdg++"') a lock to secure your solution behind, while at home ('"++hbdg++"')."
+            else "First design a lock in the editor ('"++ebdg++"'), behind which to secure your solution.")
 	(\i -> isJust $ userLocks ourUInfo ! i)
     guard $ isJust $ userLocks ourUInfo ! idx
     lift $ curServerActionAsyncThenInvalidate
