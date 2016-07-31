@@ -56,8 +56,6 @@ modTile tile pos lastPos painting st =
 	    PivotTile _ -> True
 	    _ -> False
 	-- |Find next adjacent, skipping over current entity.
-	-- XXX: Note this doesn't work when the entity is adjacent in multiple
-	-- non-contiguous directions.
 	nextOfAdjacents adjs loop = listToMaybe $ fromMaybe adjs $ do
 		owner <- mowner
 		i <- elemIndex owner adjs
@@ -68,7 +66,7 @@ modTile tile pos lastPos painting st =
 	 _ -> (case tile of
 	   -- _ | same && (pos /= lastPos) -> id
 	   Just (BlockTile _) ->
-	       let adjacentBlocks = [ idx |
+	       let adjacentBlocks = nub [ idx |
 		       dir <- hexDirs
 		       , Just (idx, BlockTile _) <- [Map.lookup (dir +^ pos) board']
 		       , not $ protectedPiece idx ]
