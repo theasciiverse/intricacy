@@ -172,6 +172,7 @@ confirm prompt = do
 		Nothing -> waitConfirm
 	ansOfCmd (CmdInputChar 'y') = Just True
 	ansOfCmd (CmdInputChar 'Y') = Just True
+	ansOfCmd (CmdInputChar c) = if isPrint c then Just False else Nothing
 	ansOfCmd CmdRedraw = Just False
 	ansOfCmd CmdRefresh = Nothing
 	ansOfCmd CmdUnselect = Nothing
