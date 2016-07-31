@@ -5,6 +5,8 @@ This is an abbreviated summary; see the git log for gory details.
         wrenches were being blocked when they shouldn't be.
         See TST:C on the main server for an example - it can be solved only in
         intricacy versions prior to this one.
+    Extra help text screen for editing first lock.
+    Cycle through all possibilities when placing blocks in editor.
 
 0.6.1:
     Fix stupid bug preventing registration via keyboard command.
