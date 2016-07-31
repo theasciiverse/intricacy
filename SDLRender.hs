@@ -377,10 +377,13 @@ renderGlyph (ShowButtonTextButton showing) centre@(SVec x y) size surf = do
 	sequence_ [ pixel surf (fi $ x+size`div`3+(i*size`div`4)) (fi $ y - size`div`4) (bright white)
 	    | i <- [-1..1] ]
 
-renderGlyph (UseSoundsButton use) centre@(SVec x y) size surf = sequence_
-    [ arc surf (fi $ x - (size`div`2)) (fi y) r (-20) 20
-	(if use then bright green else dim red)
-    | r <- map fi $ map (*(size`div`3)) [1,2,3] ]
+renderGlyph (UseSoundsButton use) centre@(SVec x y) size surf = do
+    sequence [ arc surf (fi $ x - (2*size`div`3)) (fi y) r (-20) 20
+            (if use then bright green else dim red)
+        | r <- map fi $ map (*(size`div`3)) [1,2,3] ]
+    when (not use) $ void $ aaLine surf
+        `uncurry` (innerCorner centre size hw)
+        `uncurry` (innerCorner centre size $ neg hw) $ dim red
 
 renderGlyph (WhsButtonsButton Nothing) centre size surf =
     renderGlyph (ButtonGlyph (dim red)) centre (size`div`3) surf
