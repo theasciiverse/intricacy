@@ -224,12 +224,13 @@ textInput prompt maxlen hidden endOnMax mposss init = getText (fromMaybe "" init
 			    then ((if length s >= maxlen then id else (++[c])) s, Nothing)
 			    else (s,mstem)
 		applyCmd x (CmdInputSelLock idx) =
-		    Right $ ([lockIndexChar idx], Nothing)
+                    setTextOrSubmit x $ [lockIndexChar idx]
 		applyCmd x (CmdInputSelUndecl (Undeclared _ _ (ActiveLock name idx))) =
-		    Right $ (name++[':',lockIndexChar idx], Nothing)
+                    setTextOrSubmit x $ name++[':',lockIndexChar idx]
 		applyCmd x (CmdInputCodename name) =
-		    Right $ (name, Nothing)
+                    setTextOrSubmit x $ name
 		applyCmd x CmdRefresh = Right x
 		applyCmd x CmdUnselect = Right x
 		applyCmd _ _ = Left False
 	completes s s' = take (length s) s' == s
+        setTextOrSubmit (s,_) t = if s == t then Left True else Right (t,Nothing)
