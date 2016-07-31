@@ -215,8 +215,10 @@ processCommand' IMMeta (CmdRegister _) = void.runMaybeT $ do
     regName <- mgetCurName
     mauth <- gets curAuth
     let isUs = maybe False ((==regName).authUser) mauth
-    let inputPassword = (hashPassword regName <$>) $ MaybeT $ lift $
-	    textInput "Enter new password:" 64 True False Nothing Nothing
+    let inputPassword = do
+            pw <- MaybeT $ lift $ textInput "Enter new password:" 64 True False Nothing Nothing
+            guard $ not $ null pw
+            return $ hashPassword regName pw
     if isUs
 	then msum [ do
 		confirmOrBail "Log out?"
