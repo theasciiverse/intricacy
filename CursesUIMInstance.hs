@@ -169,6 +169,28 @@ drawLockInfo al@(ActiveLock name i) lockinfo = do
 	    void $ fillBox (CVec (lockBottom+3) (left+1)) (CVec bottom (right-1)) 5 GravUp
 		[ (`drawActiveLock` al) | al <- map noteOn $ notesSecured lockinfo ]
 
+drawBasicHelpPage :: (String,ColPair) -> ([String],ColPair) -> UIM ()
+drawBasicHelpPage (title,titleCol) (body,bodyCol) = do
+    erase
+    (h,w) <- liftIO Curses.scrSize
+    drawStrCentred a0 titleCol (CVec 0 $ w`div`2) title
+    if w >= maximum (map length metagameHelpText)
+        then sequence_ [drawStrCentred a0 bodyCol (CVec line $ w`div`2) str |
+                (line,str) <- zip [2..h] $ body ]
+        else do
+            let wrap max = wrap' max max
+                wrap' _ _ [] = []
+                wrap' max left (w:ws) = if 1+length w > left
+                    then if left == max
+                        then take max w ++ "\n" ++
+                            wrap' max max (drop max w : ws)
+                        else '\n' : wrap' max max (w:ws)
+                    else let prepend = if left == max then w else ' ':w
+                        in prepend ++ wrap' max (left - length prepend) ws
+            sequence_ [drawStrCentred a0 bodyCol (CVec line $ w`div`2) str |
+                (line,str) <- zip [1..h] $
+                    lines (wrap w $ words $ intercalate " " body) ]
+
 charify :: Curses.Key -> Maybe Char
 charify key = case key of
     Curses.KeyChar ch -> Just ch
@@ -322,25 +344,11 @@ instance UIMonad (StateT UIState IO) where
 	refresh
 	return True
     showHelp IMMeta HelpPageGame = do
-	erase
-	(h,w) <- liftIO Curses.scrSize
-	if w >= maximum (map length metagameHelpText)
-	    then sequence_ [drawStrCentred a0 magenta (CVec line $ w`div`2) str |
-		    (line,str) <- zip [0..h-2] $ ["INTRICACY",""] ++ metagameHelpText ]
-	    else do
-		let wrap max = wrap' max max
-		    wrap' _ _ [] = []
-		    wrap' max left (w:ws) = if 1+length w > left
-			then if left == max
-			    then take max w ++ "\n" ++
-				wrap' max max (drop max w : ws)
-			    else '\n' : wrap' max max (w:ws)
-			else let prepend = if left == max then w else ' ':w
-			    in prepend ++ wrap' max (left - length prepend) ws
-		sequence_ [drawStrCentred a0 magenta (CVec line $ w`div`2) str |
-		    (line,str) <- zip [0..h] $
-			lines (wrap w $ words $ intercalate " " metagameHelpText) ]
-	return True
+        drawBasicHelpPage ("INTRICACY",magenta) (metagameHelpText,magenta)
+        return True
+    showHelp IMEdit HelpPageFirstEdit = do
+        drawBasicHelpPage ("Your first lock:",magenta) (firstEditHelpText,green)
+        return True
     showHelp _ _ = return False
 
     getChRaw = (charify<$>) $ liftIO $ CursesH.getKey (return ())

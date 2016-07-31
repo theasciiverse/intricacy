@@ -132,7 +132,7 @@ data MainState
 
 type MainStateT = StateT MainState
 
-data HelpPage = HelpPageInput | HelpPageGame
+data HelpPage = HelpPageInput | HelpPageGame | HelpPageFirstEdit
     deriving (Eq, Ord, Show, Enum)
 
 ms2im :: MainState -> InputMode
@@ -472,4 +472,21 @@ metagameHelpText =
     , "the number of their locks which win you a point minus the number of your locks which win them one."
     , "If the secrets to one of your locks become widely disseminated, you may wish to replace it."
     , "However: once replaced, a lock is \"retired\", and the notes it secured are read by everyone."
+    ]
+
+firstEditHelpText :: [String]
+firstEditHelpText =
+    [ "Design a lock to protect your secrets."
+    , "It must be possible to solve your lock by pulling a sprung bolt from the hole in the top-right,"
+    , "but you should place blocks, springs, pivots, and balls to make this as difficult as possible."
+    , ""
+    , "Place pieces with keyboard or mouse. Springs must be set next to blocks, and arms next to pivots."
+    , "Repeatedly placing a piece in the same hex cycles through ways it can relate to its neighbours."
+    , ""
+    , "Use Test to prove your lock is solvable, or Play to alternate between testing and editing."
+    , "When you are done, Write your lock, then Quit from editing and Place your lock in a slot."
+    , "You will then be able to Declare locks you solve, and others will attempt to solve your lock."
+    , ""
+    , "Your first lock is unlikely to stand for long against your more experienced peers;"
+    , "examine their solutions to spot flaws in your design, and study their locks for ideas."
     ]

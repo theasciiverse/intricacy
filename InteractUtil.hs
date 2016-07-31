@@ -97,6 +97,11 @@ nextLock newer path = do
 	    (\x y -> (if newer then (<) else (>)) x (snd y)) time) <$>
 	(\p -> (,) p <$> getModificationTime p) `mapM` paths
 
+hasLocks :: IO Bool
+hasLocks = do
+    lockdir <- confFilePath "locks"
+    not.null <$> getDirContentsRec lockdir
+
 setLockPath :: UIMonad uiM => FilePath -> MainStateT uiM ()
 setLockPath path = do
     lock <- liftIO $ fullLockPath path >>= readLock

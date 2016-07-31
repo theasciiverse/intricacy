@@ -586,19 +586,11 @@ instance UIMonad (StateT UIState IO) where
 	refresh
 	return True
     showHelp IMMeta HelpPageGame = do
-	renderToMain $ do
-	    erase
-	    let headPos = (screenHeightHexes`div`4)*^(hv+^neg hw)
-	    renderStrColAt red "INTRICACY" headPos
-	    sequence_
-		[ renderStrColAt purple str $
-		    headPos
-		      +^ (y`div`2)*^(hw+^neg hv)
-		      +^ (y`mod`2)*^hw
-		| (y,str) <- zip [1..]
-		    metagameHelpText
-		]
-	return True
+        renderToMain $ drawBasicHelpPage ("INTRICACY",red) (metagameHelpText,purple)
+        return True
+    showHelp IMEdit HelpPageFirstEdit = do
+        renderToMain $ drawBasicHelpPage ("Your first lock:",purple) (firstEditHelpText,green)
+        return True
     showHelp _ _ = return False
 
     onNewMode mode = modify (\ds -> ds{needHoverUpdate=True}) >> say ""
@@ -849,3 +841,15 @@ drawLockInfo al@(ActiveLock name idx) (Just lockinfo) = do
 		[ \pos -> (lift $ registerSelectable pos 0 (SelSecured note)) >> drawActiveLock (noteOn note) pos
 		    | note <- notesSecured lockinfo ]
 
+drawBasicHelpPage :: (String,Pixel) -> ([String],Pixel) -> RenderM ()
+drawBasicHelpPage (title,titleCol) (body,bodyCol) = do
+    erase
+    let headPos = (screenHeightHexes`div`4)*^(hv+^neg hw)
+    renderStrColAt titleCol title headPos
+    sequence_
+        [ renderStrColAt bodyCol str $
+            headPos
+              +^ (y`div`2)*^(hw+^neg hv)
+              +^ (y`mod`2)*^hw
+        | (y,str) <- zip [1..] body
+        ]

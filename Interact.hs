@@ -130,10 +130,16 @@ processCommand IMPlay CmdOpen = do
 processCommand im cmd = lift $ processCommand' im cmd
 
 processCommand' :: UIMonad uiM => InputMode -> Command -> MainStateT uiM ()
-processCommand' im CmdHelp = lift $
+processCommand' im CmdHelp = lift $ do
+    helpPages <- case im of
+        IMMeta -> return [HelpPageInput, HelpPageGame]
+        IMEdit -> do
+            first <- not <$> liftIO hasLocks
+            return $ [HelpPageInput] ++ if first then [HelpPageFirstEdit] else []
+        _ -> return [HelpPageInput]
     let showPage p = showHelp im p >>? do
 	    void $ textInput "[press a key or RMB]" 1 False True Nothing Nothing
-    in sequence_ $ map showPage $ enumFrom HelpPageInput
+    sequence_ $ map showPage helpPages
 processCommand' im (CmdBind mcmd)= lift $ (>> endPrompt) $ runMaybeT $ do
     cmd <- liftMaybe mcmd `mplus` do
 	lift $ drawPrompt False "Command to bind: "
@@ -427,6 +433,11 @@ processCommand' IMMeta CmdEdit = void.runMaybeT $ do
 		return size
 	    ]
 	return (baseLock size, Nothing)
+    not <$> liftIO hasLocks >>? do
+        lift.lift $ showHelp IMEdit HelpPageFirstEdit >>? do
+            void $ textInput
+                "[Press a key or RMB to continue; you can review this help later with '?']"
+                1 False True Nothing Nothing
     path <- lift $ gets curLockPath
     newPath <- MaybeT $ (esPath <$>) $ execSubMainState $
 	newEditState (reframe lock) msoln (if null path then Nothing else Just path)
