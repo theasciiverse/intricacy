@@ -264,8 +264,8 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
 			    || note `elem` notesRead uinfo
 			then if public onLinfo || uname `elem` accessedBy onLinfo
 			    then ServedSolution <$> getSolution note
-			    else throwE "You can't wholly decipher that note."
-			else throwE "You don't have access to that note."
+			    else throwE "You can't wholly decipher this note - you would need more notes on the same lock."
+			else throwE "This note is secured behind a lock you have not opened."
 		DeclareSolution soln ls target idx -> do
 		    info <- getUserInfoOfAuth auth
 		    let name = codename info
