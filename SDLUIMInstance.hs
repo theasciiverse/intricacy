@@ -732,8 +732,8 @@ drawNameWithChar name charcol char pos = do
 drawNameWithCharAndCol :: String -> Pixel -> Char -> Pixel -> HexVec -> MainStateT UIM ()
 drawNameWithCharAndCol name charcol char col pos = do
     size <- fi.snd <$> lift getGeom
-    let up = SVec 0 $ - (ysize size - size`div`2)
-    let down = SVec 0 $ ysize size
+    let up = FVec 0 $ 1/2 - ylen
+    let down = FVec 0 $ ylen
     smallFont <- lift $ gets dispFontSmall
     lift.renderToMain $ do
 	drawAtRel (playerGlyph col) pos
@@ -786,7 +786,7 @@ drawLockInfo al@(ActiveLock name idx) (Just lockinfo) = do
 
     size <- snd <$> lift getGeom
     lift $ do
-	renderToMain $ displaceRender (SVec size 0) $ renderStrColAt (brightish white) "UNLOCKED BY" $ accessedByPos +^ hv
+	renderToMain $ displaceRender (FVec 1 0) $ renderStrColAt (brightish white) "UNLOCKED BY" $ accessedByPos +^ hv
 	registerSelectable (accessedByPos +^ hv) 0 SelPrivyHeader
 	registerSelectable (accessedByPos +^ hv +^ hu) 0 SelPrivyHeader
     if public lockinfo
@@ -829,7 +829,7 @@ drawLockInfo al@(ActiveLock name idx) (Just lockinfo) = do
 				renderToMain (drawAtRel (HollowGlyph $ dim green) pos)))
 
     lift $ do
-	renderToMain $ displaceRender (SVec size 0) $ renderStrColAt (brightish white) "SECURING" $ notesPos +^ hv
+	renderToMain $ displaceRender (FVec 1 0) $ renderStrColAt (brightish white) "SECURING" $ notesPos +^ hv
 	registerSelectable (notesPos +^ hv) 0 SelNotesHeader
 	registerSelectable (notesPos +^ hv +^ hu) 0 SelNotesHeader
     if null $ notesSecured lockinfo

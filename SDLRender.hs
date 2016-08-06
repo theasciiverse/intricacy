@@ -37,86 +37,113 @@ import Physics
 import Command
 import Util
 
+-- wrappers around sdl-gfx functions
+pixelR v col = do
+    (x,y) <- renderPos v
+    surf <- asks renderSurf
+    void.liftIO $ pixel surf x y col
+
+aaLineR v v' col = do
+    (x,y) <- renderPos v
+    (x',y') <- renderPos v'
+    surf <- asks renderSurf
+    void.liftIO $ aaLine surf x y x' y' col
+
+filledPolygonR verts fillCol = do
+    ps <- mapM renderPos verts
+    surf <- asks renderSurf
+    void.liftIO $ filledPolygon surf ps fillCol
+
+arcR v rad a1 a2 col = do
+    (x,y) <- renderPos v
+    r <- renderLen rad
+    surf <- asks renderSurf
+    void.liftIO $ arc surf x y r a1 a2 col
+
+filledCircleR v rad col = do
+    (x,y) <- renderPos v
+    r <- renderLen rad
+    surf <- asks renderSurf
+    void.liftIO $ filledCircle surf x y r col
+
 -- aaPolygon seems to be a bit buggy in sdl-gfx-0.6.0
-aaPolygon' surf verts col =
-    aaLines surf (verts ++ take 1 verts) col
+aaPolygonR verts col =
+    aaLinesR (verts ++ take 1 verts) col
+
 -- aaCircle too
-aaCircle' surf x y rad col =
-    if (rad == 1) then pixel surf x y col
-    else aaCircle surf x y rad col
+aaCircleR v rad col = do
+    (x,y) <- renderPos v
+    r <- renderLen rad
+    surf <- asks renderSurf
+    if (rad <= 1) then void.liftIO $ pixel surf x y col
+    else void.liftIO $ aaCircle surf x y r col
 
-aaLines surf verts col =
-    sequence_ [ aaLine surf x y x' y' col |
-	((x,y),(x',y')) <- zip (take (length verts - 1) verts) (drop 1 verts) ]
 
-rimmedPolygon surf verts fillCol rimCol = do
-    filledPolygon surf verts fillCol
-    aaPolygon' surf verts $ opaquify rimCol
-    return ()
-
-circleAt surf centre@(SVec x y) rad col =
-    aaCircle' surf (fi x) (fi y) (fi rad) col
-
-filledCircleAt surf centre@(SVec x y) rad col =
-    filledCircle surf (fi x) (fi y) (fi rad) col
-
-rimmedCircle surf centre@(SVec x y) rad fillCol rimCol = void $ do
-    filledCircleAt surf centre rad fillCol
-    circleAt surf centre rad $ opaquify rimCol
-
-thickLine :: Surface -> (Int16,Int16) -> (Int16,Int16) -> Float -> Pixel -> IO ()
-thickLine surf from@(x,y) to@(x',y') thickness col = do
-    let (dx,dy) = (x'-x,y'-y)
-	[rdx,rdy] = map fi [dx,dy]
-	s = thickness / (sqrt $ rdx^2 + rdy^2)
-	perp@(px,py) = (round $ s*rdy, round $ s*(-rdx))
-	mperp = (-px,-py)
-	addHalf (a,b) (c,d) = ( (2*a + c) `div` 2, (2*b + d) `div` 2 )
-    rimmedPolygon surf
-	(map (uncurry addHalf) [(from,perp),(to,perp),(from,mperp),(to,mperp)])
-	(dim col) (bright col)
-
-thickLines surf verts thickness col =
-    sequence_ [ thickLine surf v v' thickness col |
+aaLinesR verts col =
+    sequence_ [ aaLineR v v' col |
 	(v,v') <- zip (take (length verts - 1) verts) (drop 1 verts) ]
 
-thickPolygon surf verts thickness col =
-    thickLines surf (verts ++ take 1 verts) thickness col
+rimmedPolygonR verts fillCol rimCol = do
+    filledPolygonR verts fillCol
+    aaPolygonR verts $ opaquify rimCol
+    return ()
 
+rimmedCircleR v rad fillCol rimCol = void $ do
+    filledCircleR v rad fillCol
+    aaCircleR v rad $ opaquify rimCol
+
+thickLineR :: FVec -> FVec -> Float -> Pixel -> RenderM ()
+thickLineR from to thickness col =
+    let FVec dx dy = to -^ from
+        baseThickness = (1/16)
+	s = baseThickness * thickness / (sqrt $ dx^2 + dy^2)
+	perp = (s/2) **^ FVec dy (-dx)
+    in rimmedPolygonR
+        [ from +^ perp, to +^ perp
+        , to +^ neg perp, from +^ neg perp]
+	(dim col) (bright col)
+
+thickLinesR verts thickness col =
+    sequence_ [ thickLineR v v' thickness col |
+	(v,v') <- zip (take (length verts - 1) verts) (drop 1 verts) ]
+
+thickPolygonR verts thickness col =
+    thickLinesR (verts ++ take 1 verts) thickness col
+
+ylen = 1 / sqrt 3
 ysize :: Int -> Int
-ysize = (map (\size -> round $ fi size / sqrt 3) [0..] !!)
+ysize = (map (\size -> round $ fi size * ylen) [0..] !!)
 
-corner :: Integral i => SVec -> Int -> Int -> (i,i)
-corner (SVec x y) size hextant = (fi $ x+dx, fi $ y+dy)
+corner :: Int -> FVec
+corner hextant = FVec x y
     where
-	[dx,dy] = f hextant
-	f 0 = [size, -ysize size]
-	f 1 = [0, -2*ysize size]
-	f 2 = [-size, -ysize size]
+	[x,y] = f hextant
+	f 0 = [1, -ylen]
+	f 1 = [0, -2*ylen]
+	f 2 = [-1, -ylen]
 	f n | n < 6 = let [x,y] = f (5-n) in [x,-y]
 	    | n < 0 = f (6-n)
 	    | otherwise = f (n`mod`6)
 
-innerCorner :: Integral i => SVec -> Int -> HexDir -> (i,i)
-innerCorner (SVec x y) size dir = (fi $ x+dx, fi $ y+dy)
+innerCorner :: HexDir -> FVec
+innerCorner dir = FVec x y
     where
-	[dx,dy] = f dir
+	[x,y] = f dir
 	f dir
-	    | dir == hu = [2*isize, 0]
-	    | dir == hv = [-isize, -ysize size]
-	    | dir == hw = [-isize, ysize size]
+	    | dir == hu = [2/3, 0]
+	    | dir == hv = [-1/3, -ylen]
+	    | dir == hw = [-1/3, ylen]
 	    | not (isHexDir dir) = error "innerCorner: not a hexdir"
 	    | otherwise = map (\z -> -z) $ f $ neg dir
-	isize = size `div` 3
 
-edge :: Integral i => SVec -> Int -> HexDir -> (i,i)
-edge (SVec x y) size dir = (fi $ x+dx, fi $ y+dy)
+edge :: HexDir -> FVec
+edge dir = FVec x y
     where
-	[dx,dy] = f dir
+	[x,y] = f dir
 	f dir
-	    | dir == hu = [size, 0]
-	    | dir == hv = [-size`div`2, -3*ysize size`div`2]
-	    | dir == hw = [-size`div`2, 3*ysize size`div`2]
+	    | dir == hu = [1, 0]
+	    | dir == hv = [-1/2, -3*ylen/2]
+	    | dir == hw = [-1/2, 3*ylen/2]
 	    | not (isHexDir dir) = error "edge: not a hexdir"
 	    | otherwise = map (\z -> -z) $ f $ neg dir
 
@@ -149,13 +176,39 @@ data CachedGlyphs = CachedGlyphs (Map SizedGlyph Surface) [SizedGlyph]
 emptyCachedGlyphs = CachedGlyphs Map.empty []
 maxCachedGlyphs = 100
 
-renderGlyphCaching :: Glyph -> SVec -> Int -> Surface -> RenderM ()
+renderGlyphCaching :: Glyph -> RenderM ()
 -- Glyph caching:
 --  We aim to cache glyphs which are "currently" being regularly drawn, so
 --  they can be blitted from RAM rather than being drawn afresh each time.
 --  Rather than track statistics, we adopt the following probabilistic scheme.
-renderGlyphCaching gl centre size surf = do
+renderGlyphCaching gl = do
     CachedGlyphs cmap clist <- lift get
+    size <- asks renderSize
+    let sgl = (gl,size)
+	w = size*2 + 1
+	h = ysize size*4 + 1
+	newGlyphSurf = do
+	    -- csurf <- liftIO $ createRGBSurface [] w h 32 0xff000000 0x00ff0000 0x0000ff00 0x000000ff
+	    csurf <- liftIO $ createRGBSurface [] w h 16 0 0 0 0
+	    liftIO $ setColorKey csurf [SrcColorKey,RLEAccel] $ Pixel 0
+	    return csurf
+	renderOnCache csurf =
+            let ccxt rc = rc { renderSurf = csurf, renderSCentre = SVec (w`div`2) (h`div`2) }
+	    in local ccxt $ renderGlyph gl
+	addToCache cacheFull csurf = do
+	    CachedGlyphs cmap clist <- lift get
+	    let cmap' = Map.insert sgl csurf cmap
+	    lift $ put $ if cacheFull
+		then CachedGlyphs (Map.delete (last clist) cmap') (sgl:List.init clist)
+		else CachedGlyphs cmap' (sgl:clist)
+	promote = do
+	    CachedGlyphs cmap clist <- lift get
+	    lift $ put $ CachedGlyphs cmap (sgl:List.delete sgl clist)
+	blitGlyph csurf = do
+            surf <- asks renderSurf
+	    (x,y) <- renderPos zero
+	    void $ liftIO $ blitSurface csurf Nothing surf $ Just $
+		Rect (x-w`div`2) (y-h`div`2) (w+1) (h+1)
     let cacheFull = Map.size cmap >= maxCachedGlyphs
     let mcsurf = Map.lookup sgl cmap
     -- with probability 1 in (maxCachedGlyphs`div`2), we put this glyph at the
@@ -170,12 +223,11 @@ renderGlyphCaching gl centre size surf = do
 		addToCache cacheFull csurf
 		blitGlyph csurf
 	    else
-		liftIO $ renderGlyph gl centre size surf
+		renderGlyph gl
 	Just csurf -> do
 	    when cacheIt promote
 	    blitGlyph csurf
     where
-	sgl = (gl,size)
 	cacheable = case gl of
 	    -- some glyphs need to be drawn with blending - those involving
 	    -- anti-aliasing which bleed over the edge of the hex or which
@@ -191,231 +243,182 @@ renderGlyphCaching gl centre size surf = do
 	    BlockedPush _ _ -> False
 	    CollisionMarker -> False
 	    _ -> True
-	w = size*2 + 1
-	h = ysize size*4 + 1
-	newGlyphSurf = do
-	    -- csurf <- liftIO $ createRGBSurface [] w h 32 0xff000000 0x00ff0000 0x0000ff00 0x000000ff
-	    csurf <- liftIO $ createRGBSurface [] w h 16 0 0 0 0
-	    liftIO $ setColorKey csurf [SrcColorKey,RLEAccel] $ Pixel 0
-	    return csurf
-	renderOnCache csurf =
-	    liftIO $ renderGlyph gl (SVec (w`div`2) (h`div`2)) size csurf
-	addToCache cacheFull csurf = do
-	    CachedGlyphs cmap clist <- lift get
-	    let cmap' = Map.insert sgl csurf cmap
-	    lift $ put $ if cacheFull
-		then CachedGlyphs (Map.delete (last clist) cmap') (sgl:List.init clist)
-		else CachedGlyphs cmap' (sgl:clist)
-	promote = do
-	    CachedGlyphs cmap clist <- lift get
-	    lift $ put $ CachedGlyphs cmap (sgl:List.delete sgl clist)
-	blitGlyph csurf =
-	    let SVec x y = centre
-	    in void $ liftIO $ blitSurface csurf Nothing surf $ Just $
-		Rect (x-w`div`2) (y-h`div`2) (w+1) (h+1)
 
-renderGlyph :: Glyph -> SVec -> Int -> Surface -> IO ()
-renderGlyph (TileGlyph (BlockTile adjs) col) centre size surf =
-    rimmedPolygon surf corners col $ bright col
+renderGlyph :: Glyph -> RenderM ()
+renderGlyph (TileGlyph (BlockTile adjs) col) =
+    rimmedPolygonR corners col $ bright col
 	where
 	    corners = concat [
 		if or $ map adjAt [0,1]
-		then [corner centre size $ hextant dir]
+		then [corner $ hextant dir]
 		else if adjAt $ -1
 		    then []
-		    else [innerCorner centre size dir]
+		    else [innerCorner dir]
 		| dir <- hexDirs
 		, let adjAt r = rotate r dir `elem` adjs
 		]
 
-renderGlyph (TileGlyph (SpringTile extn dir) col) centre size surf =
-    thickLines surf points 1 $ brightness col
+renderGlyph (TileGlyph (SpringTile extn dir) col) =
+    thickLinesR points 1 $ brightness col
 	where
+            n :: Int
 	    n = 3*case extn of
 		Stretched -> 1
 		Relaxed -> 2
 		Compressed -> 4
 	    brightness = if extn == Relaxed then dim else bright
 	    dir' = if dir == zero then hu else dir
-	    (sx,sy) = corner centre size (hextant dir' - 1)
-	    (offx,offy) = corner centre size (hextant dir')
-	    (ex,ey) = corner centre size (hextant dir' - 3)
-	    points = [ (x+dx,y+dy)
+	    s = corner (hextant dir' - 1)
+	    off = corner (hextant dir')
+	    e = corner (hextant dir' - 3)
+	    points = [ b +^ (fi i / fi n) **^ (e -^ s)
 		| i <- [0..n]
 		, i`mod`3 /= 1
-		, let (x,y) = if i`mod`3==0 then (sx,sy) else (offx,offy)
-		, let (dx,dy) = ((i*(ex-sx))`div`n, (i*(ey-sy))`div`n) ]
+		, let b = if i`mod`3==0 then s else off ]
 
-renderGlyph (TileGlyph (PivotTile dir) col) centre size surf = do
-    rimmedCircle surf centre rad col $ bright col
+renderGlyph (TileGlyph (PivotTile dir) col) = do
+    rimmedCircleR zero (7/8) col $ bright col
     when (dir /= zero)
-	$ void $ aaLine surf `uncurry` from `uncurry` to $ bright col
+	$ aaLineR from to $ bright col
     return ()
 	where
-	    rad = (7*size)`div`8
-	    from = edge centre rad $ neg dir
-	    to = edge centre rad dir
+	    from = (7/8) **^ edge (neg dir)
+	    to = (7/8) **^ edge dir
 
-renderGlyph (TileGlyph (ArmTile dir _) col) centre size surf =
-    void $ thickLine surf from to 1 col
+renderGlyph (TileGlyph (ArmTile dir _) col) =
+    thickLineR from to 1 col
 	where
 	    dir' = if dir == zero then hu else dir
-	    from = edge centre size $ neg dir'
-	    to = innerCorner centre size dir'
+	    from = edge $ neg dir'
+	    to = innerCorner dir'
 
-renderGlyph (TileGlyph HookTile col) centre size surf =
-    rimmedCircle surf centre rad col $ bright col
-	where
-	    rad = (7*size)`div`8
+renderGlyph (TileGlyph HookTile col) =
+    rimmedCircleR zero (7/8) col $ bright col
 
-renderGlyph (TileGlyph (WrenchTile mom) col) centre size surf = do
-    rimmedCircle surf centre (size`div`3) col $ bright col
+renderGlyph (TileGlyph (WrenchTile mom) col) = do
+    rimmedCircleR zero (1/3) col $ bright col
     when (mom /= zero) $
 	let
-	    (fx,fy) = innerCorner centre size $ neg mom
-	    (tx,ty) = edge centre size $ neg mom
-	    shifts = map (map (`div` 2)) $
-		[ [ x1-x0, y1-y0 ]
+	    from = innerCorner $ neg mom
+	    to = edge $ neg mom
+	    shifts = [ (1/2) **^ (b -^ a)
 		| rot <- [-1,0,1]
-		, let (x0,y0) = innerCorner centre size $ neg mom
-		, let (x1,y1) = innerCorner centre size $ rotate rot $ neg mom
+		, let a = innerCorner $ neg mom
+		, let b = innerCorner $ rotate rot $ neg mom
 		]
 	in sequence_
-	    [ aaLine surf (fx+dx) (fy+dy) (tx+dx) (ty+dy) $ col
-	    | [dx,dy] <- shifts ]
+	    [ aaLineR (from+^shift) (to+^shift) $ col
+	    | shift <- shifts ]
 
-renderGlyph (TileGlyph BallTile col) centre size surf =
-    rimmedCircle surf centre rad (faint col) (obscure col)
-    where rad = (7*size)`div`8
+renderGlyph (TileGlyph BallTile col) =
+    rimmedCircleR zero (7/8) (faint col) (obscure col)
 
-renderGlyph (BlockedArm armdir tdir col) centre size surf =
-    void $ aaLine surf `uncurry` from `uncurry` to $ col
+renderGlyph (BlockedArm armdir tdir col) =
+    aaLineR from to col
 	where
-	    from = innerCorner centre size $ rotate (2*tdir) armdir
-	    to = edge centre size $ rotate tdir armdir
+	    from = innerCorner $ rotate (2*tdir) armdir
+	    to = edge $ rotate tdir armdir
 
-renderGlyph (TurnedArm armdir tdir col) centre size surf =
-    sequence_ [ arc surf (fi x) (fi y) (fi $ n*size `div` 4)
-	a1 a2 col | n <- [8,9] ]
+renderGlyph (TurnedArm armdir tdir col) =
+    sequence_ [ arcR c r a1 a2 col | r <- [8/4,9/4] ]
     where
-	SVec x y = centre +^ hexVec2SVec size (neg armdir)
+	c = hexVec2FVec $ neg armdir
 	a0 = fi $ -60*hextant armdir
 	a1' = a0 + fi tdir * 10
 	a2' = a0 + fi tdir * 30
 	a1 = min a1' a2'
 	a2 = max a1' a2'
 
-renderGlyph (BlockedBlock tile dir col) centre size surf =
-    renderGlyph (TileGlyph tile col) (shift +^ centre) size surf
-	where
-	    shift = SVec (x'-x) (y'-y)
-	    (x,y) = innerCorner centre size dir
-	    (x',y') = edge centre size dir
+renderGlyph (BlockedBlock tile dir col) =
+    displaceRender shift $ renderGlyph (TileGlyph tile col)
+	where shift = innerCorner dir -^ edge dir
 
-renderGlyph (BlockedPush dir col) centre size surf = do
-{-
-    void $ rimmedPolygon surf verts (obscure col) (dim col)
-	where verts =
-		[ innerCorner centre size $ rotate 1 dir
-		, innerCorner centre size $ rotate (-1) dir
-		, innerCorner centre size dir ]
--}
-    void $ thickLine surf base tip 1 col
-    --void $ aaLine surf `uncurry` from' `uncurry` to' $ col
-    void $ thickLine surf tip (arms!!0) 1 col
-    void $ thickLine surf tip (arms!!1) 1 col
+renderGlyph (BlockedPush dir col) = do
+    thickLineR zero tip 1 col
+    thickLineR tip (arms!!0) 1 col
+    thickLineR tip (arms!!1) 1 col
     where
-	--base@(bx,by) = innerCorner centre size dir
-	SVec bx' by' = centre
-	base@(bx,by) = (fi bx',fi by')
-	tip@(tx,hy) = edge centre size dir
-	arms = [(bx + (tx-bx)`div`2 + dir*(hy-by)`div`4,
-	    by + (hy-by)`div`2 - dir*(tx-bx)`div`4) | dir <- [-1,1]]
+	tip@(FVec tx ty) = edge dir
+        arms = [ FVec ((tx/2) + d*ty/4) (ty/2 - d*tx/4) | d <- [-1,1] ]
 
-	--from' = corner centre size $ hextant dir
-	--to' = corner centre size $ (hextant dir) - 1
-
-renderGlyph CollisionMarker centre@(SVec x y) size surf = void $ do
+renderGlyph CollisionMarker = do
     -- rimmedCircle surf centre (size`div`3) (bright purple) $ bright purple
-    aaLine surf `uncurry` start `uncurry` end $ col
-    circleAt surf centre rad col
+    aaLineR start end $ col
+    aaCircleR zero rad col
     where
-	[start,end] = map (corner centre (size`div`2)) [0,3]
-	rad = ysize size
+	[start,end] = map (((1/2)**^) . corner) [0,3]
+	rad = ylen
 	col = dim purple
 
-renderGlyph (HollowGlyph col) centre size surf =
-    aaPolygon' surf corners $ opaquify col
-    where corners = map (corner centre size) [0..5]
-renderGlyph (HollowInnerGlyph col) centre size surf =
-    aaPolygon' surf corners $ opaquify col
-    where corners = [ innerCorner centre size dir | dir <- hexDirs ]
+renderGlyph (HollowGlyph col) =
+    aaPolygonR corners $ opaquify col
+    where corners = map corner [0..5]
+renderGlyph (HollowInnerGlyph col) =
+    aaPolygonR corners $ opaquify col
+    where corners = map innerCorner hexDirs
 
-renderGlyph (FilledHexGlyph col) centre size surf =
-    rimmedPolygon surf corners col $ brightish col
-    where corners = map (corner centre size) [0..5]
+renderGlyph (FilledHexGlyph col) =
+    rimmedPolygonR corners col $ brightish col
+    where corners = map corner [0..5]
 
-renderGlyph (ButtonGlyph col) centre size surf =
-    renderGlyph (TileGlyph (BlockTile []) col) centre size surf
+renderGlyph (ButtonGlyph col) =
+    renderGlyph (TileGlyph (BlockTile []) col)
 
-renderGlyph (UseFiveColourButton using) centre size surf = do
-    mapM_ (\h -> renderGlyph (TileGlyph (BlockTile [])
-	    (dim $ colourWheel (if using then h`div`2 else 1)))
-	    (SVec `uncurry` corner centre (size`div`2) h) (size`div`2) surf)
-	[0,2,4]
+renderGlyph (UseFiveColourButton using) =
+    rescaleRender (1/2) $ sequence_ [
+        displaceRender (corner h) $ renderGlyph
+            (TileGlyph (BlockTile [])
+                (dim $ colourWheel (if using then h`div`2 else 1)))
+        | h <- [0,2,4] ]
 
-renderGlyph (ShowBlocksButton showing) centre size surf = do
-    renderGlyph (TileGlyph (BlockTile []) (dim red)) centre size surf
+renderGlyph (ShowBlocksButton showing) = do
+    renderGlyph (TileGlyph (BlockTile []) (dim red))
     when (showing == ShowBlocksAll) $
-	renderGlyph (BlockedPush hu (bright orange)) centre size surf
+	renderGlyph (BlockedPush hu (bright orange))
     when (showing /= ShowBlocksNone) $
-	renderGlyph (BlockedPush hw (bright purple)) centre size surf
+	renderGlyph (BlockedPush hw (bright purple))
 
-renderGlyph (ShowButtonTextButton showing) centre@(SVec x y) size surf = do
-    renderGlyph (ButtonGlyph (dim yellow)) (SVec `uncurry` edge centre (size`div`2) (neg hu)) (size`div`2) surf
+renderGlyph (ShowButtonTextButton showing) = do
+    rescaleRender (1/2) $ displaceRender (edge (neg hu)) $
+        renderGlyph (ButtonGlyph (dim yellow))
     when showing $
-	sequence_ [ pixel surf (fi $ x+size`div`3+(i*size`div`4)) (fi $ y - size`div`4) (bright white)
-	    | i <- [-1..1] ]
+	sequence_ [ pixelR (FVec (1/3 + i/4) (-1/4)) (bright white) | i <- [-1..1] ]
 
-renderGlyph (UseSoundsButton use) centre@(SVec x y) size surf = do
-    sequence [ arc surf (fi $ x - (2*size`div`3)) (fi y) r (-20) 20
+renderGlyph (UseSoundsButton use) = do
+    sequence [ arcR (FVec (-2/3) 0) r (-20) 20
             (if use then bright green else dim red)
-        | r <- map fi $ map (*(size`div`3)) [1,2,3] ]
-    when (not use) $ void $ aaLine surf
-        `uncurry` (innerCorner centre size hw)
-        `uncurry` (innerCorner centre size $ neg hw) $ dim red
+        | r <- [1/3,2/3,1] ]
+    when (not use) $
+        aaLineR (innerCorner hw) (innerCorner $ neg hw) $ dim red
 
-renderGlyph (WhsButtonsButton Nothing) centre size surf =
-    renderGlyph (ButtonGlyph (dim red)) centre (size`div`3) surf
-    >> sequence_ [ renderGlyph (ButtonGlyph (dim purple))
-	(SVec `uncurry` edge centre (size`div`2) dir) (size`div`3) surf
-	| dir <- hexDirs ]
-renderGlyph (WhsButtonsButton (Just whs)) centre size surf = do
+renderGlyph (WhsButtonsButton Nothing) = rescaleRender (1/3) $ do
+    renderGlyph (ButtonGlyph (dim red))
+    sequence_ [ displaceRender ((3/2) **^ edge dir) $
+            renderGlyph (ButtonGlyph (dim purple))
+        | dir <- hexDirs ]
+renderGlyph (WhsButtonsButton (Just whs)) = rescaleRender (1/2) $ do
     when (whs /= WHSHook) $
-	renderGlyph (TileGlyph (WrenchTile zero) col) (miniCentre 0) miniSize surf
+	displaceRender (corner 0) $ renderGlyph (TileGlyph (WrenchTile zero) col)
     when (whs /= WHSWrench) $ do
-	renderGlyph (TileGlyph HookTile col) (miniCentre 4) miniSize surf
-	renderGlyph (TileGlyph (ArmTile hv False) col) (miniCentre 2) miniSize surf
+	displaceRender (corner 4) $ renderGlyph (TileGlyph HookTile col)
+	displaceRender (corner 2) $ renderGlyph (TileGlyph (ArmTile hv False) col)
     where
-	miniSize = size `div` 2
-	miniCentre h = SVec `uncurry` corner centre miniSize h
 	col = dim white
 
-renderGlyph (FullscreenButton fs) centre size surf = do
-    thickPolygon surf corners 1 $ activeCol (not fs)
-    thickPolygon surf corners' 1 $ activeCol fs
+renderGlyph (FullscreenButton fs) = do
+    thickPolygonR corners 1 $ activeCol (not fs)
+    thickPolygonR corners' 1 $ activeCol fs
     where
 	activeCol True = opaquify $ dim green
 	activeCol False = opaquify $ dim red
-	size' = (2*size`div`3)
-	corners = [ (if dir `elem` [hu,neg hu] then edge else innerCorner) centre size' dir
+	corners = [ (2/3) **^ (if dir `elem` [hu,neg hu] then edge else innerCorner) dir
 	    | dir <- hexDirs ]
-	corners' = map (corner centre size') [0..5]
+	corners' = map (((2/3)**^) . corner) [0..5]
 
-renderGlyph (UnfreshGlyph) centre@(SVec x y) size surf = do
+renderGlyph (UnfreshGlyph) = do
     let col = bright red
-    renderGlyph (HollowInnerGlyph col) centre size surf
-    sequence_ [pixel surf (fi $ x+(i*size`div`4)) (fi y) col
+    renderGlyph (HollowInnerGlyph col)
+    sequence_ [pixelR (FVec (i/4) 0) col
 	| i <- [-1..1] ]
 
 playerGlyph col = FilledHexGlyph col
@@ -469,6 +472,7 @@ colourOf colouring idx =
 	    Nothing -> white
 	    Just n -> colourWheel n
 
+-- |SVec: screen vectors, in pixels
 data SVec = SVec { cx, cy :: Int }
     deriving (Eq, Ord, Show)
 instance Monoid SVec where
@@ -478,9 +482,30 @@ instance Grp SVec where
     neg (SVec x y) = SVec (-x) (-y)
 type CCoord = PHS SVec
 
+-- |FVec: floating point screen vectors, multiplied by size to get SVecs.
+data FVec = FVec { rcx, rcy :: Float }
+    deriving (Eq, Ord, Show)
+instance Monoid FVec where
+    mempty = FVec 0 0
+    mappend (FVec x y) (FVec x' y') = FVec (x+x') (y+y')
+instance Grp FVec where
+    neg (FVec x y) = FVec (-x) (-y)
+
+-- The following leads to overlapping instances (not sure why):
+--instance MultAction Float FVec where
+--    r *^ FVec x y = FVec (r*x) (r*y)
+-- So instead, we define a new operator:
+(**^) :: Float -> FVec -> FVec
+r **^ FVec x y = FVec (r*x) (r*y)
+    
+
 hexVec2SVec :: Int -> HexVec -> SVec
 hexVec2SVec size (HexVec x y z) =
     SVec ((x-z) * size) (-y * 3 * ysize size)
+
+hexVec2FVec :: HexVec -> FVec
+hexVec2FVec (HexVec x y z) =
+    FVec (fi $ x-z) (-(fi y) * 3 * ylen)
 
 sVec2dHV :: Int -> SVec -> (Double,Double,Double)
 sVec2dHV size (SVec sx sy) =
@@ -516,14 +541,21 @@ type RenderM = ReaderT RenderContext (StateT CachedGlyphs IO)
 runRenderM :: RenderM a -> CachedGlyphs -> RenderContext -> IO (a,CachedGlyphs)
 runRenderM m cgs rc = runStateT (runReaderT m rc) cgs
 
-displaceRender :: SVec -> RenderM a -> RenderM a
-displaceRender disp = local displace
-    where displace rc = rc { renderSCentre = renderSCentre rc +^ disp }
+displaceRender :: FVec -> RenderM a -> RenderM a
+displaceRender v m = do
+    size <- asks renderSize
+    let FVec x y = fi size **^ v
+    let sv = SVec (round x) (round y)
+    displaceRenderSVec sv m
+
+displaceRenderSVec :: SVec -> RenderM a -> RenderM a
+displaceRenderSVec sv =
+    local $ \rc -> rc { renderSCentre = renderSCentre rc +^ sv }
 
 recentreAt :: HexVec -> RenderM a -> RenderM a
 recentreAt v m = do
     size <- asks renderSize
-    displaceRender (hexVec2SVec size v) m
+    displaceRenderSVec (hexVec2SVec size v) m
 
 rescaleRender :: RealFrac n => n -> RenderM a -> RenderM a
 rescaleRender r = local resize
@@ -532,6 +564,17 @@ rescaleRender r = local resize
 withFont :: Maybe TTF.Font -> RenderM a -> RenderM a
 withFont font = local refont
     where refont rc = rc { renderFont = font }
+
+renderPos :: Integral i => FVec -> RenderM (i,i)
+renderPos v = do
+    size <- asks renderSize
+    let FVec dx dy = fi size **^ v
+    SVec x y <- asks renderSCentre
+    return $ (fi x + round dx, fi y + round dy)
+renderLen :: Integral i => Float -> RenderM i
+renderLen l = do
+    size <- asks renderSize
+    return $ round $ l * fi size
 
 erase :: RenderM ()
 erase = fillRectBG Nothing
@@ -560,9 +603,8 @@ drawAt gl pos = do
 
 drawAtRel :: Glyph -> HexVec -> RenderM ()
 drawAtRel gl v = do
-	(surf, scrCentre, size) <- asks $ liftM3 (,,) renderSurf renderSCentre renderSize
-	let cpos = scrCentre +^ (hexVec2SVec size v)
-	renderGlyphCaching gl cpos size surf
+    size <- asks renderSize
+    displaceRenderSVec (hexVec2SVec size v) $ renderGlyphCaching gl
 
 messageCol = white
 dimWhiteCol = Pixel 0xa0a0a000
@@ -579,8 +621,7 @@ renderStrColAt' :: Bool -> Pixel -> String -> HexVec -> RenderM ()
 renderStrColAt' centred c str v = void $ runMaybeT $ do
     font <- MaybeT $ asks renderFont
     fsurf <- MaybeT $ liftIO $ TTF.tryRenderTextBlended font str $ pixelToColor c
-    (surf, scrCentre, size) <- lift $ asks $
-	liftM3 (,,) renderSurf renderSCentre renderSize
+    (surf, scrCentre, size) <- lift $ asks $ liftM3 (,,) renderSurf renderSCentre renderSize
     let SVec x y = scrCentre +^ (hexVec2SVec size v)
 	    +^ neg (SVec 0 ((surfaceGetHeight fsurf-1)`div`2) +^
 		if centred
@@ -591,13 +632,11 @@ renderStrColAt' centred c str v = void $ runMaybeT $ do
 renderStrColAbove = renderStrColVShifted True
 renderStrColBelow = renderStrColVShifted False
 renderStrColVShifted :: Bool -> Pixel -> String -> HexVec -> RenderM ()
-renderStrColVShifted up c str v = do
-    size <- asks renderSize
-    displaceRender (SVec size 0) $ renderStrColAt c str $ v +^ (if up then hv else hw)
+renderStrColVShifted up c str v =
+    displaceRender (FVec 1 0) $ renderStrColAt c str $ v +^ (if up then hv else hw)
 
 blankRow v = do
-    (surf, scrCentre, size) <- asks $
-	liftM3 (,,) renderSurf renderSCentre renderSize
+    (surf, scrCentre, size) <- asks $ liftM3 (,,) renderSurf renderSCentre renderSize
     let SVec _ y = scrCentre +^ (hexVec2SVec size v)
 	w = surfaceGetWidth surf
 	h = ceiling $ fi (size * 3 `div` 2) * 2 / sqrt 3
