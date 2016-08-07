@@ -49,6 +49,7 @@ import KeyBindings
 import Mundanities
 import Metagame
 import SDLRender
+import SDLGlyph
 import InputMode
 import Maxlocksize
 import Util

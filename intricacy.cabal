@@ -103,8 +103,8 @@ executable intricacy
       CursesRender, CursesUI, CursesUIMInstance, CVec, Database, Debug,
       EditGameState, Frame, GameState, GameStateTypes, GraphColouring, Hex, Init,
       InputMode, Interact, InteractUtil, KeyBindings, Lock, MainState,
-      Maxlocksize, Metagame, Mundanities, Physics, Protocol, SDLRender, SDLUI,
-      SDLUIMInstance, ServerAddr, Util, Version
+      Maxlocksize, Metagame, Mundanities, Physics, Protocol, SDLGlyph,
+      SDLRender, SDLUI, SDLUIMInstance, ServerAddr, Util, Version
 
 executable intricacy-server
   if flag(Server)

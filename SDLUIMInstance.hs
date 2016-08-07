@@ -48,6 +48,7 @@ import ServerAddr
 import Util
 import InputMode
 import SDLRender
+import SDLGlyph
 import SDLUI
 
 instance UIMonad (StateT UIState IO) where
