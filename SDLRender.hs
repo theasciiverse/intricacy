@@ -30,6 +30,109 @@ import Control.Applicative
 import Hex
 import Util
 
+-- |SVec: screen vectors, in pixels
+data SVec = SVec { cx, cy :: Int }
+    deriving (Eq, Ord, Show)
+instance Monoid SVec where
+    mempty = SVec 0 0
+    mappend (SVec x y) (SVec x' y') = SVec (x+x') (y+y')
+instance Grp SVec where
+    neg (SVec x y) = SVec (-x) (-y)
+type CCoord = PHS SVec
+
+-- |FVec: floating point screen vectors, multiplied by 'size' to get SVecs.
+data FVec = FVec { rcx, rcy :: Float }
+    deriving (Eq, Ord, Show)
+instance Monoid FVec where
+    mempty = FVec 0 0
+    mappend (FVec x y) (FVec x' y') = FVec (x+x') (y+y')
+instance Grp FVec where
+    neg (FVec x y) = FVec (-x) (-y)
+
+-- The following leads to overlapping instances (not sure why):
+--instance MultAction Float FVec where
+--    r *^ FVec x y = FVec (r*x) (r*y)
+-- So instead, we define a new operator:
+(**^) :: Float -> FVec -> FVec
+r **^ FVec x y = FVec (r*x) (r*y)
+    
+
+hexVec2SVec :: Int -> HexVec -> SVec
+hexVec2SVec size (HexVec x y z) =
+    SVec ((x-z) * size) (-y * 3 * ysize size)
+
+hexVec2FVec :: HexVec -> FVec
+hexVec2FVec (HexVec x y z) =
+    FVec (fi $ x-z) (-(fi y) * 3 * ylen)
+
+sVec2dHV :: Int -> SVec -> (Double,Double,Double)
+sVec2dHV size (SVec sx sy) =
+    let sx',sy',size' :: Double
+	[sx',sy',size',ysize'] = map fi [sx,sy,size,ysize size]
+	y' = -sy' / ysize' / 3
+	x' = ((sx' / size') - y') / 2
+	z' = -((sx' / size') + y') / 2
+    in (x',y',z')
+
+sVec2HexVec :: Int -> SVec -> HexVec
+sVec2HexVec size sv =
+    let (x',y',z') = sVec2dHV size sv
+	unrounded = Map.fromList [(1,x'),(2,y'),(3,z')]
+	rounded = Map.map round unrounded
+	maxdiff = fst $ maximumBy (compare `on` snd) $
+	    [ (i, abs $ c'-c) | i <- [1..3],
+		let c' = unrounded Map.! i, let c = fi $ rounded Map.! i]
+	[x,y,z] = map snd $ Map.toList $
+	    Map.adjust (\x -> x - (sum $ Map.elems rounded)) maxdiff rounded
+    in HexVec x y z
+
+
+data RenderContext = RenderContext
+    { renderSurf :: Surface
+    , renderBGSurf :: Maybe Surface
+    , renderHCentre :: HexPos
+    , renderSCentre :: SVec
+    , renderSize :: Int
+    , renderFont :: Maybe TTF.Font
+    }
+type RenderT = ReaderT RenderContext
+
+runRenderT = runReaderT
+
+displaceRender :: Monad m => FVec -> RenderT m a -> RenderT m a
+displaceRender v m = do
+    size <- asks renderSize
+    let FVec x y = fi size **^ v
+    let sv = SVec (round x) (round y)
+    displaceRenderSVec sv m
+
+displaceRenderSVec :: Monad m => SVec -> RenderT m a -> RenderT m a
+displaceRenderSVec sv =
+    local $ \rc -> rc { renderSCentre = renderSCentre rc +^ sv }
+
+recentreAt :: Monad m => HexVec -> RenderT m a -> RenderT m a
+recentreAt v m = do
+    size <- asks renderSize
+    displaceRenderSVec (hexVec2SVec size v) m
+
+rescaleRender :: Monad m => RealFrac n => n -> RenderT m a -> RenderT m a
+rescaleRender r = local $ \rc -> rc { renderSize = round $ r * (fi $ renderSize rc) }
+
+withFont :: Monad m => Maybe TTF.Font -> RenderT m a -> RenderT m a
+withFont font = local $ \rc -> rc { renderFont = font }
+
+renderPos :: Monad m => Integral i => FVec -> RenderT m (i,i)
+renderPos v = do
+    size <- asks renderSize
+    let FVec dx dy = fi size **^ v
+    SVec x y <- asks renderSCentre
+    return $ (fi x + round dx, fi y + round dy)
+renderLen :: Monad m => Integral i => Float -> RenderT m i
+renderLen l = do
+    size <- asks renderSize
+    return $ round $ l * fi size
+
+
 -- wrappers around sdl-gfx functions
 pixelR v col = do
     (x,y) <- renderPos v
@@ -103,6 +206,7 @@ thickLinesR verts thickness col =
 thickPolygonR verts thickness col =
     thickLinesR (verts ++ take 1 verts) thickness col
 
+
 ylen = 1 / sqrt 3
 ysize :: Int -> Int
 ysize = (map (\size -> round $ fi size * ylen) [0..] !!)
@@ -140,24 +244,6 @@ edge dir = FVec x y
 	    | not (isHexDir dir) = error "edge: not a hexdir"
 	    | otherwise = map (\z -> -z) $ f $ neg dir
 
-setPixelAlpha alpha (Pixel v) = Pixel $ v `div` 0x100 * 0x100 + alpha
-bright = setPixelAlpha 0xff
-brightish = setPixelAlpha 0xc0
-dim = setPixelAlpha 0xa0
-obscure = setPixelAlpha 0x80
-faint = setPixelAlpha 0x40
-invisible = setPixelAlpha 0x00
-
-pixelToRGBA (Pixel v) =
-    let (r,v') = divMod v 0x1000000
-	(g,v'') = divMod v' 0x10000
-	(b,a) = divMod v'' 0x100
-    in (r,g,b,a)
-rgbaToPixel (r,g,b,a) = Pixel $ a+0x100*(b+0x100*(g+0x100*r))
-opaquify p =
-    let (r,g,b,a) = pixelToRGBA p
-	[r',g',b'] = map (\v -> (v*a)`div`0xff) [r,g,b]
-    in rgbaToPixel (r',g',b',0xff)
 
 black = Pixel 0x01000000
 white = Pixel 0xffffff00
@@ -178,118 +264,36 @@ cyan = colourWheel 3
 blue = colourWheel 4
 purple = colourWheel 5
 
+colourOf :: Ord i => Map i Int -> i -> Pixel
 colourOf colouring idx =
     case Map.lookup idx colouring of
 	    Nothing -> white
 	    Just n -> colourWheel n
 
--- |SVec: screen vectors, in pixels
-data SVec = SVec { cx, cy :: Int }
-    deriving (Eq, Ord, Show)
-instance Monoid SVec where
-    mempty = SVec 0 0
-    mappend (SVec x y) (SVec x' y') = SVec (x+x') (y+y')
-instance Grp SVec where
-    neg (SVec x y) = SVec (-x) (-y)
-type CCoord = PHS SVec
+setPixelAlpha alpha (Pixel v) = Pixel $ v `div` 0x100 * 0x100 + alpha
+bright = setPixelAlpha 0xff
+brightish = setPixelAlpha 0xc0
+dim = setPixelAlpha 0xa0
+obscure = setPixelAlpha 0x80
+faint = setPixelAlpha 0x40
+invisible = setPixelAlpha 0x00
 
--- |FVec: floating point screen vectors, multiplied by size to get SVecs.
-data FVec = FVec { rcx, rcy :: Float }
-    deriving (Eq, Ord, Show)
-instance Monoid FVec where
-    mempty = FVec 0 0
-    mappend (FVec x y) (FVec x' y') = FVec (x+x') (y+y')
-instance Grp FVec where
-    neg (FVec x y) = FVec (-x) (-y)
-
--- The following leads to overlapping instances (not sure why):
---instance MultAction Float FVec where
---    r *^ FVec x y = FVec (r*x) (r*y)
--- So instead, we define a new operator:
-(**^) :: Float -> FVec -> FVec
-r **^ FVec x y = FVec (r*x) (r*y)
-    
-
-hexVec2SVec :: Int -> HexVec -> SVec
-hexVec2SVec size (HexVec x y z) =
-    SVec ((x-z) * size) (-y * 3 * ysize size)
-
-hexVec2FVec :: HexVec -> FVec
-hexVec2FVec (HexVec x y z) =
-    FVec (fi $ x-z) (-(fi y) * 3 * ylen)
-
-sVec2dHV :: Int -> SVec -> (Double,Double,Double)
-sVec2dHV size (SVec sx sy) =
-    let sx',sy',size' :: Double
-	[sx',sy',size',ysize'] = map fi [sx,sy,size,ysize size]
-	y' = -sy' / ysize' / 3
-	x' = ((sx' / size') - y') / 2
-	z' = -((sx' / size') + y') / 2
-    in (x',y',z')
-
-sVec2HexVec :: Int -> SVec -> HexVec
-sVec2HexVec size sv =
-    let (x',y',z') = sVec2dHV size sv
-	unrounded = Map.fromList [(1,x'),(2,y'),(3,z')]
-	rounded = Map.map round unrounded
-	maxdiff = fst $ maximumBy (compare `on` snd) $
-	    [ (i, abs $ c'-c) | i <- [1..3],
-		let c' = unrounded Map.! i, let c = fi $ rounded Map.! i]
-	[x,y,z] = map snd $ Map.toList $
-	    Map.adjust (\x -> x - (sum $ Map.elems rounded)) maxdiff rounded
-    in HexVec x y z
-
-data RenderContext = RenderContext
-    { renderSurf :: Surface
-    , renderBGSurf :: Maybe Surface
-    , renderHCentre :: HexPos
-    , renderSCentre :: SVec
-    , renderSize :: Int
-    , renderFont :: Maybe TTF.Font
-    }
-type RenderT = ReaderT RenderContext
-
-runRenderT = runReaderT
-
-displaceRender :: Monad m => FVec -> RenderT m a -> RenderT m a
-displaceRender v m = do
-    size <- asks renderSize
-    let FVec x y = fi size **^ v
-    let sv = SVec (round x) (round y)
-    displaceRenderSVec sv m
-
-displaceRenderSVec :: Monad m => SVec -> RenderT m a -> RenderT m a
-displaceRenderSVec sv =
-    local $ \rc -> rc { renderSCentre = renderSCentre rc +^ sv }
-
-recentreAt :: Monad m => HexVec -> RenderT m a -> RenderT m a
-recentreAt v m = do
-    size <- asks renderSize
-    displaceRenderSVec (hexVec2SVec size v) m
-
-rescaleRender :: Monad m => RealFrac n => n -> RenderT m a -> RenderT m a
-rescaleRender r = local resize
-    where resize rc = rc { renderSize = round $ r * (fi $ renderSize rc) }
-
-withFont :: Monad m => Maybe TTF.Font -> RenderT m a -> RenderT m a
-withFont font = local refont
-    where refont rc = rc { renderFont = font }
-
-renderPos :: Monad m => Integral i => FVec -> RenderT m (i,i)
-renderPos v = do
-    size <- asks renderSize
-    let FVec dx dy = fi size **^ v
-    SVec x y <- asks renderSCentre
-    return $ (fi x + round dx, fi y + round dy)
-renderLen :: Monad m => Integral i => Float -> RenderT m i
-renderLen l = do
-    size <- asks renderSize
-    return $ round $ l * fi size
+pixelToRGBA (Pixel v) =
+    let (r,v') = divMod v 0x1000000
+	(g,v'') = divMod v' 0x10000
+	(b,a) = divMod v'' 0x100
+    in (r,g,b,a)
+rgbaToPixel (r,g,b,a) = Pixel $ a+0x100*(b+0x100*(g+0x100*r))
+opaquify p =
+    let (r,g,b,a) = pixelToRGBA p
+	[r',g',b'] = map (\v -> (v*a)`div`0xff) [r,g,b]
+    in rgbaToPixel (r',g',b',0xff)
 
 messageCol = white
 dimWhiteCol = Pixel 0xa0a0a000
 buttonTextCol = white
 errorCol = red
+
 
 pixelToColor p =
     let (r,g,b,_) = pixelToRGBA p
