@@ -188,7 +188,7 @@ rimmedCircleR v rad fillCol rimCol = void $ do
     filledCircleR v rad fillCol
     aaCircleR v rad $ opaquify rimCol
 
-thickLineR :: MonadIO m => FVec -> FVec -> Float -> Pixel -> RenderT m ()
+thickLineR :: (Functor m, MonadIO m) => FVec -> FVec -> Float -> Pixel -> RenderT m ()
 thickLineR from to thickness col =
     let FVec dx dy = to -^ from
         baseThickness = (1/16)
@@ -299,10 +299,10 @@ pixelToColor p =
     let (r,g,b,_) = pixelToRGBA p
     in Color (fi r) (fi g) (fi b)
 
-renderStrColAt,renderStrColAtLeft :: MonadIO m => Pixel -> String -> HexVec -> RenderT m ()
+renderStrColAt,renderStrColAtLeft :: (Functor m, MonadIO m) => Pixel -> String -> HexVec -> RenderT m ()
 renderStrColAt = renderStrColAt' True
 renderStrColAtLeft = renderStrColAt' False
-renderStrColAt' :: MonadIO m => Bool -> Pixel -> String -> HexVec -> RenderT m ()
+renderStrColAt' :: (Functor m, MonadIO m) => Bool -> Pixel -> String -> HexVec -> RenderT m ()
 renderStrColAt' centred c str v = void $ runMaybeT $ do
     font <- MaybeT $ asks renderFont
     fsurf <- MaybeT $ liftIO $ TTF.tryRenderTextBlended font str $ pixelToColor c
@@ -314,17 +314,17 @@ renderStrColAt' centred c str v = void $ runMaybeT $ do
 		    else SVec 0 0)
     void $ liftIO $ blitSurface fsurf Nothing surf (Just $ Rect x y 0 0)
 
-renderStrColAbove,renderStrColBelow :: MonadIO m => Pixel -> String -> HexVec -> RenderT m ()
+renderStrColAbove,renderStrColBelow :: (Functor m, MonadIO m) => Pixel -> String -> HexVec -> RenderT m ()
 renderStrColAbove = renderStrColVShifted True
 renderStrColBelow = renderStrColVShifted False
-renderStrColVShifted :: MonadIO m => Bool -> Pixel -> String -> HexVec -> RenderT m ()
+renderStrColVShifted :: (Functor m, MonadIO m) => Bool -> Pixel -> String -> HexVec -> RenderT m ()
 renderStrColVShifted up c str v =
     displaceRender (FVec 1 0) $ renderStrColAt c str $ v +^ (if up then hv else hw)
 
-erase :: MonadIO m => RenderT m ()
+erase :: (Functor m, MonadIO m) => RenderT m ()
 erase = fillRectBG Nothing
 
-fillRectBG :: MonadIO m => Maybe Rect -> RenderT m ()
+fillRectBG :: (Functor m, MonadIO m) => Maybe Rect -> RenderT m ()
 fillRectBG mrect = do
     surf <- asks renderSurf
     mbgsurf <- asks renderBGSurf
@@ -340,7 +340,7 @@ blankRow v = do
 	h = ceiling $ fi (size * 3 `div` 2) * 2 / sqrt 3
     fillRectBG $ Just $ Rect 0 (y-h`div`2) w h
 
-blitAt :: MonadIO m => Surface -> HexVec -> RenderT m ()
+blitAt :: (Functor m, MonadIO m) => Surface -> HexVec -> RenderT m ()
 blitAt surface v = do
     (surf, scrCentre, size) <- asks $ liftM3 (,,) renderSurf renderSCentre renderSize
     let SVec x y = scrCentre +^ (hexVec2SVec size v)
