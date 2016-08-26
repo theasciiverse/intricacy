@@ -450,10 +450,10 @@ testAuth = isJust <$> gets curAuth >>? do
 
 metagameHelpText :: [String]
 metagameHelpText =
-    [ "By ruthlessly guarded secret arrangement, the Council's agents can pick any lock in the city."
-    , "The Guild produces the necessary locks - apparently secure, but with fatal hidden flaws."
+    [ "By ruthlessly guarded secret arrangement, the council's agents can pick any lock in the city."
+    , "A secret guild produces the necessary locks - apparently secure, but with fatal hidden flaws."
     , "A ritual game is played to determine the best designs."
-    , "To play the game well, you must build locks which can be picked only by one who knows the secret,"
+    , "To master it, you must build locks which can be picked only by one who knows the secret,"
     , "and you must discover the secret flaws in the locks designed by your colleagues."
     , ""
     , "You may put forward up to three prototype locks. They will guard the secrets you discover."

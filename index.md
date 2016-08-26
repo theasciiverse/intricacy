@@ -2,14 +2,14 @@
 
 <i>A game of competitive puzzle-design.</i>
 
-By ruthlessly guarded secret arrangement, the Council's agents can pick any
-lock in the city. The Guild produces the necessary locks - apparently secure,
-but with fatal hidden flaws. A ritual game is played to determine the best
-designs; to master it, you must build locks which can be picked only by one
-who knows the secret, and you must discover the secret flaws in the locks
+By ruthlessly guarded secret arrangement, the council's agents can pick any
+lock in the city. A secret guild produces the necessary locks - apparently
+secure, but with fatal hidden flaws. A ritual game is played to determine the
+best designs; to master it, you must build locks which can be picked only by
+one who knows the secret, and you must discover the secret flaws in the locks
 designed by your colleagues.
 
-Coordinate a pair of tools to pick locks designed by other players in a
+Coordinate a pair of tools to pick locks devised by other players in a
 mechanistic turn-based puzzle game; construct intricate locks of your own to
 protect the secrets you discover.
 
