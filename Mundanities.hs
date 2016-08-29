@@ -14,6 +14,7 @@ import Control.Arrow
 import Control.Monad
 import qualified Control.Exception as E
 import System.Directory
+import System.Environment (getEnv)
 import System.FilePath
 import Data.Maybe
 import Data.List
@@ -50,8 +51,9 @@ writeStrings file x = do
     BS.writeFile file $ BSC.pack $ unlines x
 
 confFilePath :: FilePath -> IO FilePath
-confFilePath str =
-    (++(pathSeparator:str)) <$> getAppUserDataDirectory "intricacy"
+confFilePath str = (++(pathSeparator:str)) <$>
+    catchIO (getEnv "INTRICACY_PATH")
+        (const $ getAppUserDataDirectory "intricacy")
 
 getDataPath :: FilePath -> IO FilePath
 getDataPath = getDataFileName
