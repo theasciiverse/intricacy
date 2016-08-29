@@ -43,6 +43,13 @@ Latest version is 0.6.2 ([NEWS](NEWS)).
     putting it on the AUR, that would be great</small>.
 * [Old versions](old)
 
+##Play by ssh
+If you'd like to test out the game without installing anything, have access to
+ssh, and are happy with a text-only interface, try:
+
+* ssh intricacy@thegonz.net
+* password: intricacy
+
 ##Discuss
 * [Web forum](http://intricacy.thegonz.net/forum/)
 * Mailing list: mail mbays+intricacy@paunix.org with subject line '[intricacy-discuss] subscribe'.
