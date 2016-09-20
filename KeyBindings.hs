@@ -13,6 +13,7 @@ module KeyBindings (KeyBindings, bindings, findBindings, findBinding, showKey, s
 import Data.Maybe
 import Data.Char
 import Data.List
+import Data.Bits (xor)
 
 import Command
 import Hex
@@ -21,9 +22,11 @@ import InputMode
 
 type KeyBindings = [ (Char,Command) ]
 
-ctrl, unctrl :: Char -> Char
-ctrl c = toEnum $ fromEnum c - 64
-unctrl c = toEnum $ fromEnum c + 64
+ctrl, unctrl, meta, unmeta :: Char -> Char
+ctrl = toEnum . xor 64 . fromEnum
+meta = toEnum . xor 128 . fromEnum
+unctrl = ctrl
+unmeta = meta
 
 lowerToo :: KeyBindings -> KeyBindings
 lowerToo = concat . map addLower
@@ -207,9 +210,11 @@ findBindings bdgs cmd = nub
 findBinding :: KeyBindings -> Command -> Maybe Char
 findBinding = (listToMaybe.) . findBindings
 
-showKey ch | isPrint ch = [ch]
-showKey ch | isPrint (unctrl ch) = ('^':[unctrl ch])
-showKey _ = "[?]"
+showKey ch
+    | isAscii (unmeta ch) = 'M':'-':showKey (unmeta ch)
+    | isPrint ch = [ch]
+    | isPrint (unctrl ch) = ('^':[unctrl ch])
+    | otherwise = "[?]"
 
 showKeyFriendly ' ' = "space"
 showKeyFriendly '\r' = "return"

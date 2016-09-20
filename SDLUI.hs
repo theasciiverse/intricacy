@@ -706,7 +706,8 @@ drawButtons mode = do
     smallFont <- gets dispFontSmall
     renderToMain $ sequence_ $ concat [ [ do
 		drawAtRel (ButtonGlyph col) v
-		renderStrColAt buttonTextCol bdg v
+		(if length bdg > 2 then withFont smallFont else id) $
+                    renderStrColAt buttonTextCol bdg v
 		when showBT $
 		    withFont smallFont $ recentreAt v $ rescaleRender (1/4) $
 		    sequence_ [ renderStrColAtLeft white s dv | (s,dv) <- helps ]

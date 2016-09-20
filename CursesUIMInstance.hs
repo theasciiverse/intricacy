@@ -23,6 +23,7 @@ import Data.Map (Map)
 import Data.Array
 import Data.Maybe
 import Data.List
+import Data.Char (chr)
 import Control.Monad.Trans.Maybe
 import Control.Concurrent (threadDelay)
 import Control.Monad.State
@@ -205,6 +206,14 @@ charify key = case key of
     Curses.KeyEnd -> Just '1'
     _ -> Nothing
 
+handleEsc k@(Curses.KeyChar '\ESC') = do
+    Curses.timeout 100
+    cch <- Curses.getch
+    Curses.timeout (-1)
+    return $ if cch == -1 then k
+        else Curses.KeyChar $ chr $ fi cch+128
+handleEsc k = return k
+
 instance UIMonad (StateT UIState IO) where
     runUI m = evalStateT m nullUIState
 
@@ -351,7 +360,7 @@ instance UIMonad (StateT UIState IO) where
         return True
     showHelp _ _ = return False
 
-    getChRaw = (charify<$>) $ liftIO $ CursesH.getKey (return ())
+    getChRaw = (charify<$>) $ liftIO $ CursesH.getKey (return ()) >>= handleEsc
     setUIBinding mode cmd ch =
 	modify $ \s -> s { uiKeyBindings =
 		Map.insertWith (\[bdg] -> \bdgs -> if bdg `elem` bdgs then delete bdg bdgs else bdg:bdgs)
@@ -398,7 +407,8 @@ instance UIMonad (StateT UIState IO) where
 
     getInput mode = do
 	let userResizeCode = 1337  -- XXX: chosen not to conflict with HSCurses codes
-	key <- liftIO $ CursesH.getKey (Curses.ungetCh userResizeCode)
+	key <- liftIO $ CursesH.getKey (Curses.ungetCh userResizeCode) >>=
+            handleEsc
 	if key == Curses.KeyUnknown userResizeCode
 	    then do
 		liftIO Curses.scrSize
