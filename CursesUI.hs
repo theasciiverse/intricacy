@@ -57,7 +57,7 @@ writeBindings = do
     liftIO makeConfDir
     liftIO $ writeFile path $ show bdgs
 
-getBindings :: InputMode -> UIM [(Char, Command)]
+getBindings :: InputMode -> UIM KeyBindings
 getBindings mode = do
     uibdgs <- Map.findWithDefault [] mode <$> gets uiKeyBindings
     return $ uibdgs ++ bindings mode
@@ -67,6 +67,46 @@ bindingsStr mode cmds = do
     bdgs <- getBindings mode
     return $ (("["++).(++"]")) $ intercalate "," $
 	map (maybe "" showKey . findBinding bdgs) cmds
+
+
+data Gravity = GravUp | GravLeft | GravRight | GravDown | GravCentre
+    deriving (Eq, Ord, Show, Enum)
+
+data Draw = Draw { drawWidth :: Int, doDraw :: CVec -> UIM () }
+
+doDrawAt :: CVec -> Draw -> UIM ()
+doDrawAt = flip doDraw
+
+alignDraw :: Gravity -> Int -> Draw -> Draw
+alignDraw gravity w (Draw w' d) = Draw (max w w') $ \(CVec y x) ->
+    d $ CVec y $ x + shift
+    where
+        shift = case gravity of
+            GravLeft -> 0
+            GravRight -> max 0 $ w - w'
+            _ -> max 0 . (`div` 2) $ w - w'
+
+instance Monoid Draw where
+    mempty = Draw 0 (const $ return ())
+    mappend (Draw w d) (Draw w' d') =
+        Draw (w+w') $ \cpos@(CVec y x) -> d cpos >> d' (CVec y (x+w))
+
+stringDraw :: Curses.Attr -> ColPair -> String -> Draw
+stringDraw attr col str =
+    Draw (length str) $ \cpos -> drawStr attr col cpos str
+
+greyDraw :: String -> Draw
+greyDraw = stringDraw a0 white
+
+bindingsDraw :: KeyBindings -> [Command] -> Draw
+bindingsDraw = bindingsDrawColour white
+bindingsDrawColour :: ColPair -> KeyBindings -> [Command] -> Draw
+bindingsDrawColour col bdgs cmds =
+    mconcat . ((stringDraw a0 col "[") :) . (++ [stringDraw a0 col "]"]) .
+    intersperse (stringDraw a0 col ",") $
+        catMaybes $ ((keyDraw <$>) . findBinding bdgs) <$> cmds
+    where
+        keyDraw = stringDraw bold col . showKey
 
 
 erase :: UIM ()

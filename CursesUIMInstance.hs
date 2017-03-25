@@ -86,8 +86,6 @@ drawNote pos note = case noteBehind note of
             drawNameWithChar pos name magenta 'P'
 
 
-data Gravity = GravUp | GravLeft | GravRight | GravDown | GravCentre
-    deriving (Eq, Ord, Show, Enum)
 fillBox :: CVec -> CVec -> Int -> Gravity -> [CVec -> MainStateT UIM ()] -> MainStateT UIM Int
 fillBox (CVec t l) (CVec b r) width grav draws = do
     let half = width`div`2
@@ -245,22 +243,28 @@ instance UIMonad (StateT UIState IO) where
 	    let home = isJust ourName && ourName == selName
 	    (h,w) <- liftIO Curses.scrSize
 	    when (h<20 || w<40) $ liftIO CursesH.end >> error "Terminal too small!"
+            bdgs <- lift $ getBindings IMMeta
 	    lift $ do
 		drawCursorAt Nothing
-		sstr <- (++"   Server: ") <$> bindingsStr IMMeta [CmdSetServer, CmdToggleCacheOnly]
-		hstr <- (\[ks,ts] -> ts++" tut   "++ks++" keys") <$>
-		    bindingsStr IMMeta `mapM` [[CmdHelp],[CmdTutorials]]
-		drawStrGrey (CVec 0 0) $ sstr ++
-		    take (w - length sstr - length hstr)
-			(saddrStr saddr ++ (if cOnly then "  (cache only) " else "") ++ repeat ' ') ++
-		    hstr
-		drawStrGrey (CVec 1 0) =<<
-		    (\[es,ls] -> take 5 (es ++ repeat ' ') ++ "   Lock: " ++ path ++ "     " ++ ls) <$>
-			bindingsStr IMMeta `mapM`
-			    [ [CmdEdit] ++ if path == "" then [] else [CmdPlaceLock Nothing]
-			    , [CmdSelectLock] ++ if path == "" then [] else [CmdNextLock, CmdPrevLock]
-			    ]
-	    lift $ drawStrGrey (CVec 2 (maximum [w`div`3+1, w`div`2 - 13])) =<< bindingsStr IMMeta [CmdSelCodename Nothing]
+		let serverBdgsDraw = bindingsDraw bdgs
+                        [CmdSetServer, CmdToggleCacheOnly]
+                    lockBdgsDraw = bindingsDraw bdgs $
+                        [CmdEdit] ++ if path == "" then [] else [CmdPlaceLock Nothing]
+                    leftBdgsWidth = (+3) . maximum $ map drawWidth [serverBdgsDraw, lockBdgsDraw]
+		    helpDraw = bindingsDraw bdgs [CmdTutorials] <> greyDraw " tutorial  " <>
+                        bindingsDraw bdgs [CmdHelp] <> greyDraw " help"
+                    serverTextDraw = greyDraw . take (w - leftBdgsWidth - drawWidth helpDraw - 1) $
+                        " Server: " ++ saddrStr saddr ++ (if cOnly then "  (cache only) " else "")
+                    lockBdgsDraw' = bindingsDraw bdgs $
+                        [CmdSelectLock] ++ if path == "" then [] else [CmdNextLock, CmdPrevLock]
+                    lockTextDraw = greyDraw . take (w - leftBdgsWidth - drawWidth lockBdgsDraw' - 1) $
+                        " Lock: " ++ path ++ replicate 5 ' '
+		doDrawAt (CVec 0 0) $ alignDraw GravLeft leftBdgsWidth serverBdgsDraw <> serverTextDraw
+                doDrawAt (CVec 0 0) $ alignDraw GravRight w helpDraw
+		doDrawAt (CVec 1 0) $ alignDraw GravLeft leftBdgsWidth lockBdgsDraw <> lockTextDraw <> lockBdgsDraw'
+
+                doDrawAt (CVec 2 $ maximum [w`div`3+1, w`div`2 - 13]) $ bindingsDraw bdgs [CmdSelCodename Nothing]
+
 	    maybe (return ()) (drawName True (CVec 2 (w`div`2))) selName
 	    void.runMaybeT $ MaybeT (return selName) >>= lift . getUInfoFetched 300 >>=
 		\(FetchedRecord fresh err muirc) -> lift $ do
@@ -268,33 +272,48 @@ instance UIMonad (StateT UIState IO) where
 			unless fresh $ drawAtCVec (Glyph '*' red bold) $ CVec 2 (w`div`2+7)
 			maybe (return ()) sayError err
 			when (fresh && (isNothing ourName || home || isNothing muirc)) $
-			    drawStrGrey (CVec 2 (w`div`2+1+9)) =<<
-				(bindingsStr IMMeta $
-				    if (isNothing muirc && isNothing ourName) || home then [CmdRegister $ isJust ourName] else [CmdAuth])
+			    doDrawAt (CVec 2 (w`div`2+1+9)) $
+				bindingsDraw bdgs $
+				    if (isNothing muirc && isNothing ourName) || home
+                                    then [CmdRegister $ isJust ourName] else [CmdAuth]
 		    for_ muirc $ \(RCUserInfo (_,uinfo)) -> case mretired of
 			Just retired -> do
 			    (h,w) <- liftIO Curses.scrSize
 			    void $ fillBox (CVec 6 2) (CVec (h-1) (w-2)) 5 GravCentre
 				[ \pos -> lift $ drawStrGrey pos $ show ls | ls <- retired ]
-			    lift $ drawStrGrey (CVec 5 (w`div`3)) =<< bindingsStr IMMeta
-				([CmdShowRetired] ++ if null retired then [] else [CmdPlayLockSpec Nothing])
+			    lift $ doDrawAt (CVec 5 (w`div`3)) $ bindingsDraw bdgs $
+				[CmdShowRetired] ++ if null retired
+                                then [] else [CmdPlayLockSpec Nothing]
 			Nothing -> do
 			    sequence_ [ drawLockInfo (ActiveLock (codename uinfo) i) lockinfo |
 				(i,Just lockinfo) <- assocs $ userLocks uinfo ]
 			    unless (null $ elems $ userLocks uinfo) $ lift $
-				drawStrGrey (CVec 5 (w`div`3)) =<< bindingsStr IMMeta [CmdSolve Nothing, CmdViewSolution Nothing]
+				doDrawAt (CVec 5 (w`div`3)) $ bindingsDraw bdgs $
+                                [CmdSolve Nothing, CmdViewSolution Nothing]
 	    when (isJust ourName && ourName == selName) $ do
-		unless (null undecls) $ do
-		    str <- lift $ (++" Undeclared solutions:") <$> bindingsStr IMMeta [CmdDeclare Nothing]
-		    let s = max 1 $ (w-(length str + 6*length undecls))`div`2
-		    let y = 4
-		    lift $ drawStr bold white (CVec y s) str
-		    void $ fillBox (CVec y (s+length str+1)) (CVec y (w-1)) 5 GravLeft
-			[ (`drawActiveLock` al) | Undeclared _ _ al <- undecls ]
 		rnames <- liftIO $ atomically $ readTVar rnamestvar
 		unless (null rnames) $
-		    void $ fillBox (CVec 2 5) (CVec 5 (w`div`3)) 3 GravCentre
+		    void $ fillBox (CVec 2 0) (CVec 5 (w`div`3)) 3 GravCentre
 			[ \pos -> drawName False pos name | name <- rnames ]
+		unless (null undecls) $
+                    let declareBdgDraw = bindingsDraw bdgs [CmdDeclare Nothing]
+                        declareText = " Undeclared solutions:"
+		        y = 4
+                        leftBound = w`div`3 + 1
+                        undeclsWidth = 1 + 6 * length undecls
+                        declareDraw =
+                            if leftBound + drawWidth declareBdgDraw + length declareText + undeclsWidth >= w
+                            then declareBdgDraw
+                            else declareBdgDraw <> stringDraw bold white declareText
+                        width = drawWidth declareDraw + undeclsWidth
+                        left = max leftBound ((w - width) `div` 2)
+                    in do
+                        lift $ doDrawAt (CVec y left) declareDraw
+                        void $ fillBox
+                            (CVec y $ left + drawWidth declareDraw + 1)
+                            (CVec y (w-1)) 5 GravLeft
+                            [ (`drawActiveLock` al) | Undeclared _ _ al <- undecls ]
+
 	    when (ourName /= selName) $ void $ runMaybeT $ do
 		sel <- liftMaybe selName
 		us <- liftMaybe ourName
