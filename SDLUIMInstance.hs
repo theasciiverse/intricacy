@@ -165,7 +165,8 @@ instance UIMonad (StateT UIState IO) where
 				    (i,mlockinfo) <- assocs $ userLocks uinfo ]
 				when (isJust $ msum $ elems $ userLocks uinfo) $ lift $ do
 				    registerButton interactButtonsPos (CmdSolve Nothing) 2 [("solve",hu+^neg hw),("lock",hu+^neg hv)]
-				    registerButton (interactButtonsPos+^hw) (CmdViewSolution Nothing) 1 [("view",hu+^neg hw),("soln",hu+^neg hv)]
+                                    when (isJust ourName) $
+                                        registerButton (interactButtonsPos+^hw) (CmdViewSolution Nothing) 1 [("view",hu+^neg hw),("soln",hu+^neg hv)]
 
 	    when home $ do
 		lift.renderToMain $ renderStrColAt messageCol

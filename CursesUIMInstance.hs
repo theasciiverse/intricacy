@@ -347,7 +347,7 @@ instance UIMonad (StateT UIState IO) where
 				(i,Just lockinfo) <- assocs $ userLocks uinfo ]
 			    unless (null $ elems $ userLocks uinfo) $ lift $
 				doDrawAt (CVec 5 (w`div`3)) $ bindingsDraw bdgs $
-                                [CmdSolve Nothing, CmdViewSolution Nothing]
+                                [CmdSolve Nothing] ++ if isJust ourName then [CmdViewSolution Nothing] else []
 	    when (isJust ourName && ourName == selName) $ do
 		rnames <- liftIO $ atomically $ readTVar rnamestvar
 		unless (null rnames) $
