@@ -351,7 +351,7 @@ instance UIMonad (StateT UIState IO) where
 	bdgs <- nub <$> getBindings mode
 	erase
 	(h,w) <- liftIO Curses.scrSize
-	let bdgWidth = 35
+	let bdgWidth = 39
 	    showKeys chs = intercalate "/" (map showKey chs)
 	    maxkeyslen = maximum $ map (length.showKeys.map fst) $ groupBy ((==) `on` snd) bdgs
 	drawStrCentred a0 cyan (CVec 0 (w`div`2)) "Bindings:"
@@ -365,7 +365,7 @@ instance UIMonad (StateT UIState IO) where
 		    , let chs = map fst group
 		    , let keysStr = showKeys chs
 		    , let pad = max 0 $ minimum [maxkeyslen + 1 - length keysStr,
-			    bdgWidth - length desc - length keysStr - 1]
+			    bdgWidth - length desc - length keysStr - 1 - 1]
 		    ]
 		(map (`divMod` (h-3)) [0..])
 	    , (x+1)*bdgWidth < w]
