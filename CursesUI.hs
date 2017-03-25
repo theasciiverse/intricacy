@@ -107,7 +107,7 @@ bindingsDrawColour col bdgs cmds =
     intersperse (stringDraw a0 col ",") $
         catMaybes $ ((keyDraw <$>) . findBinding bdgs) <$> cmds
     where
-        keyDraw = stringDraw bold col . showKey
+        keyDraw = stringDraw bold col . showKeyFriendlyShort
 
 data BindingsEntry = BindingsEntry String [Command]
 

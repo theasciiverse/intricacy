@@ -8,7 +8,8 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
-module KeyBindings (KeyBindings, bindings, findBindings, findBinding, showKey, showKeyFriendly) where
+module KeyBindings (KeyBindings, bindings, findBindings, findBinding, showKey,
+    showKeyFriendly, showKeyFriendlyShort) where
 
 import Data.Maybe
 import Data.Char
@@ -222,3 +223,8 @@ showKeyFriendly '\n' = "newline"
 showKeyFriendly '\t' = "tab"
 showKeyFriendly '\b' = "bksp"
 showKeyFriendly ch = showKey ch
+
+showKeyFriendlyShort '\r' = "ret"
+showKeyFriendlyShort '\t' = "tab"
+showKeyFriendlyShort '\b' = "bksp"
+showKeyFriendlyShort ch = showKey ch
