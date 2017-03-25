@@ -175,7 +175,7 @@ drawBasicHelpPage (title,titleCol) (body,bodyCol) = do
     drawStrCentred a0 titleCol (CVec 0 $ w`div`2) title
     if w >= maximum (map length metagameHelpText)
         then sequence_ [drawStrCentred a0 bodyCol (CVec line $ w`div`2) str |
-                (line,str) <- zip [2..h] $ body ]
+                (line,str) <- zip [2..h-2] $ body ]
         else do
             let wrap max = wrap' max max
                 wrap' _ _ [] = []
@@ -187,7 +187,7 @@ drawBasicHelpPage (title,titleCol) (body,bodyCol) = do
                     else let prepend = if left == max then w else ' ':w
                         in prepend ++ wrap' max (left - length prepend) ws
             sequence_ [drawStrCentred a0 bodyCol (CVec line $ w`div`2) str |
-                (line,str) <- zip [1..h] $
+                (line,str) <- zip [1..h-2] $
                     lines (wrap w $ words $ intercalate " " body) ]
 
 charify :: Curses.Key -> Maybe Char
