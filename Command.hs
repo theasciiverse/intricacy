@@ -76,7 +76,7 @@ describeCommand CmdWriteState = "write lock"
 describeCommand CmdTutorials = "play tutorial levels"
 describeCommand CmdShowRetired = "toggle showing retired locks"
 describeCommand CmdSetServer = "set server"
-describeCommand CmdToggleCacheOnly = "toggle using only cache"
+describeCommand CmdToggleCacheOnly = "toggle offline mode"
 describeCommand (CmdSelCodename mname) = "select player"
 	++ maybe "" (' ':) mname
 describeCommand CmdBackCodename = "select last player"

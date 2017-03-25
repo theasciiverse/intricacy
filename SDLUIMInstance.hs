@@ -124,7 +124,7 @@ instance UIMonad (StateT UIState IO) where
 	    lift $ do
 		smallFont <- gets dispFontSmall
 		renderToMain $ withFont smallFont $ renderStrColAtLeft purple
-			(saddrStr saddr ++ if cOnly then " (cache only)" else "")
+			(saddrStr saddr ++ if cOnly then " (offline mode)" else "")
 		    $ serverPos +^ hu
 
 	    when (length names > 1) $ lift $ registerButton

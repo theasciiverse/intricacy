@@ -312,7 +312,7 @@ instance UIMonad (StateT UIState IO) where
 		    helpDraw = bindingsDraw bdgs [CmdTutorials] <> greyDraw " tutorial  " <>
                         bindingsDraw bdgs [CmdHelp] <> greyDraw " help"
                     serverTextDraw = greyDraw . take (w - leftBdgsWidth - drawWidth helpDraw - 1) $
-                        " Server: " ++ saddrStr saddr ++ (if cOnly then "  (cache only) " else "")
+                        " Server: " ++ saddrStr saddr ++ (if cOnly then "  (offline mode) " else "")
                     lockBdgsDraw' = bindingsDraw bdgs $
                         [CmdSelectLock] ++ if path == "" then [] else [CmdNextLock, CmdPrevLock]
                     lockTextDraw = greyDraw . take (w - leftBdgsWidth - drawWidth lockBdgsDraw' - 1) $

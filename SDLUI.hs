@@ -165,7 +165,7 @@ getButtons mode = do
 	IMReplay -> [ markGroup ]
 	IMMeta ->
 	    [ singleButton serverPos CmdSetServer 0 [("server",3*^hw)]
-	    , singleButton (serverPos+^neg hu) CmdToggleCacheOnly 0 [("cache",hv+^6*^neg hu),("only",hw+^5*^neg hu)]
+	    , singleButton (serverPos+^neg hu) CmdToggleCacheOnly 0 [("offline",hv+^8*^neg hu),("mode",hw+^5*^neg hu)]
 	    , singleButton (codenamePos +^ 2*^neg hu) (CmdSelCodename Nothing) 2 [("code",hv+^5*^neg hu),("name",hw+^5*^neg hu)]
 	    , singleButton (serverPos +^ 2*^neg hv +^ 2*^hw) CmdTutorials 3 [("play",hu+^neg hw),("tut",hu+^neg hv)]
 	    ]
