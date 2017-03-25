@@ -30,7 +30,6 @@ entrance f = neg $ bolthole f
 boltWidth :: Frame -> Int
 boltWidth (BasicFrame size) = size`div`4+1
 
-
 baseState :: Frame -> GameState
 baseState f =
     GameState

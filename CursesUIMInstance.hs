@@ -277,16 +277,20 @@ instance UIMonad (StateT UIState IO) where
 	drawMainState' s
 	lift refresh
 	where
-	drawMainState' (PlayState { psCurrentState=st, psLastAlerts=alerts, wrenchSelected=wsel }) = lift $ do
+	drawMainState' (PlayState { psCurrentState=st, psLastAlerts=alerts,
+                wrenchSelected=wsel, psFrame=frame }) = lift $ do
 	    drawState [] False alerts st
+            drawBindingsTables IMPlay frame
 	    drawCursorAt $ listToMaybe [ pos |
 		(_, PlacedPiece pos p) <- enumVec $ placedPieces st
 		, or [wsel && isWrench p, not wsel && isHook p] ]
 	drawMainState' (ReplayState {}) = do
 	    lift . drawState [] False [] =<< gets rsCurrentState
 	    lift $ drawCursorAt Nothing
-	drawMainState' (EditState { esGameStateStack=(st:_), selectedPiece=selPiece, selectedPos=selPos }) = lift $ do
+	drawMainState' (EditState { esGameStateStack=(st:_), selectedPiece=selPiece,
+                selectedPos=selPos, esFrame=frame }) = lift $ do
 	    drawState (maybeToList selPiece) True [] st
+            drawBindingsTables IMEdit frame
 	    drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
 	drawMainState' (MetaState {curServer=saddr, undeclareds=undecls,
 		cacheOnly=cOnly, curAuth=auth, codenameStack=names,

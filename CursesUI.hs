@@ -21,6 +21,7 @@ import Data.List
 import Control.Monad.Trans.Maybe
 import Control.Monad.State
 import Data.Function (on)
+import Data.Foldable (forM_)
 
 import Hex
 import GameState (stateBoard)
@@ -108,6 +109,95 @@ bindingsDrawColour col bdgs cmds =
     where
         keyDraw = stringDraw bold col . showKey
 
+data BindingsEntry = BindingsEntry String [Command]
+
+drawBindingsTables :: InputMode -> Frame -> UIM ()
+drawBindingsTables mode frame | mode `elem` [ IMEdit, IMPlay ] = do
+    bdgs <- getBindings mode
+    (h,w) <- liftIO Curses.scrSize
+    let startRight = frameWidth frame + 3
+    let maxWidth = (w `div` 2) - startRight - 1
+    let entryDraws (BindingsEntry desc cmds) =
+            (greyDraw desc, bindingsDraw bdgs cmds)
+    forM_ [GravLeft, GravRight] $ \grav ->
+        let table = bindingsTable mode grav
+            drawsTable = map (\(line, entry) -> (line, entryDraws entry)) table
+            maxDesc = maximum $ map (drawWidth . fst . snd) drawsTable
+            maxBdgs = maximum $ map (drawWidth . snd . snd) drawsTable
+            descX = (w `div` 2) + if grav == GravRight
+                then startRight + maxBdgs + 2
+                else -(startRight + maxBdgs + 2 + maxDesc)
+            bdgsX = (w `div` 2) + if grav == GravRight
+                then startRight
+                else -(startRight + maxBdgs)
+            oppGrav = if grav == GravRight then GravLeft else GravRight
+            useDescs = maxDesc + 1 + maxBdgs <= maxWidth
+        in sequence_
+            [ do
+                when (maxBdgs <= maxWidth) $
+                    doDrawAt (CVec y bdgsX) $ alignDraw
+                        (if useDescs then grav else oppGrav) maxBdgs
+                        bdgsDraw
+                when useDescs $
+                    doDrawAt (CVec y descX) $ alignDraw oppGrav maxDesc descDraw
+            | (yoff, (descDraw, bdgsDraw)) <- drawsTable
+            , let y = (h `div` 2) + yoff
+            ]
+    where
+        bindingsTable IMPlay GravLeft =
+            [ (-5, BindingsEntry "move tool" $
+                map (CmdDir WHSSelected) hexDirs)
+            , (-4, BindingsEntry "select tool"
+                [CmdToggle, CmdTile $ WrenchTile zero, CmdTile HookTile])
+            , (-3, BindingsEntry "move hook" $
+                map (CmdDir WHSHook) hexDirs)
+            , (-2, BindingsEntry "move wrench" $
+                map (CmdDir WHSWrench) hexDirs)
+            , (-1, BindingsEntry "rotate hook"
+                [CmdRotate whs dir | whs <- [WHSSelected, WHSHook], dir <- [-1,1]])
+            , ( 0, BindingsEntry "wait" [CmdWait])
+            , ( 2, BindingsEntry "open lock" [CmdOpen])
+            , ( 4, BindingsEntry "undo, redo" [CmdUndo, CmdRedo])
+            , ( 5, BindingsEntry "marks" [CmdMark, CmdJumpMark, CmdReset])
+            ]
+        bindingsTable IMPlay GravRight =
+            [ (-7, BindingsEntry "help" [CmdHelp])
+            , (7, BindingsEntry "quit" [CmdQuit])
+            ]
+        bindingsTable IMEdit GravLeft =
+            [ (-4, BindingsEntry "move" $ map (CmdDir WHSSelected) hexDirs)
+            , (-3, BindingsEntry "rotate"
+                [CmdRotate whs dir | whs <- [WHSSelected], dir <- [-1,1]])
+            , (-1, BindingsEntry "select" [CmdSelect])
+            , ( 0, BindingsEntry "delete" [CmdDelete])
+            , ( 1, BindingsEntry "merge" [CmdMerge])
+            , ( 4, BindingsEntry "undo, redo" [CmdUndo, CmdRedo])
+            , ( 5, BindingsEntry "marks" [CmdMark, CmdJumpMark, CmdReset])
+            ]
+        bindingsTable IMEdit GravRight =
+            [ (-7, BindingsEntry "help" [CmdHelp])
+            , (-4, BindingsEntry "place" $ map CmdTile
+                [ BlockTile []
+                , SpringTile Relaxed zero
+                , PivotTile zero
+                , ArmTile zero False
+                , BallTile
+                ])
+            , (-1, BindingsEntry "test" [CmdTest])
+            , ( 0, BindingsEntry "play" [CmdPlay])
+            , ( 1, BindingsEntry "step" [CmdWait])
+            , ( 4, BindingsEntry "write" [CmdWriteState])
+            , ( 7, BindingsEntry "quit" [CmdQuit])
+            ]
+        bindingsTable _ _ = []
+
+drawBindingsTables _ _ = return ()
+
+-- |frameWidth = maximum . map (abs . cx . hexVec2CVec) .
+--      blockPattern . placedPiece . framePiece
+frameWidth :: Frame -> Int
+frameWidth frame@(BasicFrame size) = max (2*size) $
+    2*(size + boltWidth frame) - (size`div`2)
 
 erase :: UIM ()
 erase = liftIO Curses.erase
