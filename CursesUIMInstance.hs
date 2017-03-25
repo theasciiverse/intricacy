@@ -168,27 +168,81 @@ drawLockInfo al@(ActiveLock name i) lockinfo = do
 	    void $ fillBox (CVec (lockBottom+3) (left+1)) (CVec bottom (right-1)) 5 GravUp
 		[ (`drawActiveLock` al) | al <- map noteOn $ notesSecured lockinfo ]
 
-drawBasicHelpPage :: (String,ColPair) -> ([String],ColPair) -> UIM ()
-drawBasicHelpPage (title,titleCol) (body,bodyCol) = do
+
+data HelpReturn = HelpNone | HelpDone | HelpContinue Int
+
+showHelpPaged :: Int -> InputMode -> HelpPage -> UIM Bool
+showHelpPaged from mode page =
+    showHelpPaged' from mode page >>= \ret -> case ret of
+        HelpNone -> return False
+        HelpDone -> return True
+        HelpContinue from' -> do
+            drawPrompt False "[MORE]"
+            getInput IMTextInput
+            showHelpPaged from' mode page
+showHelpPaged' :: Int -> InputMode -> HelpPage -> UIM HelpReturn
+showHelpPaged' from mode HelpPageInput = do
+    bdgs <- nub <$> getBindings mode
+    erase
+    (h,w) <- liftIO Curses.scrSize
+    let bdgWidth = 39
+        showKeys chs = intercalate "/" (map showKey chs)
+        maxkeyslen = maximum $ map (length.showKeys.map fst) $ groupBy ((==) `on` snd) bdgs
+    drawStrCentred a0 cyan (CVec 0 (w`div`2)) "Bindings:"
+    let groups = filter (not . null . describeCommand . snd . head) $
+            drop from $ groupBy ((==) `on` snd) $ sortBy (compare `on` snd) bdgs
+    let draws =
+            [ drawStr a0 cyan (CVec (y+2) (x*bdgWidth) ) $
+                keysStr ++ replicate pad ' ' ++ ": " ++ desc
+            | ((keysStr,pad,desc),(x,y)) <- zip
+                [ (keysStr,pad,desc)
+                | group <- groups
+                , let cmd = snd $ head group
+                , let desc = describeCommand cmd
+                , let chs = map fst group
+                , let keysStr = showKeys chs
+                , let pad = max 0 $ minimum [maxkeyslen + 1 - length keysStr,
+                        bdgWidth - length desc - length keysStr - 1 - 1]
+                ]
+                (map (`divMod` (h-3)) [0..])
+            , (x+1)*bdgWidth < w]
+    sequence_ draws
+    refresh
+    return $ if length draws < length groups
+        then HelpContinue $ from + length draws
+        else HelpDone
+showHelpPaged' from IMMeta HelpPageGame =
+    drawBasicHelpPage from ("INTRICACY",magenta) (metagameHelpText,magenta)
+showHelpPaged' from IMEdit HelpPageFirstEdit =
+    drawBasicHelpPage from ("Your first lock:",magenta) (firstEditHelpText,green)
+showHelpPaged' _ _ _ = return HelpNone
+
+drawBasicHelpPage :: Int -> (String,ColPair) -> ([String],ColPair) -> UIM HelpReturn
+drawBasicHelpPage from (title,titleCol) (body,bodyCol) = do
     erase
     (h,w) <- liftIO Curses.scrSize
     drawStrCentred a0 titleCol (CVec 0 $ w`div`2) title
-    if w >= maximum (map length metagameHelpText)
-        then sequence_ [drawStrCentred a0 bodyCol (CVec line $ w`div`2) str |
-                (line,str) <- zip [2..h-2] $ body ]
-        else do
-            let wrap max = wrap' max max
-                wrap' _ _ [] = []
-                wrap' max left (w:ws) = if 1+length w > left
-                    then if left == max
-                        then take max w ++ "\n" ++
-                            wrap' max max (drop max w : ws)
-                        else '\n' : wrap' max max (w:ws)
-                    else let prepend = if left == max then w else ' ':w
-                        in prepend ++ wrap' max (left - length prepend) ws
-            sequence_ [drawStrCentred a0 bodyCol (CVec line $ w`div`2) str |
-                (line,str) <- zip [1..h-2] $
-                    lines (wrap w $ words $ intercalate " " body) ]
+    let strs = drop from $
+            if w >= maximum (map length metagameHelpText)
+            then body
+            else
+                let wrap max = wrap' max max
+                    wrap' _ _ [] = []
+                    wrap' max left (w:ws) = if 1+length w > left
+                        then if left == max
+                            then take max w ++ "\n" ++
+                                wrap' max max (drop max w : ws)
+                            else '\n' : wrap' max max (w:ws)
+                        else let prepend = if left == max then w else ' ':w
+                            in prepend ++ wrap' max (left - length prepend) ws
+                in lines . wrap w . words $ intercalate " " body
+    let draws = [drawStrCentred a0 bodyCol (CVec y $ w`div`2) str |
+                (y,str) <- zip [2..h-2] $ strs ]
+    sequence_ draws
+    return $ if length draws < length strs
+        then HelpContinue $ from + length draws
+        else HelpDone
+
 
 charify :: Curses.Key -> Maybe Char
 charify key = case key of
@@ -347,37 +401,7 @@ instance UIMonad (StateT UIState IO) where
     endPrompt = say "" >> (liftIO $ void $ Curses.cursSet Curses.CursorInvisible)
     drawError = sayError
 
-    showHelp mode HelpPageInput = do
-	bdgs <- nub <$> getBindings mode
-	erase
-	(h,w) <- liftIO Curses.scrSize
-	let bdgWidth = 39
-	    showKeys chs = intercalate "/" (map showKey chs)
-	    maxkeyslen = maximum $ map (length.showKeys.map fst) $ groupBy ((==) `on` snd) bdgs
-	drawStrCentred a0 cyan (CVec 0 (w`div`2)) "Bindings:"
-	sequence_ [ drawStr a0 cyan (CVec (y+2) (x*bdgWidth) ) $
-		keysStr ++ replicate pad ' ' ++ ": " ++ desc |
-	    ((keysStr,pad,desc),(x,y)) <- zip [(keysStr,pad,desc)
-		    | group <- groupBy ((==) `on` snd) $ sortBy (compare `on` snd) bdgs
-		    , let cmd = snd $ head group
-		    , let desc = describeCommand cmd
-		    , not $ null desc
-		    , let chs = map fst group
-		    , let keysStr = showKeys chs
-		    , let pad = max 0 $ minimum [maxkeyslen + 1 - length keysStr,
-			    bdgWidth - length desc - length keysStr - 1 - 1]
-		    ]
-		(map (`divMod` (h-3)) [0..])
-	    , (x+1)*bdgWidth < w]
-	refresh
-	return True
-    showHelp IMMeta HelpPageGame = do
-        drawBasicHelpPage ("INTRICACY",magenta) (metagameHelpText,magenta)
-        return True
-    showHelp IMEdit HelpPageFirstEdit = do
-        drawBasicHelpPage ("Your first lock:",magenta) (firstEditHelpText,green)
-        return True
-    showHelp _ _ = return False
+    showHelp = showHelpPaged 0
 
     getChRaw = (charify<$>) $ liftIO $ CursesH.getKey (return ()) >>= handleEsc
     setUIBinding mode cmd ch =
