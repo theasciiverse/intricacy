@@ -214,8 +214,11 @@ processCommand' IMMeta CmdSetServer = void.runMaybeT $ do
 	liftIO $ atomically $ writeTVar rnamestvar []
 	invalidateAllUInfo
 	refreshUInfoUI
-processCommand' IMMeta CmdToggleCacheOnly =
-    not <$> gets cacheOnly >>= \c -> modify $ \ms -> ms {cacheOnly = c}
+processCommand' IMMeta CmdToggleCacheOnly = do
+    newCOnly <- gets $ not . cacheOnly
+    modify $ \ms -> ms {cacheOnly = newCOnly}
+    unless newCOnly $
+        invalidateAllUInfo >> invalidateAllIndexedLocks
 
 processCommand' IMMeta (CmdRegister _) = void.runMaybeT $ do
     regName <- mgetCurName

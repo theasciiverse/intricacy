@@ -289,6 +289,10 @@ mgetLock ls = do
     RCLock lock <- MaybeT $ (fetchedRC<$>) $ liftIO $ atomically $ readTVar tvar
     return $ reframe lock
 
+invalidateAllIndexedLocks :: UIMonad uiM => MainStateT uiM ()
+invalidateAllIndexedLocks =
+    modify $ \ms -> ms { indexedLocks = Map.empty }
+
 refreshUInfoUI :: (UIMonad uiM) => MainStateT uiM ()
 refreshUInfoUI = void.runMaybeT $ do
     modify $ \ms -> ms { listOffset = 0 }
