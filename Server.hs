@@ -469,11 +469,11 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
 	    addDelta name $ LockDelta idx $ SetPubNote note
 	    publified <- checkSuffPubNotes al
 	    unless publified $ do
-	    lock <- getCurrALock al
-	    accessorsOfNotesOnLock <- ((++ map noteAuthor (lockSolutions lock)).concat)
-		<$> (sequence
-		    [ accessedBy <$> getCurrALock behind | NoteInfo _ (Just behind) _ <- lockSolutions lock ] )
-	    forM_ accessorsOfNotesOnLock $ checkSuffReadNotes al
+                lock <- getCurrALock al
+                accessorsOfNotesOnLock <- ((++ map noteAuthor (lockSolutions lock)).concat)
+                    <$> (sequence
+                        [ accessedBy <$> getCurrALock behind | NoteInfo _ (Just behind) _ <- lockSolutions lock ] )
+                forM_ accessorsOfNotesOnLock $ checkSuffReadNotes al
 	checkSuffReadNotes target name = do
 	    info <- getCurrUserInfo name
 	    tlock <- getCurrALock target
@@ -481,8 +481,7 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
 		when (countRead info tlock == notesNeeded) $
 		    accessLock name target tlock
 	checkSuffPubNotes al@(ActiveLock name idx) = do
-	    info <- getCurrUserInfo name
-	    let Just lock = userLocks info ! idx
+            lock <- getCurrALock al
 	    let countPub = fromIntegral $ length $
 		    filter (isNothing.noteBehind) $ lockSolutions lock
 	    if (countPub == notesNeeded)

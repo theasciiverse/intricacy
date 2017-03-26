@@ -126,7 +126,7 @@ applyLockDelta (AddSecured n) lockinfo = lockinfo { notesSecured = n:(notesSecur
 applyLockDelta (DelSecured n) lockinfo = lockinfo { notesSecured = delete n $ notesSecured lockinfo }
 applyLockDelta (AddSolution n) lockinfo = lockinfo { lockSolutions = n:(lockSolutions lockinfo) }
 applyLockDelta (AddAccessed name) lockinfo = lockinfo { accessedBy = name:(delete name $ accessedBy lockinfo) }
-applyLockDelta SetPublic lockinfo = lockinfo { public = True, lockSolutions = [], accessedBy = []}
+applyLockDelta SetPublic lockinfo = lockinfo { public = True, lockSolutions = [], accessedBy = [], notesSecured = []}
 
 instance Binary UserInfo where
     put (UserInfo name locks notes) = put name >> put locks >> put notes
