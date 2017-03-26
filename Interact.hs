@@ -665,7 +665,7 @@ processCommand' IMEdit (CmdPaint tile) = do
     drawTile selPos tile True
 processCommand' IMEdit (CmdPaintFromTo tile from to) = do
     frame <- gets esFrame
-    paintTilePath tile (truncateToEditable frame from) (truncateToEditable frame to)
+    paintTilePath frame tile (truncateToEditable frame from) (truncateToEditable frame to)
 processCommand' IMEdit CmdMerge = do
     selPos <- gets selectedPos
     st:_ <- gets esGameStateStack

@@ -481,7 +481,7 @@ metagameHelpText =
 firstEditHelpText :: [String]
 firstEditHelpText =
     [ "Design a lock to protect your secrets."
-    , "It must be possible to solve your lock by pulling a sprung bolt from the hole in the top-right,"
+    , "It must be possible to pick your lock by pulling a sprung bolt from the hole in the top-right,"
     , "but you should place blocks, springs, pivots, and balls to make this as difficult as possible."
     , ""
     , "Place pieces with keyboard or mouse. Springs must be set next to blocks, and arms next to pivots."
