@@ -256,13 +256,20 @@ instance UIMonad (StateT UIState IO) where
 
     reportAlerts = playAlertSounds
 
-    getChRaw = do
-	events <- liftIO getEvents
-	if not.null $ [ True | MouseButtonDown _ _ ButtonRight <- events ]
-	then return Nothing
-	else maybe getChRaw (return.Just) $ listToMaybe $ [ ch
-	    | KeyDown (Keysym _ _ ch) <- events
-	    , ch /= '\0' ]
+    getChRaw = resetMouseButtons >> getChRaw'
+        where
+            resetMouseButtons = modify $ \s -> s
+                { leftButtonDown = Nothing
+                , middleButtonDown = Nothing
+                , rightButtonDown = Nothing
+                }
+            getChRaw' = do
+                events <- liftIO getEvents
+                if not.null $ [ True | MouseButtonDown _ _ ButtonRight <- events ]
+                then return Nothing
+                else maybe getChRaw' (return.Just) $ listToMaybe $ [ ch
+                    | KeyDown (Keysym _ _ ch) <- events
+                    , ch /= '\0' ]
 
     setUIBinding mode cmd ch =
 	modify $ \s -> s { uiKeyBindings =
