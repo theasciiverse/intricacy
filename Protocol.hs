@@ -13,6 +13,8 @@ module Protocol where
 import Data.Binary
 import Control.Monad
 
+import Crypto.Types.PubKey.RSA (PublicKey)
+
 import BinaryInstances
 import Metagame
 import Lock
@@ -31,6 +33,7 @@ data Action
     | ResetPassword Password
     | SetEmail String
     | GetServerInfo
+    | GetPublicKey
     | GetLock LockSpec
     | GetRetired Codename
     | GetUserInfo Codename (Maybe Int)
@@ -48,6 +51,7 @@ type Password = String
 
 needsAuth :: Action -> Bool
 needsAuth GetServerInfo = False
+needsAuth GetPublicKey = False
 needsAuth (GetLock _) = False
 needsAuth (GetUserInfo _ _) = False
 needsAuth (GetRetired _) = False
@@ -59,6 +63,7 @@ data ServerResponse
     | ServerMessage String
     | ServerError String
     | ServedServerInfo ServerInfo
+    | ServedPublicKey PublicKey
     | ServedLock Lock
     | ServedRetired [LockSpec]
     | ServedUserInfo VersionedUInfo
@@ -69,7 +74,7 @@ data ServerResponse
     | ServerCodenameFree
     | ServerFresh
     | ServerUndefinedResponse
-    deriving (Eq, Ord, Show, Read)
+    deriving (Eq, Show, Read)
 
 data ServerInfo = ServerInfo {serverLockSize :: Int, serverInfoString::String}
     deriving (Eq, Ord, Show, Read)
@@ -93,6 +98,7 @@ instance Binary Action where
     put (ResetPassword pw) = put (10::Word8) >> put pw
     put (GetRetired name) = put (11::Word8) >> put name
     put (SetEmail address) = put (12::Word8) >> put address
+    put GetPublicKey = put (13::Word8)
     get = do
 	tag <- get :: Get Word8
 	case tag of
@@ -109,6 +115,7 @@ instance Binary Action where
 	    10 -> liftM ResetPassword get
 	    11 -> liftM GetRetired get
 	    12 -> liftM SetEmail get
+	    13 -> return GetPublicKey
             _ -> return UndefinedAction
 
 instance Binary Auth where
@@ -129,6 +136,7 @@ instance Binary ServerResponse where
     put (ServerCodenameFree) = put (10::Word8)
     put (ServerFresh) = put (11::Word8)
     put (ServedRetired lss) = put (12::Word8) >> put lss
+    put (ServedPublicKey publicKey) = put (13::Word8) >> put (show publicKey)
     get = do
 	tag <- get :: Get Word8
 	case tag of
@@ -145,6 +153,7 @@ instance Binary ServerResponse where
 	    10 -> return ServerCodenameFree
 	    11 -> return ServerFresh
 	    12 -> liftM ServedRetired get
+	    13 -> liftM (ServedPublicKey . read) get
             _ -> return ServerUndefinedResponse
 instance Binary ServerInfo where
     put (ServerInfo sz str) = put sz >> put str

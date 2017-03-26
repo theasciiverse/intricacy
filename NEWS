@@ -1,5 +1,8 @@
 This is an abbreviated summary; see the git log for gory details.
 
+0.7:
+    Encrypt passwords when communicating with server
+        (in previous versions, they were salted and hashed but not encrypted)
 0.6.2:
     Fix obscure but actual bug in core game physics:
         wrenches were being blocked when they shouldn't be.

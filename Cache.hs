@@ -32,7 +32,7 @@ import Mundanities
 import ServerAddr
 
 data FetchedRecord = FetchedRecord {fresh :: Bool, fetchError :: Maybe String, fetchedRC :: Maybe RecordContents}
-    deriving (Eq, Ord, Show)
+    deriving (Eq, Show)
 
 
 getRecordCached :: ServerAddr -> Maybe Auth -> Maybe (TVar Bool) -> Bool -> Record -> IO (TVar FetchedRecord)

@@ -28,6 +28,12 @@ import System.FilePath
 import Data.Array
 import Data.Function (on)
 import Safe (readMay)
+import qualified Data.ByteString.Lazy as BL
+import qualified Data.ByteString.Char8 as CS
+
+import Crypto.Types.PubKey.RSA (PublicKey)
+import Codec.Crypto.RSA (encrypt)
+import Crypto.Random (newGenIO, SystemRandom)
 
 import Hex
 import Command
@@ -224,17 +230,13 @@ processCommand' IMMeta (CmdRegister _) = void.runMaybeT $ do
     regName <- mgetCurName
     mauth <- gets curAuth
     let isUs = maybe False ((==regName).authUser) mauth
-    let inputPassword = do
-            pw <- MaybeT $ lift $ textInput "Enter new password:" 64 True False Nothing Nothing
-            guard $ not $ null pw
-            return $ hashPassword regName pw
     if isUs
 	then msum [ do
 		confirmOrBail "Log out?"
 		modify $ \ms -> ms {curAuth = Nothing}
 	    , do
 		confirmOrBail "Reset password?"
-		passwd <- inputPassword
+		passwd <- inputPassword regName "Enter new password:"
 		lift $ do
 		    resp <- curServerAction $ ResetPassword passwd
 		    case resp of
@@ -248,7 +250,7 @@ processCommand' IMMeta (CmdRegister _) = void.runMaybeT $ do
 		setNotifications
 	    ]
 	else do
-	    passwd <- inputPassword
+	    passwd <- inputPassword regName "Enter new password:"
 	    lift $ do
 		modify $ \ms -> ms {curAuth = Just $ Auth regName passwd}
 		resp <- curServerAction Register
@@ -280,8 +282,7 @@ processCommand' IMMeta CmdAuth = void.runMaybeT $ do
 	modify $ \ms -> ms {curAuth = Nothing}
     else do
 	name <- mgetCurName
-	passwd <- (hashPassword name <$>) $ MaybeT $ lift $
-	    textInput ("Enter password for "++name++":") 64 True False Nothing Nothing
+	passwd <- inputPassword name $ "Enter password for "++name++":"
 	lift $ do
 	    modify $ \ms -> ms {curAuth = Just $ Auth name passwd}
 	    resp <- curServerAction $ Authenticate
@@ -715,9 +716,24 @@ processCommand' IMEdit CmdWriteState = void.runMaybeT $ do
 	    Just err -> lift $ drawError $ "Write failed: "++err
 processCommand' _ _ = return ()
 
-hashPassword :: String -> String -> String
--- ^ salt password
-hashPassword name password = hash $ "IY" ++ name ++ password
+inputPassword :: UIMonad uiM => Codename -> String -> MaybeT (MainStateT uiM) String
+inputPassword name prompt = do
+    pw <- MaybeT $ lift $ textInput prompt 64 True False Nothing Nothing
+    guard $ not $ null pw
+    RCPublicKey publicKey <- MaybeT $ getFreshRecBlocking RecPublicKey
+    liftIO $ encryptPassword publicKey name pw
+
+-- | Salt and encrypt a password, to protect users' passwords from sniffing
+-- and dictionary attack. We can hope that they wouldn't use valuable
+-- passwords, but we shouldn't assume it.
+-- Note that in all other respects, the protocol is entirely insecure -
+-- nothing else is encrypted, and anyone sniffing an encrypted password can
+-- replay it to authenticate as the user.
+encryptPassword :: PublicKey -> String -> String -> IO String
+encryptPassword publicKey name password = do
+    g <- newGenIO :: IO SystemRandom
+    return . CS.unpack . BL.toStrict . fst . encrypt g publicKey . BL.fromStrict . CS.pack $
+        hash $ "IY" ++ name ++ password
 
 setSelectedPosFromMouse :: UIMonad uiM => MainStateT uiM ()
 setSelectedPosFromMouse = lift getUIMousePos >>= maybe (return ()) setSelectedPos

@@ -8,6 +8,8 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module Main where
 
 import Network.Fancy
@@ -29,7 +31,7 @@ import Data.Time.Clock
 import System.IO
 import System.FilePath
 import System.Directory (renameFile)
-import qualified Data.ByteString.Lazy as L
+import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString.Char8 as CS
 import qualified Data.Binary as B
 import qualified Data.Text as TS
@@ -48,6 +50,10 @@ import Text.Feed.Constructor
 import Text.XML.Light.Output (showTopElement)
 import Data.Time.Format
 import Data.Time.LocalTime
+
+import Crypto.Types.PubKey.RSA (PublicKey, PrivateKey)
+import Codec.Crypto.RSA (decrypt, generateKeyPair, RSAError)
+import Crypto.Random (newGenIO, SystemRandom)
 
 import qualified Text.Email.Validate
 import qualified Network.Mail.SMTP as SMTP
@@ -108,7 +114,7 @@ main = do
 	dbpath = fromMaybe "intricacydb" $ listToMaybe [ p | DBDir p <- opts ]
 	mfeedPath = listToMaybe [ p | FeedPath p <- opts ]
 	locksize = min maxlocksize $ fromMaybe 8 $ listToMaybe [ s | ServerLockSize s <- opts ]
-    withDB dbpath $ setDefaultServerInfo locksize
+    withDB dbpath $ setDefaultServerInfo locksize >> setKeyPair
     writeFile (lockFilePath dbpath) ""
     logh <- case listToMaybe [ f | LogFile f <- opts ] of
 	Nothing -> return stdout
@@ -119,6 +125,17 @@ main = do
 setDefaultServerInfo locksize = do
     alreadySet <- recordExists RecServerInfo
     unless alreadySet $ putRecord RecServerInfo (RCServerInfo $ defaultServerInfo locksize)
+
+rsaKeyLength = 2048
+
+setKeyPair :: DBM ()
+setKeyPair = do
+    alreadySet <- recordExists RecPublicKey
+    unless alreadySet $ do
+        g <- liftIO newGenIO :: DBM SystemRandom
+        let (publicKey, secretKey, _) = generateKeyPair g rsaKeyLength
+        putRecord RecPublicKey $ RCPublicKey publicKey
+        putRecord RecSecretKey $ RCSecretKey secretKey
 
 -- | We lock the whole database during each request, using haskell's native
 -- file locking, meaning that we have at any time one writer *xor* any number
@@ -142,7 +159,7 @@ handler dbpath delay logh mfeedPath hdl addr = handle ((\e -> return ()) :: Some
     handler' hdl addr
     where handler' hdl addr = do
 	    response <- handle (\e -> return $ ServerError $ show (e::SomeException)) $ do
-		request <- B.decode <$> L.hGetContents hdl
+		request <- B.decode <$> BL.hGetContents hdl
 		let hostname = case addr of
 			IP n _ -> n
 			IPv4 n _ -> n
@@ -156,7 +173,7 @@ handler dbpath delay logh mfeedPath hdl addr = handle ((\e -> return ()) :: Some
 		now' <- liftIO getCurrentTime
 		logit logh $ show now' ++ ": " ++ hashedHostname ++ " <<< " ++ showResponse response
 		return response
-	    L.hPut hdl $ B.encode response
+	    BL.hPut hdl $ B.encode response
 
 showRequest :: ClientRequest -> String
 showRequest (ClientRequest ver mauth act) = show ver ++ " "
@@ -179,6 +196,7 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
     let lockMode = case action of
 	    Authenticate -> ReadMode
 	    GetServerInfo -> ReadMode
+	    GetPublicKey -> ReadMode
 	    GetLock _ -> ReadMode
 	    GetUserInfo _ _ -> ReadMode
 	    GetRetired _ -> ReadMode
@@ -235,6 +253,7 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
 		ResetPassword passwd -> resetPassword auth passwd >> return ServerAck
 		SetEmail address -> setEmail auth address >> return ServerAck
 		GetServerInfo -> ServedServerInfo <$> getServerInfo
+		GetPublicKey -> ServedPublicKey <$> getPublicKey
 		GetLock ls -> ServedLock <$> getLock ls
 		GetRetired name -> ServedRetired <$> getRetired name
 		GetUserInfo name mversion -> (do
@@ -342,6 +361,9 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
 	getServerInfo = do
 	    RCServerInfo sinfo <- getRecordErrored $ RecServerInfo
 	    return sinfo
+	getPublicKey = do
+	    RCPublicKey publicKey <- getRecordErrored $ RecPublicKey
+	    return publicKey
 	getRetired name = do
 	    RCLockSpecs lss <- fromMaybe (RCLockSpecs []) <$> (erroredDB $ getRecord $ RecRetiredLocks name)
 	    return lss
@@ -361,25 +383,35 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
 	    let Just (Auth name _) = auth
 	    getUserInfo name
 
+        decryptPassword :: String -> ExceptT String IO String
+        decryptPassword pw = do
+            RCSecretKey secretKey <- getRecordErrored RecSecretKey
+            liftIO $ evaluate (CS.unpack . BL.toStrict .
+                decrypt secretKey . BL.fromStrict . CS.pack $ pw)
+                -- <=intricacy-0.6.2 sends the hashed password unencrypted
+                `catch` \(e :: RSAError) -> return pw
 	checkAuth :: Maybe Auth -> ExceptT String IO ()
 	checkAuth Nothing = throwE "Authentication required"
 	checkAuth (Just (Auth name pw)) = do
 	    exists <- checkCodeName name
 	    unless exists $ throwE "No such user"
-	    RCPassword pw' <- getRecordErrored (RecPassword name)
-	    when (pw /= pw') $ throwE "Wrong password"
+	    RCPassword correctPw <- getRecordErrored (RecPassword name)
+            pw' <- decryptPassword pw
+            when (pw' /= correctPw) $ throwE "Wrong password"
 	newUser :: Maybe Auth -> ExceptT String IO ()
 	newUser Nothing = throwE "Require authentication"
 	newUser (Just (Auth name pw)) = do
 	    exists <- checkCodeName name
 	    when exists $ throwE "Codename taken"
-	    erroredDB $ putRecord (RecPassword name) (RCPassword pw)
+            pw' <- decryptPassword pw
+	    erroredDB $ putRecord (RecPassword name) (RCPassword pw')
 	    erroredDB $ putRecord (RecUserInfo name) (RCUserInfo $ (1,initUserInfo name))
 	    erroredDB $ putRecord (RecUserInfoLog name) (RCUserInfoDeltas [])
-	resetPassword Nothing pw = throwE "Authentication required"
+	resetPassword Nothing _ = throwE "Authentication required"
 	resetPassword auth@(Just (Auth name _)) newpw = do
 	    checkAuth auth
-	    erroredDB $ putRecord (RecPassword name) (RCPassword newpw)
+            newpw' <- decryptPassword newpw
+	    erroredDB $ putRecord (RecPassword name) (RCPassword newpw')
 	setEmail Nothing _ = throwE "Authentication required"
 	setEmail auth@(Just (Auth name _)) addressStr = do
 	    checkAuth auth

@@ -59,6 +59,7 @@ executable intricacy
         , binary >=0.5, network-fancy >= 0.1.5
         , cryptohash >= 0.8
         , safe >= 0.2
+        , RSA >= 2.0, crypto-pubkey-types >= 0.2, crypto-api >= 0.10
       if flag(SDL)
           build-depends: SDL >=0.6.5, SDL-ttf >=0.6, SDL-gfx >=0.6
           if flag(Sound)
@@ -116,6 +117,7 @@ executable intricacy-server
         , array >=0.3, containers >=0.4, vector >=0.9
         , binary >=0.5, network-fancy >= 0.1.5
         , cryptohash >= 0.8
+        , RSA >= 2.0, crypto-pubkey-types >= 0.2, crypto-api >= 0.10
         , random >= 1.0, pipes >= 4
         , feed >= 0.3.1, xml >= 1.2.6
         , email-validate >= 1.0.0, text, smtp-mail >= 0.1.4.1

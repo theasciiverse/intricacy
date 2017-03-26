@@ -23,6 +23,7 @@ import qualified Data.ByteString.Lazy.Char8 as CL
 import qualified Data.ByteString.Char8 as CS
 
 import Crypto.Hash (hashlazy, Digest, SHA1, digestToHexByteString)
+import Crypto.Types.PubKey.RSA (PublicKey, PrivateKey)
 
 import Protocol
 import Metagame
@@ -46,6 +47,8 @@ data Record
     | RecRetiredLocks Codename
     | RecServerInfo
     | RecServerEmail
+    | RecPublicKey
+    | RecSecretKey
     deriving (Eq, Ord, Show)
 data RecordContents
     = RCPassword Password
@@ -57,13 +60,16 @@ data RecordContents
     | RCLockSpecs [LockSpec]
     | RCServerInfo ServerInfo
     | RCEmail CS.ByteString
-    deriving (Eq, Ord, Show)
+    | RCPublicKey PublicKey
+    | RCSecretKey PrivateKey
+    deriving (Eq, Show)
 
 rcOfServerResp (ServedServerInfo x) = RCServerInfo x
 rcOfServerResp (ServedLock x) = RCLock x
 rcOfServerResp (ServedSolution x) = RCSolution x
 rcOfServerResp (ServedUserInfo x) = RCUserInfo x
 rcOfServerResp (ServedRetired x) = RCLockSpecs x
+rcOfServerResp (ServedPublicKey x) = RCPublicKey x
 rcOfServerResp _ = error "no corresponding rc"
 
 invariantRecord (RecUserInfo _) = False
@@ -79,6 +85,7 @@ askForRecord (RecUserInfo name) = GetUserInfo name Nothing
 askForRecord (RecLock ls) = GetLock ls
 askForRecord (RecNote note) = GetSolution note
 askForRecord (RecRetiredLocks name) = GetRetired name
+askForRecord RecPublicKey = GetPublicKey
 askForRecord _ = error "no corresponding request"
 
 type DBM = ReaderT FilePath IO
@@ -104,6 +111,8 @@ getRecordh RecLockHashes h = ((RCLockHashes <$>) . tryRead) <$> hGetStrict h
 getRecordh (RecRetiredLocks name) h = ((RCLockSpecs <$>) . tryRead) <$> hGetStrict h
 getRecordh RecServerInfo h = ((RCServerInfo <$>) . tryRead) <$> hGetStrict h
 getRecordh RecServerEmail h = ((RCEmail <$>) . tryRead) <$> hGetStrict h
+getRecordh RecPublicKey h = ((RCPublicKey <$>) . tryRead) <$> hGetStrict h
+getRecordh RecSecretKey h = ((RCSecretKey <$>) . tryRead) <$> hGetStrict h
 
 hGetStrict h = CS.unpack <$> concatMWhileNonempty (repeat $ CS.hGet h 1024)
     where concatMWhileNonempty (m:ms) = do
@@ -129,6 +138,8 @@ putRecordh (RCSolution solution) h = hPutStr h $ show solution
 putRecordh (RCLockHashes hashes) h = hPutStr h $ show hashes
 putRecordh (RCLockSpecs lss) h = hPutStr h $ show lss
 putRecordh (RCServerInfo sinfo) h = hPutStr h $ show sinfo
+putRecordh (RCPublicKey publicKey) h = hPutStr h $ show publicKey
+putRecordh (RCSecretKey secretKey) h = hPutStr h $ show secretKey
 
 modifyRecord :: Record -> (RecordContents -> RecordContents) -> DBM ()
 modifyRecord rec f = do
@@ -177,6 +188,8 @@ recordPath rec =
 	recordPath' RecLockHashes = "lockHashes"
 	recordPath' RecServerInfo = "serverInfo"
 	recordPath' RecServerEmail = "serverEmail"
+	recordPath' RecPublicKey = "publicKey"
+	recordPath' RecSecretKey = "secretKey"
 
 	userDir name = "users" ++ [pathSeparator] ++ pathifyName name ++ [pathSeparator]
 	alockFN (ActiveLock name idx) = pathifyName name ++":"++ show idx
