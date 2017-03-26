@@ -1,4 +1,4 @@
-VERSION=0.6.2
+VERSION=0.7
 
 LINTARGET=linux-i686-glibc-2.16
 sources=$(filter-out Paths_intricacy.hs,$(wildcard *.hs *.lhs))
