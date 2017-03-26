@@ -8,6 +8,8 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
+{-# LANGUAGE ScopedTypeVariables #-}
+
 module Interact (interactUI) where
 
 import Control.Monad.State
@@ -18,6 +20,7 @@ import Data.Map (Map)
 import Control.Monad.Writer
 import Control.Monad.Trans.Except
 import Control.Monad.Trans.Maybe
+import Control.Exception
 import Data.Maybe
 import Data.Char
 import Data.List
@@ -721,7 +724,7 @@ inputPassword name prompt = do
     pw <- MaybeT $ lift $ textInput prompt 64 True False Nothing Nothing
     guard $ not $ null pw
     RCPublicKey publicKey <- MaybeT $ getFreshRecBlocking RecPublicKey
-    liftIO $ encryptPassword publicKey name pw
+    encryptPassword publicKey name pw
 
 -- | Salt and encrypt a password, to protect users' passwords from sniffing
 -- and dictionary attack. We can hope that they wouldn't use valuable
@@ -729,11 +732,19 @@ inputPassword name prompt = do
 -- Note that in all other respects, the protocol is entirely insecure -
 -- nothing else is encrypted, and anyone sniffing an encrypted password can
 -- replay it to authenticate as the user.
-encryptPassword :: PublicKey -> String -> String -> IO String
-encryptPassword publicKey name password = do
-    g <- newGenIO :: IO SystemRandom
-    return . CS.unpack . BL.toStrict . fst . encrypt g publicKey . BL.fromStrict . CS.pack $
-        hash $ "IY" ++ name ++ password
+encryptPassword :: UIMonad uiM =>
+    PublicKey -> String -> String -> MaybeT (MainStateT uiM) String
+encryptPassword publicKey name password = msum
+    [ MaybeT . liftIO .
+        handle (\(e :: SomeException) -> return Nothing) $ do
+        g <- newGenIO :: IO SystemRandom
+        return . Just . CS.unpack . BL.toStrict . fst . encrypt g publicKey .
+            BL.fromStrict . CS.pack $ hashed
+    , confirmOrBail
+        "Failed to encrypt password - send unencrypted?"
+        >> return hashed
+    ]
+    where hashed = hash $ "IY" ++ name ++ password
 
 setSelectedPosFromMouse :: UIMonad uiM => MainStateT uiM ()
 setSelectedPosFromMouse = lift getUIMousePos >>= maybe (return ()) setSelectedPos
