@@ -15,13 +15,13 @@ import Control.Concurrent.STM
 import Control.Applicative
 import qualified Data.Map as Map
 import Data.Map (Map)
+import Data.Monoid
 import Data.Array
 import Data.Maybe
 import Data.List
 import Control.Monad.Trans.Maybe
 import Control.Monad.State
 import Data.Function (on)
-import Data.Foldable (forM_)
 
 import Hex
 import GameState (stateBoard)
