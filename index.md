@@ -33,6 +33,7 @@ Latest version is 0.7.0.1 ([NEWS](NEWS)).
     providing this package.
 * Cabal: <tt>cabal update && cabal install intricacy</tt>
     <small>(requires the haskell package manager 'cabal', and SDL dependencies).</small>
+* [64-bit Linux binary](intricacy-0.7.0.1-linux-x86_64-glibc-2.19.tgz)
 * [32-bit Linux binary](intricacy-0.7.0.1-linux-x86_32-glibc-2.23.tgz)
 * [32-bit Linux binary for older systems](old/intricacy-0.2.5-linux-i686-glibc-2.14.tgz)
     (intricacy version 0.2.5)
