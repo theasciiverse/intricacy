@@ -6,6 +6,7 @@ Dependencies:
 	sdl version 1.2
 	sdl-ttf
 	sdl-gfx
+        sdl-mixer
     OR
 	curses
 
