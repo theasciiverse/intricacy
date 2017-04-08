@@ -162,6 +162,17 @@ drawBindingsTables mode frame | mode `elem` [ IMEdit, IMPlay ] = do
             ]
         bindingsTable IMPlay GravRight =
             [ (-7, BindingsEntry "help" [CmdHelp])
+            , (-6, BindingsEntry "bind" [CmdBind Nothing])
+            , (7, BindingsEntry "quit" [CmdQuit])
+            ]
+        bindingsTable IMReplay GravLeft =
+            [ ( 0, BindingsEntry "wait" [CmdWait])
+            , ( 4, BindingsEntry "undo, redo" [CmdUndo, CmdRedo])
+            , ( 5, BindingsEntry "marks" [CmdMark, CmdJumpMark, CmdReset])
+            ]
+        bindingsTable IMReplay GravRight =
+            [ (-7, BindingsEntry "help" [CmdHelp])
+            , (-6, BindingsEntry "bind" [CmdBind Nothing])
             , (7, BindingsEntry "quit" [CmdQuit])
             ]
         bindingsTable IMEdit GravLeft =
@@ -176,6 +187,7 @@ drawBindingsTables mode frame | mode `elem` [ IMEdit, IMPlay ] = do
             ]
         bindingsTable IMEdit GravRight =
             [ (-7, BindingsEntry "help" [CmdHelp])
+            , (-6, BindingsEntry "bind" [CmdBind Nothing])
             , (-4, BindingsEntry "place" $ map CmdTile
                 [ BlockTile []
                 , SpringTile Relaxed zero
