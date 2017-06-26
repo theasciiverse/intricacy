@@ -177,7 +177,7 @@ handler dbpath delay logh mfeedPath hdl addr = handle ((\e -> return ()) :: Some
 
 showRequest :: ClientRequest -> String
 showRequest (ClientRequest ver mauth act) = show ver ++ " "
-    ++ maybe "" (\(Auth name pw) -> "Auth:" ++ name ++ ":" ++ take 4 pw) mauth ++ " "
+    ++ maybe "" (\(Auth name _) -> "Auth:" ++ name) mauth ++ " "
     ++ showAction act
 showAction :: Action -> String
 showAction (SetLock lock idx soln) = "SetLock " ++ show idx ++ " lock:"
