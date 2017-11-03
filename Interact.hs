@@ -120,7 +120,7 @@ processCommand :: UIMonad uiM => InputMode -> Command -> ExceptT InteractSuccess
 processCommand im CmdQuit = do
     case im of
 	IMReplay -> throwE $ InteractSuccess False
-	IMPlay -> lift (or <$> sequence [gets psIsSub, null <$> gets psGameStateMoveStack])
+	IMPlay -> lift (or <$> sequence [gets psIsSub, gets psSaved, null <$> gets psGameStateMoveStack])
 	    >>? throwE $ InteractSuccess False
 	IMEdit -> lift editStateUnsaved >>! throwE $ InteractSuccess True
 	_ -> return ()
@@ -766,20 +766,20 @@ setSelectedPos pos = do
 
 subPlay :: UIMonad uiM => Lock -> MainStateT uiM ()
 subPlay lock =
-    pushEState =<< psCurrentState <$> (execSubMainState $ newPlayState lock Nothing False True)
+    pushEState =<< psCurrentState <$> (execSubMainState $ newPlayState lock Nothing False True False)
 
 solveLock,solveLockTut :: UIMonad uiM => Lock -> Maybe String -> MaybeT (MainStateT uiM) Solution
 solveLock = solveLock' False
 solveLockTut = solveLock' True
 solveLock' isTut lock title = do
-    (InteractSuccess solved, ps) <- lift $ runSubMainState $ newPlayState (reframe lock) title isTut False
+    (InteractSuccess solved, ps) <- lift $ runSubMainState $ newPlayState (reframe lock) title isTut False False
     guard $ solved
     return $ reverse $ (map snd) $ psGameStateMoveStack ps
 
 solveLockSaving :: UIMonad uiM => LockSpec -> Maybe SavedPlayState -> Bool -> Lock -> Maybe String -> MaybeT (MainStateT uiM) Solution
 solveLockSaving ls msps isTut lock title = do
     (InteractSuccess solved, ps) <- lift $ runSubMainState $
-	((maybe newPlayState restorePlayState) msps) (reframe lock) title isTut False
+	((maybe newPlayState restorePlayState) msps) (reframe lock) title isTut False True
     if solved
 	then do
 	    unless isTut $ lift $ modify $ \ms -> ms { partialSolutions = Map.delete ls $ partialSolutions ms }

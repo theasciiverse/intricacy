@@ -88,6 +88,7 @@ data MainState
 	, psTitle::Maybe String
 	, psIsTut::Bool
 	, psIsSub::Bool
+	, psSaved::Bool
 	, psMarks::Map Char MainState
 	}
     | ReplayState
@@ -143,7 +144,7 @@ ms2im mainSt = case mainSt of
     EditState {} -> IMEdit
     MetaState {} -> IMMeta
 
-newPlayState (frame,st) title isTut sub = PlayState st frame [] False False [] [] title isTut sub Map.empty
+newPlayState (frame,st) title isTut sub saved = PlayState st frame [] False False [] [] title isTut sub saved Map.empty
 newReplayState st soln title = ReplayState st [] soln [] title Map.empty
 newEditState (frame,st) msoln mpath = EditState [st] [] frame mpath
     ((\s->(st,s))<$>msoln) (Just (st, isJust msoln)) Nothing (PHS zero) (PHS zero) Map.empty
@@ -170,12 +171,12 @@ savePlayState :: MainState -> SavedPlayState
 savePlayState ps = SavedPlayState (getMoves ps) $ Map.map getMoves $ psMarks ps
     where getMoves = reverse . map snd . psGameStateMoveStack
 
-restorePlayState :: SavedPlayState -> Lock -> (Maybe String) -> Bool -> Bool -> MainState
-restorePlayState (SavedPlayState pms markPMs) (frame,st) title isTut sub =
+restorePlayState :: SavedPlayState -> Lock -> (Maybe String) -> Bool -> Bool -> Bool -> MainState
+restorePlayState (SavedPlayState pms markPMs) (frame,st) title isTut sub saved =
     (stateAfterMoves pms) { psMarks = Map.map stateAfterMoves markPMs }
     where
 	stateAfterMoves pms = let (stack,st') = applyMoves st pms
-	    in (newPlayState (frame, st') title isTut sub) { psGameStateMoveStack = stack }
+	    in (newPlayState (frame, st') title isTut sub saved) { psGameStateMoveStack = stack }
 	applyMoves st pms = foldl tick ([],st) pms
 	tick :: ([(GameState,PlayerMove)],GameState) -> PlayerMove -> ([(GameState,PlayerMove)],GameState)
 	tick (stack,st) pm = ((st,pm):stack,fst . runWriter $ physicsTick pm st)

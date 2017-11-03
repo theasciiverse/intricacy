@@ -91,7 +91,10 @@ instance UIMonad (StateT UIState IO) where
 			, isTool p
 			]
 		registerUndoButtons canUndo canRedo
-                registerButton (periphery 0) CmdOpen (if solved then 2 else 0) [("open", hu+^neg hw)]
+                registerButton (periphery 0) CmdOpen (if solved then 2 else 0) $
+                    [("open", hu+^neg hw)] ++ if solved && isTut
+                        then [("Click-->",9*^neg hu)]
+                        else []
 	drawMainState' (ReplayState { rsCurrentState=st, rsLastAlerts=alerts } ) = do
 	    canUndo <- null <$> gets rsGameStateMoveStack
 	    canRedo <- null <$> gets rsMoveStack
