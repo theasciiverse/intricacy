@@ -534,14 +534,24 @@ processCommand' IMPlay (CmdDrag pos dir) = do
     board <- stateBoard <$> gets psCurrentState
     wsel <- gets wrenchSelected
     void.runMaybeT $ do
-	tile <- liftMaybe $ snd <$> Map.lookup pos board
-	guard $ case tile of {WrenchTile _ -> True; HookTile -> True; _ -> False}
+	tp <- liftMaybe $ tileType . snd <$> Map.lookup pos board
+        msum [ guard $ tp == HookTile
+            , do
+                guard $ tp == WrenchTile zero
+                board' <- lift $ stateBoard . fst . runWriter . physicsTick (WrenchPush dir) <$> gets psCurrentState
+                msum $ [ do
+                        tp' <- liftMaybe $ tileType . snd <$> Map.lookup pos' board'
+                        guard $ tp' == WrenchTile zero
+                    | d <- [0,1,2]
+                    , let pos' = d *^ dir +^ pos ]
+                    ++ [ (lift.lift $ warpPointer pos) >> mzero ]
+            ]
 	lift $ processCommand' IMPlay $ CmdDir WHSSelected $ dir
 	board' <- stateBoard <$> gets psCurrentState
 	msum [ do
-		tile' <- liftMaybe $ snd <$> Map.lookup pos' board'
-		guard $ tileType tile' == if wsel then WrenchTile zero else HookTile
-		lift.lift $ warpPointer $ pos'
+		tp' <- liftMaybe $ tileType . snd <$> Map.lookup pos' board'
+		guard $ tp' == if wsel then WrenchTile zero else HookTile
+		lift.lift $ warpPointer pos'
 	    | pos' <- map (+^pos) $ hexDisc 2 ]
 
 processCommand' IMPlay cmd = do
