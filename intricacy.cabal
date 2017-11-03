@@ -101,7 +101,7 @@ executable intricacy
 
   ghc-options: -fno-warn-tabs
   other-modules: AsciiLock, BinaryInstances, BoardColouring, Cache, Command,
-      CursesRender, CursesUI, CursesUIMInstance, CVec, Database, Debug,
+      CursesRender, CursesUI, CursesUIMInstance, CVec, Database,
       EditGameState, Frame, GameState, GameStateTypes, GraphColouring, Hex, Init,
       InputMode, Interact, InteractUtil, KeyBindings, Lock, MainState,
       Maxlocksize, Metagame, Mundanities, Physics, Protocol, SDLGlyph,
@@ -126,5 +126,5 @@ executable intricacy-server
   main-is:  Server.hs
   ghc-options: -fno-warn-tabs
   other-modules: AsciiLock, BinaryInstances, BoardColouring, CVec, Database,
-      Debug, Frame, GameState, GameStateTypes, GraphColouring, Hex, Lock,
+      Frame, GameState, GameStateTypes, GraphColouring, Hex, Lock,
       Maxlocksize, Metagame, Mundanities, Physics, Protocol, Util, Version
