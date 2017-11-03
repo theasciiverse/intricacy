@@ -604,6 +604,13 @@ instance UIMonad (StateT UIState IO) where
 
     onNewMode mode = modify (\ds -> ds{needHoverUpdate=True}) >> say ""
 
+    withNoBG m = do
+        bg <- gets bgSurface
+        modify $ \uiState -> uiState{bgSurface=Nothing}
+        m
+        modify $ \uiState -> uiState{bgSurface=bg}
+
+
 drawShortMouseHelp mode = do
     mwhs <- gets $ whsButtons.uiOptions
     showBT <- showButtonText <$> gets uiOptions

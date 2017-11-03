@@ -146,7 +146,7 @@ processCommand' im CmdHelp = lift $ do
             first <- not <$> liftIO hasLocks
             return $ [HelpPageInput] ++ if first then [HelpPageFirstEdit] else []
         _ -> return [HelpPageInput]
-    let showPage p = showHelp im p >>? do
+    let showPage p = withNoBG $ showHelp im p >>? do
 	    void $ textInput "[press a key or RMB]" 1 False True Nothing Nothing
     sequence_ $ map showPage helpPages
 processCommand' im (CmdBind mcmd)= lift $ (>> endPrompt) $ runMaybeT $ do
@@ -441,7 +441,7 @@ processCommand' IMMeta CmdEdit = void.runMaybeT $ do
 	    ]
 	return (baseLock size, Nothing)
     not <$> liftIO hasLocks >>? do
-        lift.lift $ showHelp IMEdit HelpPageFirstEdit >>? do
+        lift.lift $ withNoBG $ showHelp IMEdit HelpPageFirstEdit >>? do
             void $ textInput
                 "[Press a key or RMB to continue; you can review this help later with '?']"
                 1 False True Nothing Nothing
@@ -476,7 +476,7 @@ processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
 		rbdg <- lift $ getUIBinding IMMeta (CmdRegister False)
 		if isNothing mauth
 		    then do
-			let showPage p = lift $ showHelp IMMeta p >>? do
+			let showPage p = lift $ withNoBG $ showHelp IMMeta p >>? do
 				void $ textInput
 				    "[Tutorial completed! Press a key or RMB to continue; you can review this help later with '?']"
 				    1 False True Nothing Nothing

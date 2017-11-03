@@ -442,6 +442,7 @@ instance UIMonad (StateT UIState IO) where
     getUIMousePos = return Nothing
     setYNButtons = return ()
     onNewMode _ = say ""
+    withNoBG = id
 
     toggleColourMode = modify $ \s -> s {monochrome = not $ monochrome s}
 
