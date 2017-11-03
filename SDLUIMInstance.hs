@@ -70,7 +70,8 @@ instance UIMonad (StateT UIState IO) where
 	    drawShortMouseHelp mode
 	    refresh
 	where
-	drawMainState' (PlayState { psCurrentState=st, psLastAlerts=alerts, wrenchSelected=wsel, psIsTut=isTut }) = do
+        drawMainState' (PlayState { psCurrentState=st, psLastAlerts=alerts,
+                wrenchSelected=wsel, psIsTut=isTut, psSolved=solved }) = do
 	    canUndo <- null <$> gets psGameStateMoveStack
 	    canRedo <- null <$> gets psUndoneStack
 	    lift $ do
@@ -90,6 +91,7 @@ instance UIMonad (StateT UIState IO) where
 			, isTool p
 			]
 		registerUndoButtons canUndo canRedo
+                registerButton (periphery 0) CmdOpen (if solved then 2 else 0) [("open", hu+^neg hw)]
 	drawMainState' (ReplayState { rsCurrentState=st, rsLastAlerts=alerts } ) = do
 	    canUndo <- null <$> gets rsGameStateMoveStack
 	    canRedo <- null <$> gets rsMoveStack

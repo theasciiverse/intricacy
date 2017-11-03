@@ -161,7 +161,6 @@ getButtons mode = do
 	IMPlay ->
 	    [ markGroup ]
 	    ++ whsBGs mwhs mode
-	    ++ [ singleButton tr CmdOpen 1 [("open", hu+^neg hw)] ]
 	IMReplay -> [ markGroup ]
 	IMMeta ->
 	    [ singleButton serverPos CmdSetServer 0 [("server",7*^neg hu)]
