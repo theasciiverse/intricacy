@@ -103,7 +103,7 @@ data UIOptions = UIOptions
     , uiAnimTime::Word32
     }
     deriving (Eq, Ord, Show, Read)
-defaultUIOptions = UIOptions False ShowBlocksBlocking Nothing True False True True 100
+defaultUIOptions = UIOptions False ShowBlocksBlocking Nothing True False True True 60
 
 modifyUIOptions :: (UIOptions -> UIOptions) -> UIM ()
 modifyUIOptions f = modify $ \s -> s { uiOptions = f $ uiOptions s }
@@ -593,9 +593,54 @@ drawMainGameState' args@(DrawArgs highlight colourFixed alerts st uiopts) = do
 	    modify $ \ds -> ds { dispLastCol = colouring }
 	    gsSurf <- liftM fromJust $ gets gsSurface
 	    renderToMainWithSurf gsSurf $ do
+                let tileGlyphs = fmap (ownedTileGlyph colouring highlight) board
+
+                    applyAlert (AlertAppliedForce f@(Torque idx tdir)) =
+                        let poss = case getpp drawSt idx of
+                                PlacedPiece pos (Pivot arms) -> pos : map (+^pos) arms
+                                PlacedPiece pos (Hook arm _) -> [arm+^pos]
+                                _ -> []
+                            rotateGlyph (TileGlyph (ArmTile dir _) col) =
+                                ArmGlyph (-tdir) dir col
+                            rotateGlyph (TileGlyph (PivotTile dir) col) =
+                                PivotGlyph (-tdir) dir col
+                        in flip (foldr . Map.adjust $ rotateGlyph) poss
+                    applyAlert (AlertAppliedForce f@(Push idx dir)) =
+                        displaceFootprint . displaceSprings
+                        where
+                            displace = DisplacedGlyph $ neg dir
+                            displaceSpringGlyph isRoot (TileGlyph (SpringTile extn sdir) col) =
+                                displaceSpringGlyph isRoot $ SpringGlyph zero zero extn sdir col
+                            displaceSpringGlyph isRoot (SpringGlyph rdisp edisp extn sdir col)
+                                | isRoot = SpringGlyph (neg dir) edisp extn sdir col
+                                | otherwise = SpringGlyph rdisp (neg dir) extn sdir col
+                            displaceSpringGlyph _ glyph = glyph
+                            displaceFootprint =
+                                flip (foldr . Map.adjust $ displace) $
+                                    plPieceFootprint $ getpp drawSt idx
+
+                            displaceSpring isRoot c@(Connection root end (Spring sdir _))
+                                | dir `elem` [sdir,neg sdir] =
+                                    Map.adjust (displaceSpringGlyph isRoot) $
+                                        if isRoot
+                                            then sdir +^ locusPos drawSt root
+                                            else neg sdir +^ locusPos drawSt end
+                                | isRoot =
+                                    flip (foldr . Map.adjust $ displace) $
+                                        connectionFootPrint drawSt c
+                                | otherwise = id
+                            displaceSpring _ _ = id
+
+                            displaceSprings =
+                                (flip (foldr $ displaceSpring True) $ springsRootAtIdx drawSt idx) .
+                                (flip (foldr $ displaceSpring False) $ springsEndAtIdx drawSt idx)
+                    applyAlert _ = id
+
+                    applyAlerts = flip (foldr applyAlert) drawAlerts
+
 		erase
 		sequence_ [ drawAt glyph pos |
-		    (pos,glyph) <- Map.toList $ fmap (ownedTileGlyph colouring highlight) board
+		    (pos,glyph) <- Map.toList $ applyAlerts tileGlyphs
 		    ]
 
 		when (showBlocks uiopts /= ShowBlocksNone) $ sequence_
@@ -608,8 +653,8 @@ drawMainGameState' args@(DrawArgs highlight colourFixed alerts st uiopts) = do
 		    -- AlertResistedForce force <- drawAlerts ]
 		    ++ [ drawAt CollisionMarker pos
 			| AlertCollision pos <- drawAlerts ]
-		    ++ [ drawApplied drawSt colouring force
-			| AlertAppliedForce force <- drawAlerts ]
+		    -- ++ [ drawApplied drawSt colouring force
+		    --    | AlertAppliedForce force <- drawAlerts ]
 	    vidSurf <- liftIO getVideoSurface
 	    liftIO $ blitSurface gsSurf Nothing vidSurf Nothing
 

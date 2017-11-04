@@ -38,6 +38,9 @@ data ShowBlocks = ShowBlocksBlocking | ShowBlocksAll | ShowBlocksNone
 
 data Glyph
     = TileGlyph Tile Pixel
+    | SpringGlyph HexDir HexDir SpringExtension HexDir Pixel
+    | PivotGlyph TorqueDir HexDir Pixel
+    | ArmGlyph TorqueDir HexDir Pixel
     | BlockedArm HexDir TorqueDir Pixel
     | TurnedArm HexDir TorqueDir Pixel
     | BlockedBlock Tile HexDir Pixel
@@ -53,6 +56,7 @@ data Glyph
     | UseSoundsButton Bool
     | WhsButtonsButton (Maybe WrHoSel)
     | FullscreenButton Bool
+    | DisplacedGlyph HexDir Glyph
     | UnfreshGlyph
     deriving (Eq, Ord, Show)
 
@@ -137,11 +141,13 @@ renderGlyphCaching gl = do
 	    -- Maybe we could truncate the spring glyphs to a hex?
 	    TileGlyph (BlockTile adjs) _ -> null adjs
 	    TileGlyph (SpringTile extn dir) _ -> False
+            SpringGlyph _ _ _ _ _ -> False
 	    FilledHexGlyph _ -> False
 	    HollowGlyph _ -> False
 	    BlockedBlock _ _ _ -> False
 	    BlockedPush _ _ -> False
 	    CollisionMarker -> False
+            DisplacedGlyph _ _ -> False
 	    _ -> True
 
 renderGlyph :: Glyph -> RenderM ()
@@ -159,38 +165,13 @@ renderGlyph (TileGlyph (BlockTile adjs) col) =
 		]
 
 renderGlyph (TileGlyph (SpringTile extn dir) col) =
-    thickLinesR points 1 $ brightness col
-	where
-            n :: Int
-	    n = 3*case extn of
-		Stretched -> 1
-		Relaxed -> 2
-		Compressed -> 4
-	    brightness = if extn == Relaxed then dim else bright
-	    dir' = if dir == zero then hu else dir
-	    s = corner (hextant dir' - 1)
-	    off = corner (hextant dir')
-	    e = corner (hextant dir' - 3)
-	    points = [ b +^ (fi i / fi n) **^ (e -^ s)
-		| i <- [0..n]
-		, i`mod`3 /= 1
-		, let b = if i`mod`3==0 then s else off ]
+    renderGlyph $ SpringGlyph zero zero extn dir col
 
 renderGlyph (TileGlyph (PivotTile dir) col) = do
-    rimmedCircleR zero (7/8) col $ bright col
-    when (dir /= zero)
-	$ aaLineR from to $ bright col
-    return ()
-	where
-	    from = (7/8) **^ edge (neg dir)
-	    to = (7/8) **^ edge dir
+    renderGlyph $ PivotGlyph 0 dir col
 
 renderGlyph (TileGlyph (ArmTile dir _) col) =
-    thickLineR from to 1 col
-	where
-	    dir' = if dir == zero then hu else dir
-	    from = edge $ neg dir'
-	    to = innerCorner dir'
+    renderGlyph $ ArmGlyph 0 dir col
 
 renderGlyph (TileGlyph HookTile col) =
     rimmedCircleR zero (7/8) col $ bright col
@@ -212,6 +193,44 @@ renderGlyph (TileGlyph (WrenchTile mom) col) = do
 
 renderGlyph (TileGlyph BallTile col) =
     rimmedCircleR zero (7/8) (faint col) (obscure col)
+
+renderGlyph (SpringGlyph rootDisp endDisp extn dir col) =
+    thickLinesR points 1 $ brightness col
+	where
+            n :: Int
+	    n = 3*case extn of
+		Stretched -> 1
+		Relaxed -> 2
+		Compressed -> 4
+	    brightness = if extn == Relaxed then dim else bright
+	    dir' = if dir == zero then hu else dir
+	    s = corner (hextant dir' - 1) +^ innerCorner endDisp
+	    off = corner (hextant dir') +^ innerCorner endDisp
+	    e = corner (hextant dir' - 3) +^ innerCorner rootDisp
+	    points = [ b +^ (fi i / fi n) **^ (e -^ s)
+		| i <- [0..n]
+		, i`mod`3 /= 1
+		, let b = if i`mod`3==0 then s else off ]
+
+renderGlyph (PivotGlyph rot dir col) = do
+    rimmedCircleR zero (7/8) col $ bright col
+    when (dir /= zero)
+	$ aaLineR from to $ bright col
+    return ()
+	where
+	    from = rotFVec th c $ (7/8) **^ edge (neg dir)
+	    to = rotFVec th c $ (7/8) **^ edge dir
+            c = FVec 0 0
+            th = - fi rot * pi / 12
+
+renderGlyph (ArmGlyph rot dir col) =
+    thickLineR from to 1 col
+	where
+	    dir' = if dir == zero then hu else dir
+	    from = rotFVec th c $ edge $ neg dir'
+	    to = rotFVec th c $ innerCorner dir'
+            c = (2 **^ edge (neg dir'))
+            th = - fi rot * pi / 12
 
 renderGlyph (BlockedArm armdir tdir col) =
     aaLineR from to col
@@ -314,6 +333,9 @@ renderGlyph (FullscreenButton fs) = do
 	corners = [ (2/3) **^ (if dir `elem` [hu,neg hu] then edge else innerCorner) dir
 	    | dir <- hexDirs ]
 	corners' = map (((2/3)**^) . corner) [0..5]
+
+renderGlyph (DisplacedGlyph dir glyph) =
+    displaceRender (innerCorner dir) $ renderGlyph glyph
 
 renderGlyph (UnfreshGlyph) = do
     let col = bright red

@@ -230,6 +230,7 @@ innerCorner dir = FVec x y
 	    | dir == hu = [2/3, 0]
 	    | dir == hv = [-1/3, -ylen]
 	    | dir == hw = [-1/3, ylen]
+            | dir == zero = [0,0]
 	    | not (isHexDir dir) = error "innerCorner: not a hexdir"
 	    | otherwise = map (\z -> -z) $ f $ neg dir
 
@@ -244,6 +245,15 @@ edge dir = FVec x y
 	    | not (isHexDir dir) = error "edge: not a hexdir"
 	    | otherwise = map (\z -> -z) $ f $ neg dir
 
+rotFVec :: Float -> FVec -> FVec -> FVec
+rotFVec th (FVec cx cy) v@(FVec x y)
+    | th == 0 = v
+    | otherwise = FVec (cx + c*dx-s*dy) (cy + s*dx+c*dy)
+    where
+        dx = x-cx
+        dy = y-cy
+        c = cos th
+        s = sin th
 
 black = Pixel 0x01000000
 white = Pixel 0xffffff00
