@@ -87,7 +87,7 @@ data UIState = UIState { scrHeight::Int, scrWidth::Int
 type UIM = StateT UIState IO
 nullUIState = UIState 0 0 Nothing Nothing emptyCachedGlyphs Nothing Map.empty Map.empty []
     defaultUIOptions Nothing Map.empty Nothing Nothing 0 0 Nothing Nothing Nothing
-    (zero,False) Nothing Nothing False (PHS zero) Map.empty 0 Nothing 25
+    (zero,False) Nothing Nothing False (PHS zero) Map.empty 0 Nothing 50
 #ifdef SOUND
     Map.empty
 #endif
@@ -101,9 +101,10 @@ data UIOptions = UIOptions
     , showButtonText::Bool
     , useSounds::Bool
     , uiAnimTime::Word32
+    , shortUiAnimTime::Word32
     }
     deriving (Eq, Ord, Show, Read)
-defaultUIOptions = UIOptions False ShowBlocksBlocking Nothing True False True True 60
+defaultUIOptions = UIOptions False ShowBlocksBlocking Nothing True False True True 100 20
 
 modifyUIOptions :: (UIOptions -> UIOptions) -> UIM ()
 modifyUIOptions f = modify $ \s -> s { uiOptions = f $ uiOptions s }
@@ -565,23 +566,24 @@ drawMainGameState' args@(DrawArgs highlight colourFixed alerts st uiopts) = do
 	    -- to the right states:
 	    let (globalAlerts,transitoryAlerts) = partition isGlobalAlert alerts
 		splitAlerts frameAs (AlertIntermediateState st' : as) =
-		    (frameAs,st') : splitAlerts [] as
+		    (frameAs,st',True) : splitAlerts [] as
 		splitAlerts frameAs (a:as) =
 		    splitAlerts (a:frameAs) as
-		splitAlerts frameAs [] = [(frameAs,st)]
+		splitAlerts frameAs [] = [(frameAs,st,False)]
 		isGlobalAlert (AlertAppliedForce _) = False
 		isGlobalAlert (AlertIntermediateState _) = False
 		isGlobalAlert _ = True
 	    let animAlertedStates = nub $
 		    let ass = splitAlerts [] transitoryAlerts
-		    in if last ass == ([],st) then ass else ass ++ [([],st)]
+		    in if last ass == ([],st,False) then ass else ass ++ [([],st,False)]
 	    let frames = length animAlertedStates
-	    let (drawAlerts',drawSt) = animAlertedStates !! animFrameToDraw
+	    let (drawAlerts',drawSt,isIntermediate) = animAlertedStates !! animFrameToDraw
 	    let drawAlerts = drawAlerts' ++ globalAlerts
 	    -- let drawAlerts = takeWhile (/= AlertIntermediateState drawSt) alerts
 	    nextIsSet <- isJust <$> gets nextAnimFrameAt
 	    when (not nextIsSet && frames > animFrameToDraw+1) $ do
-		time <- uiAnimTime <$> gets uiOptions
+		time <- (if isIntermediate then uiAnimTime else shortUiAnimTime) <$>
+                    gets uiOptions
 		modify $ \ds -> ds { nextAnimFrameAt = Just $ now + time }
 
 	    let board = stateBoard drawSt
