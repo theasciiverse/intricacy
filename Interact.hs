@@ -239,21 +239,23 @@ processCommand' IMMeta (CmdRegister _) = void.runMaybeT $ do
 		modify $ \ms -> ms {curAuth = Nothing}
 	    , do
 		confirmOrBail "Reset password?"
-		passwd <- inputPassword regName "Enter new password:"
-		lift $ do
-		    resp <- curServerAction $ ResetPassword passwd
-		    case resp of
-			ServerAck -> do
-			    lift $ drawMessage "New password set."
-			    modify $ \ms -> ms {curAuth = Just $ Auth regName passwd}
-			ServerError err -> lift $ drawError err
-			_ -> lift $ drawMessage $ "Bad server response: " ++ show resp
+                void.lift.runMaybeT $ do
+                    passwd <- inputPassword regName True "Enter new password:"
+                    lift $ do
+                        resp <- curServerAction $ ResetPassword passwd
+                        case resp of
+                            ServerAck -> do
+                                lift $ drawMessage "New password set."
+                                modify $ \ms -> ms {curAuth = Just $ Auth regName passwd}
+                            ServerError err -> lift $ drawError err
+                            _ -> lift $ drawMessage $ "Bad server response: " ++ show resp
 	    , do
 		confirmOrBail "Configure email notifications?"
 		setNotifications
 	    ]
 	else do
-	    passwd <- inputPassword regName "Enter new password:"
+            confirmOrBail $ "Register codename " ++ regName ++ "?"
+	    passwd <- inputPassword regName True "Enter new password:"
 	    lift $ do
 		modify $ \ms -> ms {curAuth = Just $ Auth regName passwd}
 		resp <- curServerAction Register
@@ -285,7 +287,7 @@ processCommand' IMMeta CmdAuth = void.runMaybeT $ do
 	modify $ \ms -> ms {curAuth = Nothing}
     else do
 	name <- mgetCurName
-	passwd <- inputPassword name $ "Enter password for "++name++":"
+	passwd <- inputPassword name False $ "Enter password for "++name++":"
 	lift $ do
 	    modify $ \ms -> ms {curAuth = Just $ Auth name passwd}
 	    resp <- curServerAction $ Authenticate
@@ -729,10 +731,15 @@ processCommand' IMEdit CmdWriteState = void.runMaybeT $ do
 	    Just err -> lift $ drawError $ "Write failed: "++err
 processCommand' _ _ = return ()
 
-inputPassword :: UIMonad uiM => Codename -> String -> MaybeT (MainStateT uiM) String
-inputPassword name prompt = do
+inputPassword :: UIMonad uiM => Codename -> Bool -> String -> MaybeT (MainStateT uiM) String
+inputPassword name confirm prompt = do
     pw <- MaybeT $ lift $ textInput prompt 64 True False Nothing Nothing
     guard $ not $ null pw
+    when confirm $ do
+        pw' <- MaybeT $ lift $ textInput "Confirm password:" 64 True False Nothing Nothing
+        when (pw /= pw') $ do
+            lift.lift $ drawError "Passwords don't match!"
+            mzero
     RCPublicKey publicKey <- MaybeT $ getFreshRecBlocking RecPublicKey
     encryptPassword publicKey name pw
 
