@@ -168,14 +168,17 @@ processCommand' im CmdClear = do
     when (im == IMMeta) $ modify $ \ms -> ms { retiredLocks = Nothing }
 processCommand' im CmdMark = void.runMaybeT $ do
     guard $ im `elem` [IMEdit, IMPlay, IMReplay]
-    str <- MaybeT $ lift $ textInput "Mark: " 1 False True Nothing Nothing
+    str <- MaybeT $ lift $ textInput "Type character for mark: "
+        1 False True Nothing Nothing
     ch <- liftMaybe $ listToMaybe str
     guard $ ch `notElem` [startMark, '\'']
     lift $ setMark True ch
 processCommand' im CmdJumpMark = void.runMaybeT $ do
     guard $ im `elem` [IMEdit, IMPlay, IMReplay]
+    marks <- lift marksSet
     str <- MaybeT $ lift $ textInput
-	"Jump to mark (\"'\" to unjump): " 1 False True Nothing Nothing
+	("Jump to mark [" ++ intersperse ',' marks ++ "]: ")
+            1 False True (Just $ map (:[]) marks) Nothing
     ch <- liftMaybe $ listToMaybe str
     lift $ jumpMark ch
 processCommand' im CmdReset = jumpMark startMark

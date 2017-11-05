@@ -130,6 +130,15 @@ declare undecl@(Undeclared soln ls al) = do
 
 startMark = '^'
 
+marksSet :: UIMonad uiM => MainStateT uiM [Char]
+marksSet = do
+    mst <- get
+    return $ case ms2im mst of
+        IMEdit -> Map.keys $ esMarks mst
+        IMPlay -> Map.keys $ psMarks mst
+        IMReplay -> Map.keys $ rsMarks mst
+        _ -> []
+
 jumpMark :: UIMonad uiM => Char -> MainStateT uiM ()
 jumpMark ch = do
     mst <- get
