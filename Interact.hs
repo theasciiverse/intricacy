@@ -481,13 +481,12 @@ processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
 		rbdg <- lift $ getUIBinding IMMeta (CmdRegister False)
 		if isNothing mauth
 		    then do
-			let showPage p = lift $ withNoBG $ showHelp IMMeta p >>? do
-				void $ textInput
-				    "[Tutorial completed! Press a key or RMB to continue; you can review this help later with '?']"
-				    1 False True Nothing Nothing
-			showPage HelpPageGame
+			let showPage p prompt = lift $ withNoBG $ showHelp IMMeta p >>? do
+				void $ textInput prompt 1 False True Nothing Nothing
+                        showPage HelpPageInitiated "[Tutorial complete! Press a key or RMB to continue]"
+			showPage HelpPageGame "[Press a key or RMB to continue; you can review this information later with '?']"
 			lift $ drawMessage $ 
-			    "Tutorial completed! To play on the server, pick a codename ('"++cbdg++
+			    "To join the game: pick a codename ('"++cbdg++
 			    "') and register it ('"++rbdg++"')."
 		    else lift $ drawMessage $ "Tutorial completed!"
     

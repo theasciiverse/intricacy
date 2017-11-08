@@ -134,7 +134,7 @@ data MainState
 
 type MainStateT = StateT MainState
 
-data HelpPage = HelpPageInput | HelpPageGame | HelpPageFirstEdit
+data HelpPage = HelpPageInput | HelpPageGame | HelpPageInitiated | HelpPageFirstEdit
     deriving (Eq, Ord, Show, Enum)
 
 ms2im :: MainState -> InputMode
@@ -479,6 +479,23 @@ metagameHelpText =
     , ""
     , "If the secrets to one of your locks become widely disseminated, you may wish to replace it."
     , "However: once replaced, a lock is \"retired\", and the notes it secured are read by everyone."
+    ]
+
+initiationHelpText :: [String]
+initiationHelpText =
+    [ ""
+    , ""
+    , "So."
+    , ""
+    , "You have exhibited a level of manual and mental dexterity adequate for the picking of locks."
+    , ""
+    , "Whether you also possess the deviousness required for their design, remains to be seen."
+    , ""
+    , "Nonetheless, we welcome you to our number. For reasons that doubtless require no elaboration,"
+    , "our members are known exclusively by pseudonyms - by tradition, a triplet of letters or symbols."
+    , "I am eager to hear what codename you will choose for yourself."
+    , ""
+    , "But first, let us remind you of the purpose and rules of our game here..."
     ]
 
 firstEditHelpText :: [String]

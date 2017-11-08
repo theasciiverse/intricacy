@@ -602,6 +602,9 @@ instance UIMonad (StateT UIState IO) where
     showHelp IMMeta HelpPageGame = do
         renderToMain $ drawBasicHelpPage ("INTRICACY",red) (metagameHelpText,purple)
         return True
+    showHelp IMMeta HelpPageInitiated = do
+        renderToMain $ drawBasicHelpPage ("Initiation complete",purple) (initiationHelpText,red)
+        return True
     showHelp IMEdit HelpPageFirstEdit = do
         renderToMain $ drawBasicHelpPage ("Your first lock:",purple) (firstEditHelpText,green)
         return True

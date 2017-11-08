@@ -213,6 +213,8 @@ showHelpPaged' from mode HelpPageInput = do
         else HelpDone
 showHelpPaged' from IMMeta HelpPageGame =
     drawBasicHelpPage from ("INTRICACY",magenta) (metagameHelpText,magenta)
+showHelpPaged' from IMMeta HelpPageInitiated =
+    drawBasicHelpPage from ("Initiation complete",magenta) (initiationHelpText,magenta)
 showHelpPaged' from IMEdit HelpPageFirstEdit =
     drawBasicHelpPage from ("Your first lock:",magenta) (firstEditHelpText,green)
 showHelpPaged' _ _ _ = return HelpNone
