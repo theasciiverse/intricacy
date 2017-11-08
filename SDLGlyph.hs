@@ -360,7 +360,7 @@ drawBasicBG maxR = sequence_ [ drawAtRel (HollowGlyph $ colAt v) v | v <- hexDis
     where
 	colAt v@(HexVec hx hy hz) = let
 		[r,g,b] = map (\h -> fi $ ((0xff*)$ 5 + abs h)`div`maxR) [hx,hy,hz]
-		a = fi $ (0x90 * (maxR - abs (hexLen v)))`div`maxR
+		a = fi $ (0x70 * (maxR - abs (hexLen v)))`div`maxR
 	    in rgbaToPixel (r,g,b,a)
 
 drawBlocked :: GameState -> PieceColouring -> Bool -> Force -> RenderM ()
