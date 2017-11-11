@@ -134,8 +134,8 @@ data MainState
 
 type MainStateT = StateT MainState
 
-data HelpPage = HelpPageInput | HelpPageGame | HelpPageInitiated | HelpPageFirstEdit
-    deriving (Eq, Ord, Show, Enum)
+data HelpPage = HelpPageInput | HelpPageGame | HelpPageInitiated Int | HelpPageFirstEdit
+    deriving (Eq, Ord, Show)
 
 ms2im :: MainState -> InputMode
 ms2im mainSt = case mainSt of
@@ -481,26 +481,59 @@ metagameHelpText =
     , "However: once replaced, a lock is \"retired\", and the notes it secured are read by everyone."
     ]
 
-initiationHelpText :: [String]
-initiationHelpText =
+initiationHelpText :: Int -> [String]
+initiationHelpText 1 =
     [ ""
-    , ""
     , "So."
     , ""
-    , "You have exhibited a level of manual and mental dexterity adequate for the picking of locks."
-    , ""
+    , "It seems your levels of manual and mental dexterity are adequate for picking locks."
     , "Whether you also possess the deviousness required for their design, remains to be seen."
     , ""
-    , "Nonetheless, we welcome you to our number. For reasons that doubtless require no elaboration,"
-    , "our members are known exclusively by pseudonyms - by tradition, a triplet of letters or symbols."
-    , "I am eager to hear what codename you will choose for yourself."
+    , "Nonetheless, we welcome you to our number. As for what exactly it is that you are joining..."
+    , "perhaps you think you have worked it all out already, but let me explain."
     , ""
-    , "But first, let us remind you of the purpose and rules of our game here..."
+    , "But first: for reasons that will become clear,"
+    , "our members are known exclusively by pseudonyms - by tradition, a triplet of letters or symbols."
+    , "I am eager to hear what codename you will choose for yourself; do be thinking about it."
     ]
+initiationHelpText 2 =
+    [ ""
+    , "Now."
+    , ""
+    , "As you fatefully determined, every lock permitted in the city has a fatal hidden flaw."
+    , "Those whose duties require it are entrusted with the secrets required to pick these locks."
+    , "Those who unauthorisedly discover said secrets... come to us."
+    , ""
+    , "Our task is to produce the superficially secure locks necessary for this system:"
+    , "locks pickable with minimal tools, but with this fact obscured by their mechanical complexity."
+    , ""
+    , "To push the our designs to ever new heights of intricacy, we run a ritual game."
+    , "You are to be its newest player."
+    ]
+initiationHelpText 3 =
+    [ ""
+    , "Each player designs locks, and each player attempts to solve the locks designed by the others."
+    , ""
+    , "You may put forward up to three prototype locks."
+    , "They will guard the secrets you discover: when you pick a colleague's lock,"
+    , "you may declare the fact by placing notes on its solution behind one of your locks."
+    , "As long as the owner of the lock you picked is unable to read your notes,"
+    , "you score a point against them."
+    , ""
+    , "If you find a lock too difficult or trivial for you to pick yourself,"
+    , "you may find that reading other players' notes on it will lead you to a solution."
+    , ""
+    , "The finer details of the rules can wait."
+    , "Go now; choose a codename, explore the locks we have set,"
+    , "and begin your own experiments in the ever-rewarding art of lock design."
+    ]
+initiationHelpText _ = []
+
 
 firstEditHelpText :: [String]
 firstEditHelpText =
     [ "Design a lock to protect your secrets."
+    , ""
     , "It must be possible to pick your lock by pulling a sprung bolt from the hole in the top-right,"
     , "but you should place blocks, springs, pivots, and balls to make this as difficult as possible."
     , ""

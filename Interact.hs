@@ -483,8 +483,10 @@ processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
 		    then do
 			let showPage p prompt = lift $ withNoBG $ showHelp IMMeta p >>? do
 				void $ textInput prompt 1 False True Nothing Nothing
-                        showPage HelpPageInitiated "[Tutorial complete! Press a key or RMB to continue]"
-			showPage HelpPageGame "[Press a key or RMB to continue; you can review this information later with '?']"
+                        showPage (HelpPageInitiated 1) "[Tutorial complete! Press a key or RMB to continue]"
+                        showPage (HelpPageInitiated 2) "[Press a key or RMB to continue]"
+                        showPage (HelpPageInitiated 3) "[Press a key or RMB to continue]"
+			--showPage HelpPageGame "[Press a key or RMB to continue; you can review this information later with '?']"
 			lift $ drawMessage $ 
 			    "To join the game: pick a codename ('"++cbdg++
 			    "') and register it ('"++rbdg++"')."
