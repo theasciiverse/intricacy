@@ -616,7 +616,8 @@ instance UIMonad (StateT UIState IO) where
         bg <- gets bgSurface
         modify $ \uiState -> uiState{bgSurface=Nothing}
         m
-        modify $ \uiState -> uiState{bgSurface=bg}
+        isNothing <$> gets bgSurface >>?
+            modify (\uiState -> uiState{bgSurface=bg})
 
 
 drawShortMouseHelp mode = do
