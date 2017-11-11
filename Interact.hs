@@ -256,22 +256,26 @@ processCommand' IMMeta (CmdRegister _) = void.runMaybeT $ do
 		confirmOrBail "Configure email notifications?"
 		setNotifications
 	    ]
-	else do
-            confirmOrBail $ "Register codename " ++ regName ++ "?"
-	    passwd <- inputPassword regName True "Enter new password:"
-	    lift $ do
-		modify $ \ms -> ms {curAuth = Just $ Auth regName passwd}
-		resp <- curServerAction Register
-		case resp of
-		    ServerAck -> do
-			invalidateUInfo regName
-			refreshUInfoUI
-			conf <- lift $ confirm "Registered! Would you like to be notified by email when someone solves your lock?"
-			if conf then void $ runMaybeT setNotifications else lift $ drawMessage "Notifications disabled."
-		    ServerError err -> do
-			lift $ drawError err
-			modify $ \ms -> ms {curAuth = Nothing}
-		    _ -> lift $ drawMessage $ "Bad server response: " ++ show resp
+	else msum [ do
+                mgetUInfo regName
+                lift.lift $ drawError "Sorry, this codename is already taken."
+            , do
+                confirmOrBail $ "Register codename " ++ regName ++ "?"
+                passwd <- inputPassword regName True "Enter new password:"
+                lift $ do
+                    modify $ \ms -> ms {curAuth = Just $ Auth regName passwd}
+                    resp <- curServerAction Register
+                    case resp of
+                        ServerAck -> do
+                            invalidateUInfo regName
+                            refreshUInfoUI
+                            conf <- lift $ confirm "Registered! Would you like to be notified by email when someone solves your lock?"
+                            if conf then void $ runMaybeT setNotifications else lift $ drawMessage "Notifications disabled."
+                        ServerError err -> do
+                            lift $ drawError err
+                            modify $ \ms -> ms {curAuth = Nothing}
+                        _ -> lift $ drawMessage $ "Bad server response: " ++ show resp
+            ]
 
     where setNotifications = do
 	    address <- MaybeT $ lift $ textInput "Enter address, or leave blank to disable notifications:" 128 False False Nothing Nothing
