@@ -24,17 +24,17 @@ Written in Haskell, with SDL and Curses user interfaces.
 
 ##Download
 
-Latest version is 0.7.0.1 ([NEWS](NEWS)).
+Latest version is 0.7.1 ([NEWS](NEWS)).
 
-* Source: download the [source tarball](intricacy-0.7.0.1.tar.gz), or
+* Source: download the [source tarball](intricacy-0.7.1.tar.gz), or
      <tt>git clone http://mbays.freeshell.org/intricacy/.git</tt>
-* [Windows binary](intricacy-0.7.0.1-win32.zip)
+* [Windows binary](intricacy-0.7.1-win32.zip)
 * [Mac OS X binary](intricacy-0.5.7-mac32.zip) - thanks to Kevin Eaves for
     providing this package.
 * Cabal: <tt>cabal update && cabal install intricacy</tt>
     <small>(requires the haskell package manager 'cabal', and SDL dependencies).</small>
-* [64-bit Linux binary](intricacy-0.7.0.1-linux-x86_64-glibc-2.19.tgz)
-* [32-bit Linux binary](intricacy-0.7.0.1-linux-x86_32-glibc-2.23.tgz)
+* [64-bit Linux binary](intricacy-0.7.1-linux-x86_64-glibc-2.19.tgz)
+* [32-bit Linux binary](intricacy-0.7.1-linux-x86_32-glibc-2.23.tgz)
 * [32-bit Linux binary for older systems](old/intricacy-0.2.5-linux-i686-glibc-2.14.tgz)
     (intricacy version 0.2.5)
 * Gentoo: <tt>layman -a haskell && emerge intricacy</tt>

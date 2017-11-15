@@ -1,7 +1,12 @@
 This is an abbreviated summary; see the git log for gory details.
 
+0.7.1:
+    Rework tutorial and intro.
+    Animate movement.
+    Prevent dragging wrench off-path from generating a move.
+    Various UI improvements.
 0.7.0.1:
-    Fix compile error on older ghc versions
+    Fix compile error on older ghc versions.
 0.7:
     Encrypt passwords when communicating with server
         (in previous versions, they were salted and hashed but not encrypted).
