@@ -9,7 +9,7 @@ maintainer:          mbays@sdf.org
 -- copyright:           
 category:            Game
 build-type:          Simple
-cabal-version:       >=1.8
+cabal-version:       >=1.18
 data-files: VeraMoBd.ttf tutorial/*.lock tutorial/*.text sounds/*.ogg
 extra-doc-files: README BUILD NEWS tutorial-extra/*.lock tutorial-extra/README
 extra-source-files: Main_stub.h
