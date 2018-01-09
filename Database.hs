@@ -12,6 +12,7 @@ module Database where
 
 import Data.Maybe
 import Data.Tuple (swap)
+import Data.Char (toUpper)
 import Control.Applicative
 import Control.Monad
 import System.IO
@@ -195,11 +196,19 @@ recordPath rec =
 	alockFN (ActiveLock name idx) = pathifyName name ++":"++ show idx
 	locksDir = "locks"++[pathSeparator]
 
--- Dummy out characters which are disallowed on unix or dos.
+pathifyName = winSux . dummyPunctuation
+
+-- | Hilariously, "CON", "PRN", "AUX", and "NUL" are reserved on DOS, and
+-- Windows apparently crashes rather than write a directory with that name!
+winSux name = if map toUpper name `elem` ["CON","PRN", "AUX","NUL"]
+    then '_':name
+    else name
+
+-- | Dummy out characters which are disallowed on unix or dos.
 -- We use lowercase characters as dummies.
 -- To avoid collisions on case-insensitive filesystems, we use '_' as an
 -- escape character.
-pathifyName = concatMap $ \c ->
+dummyPunctuation = concatMap $ \c ->
     fromMaybe [c] (('_':) . pure <$> lookup c pathifyAssocs)
 unpathifyName = concatMap $ \c -> case c of
 	'_' -> ""
