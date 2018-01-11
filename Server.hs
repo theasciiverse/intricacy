@@ -47,7 +47,7 @@ import qualified Pipes.Prelude as P
 import Text.Feed.Import (parseFeedFromFile)
 import Text.Feed.Export (xmlFeed)
 import Text.Feed.Constructor
-import Text.XML.Light.Output (showTopElement)
+import qualified Text.XML as XML
 import Data.Time.Format
 import Data.Time.LocalTime
 
@@ -494,18 +494,22 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
 	    (applyDeltas info . map snd . filter ((==name).fst)) <$> get
 	getCurrALock al@(ActiveLock name idx) =
 	     (fromJust.(!idx).userLocks) <$> getCurrUserInfo name
+        doNews :: String -> ExceptT String IO ()
 	doNews news = case mfeedPath of
 	    Nothing -> return ()
 	    Just feedPath -> lift $ void $ forkIO $ do
-		let baseFeed = withFeedTitle "Intricacy updates" $ newFeed $ RSSKind Nothing
+		let baseFeed = withFeedTitle (TS.pack "Intricacy updates") $ newFeed $ RSSKind Nothing
 		feed <- (parseFeedFromFile feedPath) `catchAll`
 		    (const $ return baseFeed)
 		time <- formatTime defaultTimeLocale rfc822DateFormat <$> getZonedTime
-		let item = withItemTitle news $ withItemDescription news $
-			withItemPubDate time $ newItem $ RSSKind Nothing
+		let newsText = TS.pack news
+                    timeText = TS.pack time
+                    item = withItemTitle newsText $ withItemDescription newsText $
+			withItemPubDate timeText $ newItem $ RSSKind Nothing
 		-- TODO: purge old entries
-		writeFile feedPath $ showTopElement $ xmlFeed $
-		    withFeedLastUpdate time $ addItem item feed
+                let Right element = XML.fromXMLElement $ xmlFeed $ withFeedLastUpdate timeText $ addItem item feed
+                    document = XML.Document (XML.Prologue [] Nothing []) element []
+		writeFile feedPath $ TL.unpack $ XML.renderText XML.def document
 	mailDeclaration target@(ActiveLock name _) behind@(ActiveLock solverName _) = runMaybeT $ do
 	    let makeAddr :: CS.ByteString -> SMTP.Address
 		makeAddr bs = SMTP.Address Nothing $ TS.pack $ CS.unpack bs
