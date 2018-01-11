@@ -50,7 +50,7 @@ Flag Server
 
 executable intricacy
   if flag(Game)
-      extensions: DoAndIfThenElse
+      default-extensions: DoAndIfThenElse
       build-depends: base >=4.3, base < 5
         , mtl >=2.2, transformers >=0.4, stm >= 2.1
         , directory >= 1.0, filepath >= 1.0, time >= 1.2
@@ -99,6 +99,7 @@ executable intricacy
       main-is: MainBoth.hs
       Buildable: False
 
+  default-language: Haskell2010
   ghc-options: -fno-warn-tabs
   other-modules: AsciiLock, BinaryInstances, BoardColouring, Cache, Command,
       CursesRender, CursesUI, CursesUIMInstance, CVec, Database,
@@ -109,7 +110,7 @@ executable intricacy
 
 executable intricacy-server
   if flag(Server)
-      extensions: DoAndIfThenElse
+      default-extensions: DoAndIfThenElse
       build-depends: base >=4.3, base < 5
         , mtl >=2.2, transformers >=0.4, stm >= 2.1
         , directory >= 1.0, filepath >= 1.0, time >= 1.5
@@ -124,6 +125,7 @@ executable intricacy-server
   else
     Buildable: False
   main-is:  Server.hs
+  default-language: Haskell2010
   ghc-options: -fno-warn-tabs
   other-modules: AsciiLock, BinaryInstances, BoardColouring, CVec, Database,
       Frame, GameState, GameStateTypes, GraphColouring, Hex, Lock,
