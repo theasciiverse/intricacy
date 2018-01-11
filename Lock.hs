@@ -50,8 +50,8 @@ type Solution = [PlayerMove]
 checkSolution :: Lock -> Solution -> Bool
 checkSolution lock pms =
     let (frame,st) = reframe lock
-	tick :: GameState -> PlayerMove -> GameState
-	tick st pm = fst . runWriter $ physicsTick pm st
+        tick :: GameState -> PlayerMove -> GameState
+        tick st pm = fst . runWriter $ physicsTick pm st
     in any (\st' -> checkSolved (frame,st')) $ scanl tick st pms
 
 checkSolved :: Lock -> Bool
@@ -63,12 +63,12 @@ canonify :: Lock -> Lock
 canonify = addTools . stabilise . delTools . delOOB
 delTools :: Lock -> Lock
 delTools = liftLock delTools' where
-	delTools' :: GameState -> GameState
-	delTools' st =
-	    fromMaybe st $ listToMaybe 
-		[ delTools' $ delPiece idx st
-		| (idx,pp) <- enumVec $ placedPieces st
-		, isTool $ placedPiece pp ]
+        delTools' :: GameState -> GameState
+        delTools' st =
+            fromMaybe st $ listToMaybe 
+                [ delTools' $ delPiece idx st
+                | (idx,pp) <- enumVec $ placedPieces st
+                , isTool $ placedPiece pp ]
 addTools :: Lock -> Lock
 addTools (f,st) =
     let st' = clearToolArea f st
@@ -79,16 +79,16 @@ addTools (f,st) =
 -- to being of natural length, and none get further from it.
 stabilise :: Lock -> Lock
 stabilise = liftLock stabilise' where
-	stabilise' :: GameState -> GameState
-	stabilise' st =
-	    let st' = stepPhysics st
-	    in if st == st' then st else stabilise' st'
+        stabilise' :: GameState -> GameState
+        stabilise' st =
+            let st' = stepPhysics st
+            in if st == st' then st else stabilise' st'
 
 delOOB :: Lock -> Lock
 delOOB l@(f,st) =
     fromMaybe l $ listToMaybe
-	[ delOOB $ liftLock (delPiece idx) l
-	| (idx,_) <- enumVec $ placedPieces st
-	, not $ isFrame idx
-	, all (not.inBounds f) $ fullFootprint st idx
-	, null $ springsEndAtIdx st idx]
+        [ delOOB $ liftLock (delPiece idx) l
+        | (idx,_) <- enumVec $ placedPieces st
+        , not $ isFrame idx
+        , all (not.inBounds f) $ fullFootprint st idx
+        , null $ springsEndAtIdx st idx]

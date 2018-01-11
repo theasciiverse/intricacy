@@ -15,7 +15,7 @@ import Data.Vector (Vector)
 import Hex
 
 data GameState = GameState { placedPieces :: Vector PlacedPiece,
-	connections :: [Connection] }
+        connections :: [Connection] }
     deriving (Eq, Ord, Show, Read)
 
 data PlacedPiece = PlacedPiece { placedPos :: HexPos, placedPiece :: Piece }
@@ -24,10 +24,10 @@ data PlacedPiece = PlacedPiece { placedPos :: HexPos, placedPiece :: Piece }
 type PieceIdx = Int
 
 data Piece = Block { blockPattern :: [HexVec] }
-	    | Pivot { pivotArms :: [HexDir] }
-	    | Hook { hookArm :: HexDir, hookForce :: HookForce}
-	    | Wrench { wrenchMomentum :: HexDir }
-	    | Ball
+            | Pivot { pivotArms :: [HexDir] }
+            | Hook { hookArm :: HexDir, hookForce :: HookForce}
+            | Wrench { wrenchMomentum :: HexDir }
+            | Ball
     deriving (Eq, Ord, Show, Read)
 
 data HookForce = NullHF | PushHF HexDir | TorqueHF Int
@@ -42,20 +42,20 @@ isTool p = isWrench p || isHook p
 isBall p = case p of Ball -> True; _ -> False
 
 data Connection = Connection { connectionRoot :: Locus
-		    , connectionEnd :: Locus, connectionLink :: Link }
+                    , connectionEnd :: Locus, connectionLink :: Link }
     deriving (Eq, Ord, Show, Read)
 
 type Locus = (PieceIdx, HexVec)
 
 data Link = Free { freePos :: HexVec }
-	  | Spring { springDir :: HexDir, springNatLength :: Int }
+          | Spring { springDir :: HexDir, springNatLength :: Int }
     deriving (Eq, Ord, Show, Read)
 
 data SpringExtension = Relaxed | Compressed | Stretched
     deriving (Eq, Ord, Show, Read)
 
 data Tile = BlockTile [HexDir] | PivotTile HexDir | ArmTile HexDir Bool | HookTile | WrenchTile HexDir
-	  | BallTile | SpringTile SpringExtension HexDir
+          | BallTile | SpringTile SpringExtension HexDir
     deriving (Eq, Ord, Show, Read)
 
 tileType :: Tile -> Tile
@@ -80,8 +80,8 @@ data Force = Push PieceIdx HexDir | Torque PieceIdx TorqueDir
 
 -- |Alert: for passing information about physics processing to the UI
 data Alert = AlertCollision HexPos | AlertBlockingForce Force
-	   | AlertResistedForce Force | AlertBlockedForce Force
-	   | AlertAppliedForce Force | AlertDivertedWrench PieceIdx
-	   | AlertUnlocked
-	   | AlertIntermediateState GameState
+           | AlertResistedForce Force | AlertBlockedForce Force
+           | AlertAppliedForce Force | AlertDivertedWrench PieceIdx
+           | AlertUnlocked
+           | AlertIntermediateState GameState
     deriving (Eq, Ord, Show)

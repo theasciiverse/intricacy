@@ -54,7 +54,7 @@ data WrHoSel = WHSWrench | WHSHook | WHSSelected
 describeCommand :: Command -> String
 describeCommand (CmdDir whs dir) = "move " ++ whsStr whs ++ " " ++ dirStr dir
 describeCommand (CmdRotate whs dir) = "rotate " ++ whsStr whs
-	++ " " ++ (if dir == 1 then "counter" else "") ++ "clockwise"
+        ++ " " ++ (if dir == 1 then "counter" else "") ++ "clockwise"
 describeCommand CmdWait = "nothing"
 describeCommand CmdToggle = "toggle tool"
 describeCommand CmdOpen = "open lock"
@@ -78,17 +78,17 @@ describeCommand CmdShowRetired = "toggle showing retired locks"
 describeCommand CmdSetServer = "set server"
 describeCommand CmdToggleCacheOnly = "toggle offline mode"
 describeCommand (CmdSelCodename mname) = "select player"
-	++ maybe "" (' ':) mname
+        ++ maybe "" (' ':) mname
 describeCommand CmdBackCodename = "select last player"
 describeCommand CmdHome = "select self"
 describeCommand (CmdSolve mli) = "solve lock"
-	++ maybe "" ((' ':).(:"").lockIndexChar) mli
+        ++ maybe "" ((' ':).(:"").lockIndexChar) mli
 describeCommand (CmdPlayLockSpec mls) = "find lock by number"
-	++ maybe "" ((' ':).show) mls
+        ++ maybe "" ((' ':).show) mls
 describeCommand (CmdDeclare mundecl) = "declare solution"
-	++ maybe "" (\_->" [specified solution]") mundecl
+        ++ maybe "" (\_->" [specified solution]") mundecl
 describeCommand (CmdViewSolution mnote) = "view lock solution"
-	++ maybe "" (\_->" [specified solution]") mnote
+        ++ maybe "" (\_->" [specified solution]") mnote
 describeCommand CmdSelectLock = "choose lock by name"
 describeCommand CmdNextLock = "next lock"
 describeCommand CmdPrevLock = "previous lock"
@@ -96,7 +96,7 @@ describeCommand CmdNextPage = "page forward through lists"
 describeCommand CmdPrevPage = "page back through lists"
 describeCommand CmdEdit = "edit lock"
 describeCommand (CmdPlaceLock mli) = "place lock"
-	++ maybe "" ((' ':).(:"").lockIndexChar) mli
+        ++ maybe "" ((' ':).(:"").lockIndexChar) mli
 describeCommand (CmdRegister False) = "register codename"
 describeCommand (CmdRegister True) = "adjust registration details"
 describeCommand CmdAuth = "authenticate"

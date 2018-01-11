@@ -136,7 +136,7 @@ waitFrame = do
     now <- liftIO getTicks
     -- liftIO $ print now
     when (now < next) $
-	liftIO $ delay (next - now)
+        liftIO $ delay (next - now)
     modify $ \ds -> ds { lastFrameTicks = now }
 
 
@@ -151,59 +151,59 @@ getButtons mode = do
     mwhs <- gets $ whsButtons.uiOptions
     cntxtButtons <- gets contextButtons
     return $ cntxtButtons ++ global ++ case mode of
-	IMEdit -> [
-	    singleButton (tl+^hv+^neg hw) CmdTest 1 [("test", hu+^neg hw)]
-	    , singleButton (tl+^(neg hw)) CmdPlay 2 [("play", hu+^neg hw)]
-	    , markGroup
-	    , singleButton (br+^2*^hu) CmdWriteState 2 [("save", hu+^neg hw)] ]
-	    ++ whsBGs mwhs mode
-	    ++ [ ([Button (paintButtonStart +^ hu +^ i*^hv) (paintTileCmds!!i) []
-		| i <- take (length paintTiles) [0..] ],(5,0)) ]
-	IMPlay ->
-	    [ markGroup ]
-	    ++ whsBGs mwhs mode
-	IMReplay -> [ markGroup ]
-	IMMeta ->
-	    [ singleButton serverPos CmdSetServer 0 [("server",7*^neg hu)]
-	    , singleButton (serverPos+^hw) CmdToggleCacheOnly 0 [("offline",hv+^7*^neg hu),("mode",hw+^5*^neg hu)]
-	    , singleButton (codenamePos +^ 2*^neg hu) (CmdSelCodename Nothing) 2 [("code",hv+^5*^neg hu),("name",hw+^5*^neg hu)]
-	    , singleButton (serverPos +^ 2*^neg hv +^ 2*^hw) CmdTutorials 3 [("play",hu+^neg hw),("tut",hu+^neg hv)]
-	    ]
+        IMEdit -> [
+            singleButton (tl+^hv+^neg hw) CmdTest 1 [("test", hu+^neg hw)]
+            , singleButton (tl+^(neg hw)) CmdPlay 2 [("play", hu+^neg hw)]
+            , markGroup
+            , singleButton (br+^2*^hu) CmdWriteState 2 [("save", hu+^neg hw)] ]
+            ++ whsBGs mwhs mode
+            ++ [ ([Button (paintButtonStart +^ hu +^ i*^hv) (paintTileCmds!!i) []
+                | i <- take (length paintTiles) [0..] ],(5,0)) ]
+        IMPlay ->
+            [ markGroup ]
+            ++ whsBGs mwhs mode
+        IMReplay -> [ markGroup ]
+        IMMeta ->
+            [ singleButton serverPos CmdSetServer 0 [("server",7*^neg hu)]
+            , singleButton (serverPos+^hw) CmdToggleCacheOnly 0 [("offline",hv+^7*^neg hu),("mode",hw+^5*^neg hu)]
+            , singleButton (codenamePos +^ 2*^neg hu) (CmdSelCodename Nothing) 2 [("code",hv+^5*^neg hu),("name",hw+^5*^neg hu)]
+            , singleButton (serverPos +^ 2*^neg hv +^ 2*^hw) CmdTutorials 3 [("play",hu+^neg hw),("tut",hu+^neg hv)]
+            ]
 
-	_ -> []
-	where
-	    markGroup = ([Button (tl+^hw) CmdMark [("set",hu+^neg hw),("mark",hu+^neg hv)]
-		, Button (tl+^hw+^hv) CmdJumpMark [("jump",hu+^neg hw),("mark",hu+^neg hv)]
-		, Button (tl+^hw+^2*^hv) CmdReset [("jump",hu+^neg hw),("start",hu+^neg hv)]],(0,1))
-	    global = if mode `elem` [IMTextInput,IMImpatience] then [] else
-		[ singleButton br CmdQuit 0 [("quit",hu+^neg hw)]
-		, singleButton (tr +^ 3*^hv +^ 3*^hu) CmdHelp 3 [("help",hu+^neg hw)] ]
-	    whsBGs :: Maybe WrHoSel -> InputMode -> [ ButtonGroup ]
-	    whsBGs Nothing _ = []
-	    whsBGs (Just whs) mode =
-		let edit = mode == IMEdit
-		in [ ( [ Button bl (if edit then CmdSelect else CmdWait) [] ], (0,0))
-		, ( [ Button (bl+^dir) (CmdDir whs dir)
-			(if dir==hu then [("move",hu+^neg hw),(if edit then "piece" else whsStr whs,hu+^neg hv)] else [])
-		    | dir <- hexDirs ], (5,0) )
-		] ++
-		(if whs == WHSWrench then [] else
-		    [ ( [ Button (bl+^((-2)*^hv))
-			    (CmdRotate whs (-1))
-			    [("turn",hu+^neg hw),("cw",hu+^neg hv)]
-			, Button (bl+^((-2)*^hw))
-			    (CmdRotate whs 1)
-			    [("turn",hu+^neg hw),("ccw",hu+^neg hv)]
-			], (5,0) )
-		]) ++
-		(if whs /= WHSSelected || mode == IMEdit then [] else
-		    [ ( [ Button (bl+^(2*^hv)+^hw+^neg hu) (CmdTile $ HookTile) [("select",hu+^neg hw),("hook",hu+^neg hv)]
-			, Button (bl+^(2*^hv)+^neg hu) (CmdTile $ WrenchTile zero) [("select",hu+^neg hw),("wrench",hu+^neg hv)]
-			], (2,0) ) ])
-	    tr = periphery 0
-	    tl = periphery 2
-	    bl = periphery 3
-	    br = periphery 5
+        _ -> []
+        where
+            markGroup = ([Button (tl+^hw) CmdMark [("set",hu+^neg hw),("mark",hu+^neg hv)]
+                , Button (tl+^hw+^hv) CmdJumpMark [("jump",hu+^neg hw),("mark",hu+^neg hv)]
+                , Button (tl+^hw+^2*^hv) CmdReset [("jump",hu+^neg hw),("start",hu+^neg hv)]],(0,1))
+            global = if mode `elem` [IMTextInput,IMImpatience] then [] else
+                [ singleButton br CmdQuit 0 [("quit",hu+^neg hw)]
+                , singleButton (tr +^ 3*^hv +^ 3*^hu) CmdHelp 3 [("help",hu+^neg hw)] ]
+            whsBGs :: Maybe WrHoSel -> InputMode -> [ ButtonGroup ]
+            whsBGs Nothing _ = []
+            whsBGs (Just whs) mode =
+                let edit = mode == IMEdit
+                in [ ( [ Button bl (if edit then CmdSelect else CmdWait) [] ], (0,0))
+                , ( [ Button (bl+^dir) (CmdDir whs dir)
+                        (if dir==hu then [("move",hu+^neg hw),(if edit then "piece" else whsStr whs,hu+^neg hv)] else [])
+                    | dir <- hexDirs ], (5,0) )
+                ] ++
+                (if whs == WHSWrench then [] else
+                    [ ( [ Button (bl+^((-2)*^hv))
+                            (CmdRotate whs (-1))
+                            [("turn",hu+^neg hw),("cw",hu+^neg hv)]
+                        , Button (bl+^((-2)*^hw))
+                            (CmdRotate whs 1)
+                            [("turn",hu+^neg hw),("ccw",hu+^neg hv)]
+                        ], (5,0) )
+                ]) ++
+                (if whs /= WHSSelected || mode == IMEdit then [] else
+                    [ ( [ Button (bl+^(2*^hv)+^hw+^neg hu) (CmdTile $ HookTile) [("select",hu+^neg hw),("hook",hu+^neg hv)]
+                        , Button (bl+^(2*^hv)+^neg hu) (CmdTile $ WrenchTile zero) [("select",hu+^neg hw),("wrench",hu+^neg hv)]
+                        ], (2,0) ) ])
+            tr = periphery 0
+            tl = periphery 2
+            bl = periphery 3
+            br = periphery 5
 
 data AccessedInfo = AccessedSolved | AccessedPublic | AccessedReadNotes | AccessedUndeclared
     deriving (Eq, Ord, Show)
@@ -234,7 +234,7 @@ data Selectable = SelOurLock
 registerSelectable :: HexVec -> Int -> Selectable -> UIM ()
 registerSelectable v r s =
     modify $ \ds -> ds {registeredSelectables = foldr
-	(`Map.insert` s) (registeredSelectables ds) $ map (v+^) $ hexDisc r}
+        (`Map.insert` s) (registeredSelectables ds) $ map (v+^) $ hexDisc r}
 registerButtonGroup :: ButtonGroup -> UIM ()
 registerButtonGroup g = modify $ \ds -> ds {contextButtons = g:contextButtons ds}
 registerButton :: HexVec -> Command -> Int -> [ButtonHelp] -> UIM ()
@@ -328,7 +328,7 @@ helpOfSelectable (SelSecured note) = let ActiveLock owner idx = noteOn note in
     Just $ "Secured note on "++owner++"'s lock "++[lockIndexChar idx]++"."
 helpOfSelectable (SelSolution note) = Just $ case noteBehind note of
     Just (ActiveLock owner idx) -> owner ++
-	" has secured their note on this lock behind their lock " ++ [lockIndexChar idx] ++ "."
+        " has secured their note on this lock behind their lock " ++ [lockIndexChar idx] ++ "."
     Nothing -> noteAuthor note ++ "'s note on this lock is public knowledge."
 helpOfSelectable (SelAccessed name) = Just $
     name ++ " did not pick this lock, but learnt how to unlock it by reading three notes on it."
@@ -339,7 +339,7 @@ helpOfSelectable (SelAccessedInfo meth) = Just $ case meth of
     AccessedPublic -> "The secrets of this lock have been publically revealed."
     AccessedUndeclared -> "You have picked this lock, but are yet to declare your solution."
     AccessedReadNotes ->
-	"Having read three notes on others' solutions to this lock, you have unravelled its secrets."
+        "Having read three notes on others' solutions to this lock, you have unravelled its secrets."
 helpOfSelectable (SelOldLock ls) = Just $
     "Retired lock, #"++show ls++". Any notes which were secured by the lock are now public knowledge."
 helpOfSelectable SelLockPath = Just $
@@ -355,13 +355,13 @@ cmdAtMousePos pos@(mPos,central) im selMode = do
     buttons <- (concat . map fst) <$> getButtons im
     sels <- gets registeredSelectables
     return $ listToMaybe $
-	[ buttonCmd button
-	    | button <- buttons, mPos == buttonPos button, central]
-	++ maybe [] (\isRight ->
-		[ cmd
-		| Just sel <- [Map.lookup mPos sels]
-		, Just cmd <- [ commandOfSelectable im sel isRight ] ])
-	    selMode
+        [ buttonCmd button
+            | button <- buttons, mPos == buttonPos button, central]
+        ++ maybe [] (\isRight ->
+                [ cmd
+                | Just sel <- [Map.lookup mPos sels]
+                , Just cmd <- [ commandOfSelectable im sel isRight ] ])
+            selMode
 
 helpAtMousePos :: (HexVec, Bool) -> InputMode -> UIM (Maybe [Char])
 helpAtMousePos (mPos,_) _ =
@@ -374,41 +374,41 @@ data UIOptButton a = UIOptButton { getUIOpt::UIOptions->a, setUIOpt::a->UIOption
 
 -- non-uniform type, so can't use a list...
 uiOB1 = UIOptButton useFiveColouring (\v o -> o {useFiveColouring=v}) [True,False]
-	(periphery 0 +^ 2 *^ hu) UseFiveColourButton
-	(\v -> if v then "Adjacent pieces get different colours" else
-	"Pieces are coloured according to type")
-	[IMPlay, IMReplay, IMEdit] Nothing
+        (periphery 0 +^ 2 *^ hu) UseFiveColourButton
+        (\v -> if v then "Adjacent pieces get different colours" else
+        "Pieces are coloured according to type")
+        [IMPlay, IMReplay, IMEdit] Nothing
 uiOB2 = UIOptButton showBlocks (\v o -> o {showBlocks=v}) [ShowBlocksBlocking,ShowBlocksAll,ShowBlocksNone]
-	(periphery 0 +^ 2 *^ hu +^ 2 *^ neg hv) ShowBlocksButton
-	(\v -> case v of
-	    ShowBlocksBlocking -> "Blocking forces are annotated"
-	    ShowBlocksAll -> "Blocked and blocking forces are annotated"
-	    ShowBlocksNone -> "Blockage annotations disabled")
-	[IMPlay, IMReplay] Nothing
+        (periphery 0 +^ 2 *^ hu +^ 2 *^ neg hv) ShowBlocksButton
+        (\v -> case v of
+            ShowBlocksBlocking -> "Blocking forces are annotated"
+            ShowBlocksAll -> "Blocked and blocking forces are annotated"
+            ShowBlocksNone -> "Blockage annotations disabled")
+        [IMPlay, IMReplay] Nothing
 uiOB3 = UIOptButton whsButtons (\v o -> o {whsButtons=v}) [Nothing, Just WHSSelected, Just WHSWrench, Just WHSHook]
-	(periphery 3 +^ 3 *^ hv) WhsButtonsButton
-	(\v -> case v of
-	    Nothing -> "Click to show (and rebind) keyboard control buttons."
-	    Just whs -> "Showing buttons for controlling " ++ case whs of
-		WHSSelected -> "selected piece; right-click to rebind"
-		WHSWrench -> "wrench; right-click to rebind"
-		WHSHook -> "hook; right-click to rebind")
-	[IMPlay, IMEdit] Nothing
+        (periphery 3 +^ 3 *^ hv) WhsButtonsButton
+        (\v -> case v of
+            Nothing -> "Click to show (and rebind) keyboard control buttons."
+            Just whs -> "Showing buttons for controlling " ++ case whs of
+                WHSSelected -> "selected piece; right-click to rebind"
+                WHSWrench -> "wrench; right-click to rebind"
+                WHSHook -> "hook; right-click to rebind")
+        [IMPlay, IMEdit] Nothing
 uiOB4 = UIOptButton showButtonText (\v o -> o {showButtonText=v}) [True,False]
-	(periphery 0 +^ 2 *^ hu +^ 2 *^ hv) ShowButtonTextButton
-	(\v -> if v then "Help text enabled" else
-	"Help text disabled")
-	[IMPlay, IMEdit, IMReplay, IMMeta] Nothing
+        (periphery 0 +^ 2 *^ hu +^ 2 *^ hv) ShowButtonTextButton
+        (\v -> if v then "Help text enabled" else
+        "Help text disabled")
+        [IMPlay, IMEdit, IMReplay, IMMeta] Nothing
 uiOB5 = UIOptButton fullscreen (\v o -> o {fullscreen=v}) [True,False]
-	(periphery 0 +^ 4 *^ hu +^ 2 *^ hv) FullscreenButton
-	(\v -> if v then "Currently in fullscreen mode; click to toggle" else
-	"Currently in windowed mode; click to toggle")
-	[IMPlay, IMEdit, IMReplay, IMMeta] (Just $ const $ initVideo 0 0)
+        (periphery 0 +^ 4 *^ hu +^ 2 *^ hv) FullscreenButton
+        (\v -> if v then "Currently in fullscreen mode; click to toggle" else
+        "Currently in windowed mode; click to toggle")
+        [IMPlay, IMEdit, IMReplay, IMMeta] (Just $ const $ initVideo 0 0)
 uiOB6 = UIOptButton useSounds (\v o -> o {useSounds=v}) [True,False]
-	(periphery 0 +^ 3 *^ hu +^ hv) UseSoundsButton
-	(\v -> if v then "Sound effects enabled" else
-	"Sound effects disabled")
-	[IMPlay, IMEdit, IMReplay] Nothing
+        (periphery 0 +^ 3 *^ hu +^ hv) UseSoundsButton
+        (\v -> if v then "Sound effects enabled" else
+        "Sound effects disabled")
+        [IMPlay, IMEdit, IMReplay] Nothing
 
 drawUIOptionButtons :: InputMode -> UIM ()
 drawUIOptionButtons mode = do
@@ -423,7 +423,7 @@ drawUIOptionButtons mode = do
 drawUIOptionButton im b = when (im `elem` uiOptModes b) $ do
     value <- gets $ (getUIOpt b).uiOptions
     renderToMain $ mapM_ (\g -> drawAtRel g (uiOptPos b))
-	[HollowGlyph $ obscure purple, uiOptGlyph b value]
+        [HollowGlyph $ obscure purple, uiOptGlyph b value]
 describeUIOptionButton :: UIOptButton a -> MaybeT UIM String
 describeUIOptionButton b = do
     value <- gets $ (getUIOpt b).uiOptions
@@ -434,16 +434,16 @@ toggleUIOption (UIOptButton getopt setopt vals _ _ _ _ monSet) = do
     let value' = head $ drop (1 + (fromMaybe 0 $ elemIndex value vals)) $ cycle vals
     modifyUIOptions $ setopt value'
     case monSet of
-	Nothing -> return ()
-	Just onSet -> onSet value'
+        Nothing -> return ()
+        Just onSet -> onSet value'
 
 readUIConfigFile :: UIM ()
 readUIConfigFile = do
     path <- liftIO $ confFilePath "SDLUI.conf"
     mOpts <- liftIO $ readReadFile path
     case mOpts of
-	Just opts -> modify $ \s -> s {uiOptions = opts}
-	Nothing -> return ()
+        Just opts -> modify $ \s -> s {uiOptions = opts}
+        Nothing -> return ()
 writeUIConfigFile :: UIM ()
 writeUIConfigFile = do
     path <- liftIO $ confFilePath "SDLUI.conf"
@@ -456,8 +456,8 @@ readBindings = do
     path <- liftIO $ confFilePath "bindings"
     mbdgs <- liftIO $ readReadFile path
     case mbdgs of
-	Just bdgs -> modify $ \s -> s {uiKeyBindings = bdgs}
-	Nothing -> return ()
+        Just bdgs -> modify $ \s -> s {uiKeyBindings = bdgs}
+        Nothing -> return ()
 writeBindings :: UIM ()
 writeBindings = do
     path <- liftIO $ confFilePath "bindings"
@@ -496,16 +496,16 @@ drawPaintButtons :: UIM ()
 drawPaintButtons = do
     pti <- getEffPaintTileIndex
     renderToMain $ sequence_ [
-	do
-	    let gl = case paintTiles!!i of
-		    Nothing -> HollowInnerGlyph $ dim purple
-		    Just t -> TileGlyph t $ dim purple
-	    drawAtRel gl pos
-	    when selected $ drawAtRel cursorGlyph pos
-	| i <- take (length paintTiles) [0..]
-	, let pos = paintButtonStart +^ i*^hv
-	, let selected = i == pti
-	]
+        do
+            let gl = case paintTiles!!i of
+                    Nothing -> HollowInnerGlyph $ dim purple
+                    Just t -> TileGlyph t $ dim purple
+            drawAtRel gl pos
+            when selected $ drawAtRel cursorGlyph pos
+        | i <- take (length paintTiles) [0..]
+        , let pos = paintButtonStart +^ i*^hv
+        , let selected = i == pti
+        ]
 
 periphery 0 = ((3*maxlocksize)`div`2)*^hu +^ ((3*maxlocksize)`div`4)*^hv
 periphery n = rotate n $ periphery 0
@@ -524,11 +524,11 @@ getGeom = do
     let scrCentre = SVec (w`div`2) (h`div`2)
     -- |size is the greatest integer such that
     -- and [2*size*screenWidthHexes <= width
-    --	, 3*ysize size*screenHeightHexes <= height]
-    --	where ysize size = round $ fi size / sqrt 3
+    --        , 3*ysize size*screenHeightHexes <= height]
+    --        where ysize size = round $ fi size / sqrt 3
     -- Minimum allowed size is 2 (get segfaults on SDL_FreeSurface with 1).
     let size = max 2 $ minimum [ w`div`(2*screenWidthHexes)
-	    , floor $ sqrt 3 * (0.5 + (fi $ h`div`(3*screenHeightHexes)))]
+            , floor $ sqrt 3 * (0.5 + (fi $ h`div`(3*screenHeightHexes)))]
     return (scrCentre, size)
 
 data DrawArgs = DrawArgs [PieceIdx] Bool [Alert] GameState UIOptions
@@ -543,58 +543,58 @@ drawMainGameState' :: DrawArgs -> UIM ()
 drawMainGameState' args@(DrawArgs highlight colourFixed alerts st uiopts) = do
     lastArgs <- gets lastDrawArgs
     when (case lastArgs of
-	    Nothing -> True
-	    Just (DrawArgs _ _ lastAlerts lastSt _) ->
-		lastAlerts /= alerts || lastSt /= st) $
-	modify $ \ds -> ds { animFrame = 0, nextAnimFrameAt = Nothing }
+            Nothing -> True
+            Just (DrawArgs _ _ lastAlerts lastSt _) ->
+                lastAlerts /= alerts || lastSt /= st) $
+        modify $ \ds -> ds { animFrame = 0, nextAnimFrameAt = Nothing }
 
     lastAnimFrame <- gets animFrame
     now <- liftIO getTicks
     anim <- maybe False (<now) <$> gets nextAnimFrameAt
     when anim $
-	modify $ \ds -> ds { animFrame = lastAnimFrame+1, nextAnimFrameAt = Nothing }
+        modify $ \ds -> ds { animFrame = lastAnimFrame+1, nextAnimFrameAt = Nothing }
     animFrameToDraw <- gets animFrame
     void $ if (lastArgs == Just args && lastAnimFrame == animFrameToDraw)
-	then do
-	    vidSurf <- liftIO getVideoSurface
-	    gsSurf <- liftM fromJust $ gets gsSurface
-	    liftIO $ blitSurface gsSurf Nothing vidSurf Nothing
-	else do
-	    modify $ \ds -> ds { lastDrawArgs = Just args }
+        then do
+            vidSurf <- liftIO getVideoSurface
+            gsSurf <- liftM fromJust $ gets gsSurface
+            liftIO $ blitSurface gsSurf Nothing vidSurf Nothing
+        else do
+            modify $ \ds -> ds { lastDrawArgs = Just args }
 
-	    -- split the alerts at intermediate states, and associate alerts
-	    -- to the right states:
-	    let (globalAlerts,transitoryAlerts) = partition isGlobalAlert alerts
-		splitAlerts frameAs (AlertIntermediateState st' : as) =
-		    (frameAs,st',True) : splitAlerts [] as
-		splitAlerts frameAs (a:as) =
-		    splitAlerts (a:frameAs) as
-		splitAlerts frameAs [] = [(frameAs,st,False)]
-		isGlobalAlert (AlertAppliedForce _) = False
-		isGlobalAlert (AlertIntermediateState _) = False
-		isGlobalAlert _ = True
-	    let animAlertedStates = nub $
-		    let ass = splitAlerts [] transitoryAlerts
-		    in if last ass == ([],st,False) then ass else ass ++ [([],st,False)]
-	    let frames = length animAlertedStates
-	    let (drawAlerts',drawSt,isIntermediate) = animAlertedStates !! animFrameToDraw
-	    let drawAlerts = drawAlerts' ++ globalAlerts
-	    -- let drawAlerts = takeWhile (/= AlertIntermediateState drawSt) alerts
-	    nextIsSet <- isJust <$> gets nextAnimFrameAt
-	    when (not nextIsSet && frames > animFrameToDraw+1) $ do
-		time <- (if isIntermediate then uiAnimTime else shortUiAnimTime) <$>
+            -- split the alerts at intermediate states, and associate alerts
+            -- to the right states:
+            let (globalAlerts,transitoryAlerts) = partition isGlobalAlert alerts
+                splitAlerts frameAs (AlertIntermediateState st' : as) =
+                    (frameAs,st',True) : splitAlerts [] as
+                splitAlerts frameAs (a:as) =
+                    splitAlerts (a:frameAs) as
+                splitAlerts frameAs [] = [(frameAs,st,False)]
+                isGlobalAlert (AlertAppliedForce _) = False
+                isGlobalAlert (AlertIntermediateState _) = False
+                isGlobalAlert _ = True
+            let animAlertedStates = nub $
+                    let ass = splitAlerts [] transitoryAlerts
+                    in if last ass == ([],st,False) then ass else ass ++ [([],st,False)]
+            let frames = length animAlertedStates
+            let (drawAlerts',drawSt,isIntermediate) = animAlertedStates !! animFrameToDraw
+            let drawAlerts = drawAlerts' ++ globalAlerts
+            -- let drawAlerts = takeWhile (/= AlertIntermediateState drawSt) alerts
+            nextIsSet <- isJust <$> gets nextAnimFrameAt
+            when (not nextIsSet && frames > animFrameToDraw+1) $ do
+                time <- (if isIntermediate then uiAnimTime else shortUiAnimTime) <$>
                     gets uiOptions
-		modify $ \ds -> ds { nextAnimFrameAt = Just $ now + time }
+                modify $ \ds -> ds { nextAnimFrameAt = Just $ now + time }
 
-	    let board = stateBoard drawSt
-	    lastCol <- gets dispLastCol
-	    let coloured = colouredPieces colourFixed drawSt
-	    let colouring = if useFiveColouring uiopts
-		then boardColouring drawSt coloured lastCol
-		else pieceTypeColouring drawSt coloured
-	    modify $ \ds -> ds { dispLastCol = colouring }
-	    gsSurf <- liftM fromJust $ gets gsSurface
-	    renderToMainWithSurf gsSurf $ do
+            let board = stateBoard drawSt
+            lastCol <- gets dispLastCol
+            let coloured = colouredPieces colourFixed drawSt
+            let colouring = if useFiveColouring uiopts
+                then boardColouring drawSt coloured lastCol
+                else pieceTypeColouring drawSt coloured
+            modify $ \ds -> ds { dispLastCol = colouring }
+            gsSurf <- liftM fromJust $ gets gsSurface
+            renderToMainWithSurf gsSurf $ do
                 let tileGlyphs = fmap (ownedTileGlyph colouring highlight) board
 
                     applyAlert (AlertAppliedForce f@(Torque idx tdir)) =
@@ -640,25 +640,25 @@ drawMainGameState' args@(DrawArgs highlight colourFixed alerts st uiopts) = do
 
                     applyAlerts = flip (foldr applyAlert) drawAlerts
 
-		erase
-		sequence_ [ drawAt glyph pos |
-		    (pos,glyph) <- Map.toList $ applyAlerts tileGlyphs
-		    ]
+                erase
+                sequence_ [ drawAt glyph pos |
+                    (pos,glyph) <- Map.toList $ applyAlerts tileGlyphs
+                    ]
 
-		when (showBlocks uiopts /= ShowBlocksNone) $ sequence_
-		    $ [ drawBlocked drawSt colouring False force
-			| AlertBlockedForce force <- drawAlerts
-			, showBlocks uiopts == ShowBlocksAll ]
-		    ++ [ drawBlocked drawSt colouring True force
-			| AlertBlockingForce force <- drawAlerts ]
-		    -- ++ [ drawBlocked drawSt colouring True force |
-		    -- AlertResistedForce force <- drawAlerts ]
-		    ++ [ drawAt CollisionMarker pos
-			| AlertCollision pos <- drawAlerts ]
-		    -- ++ [ drawApplied drawSt colouring force
-		    --    | AlertAppliedForce force <- drawAlerts ]
-	    vidSurf <- liftIO getVideoSurface
-	    liftIO $ blitSurface gsSurf Nothing vidSurf Nothing
+                when (showBlocks uiopts /= ShowBlocksNone) $ sequence_
+                    $ [ drawBlocked drawSt colouring False force
+                        | AlertBlockedForce force <- drawAlerts
+                        , showBlocks uiopts == ShowBlocksAll ]
+                    ++ [ drawBlocked drawSt colouring True force
+                        | AlertBlockingForce force <- drawAlerts ]
+                    -- ++ [ drawBlocked drawSt colouring True force |
+                    -- AlertResistedForce force <- drawAlerts ]
+                    ++ [ drawAt CollisionMarker pos
+                        | AlertCollision pos <- drawAlerts ]
+                    -- ++ [ drawApplied drawSt colouring force
+                    --    | AlertAppliedForce force <- drawAlerts ]
+            vidSurf <- liftIO getVideoSurface
+            liftIO $ blitSurface gsSurf Nothing vidSurf Nothing
 
 playAlertSounds :: GameState -> [Alert] -> UIM ()
 #ifdef SOUND
@@ -666,36 +666,36 @@ playAlertSounds st alerts = do
     use <- useSounds <$> gets uiOptions
     when use $ mapM_ (maybe (return ()) playSound . alertSound) alerts
     where
-	alertSound (AlertBlockedForce force) =
-	    let PlacedPiece _ piece = getpp st $ forceIdx force
-	    in case piece of
-		Wrench _ -> Just "wrenchblocked"
-		Hook _ _ -> if isPush force then Just "hookblocked" else Just "hookarmblocked"
-		_ -> Nothing
-	alertSound (AlertDivertedWrench _) = Just "wrenchscrape"
-	alertSound (AlertAppliedForce (Torque idx _))
-	    | isPivot.placedPiece.getpp st $ idx = Just "pivot"
-	alertSound (AlertAppliedForce (Push idx dir))
-	    | isBall.placedPiece.getpp st $ idx = Just "ballmove"
-	alertSound (AlertAppliedForce (Push idx dir)) = do
-	    (align,newLen) <- listToMaybe [(align,newLen)
-		| c@(Connection (startIdx,_) (endIdx,_) (Spring outDir natLen)) <- connections st
-		, let align = (if outDir == dir then 1 else if outDir == neg dir then -1 else 0)
-			* (if idx == startIdx then 1 else if idx == endIdx then -1 else 0)
-		, align /= 0
-		, let newLen = connectionLength st c ]
-	    return $ "spring" ++ (if align == 1 then "contract" else "extend")
-		++ show (min newLen 12)
-	alertSound AlertUnlocked = Just "unlocked"
-	alertSound _ = Nothing
-	playSound :: String -> UIM ()
-	playSound sound = void.runMaybeT $ do
-	    ss <- MaybeT $ Map.lookup sound <$> gets sounds
-	    guard.not.null $ ss
-	    liftIO $ randFromList ss >>= \(Just s) -> void $ tryPlayChannel (-1) s 0
-	randFromList :: [a] -> IO (Maybe a)
-	randFromList [] = return Nothing
-	randFromList as = (Just.(as!!)) <$> randomRIO (0,length as - 1)
+        alertSound (AlertBlockedForce force) =
+            let PlacedPiece _ piece = getpp st $ forceIdx force
+            in case piece of
+                Wrench _ -> Just "wrenchblocked"
+                Hook _ _ -> if isPush force then Just "hookblocked" else Just "hookarmblocked"
+                _ -> Nothing
+        alertSound (AlertDivertedWrench _) = Just "wrenchscrape"
+        alertSound (AlertAppliedForce (Torque idx _))
+            | isPivot.placedPiece.getpp st $ idx = Just "pivot"
+        alertSound (AlertAppliedForce (Push idx dir))
+            | isBall.placedPiece.getpp st $ idx = Just "ballmove"
+        alertSound (AlertAppliedForce (Push idx dir)) = do
+            (align,newLen) <- listToMaybe [(align,newLen)
+                | c@(Connection (startIdx,_) (endIdx,_) (Spring outDir natLen)) <- connections st
+                , let align = (if outDir == dir then 1 else if outDir == neg dir then -1 else 0)
+                        * (if idx == startIdx then 1 else if idx == endIdx then -1 else 0)
+                , align /= 0
+                , let newLen = connectionLength st c ]
+            return $ "spring" ++ (if align == 1 then "contract" else "extend")
+                ++ show (min newLen 12)
+        alertSound AlertUnlocked = Just "unlocked"
+        alertSound _ = Nothing
+        playSound :: String -> UIM ()
+        playSound sound = void.runMaybeT $ do
+            ss <- MaybeT $ Map.lookup sound <$> gets sounds
+            guard.not.null $ ss
+            liftIO $ randFromList ss >>= \(Just s) -> void $ tryPlayChannel (-1) s 0
+        randFromList :: [a] -> IO (Maybe a)
+        randFromList [] = return Nothing
+        randFromList as = (Just.(as!!)) <$> randomRIO (0,length as - 1)
 #else
 playAlertSounds _ _ = return ()
 #endif
@@ -706,27 +706,27 @@ drawMiniLock lock v = do
     surface <- Map.lookup lock <$> gets miniLocks >>= maybe new return
     renderToMain $ blitAt surface v
     where
-	miniLocksize = 3
-	new = do
-	    (_, size) <- getGeom
-	    let minisize = size `div` (ceiling $ lockSize lock % miniLocksize)
-	    let width = size*2*(miniLocksize*2+1)
-	    let height = ceiling $ fi size * sqrt 3 * fi (miniLocksize*2+1+1)
-	    surf <- liftIO $ createRGBSurface [] width height 16 0 0 0 0
-	    liftIO $ setColorKey surf [SrcColorKey,RLEAccel] $ Pixel 0
-	    uiopts <- gets uiOptions
-	    let st = snd $ reframe lock
-		coloured = colouredPieces False st
-		colouring = if useFiveColouring uiopts
-		    then boardColouring st coloured Map.empty
-		    else pieceTypeColouring st coloured
-		draw = sequence_ [ drawAt glyph pos |
-		    (pos,glyph) <- Map.toList $ fmap (ownedTileGlyph colouring []) $ stateBoard st ]
-	    liftIO $ runRenderM draw emptyCachedGlyphs $
-		RenderContext surf Nothing (PHS zero) (SVec (width`div`2) (height`div`2)) minisize Nothing
-	    clearOldMiniLocks
-	    modify $ \ds -> ds { miniLocks = Map.insert lock surf $ miniLocks ds }
-	    return surf
+        miniLocksize = 3
+        new = do
+            (_, size) <- getGeom
+            let minisize = size `div` (ceiling $ lockSize lock % miniLocksize)
+            let width = size*2*(miniLocksize*2+1)
+            let height = ceiling $ fi size * sqrt 3 * fi (miniLocksize*2+1+1)
+            surf <- liftIO $ createRGBSurface [] width height 16 0 0 0 0
+            liftIO $ setColorKey surf [SrcColorKey,RLEAccel] $ Pixel 0
+            uiopts <- gets uiOptions
+            let st = snd $ reframe lock
+                coloured = colouredPieces False st
+                colouring = if useFiveColouring uiopts
+                    then boardColouring st coloured Map.empty
+                    else pieceTypeColouring st coloured
+                draw = sequence_ [ drawAt glyph pos |
+                    (pos,glyph) <- Map.toList $ fmap (ownedTileGlyph colouring []) $ stateBoard st ]
+            liftIO $ runRenderM draw emptyCachedGlyphs $
+                RenderContext surf Nothing (PHS zero) (SVec (width`div`2) (height`div`2)) minisize Nothing
+            clearOldMiniLocks
+            modify $ \ds -> ds { miniLocks = Map.insert lock surf $ miniLocks ds }
+            return surf
 
 -- | TODO: do this more cleverly
 clearOldMiniLocks =
@@ -741,8 +741,8 @@ getBindingStr mode = do
     setting <- gets settingBinding
     uibdgs <- Map.findWithDefault [] mode `liftM` gets uiKeyBindings
     return (\cmd ->
-	if Just cmd == setting then "??"
-	else maybe "" showKey $ findBinding (uibdgs ++ bindings mode) cmd)
+        if Just cmd == setting then "??"
+        else maybe "" showKey $ findBinding (uibdgs ++ bindings mode) cmd)
 
 drawButtons :: InputMode -> UIM ()
 drawButtons mode = do
@@ -751,16 +751,16 @@ drawButtons mode = do
     showBT <- showButtonText <$> gets uiOptions
     smallFont <- gets dispFontSmall
     renderToMain $ sequence_ $ concat [ [ do
-		drawAtRel (ButtonGlyph col) v
-		(if length bdg > 2 then withFont smallFont else id) $
+                drawAtRel (ButtonGlyph col) v
+                (if length bdg > 2 then withFont smallFont else id) $
                     renderStrColAt buttonTextCol bdg v
-		when showBT $
-		    withFont smallFont $ recentreAt v $ rescaleRender (1/4) $
-		    sequence_ [ renderStrColAtLeft white s dv | (s,dv) <- helps ]
-	    | (i,(v,bdg,helps)) <- enumerate $ map (\b->(buttonPos b, bindingStr $ buttonCmd b, buttonHelp b)) $ buttonGroup
-		, let col = dim $ colourWheel (base+inc*i) ]
-	| (buttonGroup,(base,inc)) <- buttons
-	]
+                when showBT $
+                    withFont smallFont $ recentreAt v $ rescaleRender (1/4) $
+                    sequence_ [ renderStrColAtLeft white s dv | (s,dv) <- helps ]
+            | (i,(v,bdg,helps)) <- enumerate $ map (\b->(buttonPos b, bindingStr $ buttonCmd b, buttonHelp b)) $ buttonGroup
+                , let col = dim $ colourWheel (base+inc*i) ]
+        | (buttonGroup,(base,inc)) <- buttons
+        ]
     where enumerate = zip [0..]
 
 initMisc :: IO ()
@@ -769,21 +769,21 @@ initMisc = void $ enableUnicode True >> enableKeyRepeat 250 30 >> setCaption "in
 initVideo :: Int -> Int -> UIM ()
 initVideo w h = do
     liftIO $ (((w,h)==(0,0) &&) . (InitVideo `elem`) <$> wasInit [InitVideo]) >>?
-	-- reset video so that passing (0,0) to setVideoMode sets to
-	-- current screen res rather than current window size
-	(quitSubSystem [InitVideo] >> initSubSystem [InitVideo] >> initMisc)
+        -- reset video so that passing (0,0) to setVideoMode sets to
+        -- current screen res rather than current window size
+        (quitSubSystem [InitVideo] >> initSubSystem [InitVideo] >> initMisc)
 
     fs <- fullscreen <$> gets uiOptions
     liftIO $ do
-	(w',h') <- if (fs || (w,h)/=(0,0)) then return (w,h) else do
-	    -- use smaller dimensions than the screen's, to work around a bug
-	    -- seen on mac, whereby a resizable window created with
-	    -- (w,h)=(0,0), or even with the (w,h) given by getDimensions
-	    -- after creating such a window, is reported to be larger than it
-	    -- is.
-	    (w',h') <- getDimensions
-	    return $ (4*w'`div`5,4*h'`div`5)
-	setVideoMode w' h' 0 $ if fs then [Fullscreen] else [Resizable]
+        (w',h') <- if (fs || (w,h)/=(0,0)) then return (w,h) else do
+            -- use smaller dimensions than the screen's, to work around a bug
+            -- seen on mac, whereby a resizable window created with
+            -- (w,h)=(0,0), or even with the (w,h) given by getDimensions
+            -- after creating such a window, is reported to be larger than it
+            -- is.
+            (w',h') <- getDimensions
+            return $ (4*w'`div`5,4*h'`div`5)
+        setVideoMode w' h' 0 $ if fs then [Fullscreen] else [Resizable]
 
     (w',h') <- liftIO getDimensions
 
@@ -801,21 +801,21 @@ initVideo w h = do
 
     useBG <- gets $ useBackground.uiOptions
     mbg <- if useBG then do
-	    bgsurf <- liftIO $ createRGBSurface [] w' h' 16 0 0 0 0
-	    renderToMainWithSurf bgsurf $ drawBasicBG $ 2*(max screenWidthHexes screenHeightHexes)`div`3
-	    return $ Just bgsurf
-	else return Nothing
+            bgsurf <- liftIO $ createRGBSurface [] w' h' 16 0 0 0 0
+            renderToMainWithSurf bgsurf $ drawBasicBG $ 2*(max screenWidthHexes screenHeightHexes)`div`3
+            return $ Just bgsurf
+        else return Nothing
     modify $ \ds -> ds { bgSurface = mbg }
 
     clearMiniLocks
 
     when (isNothing font) $ lift $ do
-	let text = "Warning: font file not found at "++fontpath++".\n"
-	putStr text
-	writeFile "error.log" text
+        let text = "Warning: font file not found at "++fontpath++".\n"
+        putStr text
+        writeFile "error.log" text
 
     where
-	getDimensions = (videoInfoWidth &&& videoInfoHeight) <$> getVideoInfo
+        getDimensions = (videoInfoWidth &&& videoInfoHeight) <$> getVideoInfo
 
 
 initAudio :: UIM ()
@@ -825,27 +825,27 @@ initAudio = do
     -- liftIO $ querySpec >>= print
     liftIO $ allocateChannels 16
     let seqWhileJust (m:ms) = m >>= \ret -> case ret of
-	    Nothing -> return []
-	    Just a -> (a:) <$> seqWhileJust ms
+            Nothing -> return []
+            Just a -> (a:) <$> seqWhileJust ms
     soundsdir <- liftIO $ getDataPath "sounds"
     sounds <- sequence [ do
-	    chunks <- liftIO $ seqWhileJust
-		[ runMaybeT $ do
-		    chunk <- msum $ map (MaybeT . tryLoadWAV) paths
-		    liftIO $ volumeChunk chunk vol
-		    return chunk
-		| n <- [1..]
-		, let paths = [soundsdir ++ [pathSeparator] ++ sound ++
-			"-" ++ (if n < 10 then ('0':) else id) (show n) ++ ext
-			| ext <- [".ogg", ".wav"] ]
-		, let vol = case sound of
-			"pivot" -> 64
-			"wrenchscrape" -> 64
-			_ -> 128
-		]
-	    return (sound,chunks)
-	| sound <- ["hookblocked","hookarmblocked","wrenchblocked","wrenchscrape","pivot","unlocked","ballmove"]
-		++ ["spring" ++ d ++ show l | d <- ["extend","contract"], l <- [1..12]] ]
+            chunks <- liftIO $ seqWhileJust
+                [ runMaybeT $ do
+                    chunk <- msum $ map (MaybeT . tryLoadWAV) paths
+                    liftIO $ volumeChunk chunk vol
+                    return chunk
+                | n <- [1..]
+                , let paths = [soundsdir ++ [pathSeparator] ++ sound ++
+                        "-" ++ (if n < 10 then ('0':) else id) (show n) ++ ext
+                        | ext <- [".ogg", ".wav"] ]
+                , let vol = case sound of
+                        "pivot" -> 64
+                        "wrenchscrape" -> 64
+                        _ -> 128
+                ]
+            return (sound,chunks)
+        | sound <- ["hookblocked","hookarmblocked","wrenchblocked","wrenchscrape","pivot","unlocked","ballmove"]
+                ++ ["spring" ++ d ++ show l | d <- ["extend","contract"], l <- [1..12]] ]
     -- liftIO $ print sounds
     modify $ \s -> s { sounds = Map.fromList sounds }
 #else
@@ -855,22 +855,22 @@ initAudio = return ()
 pollEvents = do
     e <- pollEvent
     case e of
-	NoEvent -> return []
-	_ -> do
-	    es <- pollEvents
-	    return $ e:es
+        NoEvent -> return []
+        _ -> do
+            es <- pollEvents
+            return $ e:es
 
 drawMsgLine = void.runMaybeT $ do
     (col,str) <- msum
-	[ ((,) dimWhiteCol) <$> MaybeT (gets hoverStr)
-	, MaybeT $ gets message
-	]
+        [ ((,) dimWhiteCol) <$> MaybeT (gets hoverStr)
+        , MaybeT $ gets message
+        ]
     lift $ do
-	renderToMain $ blankRow messageLineCentre
-	smallFont <- gets dispFontSmall
-	renderToMain $
-	    (if length str > screenWidthHexes * 3 then withFont smallFont else id) $
-		renderStrColAt col str messageLineCentre
+        renderToMain $ blankRow messageLineCentre
+        smallFont <- gets dispFontSmall
+        renderToMain $
+            (if length str > screenWidthHexes * 3 then withFont smallFont else id) $
+                renderStrColAt col str messageLineCentre
 
 setMsgLineNoRefresh col str = do
     modify $ \s -> s { message = Just (col,str) }

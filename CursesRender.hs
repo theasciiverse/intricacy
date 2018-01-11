@@ -28,17 +28,17 @@ colorsToPairs :: [(Curses.Color, Curses.Color)] -> IO [Curses.Pair]
 colorsToPairs cs = do
     p <- Curses.colorPairs
     let nColors = length cs
-	blackWhite = p < nColors
+        blackWhite = p < nColors
     if blackWhite then do
-	print ("Terminal does not support enough colors. Number of " ++
-		  " colors requested: " ++ show nColors ++
-		  ". Number of colors supported: " ++ show p)
-	return $ replicate nColors $ Curses.Pair 0
+        print ("Terminal does not support enough colors. Number of " ++
+                  " colors requested: " ++ show nColors ++
+                  ". Number of colors supported: " ++ show p)
+        return $ replicate nColors $ Curses.Pair 0
     else mapM toPairs (zip [1..] cs)
     where toPairs (n, (fg, bg)) = do
-	    let p = Curses.Pair n
-	    Curses.initPair p fg bg
-	    return p
+            let p = Curses.Pair n
+            Curses.initPair p fg bg
+            return p
 
 type AttrChar = (Char, Curses.Attr)
 type ColPair = Int
@@ -63,11 +63,11 @@ tileChar (PivotTile dir)
     | canonDir dir == hw = ('/',bold)
 tileChar (ArmTile dir principal) =
     let cdir = canonDir dir
-	c | cdir == hu = '-'
-	  | cdir == hv = '\\'
-	  | cdir == hw = '/'
-	  | otherwise = '?'
-	a = if principal then bold else a0
+        c | cdir == hu = '-'
+          | cdir == hv = '\\'
+          | cdir == hw = '/'
+          | otherwise = '?'
+        a = if principal then bold else a0
     in (c,a)
 tileChar HookTile = ('@',bold)
 tileChar (WrenchTile mom) = ('*',if mom /= zero then bold else a0)
@@ -82,10 +82,10 @@ ownedTileGlyph mono@True colouring reversed ot =
     Glyph (monochromeOTileChar colouring ot) white a0
 ownedTileGlyph mono@False colouring reversed (owner,t) =
     let (ch,attr) = tileChar t
-	pair = case Map.lookup owner colouring of
-		    Nothing -> 0
-		    Just n -> n+1
-	rev = owner `elem` reversed
+        pair = case Map.lookup owner colouring of
+                    Nothing -> 0
+                    Just n -> n+1
+        rev = owner `elem` reversed
     in Glyph ch pair (Curses.setReverse attr rev)
 
 addCh :: Char ->  IO ()

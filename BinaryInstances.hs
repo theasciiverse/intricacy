@@ -24,14 +24,14 @@ newtype SmallNat = SmallNat {fromSmallNat :: Int}
 instance Binary SmallNat where
     put (SmallNat n) = if n < 255 then putWord8 (fromIntegral n) else putWord8 255 >> put n
     get = do
-	n' <- get :: Get Word8
-	if n' == 255 then liftM SmallNat get else return $ SmallNat $ fromIntegral n'
+        n' <- get :: Get Word8
+        if n' == 255 then liftM SmallNat get else return $ SmallNat $ fromIntegral n'
 
 instance Binary SmallInt where
     put (SmallInt n) = if abs n < 127 then put ((fromIntegral n)::Int8) else put (127::Int8) >> put n
     get = do
-	n' <- get :: Get Int8
-	if n' == 127 then liftM SmallInt get else return $ SmallInt $ fromIntegral n'
+        n' <- get :: Get Int8
+        if n' == 127 then liftM SmallInt get else return $ SmallInt $ fromIntegral n'
 
 putPackedNat,putPackedInt :: Int -> Put
 putPackedNat n = put $ SmallNat n
@@ -44,8 +44,8 @@ newtype ShortList a = ShortList {fromShortList :: [a]}
 instance Binary a => Binary (ShortList a) where
     put (ShortList as) = putPackedNat (length as) >> mapM_ put as
     get = do
-	n <- getPackedNat
-	ShortList `liftM` getMany n
+        n <- getPackedNat
+        ShortList `liftM` getMany n
 
  -- | 'getMany n' get 'n' elements in order, without blowing the stack.
  -- [ copied from source of package 'binary' by Lennart Kolmodin ]
@@ -62,9 +62,9 @@ getMany = go []
 instance Binary HexVec where
     put (HexVec x y _) = putPackedInt x >> putPackedInt y
     get = do
-	x <- getPackedInt
-	y <- getPackedInt
-	return $ tupxy2hv (x,y)
+        x <- getPackedInt
+        y <- getPackedInt
+        return $ tupxy2hv (x,y)
 instance Binary g => Binary (PHS g) where
     put (PHS v) = put v
     get = liftM PHS get
@@ -81,40 +81,40 @@ instance Binary Piece where
     put (Wrench mom) = put (3::Word8) >> put mom
     put Ball = put (4::Word8)
     get = do
-	tag <- get :: Get Word8
-	case tag of
-	    0 -> liftM (Block . fromShortList) get
-	    1 -> liftM (Pivot . fromShortList) get
-	    2 -> liftM2 Hook get get
-	    3 -> liftM Wrench get
-	    4 -> return Ball
+        tag <- get :: Get Word8
+        case tag of
+            0 -> liftM (Block . fromShortList) get
+            1 -> liftM (Pivot . fromShortList) get
+            2 -> liftM2 Hook get get
+            3 -> liftM Wrench get
+            4 -> return Ball
 instance Binary Connection where
     put (Connection (ri,rp) (ei,ep) l) = putPackedInt ri >> put rp >> putPackedInt ei >> put ep >> put l
     get = do
-	ri <- getPackedInt
-	rp <- get
-	ei <- getPackedInt
-	ep <- get
-	l <- get
-	return $ Connection (ri,rp) (ei,ep) l
+        ri <- getPackedInt
+        rp <- get
+        ei <- getPackedInt
+        ep <- get
+        l <- get
+        return $ Connection (ri,rp) (ei,ep) l
 instance Binary Link where
     put (Free p) = put (0::Word8) >> put p
     put (Spring d l) = put (1::Word8) >> put d >> putPackedInt l
     get = do
-	tag <- get :: Get Word8
-	case tag of
-	    0 -> liftM Free get
-	    1 -> liftM2 Spring get getPackedInt
+        tag <- get :: Get Word8
+        case tag of
+            0 -> liftM Free get
+            1 -> liftM2 Spring get getPackedInt
 instance Binary HookForce where
     put NullHF = put (0::Word8)
     put (TorqueHF dir) = put (1::Word8) >> putPackedInt dir
     put (PushHF v) = put (2::Word8) >> put v
     get = do
-	tag <- get :: Get Word8
-	case tag of
-	    0 -> return NullHF
-	    1 -> liftM TorqueHF getPackedInt
-	    2 -> liftM PushHF get
+        tag <- get :: Get Word8
+        case tag of
+            0 -> return NullHF
+            1 -> liftM TorqueHF getPackedInt
+            2 -> liftM PushHF get
 instance Binary Frame where
     put (BasicFrame s) = putPackedInt s
     get = liftM BasicFrame getPackedInt
@@ -125,9 +125,9 @@ instance Binary PlayerMove where
     put (HookTorque dir) = put (2::Word8) >> putPackedInt dir
     put (WrenchPush v) = put (3::Word8) >> put v
     get = do
-	tag <- get :: Get Word8
-	case tag of
-	    0 -> return NullPM
-	    1 -> liftM HookPush get
-	    2 -> liftM HookTorque getPackedInt
-	    3 -> liftM WrenchPush get
+        tag <- get :: Get Word8
+        case tag of
+            0 -> return NullPM
+            1 -> liftM HookPush get
+            2 -> liftM HookTorque getPackedInt
+            3 -> liftM WrenchPush get

@@ -67,7 +67,7 @@ bindingsStr :: InputMode -> [Command] -> UIM String
 bindingsStr mode cmds = do
     bdgs <- getBindings mode
     return $ (("["++).(++"]")) $ intercalate "," $
-	map (maybe "" showKey . findBinding bdgs) cmds
+        map (maybe "" showKey . findBinding bdgs) cmds
 
 
 data Gravity = GravUp | GravLeft | GravRight | GravDown | GravCentre
@@ -266,17 +266,17 @@ drawStateWithGeom reversed colourFixed lastCol st geom = do
     let colouring = boardColouring st (colouredPieces colourFixed st) lastCol
     mono <- gets monochrome
     sequence_ [ drawAtWithGeom glyph pos geom |
-	(pos,glyph) <- Map.toList $ fmap (ownedTileGlyph mono colouring reversed) $ stateBoard st
-	]
+        (pos,glyph) <- Map.toList $ fmap (ownedTileGlyph mono colouring reversed) $ stateBoard st
+        ]
     return colouring
 
 drawMsgLine = void.runMaybeT $ do
     (attr,col,str) <- MaybeT $ gets message
     lift $ do
-	(h,w) <- liftIO Curses.scrSize
-	liftIO $ clearLine $ h-1
-	let str' = take (w-1) str
-	drawStr attr col (CVec (h-1) 0) str'
+        (h,w) <- liftIO Curses.scrSize
+        liftIO $ clearLine $ h-1
+        let str' = take (w-1) str
+        drawStr attr col (CVec (h-1) 0) str'
 setMsgLine attr col str = do
     modify $ \s -> s { message = Just (attr,col,str) }
     drawMsgLine

@@ -45,31 +45,31 @@ getRecordCached saddr auth mflag cOnly rec = do
     unless (cOnly || fresh) $ void $ forkIO $ getRecordFromServer fromCache tvar
     return tvar
     where
-	getRecordFromServer fromCache tvar = do
-	    let action = case rec of
-		    RecUserInfo name ->
-			let curVersion = (\(RCUserInfo (v,_)) -> v) <$> fromCache
-			in GetUserInfo name curVersion
-		    _ -> askForRecord rec
-	    resp <- makeRequest saddr (ClientRequest
-		    protocolVersion (if needsAuth action then auth else Nothing) action)
-	    case resp of
-		ServerError err -> tellRec $ FetchedRecord True (Just err) fromCache
-		ServerCodenameFree -> tellRec $ FetchedRecord True Nothing Nothing
-		ServerFresh -> tellRec $ FetchedRecord True Nothing fromCache
-		ServedUserInfoDeltas deltas -> do
-		    let Just (RCUserInfo (v,info)) = fromCache
-		    let rc = RCUserInfo (v+length deltas, applyDeltas info deltas)
-		    withCache saddr $ putRecord rec rc
-		    tellRec $ FetchedRecord True Nothing (Just rc)
-		_ -> do
-		    let rc = rcOfServerResp resp
-		    withCache saddr $ putRecord rec rc
-		    tellRec $ FetchedRecord True Nothing (Just rc)
-	    where
-		tellRec fr = atomically $ do
-		    writeTVar tvar fr
-		    case mflag of {Just flag -> writeTVar flag True; _ -> return ()}
+        getRecordFromServer fromCache tvar = do
+            let action = case rec of
+                    RecUserInfo name ->
+                        let curVersion = (\(RCUserInfo (v,_)) -> v) <$> fromCache
+                        in GetUserInfo name curVersion
+                    _ -> askForRecord rec
+            resp <- makeRequest saddr (ClientRequest
+                    protocolVersion (if needsAuth action then auth else Nothing) action)
+            case resp of
+                ServerError err -> tellRec $ FetchedRecord True (Just err) fromCache
+                ServerCodenameFree -> tellRec $ FetchedRecord True Nothing Nothing
+                ServerFresh -> tellRec $ FetchedRecord True Nothing fromCache
+                ServedUserInfoDeltas deltas -> do
+                    let Just (RCUserInfo (v,info)) = fromCache
+                    let rc = RCUserInfo (v+length deltas, applyDeltas info deltas)
+                    withCache saddr $ putRecord rec rc
+                    tellRec $ FetchedRecord True Nothing (Just rc)
+                _ -> do
+                    let rc = rcOfServerResp resp
+                    withCache saddr $ putRecord rec rc
+                    tellRec $ FetchedRecord True Nothing (Just rc)
+            where
+                tellRec fr = atomically $ do
+                    writeTVar tvar fr
+                    case mflag of {Just flag -> writeTVar flag True; _ -> return ()}
 
 waitFetchedFresh :: TVar FetchedRecord -> IO ()
 waitFetchedFresh tvar = atomically $ readTVar tvar >>= check.fresh
@@ -79,19 +79,19 @@ makeRequest saddr _ | nullSaddr saddr =
     return $ ServerError "No server set."
 makeRequest saddr@(ServerAddr host port) request =
     handle (return . ServerError . (show::SomeException -> String)) $
-	withStream (IP host port) makeRequest'
-	    `catchIO` (const $ return $ ServerError $ "Cannot connect to "++saddrStr saddr++"!")
+        withStream (IP host port) makeRequest'
+            `catchIO` (const $ return $ ServerError $ "Cannot connect to "++saddrStr saddr++"!")
     where
-	makeRequest' hdl = do
-	    BS.hPut hdl $ BL.toStrict $ encode request
-	    hFlush hdl
-	    (decode . BL.fromStrict) `liftM` BS.hGetContents hdl
+        makeRequest' hdl = do
+            BS.hPut hdl $ BL.toStrict $ encode request
+            hFlush hdl
+            (decode . BL.fromStrict) `liftM` BS.hGetContents hdl
 
 knownServers :: IO [ServerAddr]
 knownServers = flip catchIO (const $ return []) $ do
     cachedir <- confFilePath "cache"
     saddrstrs <- getDirectoryContents cachedir >>= filterM (\dir ->
-	doesFileExist $ cachedir++[pathSeparator]++dir++[pathSeparator]++"serverInfo")
+        doesFileExist $ cachedir++[pathSeparator]++dir++[pathSeparator]++"serverInfo")
     return $ concat $ map (maybeToList . strToSaddr) saddrstrs
 
 withCache :: ServerAddr -> DBM a -> IO a

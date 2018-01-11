@@ -45,8 +45,8 @@ usage = usageInfo header options
 parseArgs :: [String] -> IO ([Opt],[String])
 parseArgs argv =
     case getOpt Permute options argv of
-	(o,n,[]) -> return (o,n)
-	(_,_,errs) -> ioError (userError (concat errs ++ usage))
+        (o,n,[]) -> return (o,n)
+        (_,_,errs) -> ioError (userError (concat errs ++ usage))
 
 setup :: IO (Maybe Lock,[Opt],Maybe String)
 setup = do
@@ -57,32 +57,32 @@ setup = do
     let size = fromMaybe 8 $ listToMaybe [ size | LockSize size <- opts ]
     curDir <- getCurrentDirectory
     (fromJust <$>) $ runMaybeT $ msum
-	[ do
-	    path <- liftMaybe ((curDir </>) <$> listToMaybe args)
-	    msum [ do
-		    lock <- reframe.fst <$> MaybeT (readLock path)
-		    return (Just lock,opts,Just path)
-		, return (Just $ baseLock size, opts, Just path) ]
-	, return (Nothing,opts,Nothing) ]
+        [ do
+            path <- liftMaybe ((curDir </>) <$> listToMaybe args)
+            msum [ do
+                    lock <- reframe.fst <$> MaybeT (readLock path)
+                    return (Just lock,opts,Just path)
+                , return (Just $ baseLock size, opts, Just path) ]
+        , return (Nothing,opts,Nothing) ]
 
 main' :: (UIMonad s, UIMonad c) =>
-	Maybe (s MainState -> IO (Maybe MainState)) ->
-	Maybe (c MainState -> IO (Maybe MainState)) -> IO ()
+        Maybe (s MainState -> IO (Maybe MainState)) ->
+        Maybe (c MainState -> IO (Maybe MainState)) -> IO ()
 main' msdlUI mcursesUI = do
     (mlock,opts,mpath) <- setup
     initMState <- case mlock of
-	    Nothing -> initMetaState
-	    Just lock -> return $ newEditState lock Nothing mpath
+            Nothing -> initMetaState
+            Just lock -> return $ newEditState lock Nothing mpath
     void $ runMaybeT $ msum [ do
-	    finalState <- msum
-		[ do
-		    guard $ ForceCurses `notElem` opts
-		    sdlUI <- liftMaybe $ msdlUI
-		    MaybeT $ sdlUI $ interactUI `execStateT` initMState
-		, do
-		    cursesUI <- liftMaybe $ mcursesUI
-		    MaybeT $ cursesUI $ interactUI `execStateT` initMState
-		]
-	    when (isNothing mlock) $ lift $ writeMetaState finalState
-	    lift $ exitSuccess
-	, lift exitFailure ]
+            finalState <- msum
+                [ do
+                    guard $ ForceCurses `notElem` opts
+                    sdlUI <- liftMaybe $ msdlUI
+                    MaybeT $ sdlUI $ interactUI `execStateT` initMState
+                , do
+                    cursesUI <- liftMaybe $ mcursesUI
+                    MaybeT $ cursesUI $ interactUI `execStateT` initMState
+                ]
+            when (isNothing mlock) $ lift $ writeMetaState finalState
+            lift $ exitSuccess
+        , lift exitFailure ]

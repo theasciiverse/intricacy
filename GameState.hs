@@ -38,12 +38,12 @@ getpp st idx = (placedPieces st) ! idx
 setpp :: PieceIdx -> PlacedPiece -> GameState -> GameState
 setpp idx pp st@(GameState pps _) =
     let displacement = (placedPos $ getpp st idx) -^ placedPos pp
-	updateConn conn@(Connection root@(ridx,rpos) end@(eidx,epos) link)
-	    | ridx == idx = Connection (ridx,rpos+^displacement) end link
-	    | eidx == idx = Connection root (eidx,epos+^displacement) link
-	    | otherwise = conn
+        updateConn conn@(Connection root@(ridx,rpos) end@(eidx,epos) link)
+            | ridx == idx = Connection (ridx,rpos+^displacement) end link
+            | eidx == idx = Connection root (eidx,epos+^displacement) link
+            | otherwise = conn
     in st {placedPieces = pps // [(idx, pp)]
-	, connections = map updateConn $ connections st }
+        , connections = map updateConn $ connections st }
 
 addpp :: PlacedPiece -> GameState -> GameState
 addpp pp st@(GameState pps _) = st {placedPieces = Vector.snoc pps pp}
@@ -56,36 +56,36 @@ components :: Set HexVec -> [Component]
 components patt
     | Set.null patt = []
     | otherwise =
-	let c = if zero `Set.member` patt then zero else head $ Set.toList patt
-	    (patt',comp) = floodfill c patt
-	in ( (c, Set.map (+^ neg c) comp) : components patt' )
+        let c = if zero `Set.member` patt then zero else head $ Set.toList patt
+            (patt',comp) = floodfill c patt
+        in ( (c, Set.map (+^ neg c) comp) : components patt' )
 
 floodfill :: HexVec -> Set HexVec -> (Set HexVec, Set HexVec)
 floodfill start patt = floodfill' start `execState` (patt, Set.empty)
     where
-	floodfill' :: HexVec -> State (Set HexVec, Set HexVec) ()
-	floodfill' start = do
-	      (patt, dels) <- get
-	      let patt' = Set.delete start patt
-	      unless (Set.size patt' == Set.size patt) $ do
-		  put (patt', Set.insert start dels)
-		  sequence_ [ floodfill' (dir+^start) | dir <- hexDirs ]
+        floodfill' :: HexVec -> State (Set HexVec, Set HexVec) ()
+        floodfill' start = do
+              (patt, dels) <- get
+              let patt' = Set.delete start patt
+              unless (Set.size patt' == Set.size patt) $ do
+                  put (patt', Set.insert start dels)
+                  sequence_ [ floodfill' (dir+^start) | dir <- hexDirs ]
 
 delPiece :: PieceIdx -> GameState -> GameState
 delPiece idx (GameState pps conns) =
     GameState (Vector.concat [Vector.take idx pps, Vector.drop (idx+1) pps])
-	[ Connection (ridx',rv) (eidx',ev) link |
-	    Connection (ridx,rv) (eidx,ev) link <- conns
-	    , ridx /= idx
-	    , eidx /= idx
-	    , let ridx' = if ridx > idx then ridx-1 else ridx
-	    , let eidx' = if eidx > idx then eidx-1 else eidx ]
+        [ Connection (ridx',rv) (eidx',ev) link |
+            Connection (ridx,rv) (eidx,ev) link <- conns
+            , ridx /= idx
+            , eidx /= idx
+            , let ridx' = if ridx > idx then ridx-1 else ridx
+            , let eidx' = if eidx > idx then eidx-1 else eidx ]
 
 delPieceIn :: HexPos -> GameState -> GameState
 delPieceIn pos st =
     case liftM fst $ Map.lookup pos $ stateBoard st of
-	Just idx -> delPiece idx st
-	_ -> st
+        Just idx -> delPiece idx st
+        _ -> st
 
 setPiece :: PieceIdx -> Piece -> GameState -> GameState
 setPiece idx p st =
@@ -94,7 +94,7 @@ setPiece idx p st =
 adjustPieces :: (Piece -> Piece) -> GameState -> GameState
 adjustPieces f st =
     st { placedPieces = fmap
-	(\pp -> pp { placedPiece = f $ placedPiece pp })
+        (\pp -> pp { placedPiece = f $ placedPiece pp })
        $ placedPieces st }
 
 addBlockPos :: PieceIdx -> HexPos -> GameState -> GameState
@@ -118,7 +118,7 @@ posLocus st pos = listToMaybe [ (idx,pos-^ppos) |
 connectionLength :: GameState -> Connection -> Int
 connectionLength st (Connection root end _) =
     let rootPos = locusPos st root
-	endPos = locusPos st end
+        endPos = locusPos st end
     in hexLen (endPos -^ rootPos) - 1
 
 springsAtIdx,springsEndAtIdx,springsRootAtIdx :: GameState -> PieceIdx -> [Connection]
@@ -138,14 +138,14 @@ connectionsBetween :: GameState -> PieceIdx -> PieceIdx -> [Connection]
 connectionsBetween st idx idx' =
     filter connIsBetween $ connections st
     where
-	connIsBetween conn =
-	    isPerm (idx,idx') (fst $ connectionRoot conn, fst $ connectionEnd conn)
-	isPerm = (==) `on` (\(x,y) -> Set.fromList [x,y])
+        connIsBetween conn =
+            isPerm (idx,idx') (fst $ connectionRoot conn, fst $ connectionEnd conn)
+        isPerm = (==) `on` (\(x,y) -> Set.fromList [x,y])
 
 connGraphPathExists :: GameState -> PieceIdx -> PieceIdx -> Bool
 connGraphPathExists st ridx eidx = (ridx == eidx) ||
-	any ((connGraphPathExists st `flip` eidx) . fst .  connectionEnd)
-	    (springsRootAtIdx st ridx)
+        any ((connGraphPathExists st `flip` eidx) . fst .  connectionEnd)
+            (springsRootAtIdx st ridx)
 
 connGraphHeight :: GameState -> PieceIdx -> Int
 connGraphHeight st idx =
@@ -155,25 +155,25 @@ type Digraph a = Map a (Set a)
 checkConnGraphAcyclic :: GameState -> Bool
 checkConnGraphAcyclic st =
     let idxs = ppidxs st
-	leaves dg = map fst $ filter (Set.null . snd) $ Map.toList dg
-	checkDigraphAcyclic :: Ord a => Digraph a -> Bool
-	checkDigraphAcyclic dg = case listToMaybe $ leaves dg of
-	    Nothing -> Map.null dg
-	    Just leaf -> checkDigraphAcyclic $ Map.delete leaf $ fmap (Set.delete leaf) dg
+        leaves dg = map fst $ filter (Set.null . snd) $ Map.toList dg
+        checkDigraphAcyclic :: Ord a => Digraph a -> Bool
+        checkDigraphAcyclic dg = case listToMaybe $ leaves dg of
+            Nothing -> Map.null dg
+            Just leaf -> checkDigraphAcyclic $ Map.delete leaf $ fmap (Set.delete leaf) dg
     in checkDigraphAcyclic $ Map.fromList
-	[ (idx, Set.fromList $ map (fst.connectionRoot) $ springsEndAtIdx st idx) | idx <- idxs ]
+        [ (idx, Set.fromList $ map (fst.connectionRoot) $ springsEndAtIdx st idx) | idx <- idxs ]
 
 repossessConns :: GameState -> GameState -> GameState
 repossessConns st st' =
     st' {connections = [ Connection root' end' link |
-	Connection root end link <- connections st
-	, root' <- maybeToList $ posLocus st' $ locusPos st root
-	, end' <- maybeToList $ posLocus st' $ locusPos st end ] }
+        Connection root end link <- connections st
+        , root' <- maybeToList $ posLocus st' $ locusPos st root
+        , end' <- maybeToList $ posLocus st' $ locusPos st end ] }
 
 delConnectionsIn :: HexPos -> GameState -> GameState
 delConnectionsIn pos st =
     st {connections = filter
-	((pos `notElem`) . connectionFootPrint st)
+        ((pos `notElem`) . connectionFootPrint st)
         $ connections st}
 
 delPiecePos :: PieceIdx -> HexPos -> GameState -> (GameState, Maybe PieceIdx)
@@ -181,27 +181,27 @@ delPiecePos :: PieceIdx -> HexPos -> GameState -> (GameState, Maybe PieceIdx)
 -- anything
 delPiecePos idx pos st =
     let PlacedPiece ppos p = getpp st idx
-	v = pos -^ ppos
+        v = pos -^ ppos
     in case p of
         Block patt ->
-	    let (st',midx) = componentify idx $ setpp idx (PlacedPiece ppos $ Block $ patt \\ [v]) st
-	    in (repossessConns st st', midx)
+            let (st',midx) = componentify idx $ setpp idx (PlacedPiece ppos $ Block $ patt \\ [v]) st
+            in (repossessConns st st', midx)
         Pivot arms -> if v == zero
-	   then (delPiece idx st, Nothing)
-	   else ((setPiece idx $ Pivot $ arms \\ [v]) st, Just idx)
+           then (delPiece idx st, Nothing)
+           else ((setPiece idx $ Pivot $ arms \\ [v]) st, Just idx)
         _ -> (delPiece idx st, Nothing)
 componentify :: PieceIdx -> GameState -> (GameState, Maybe PieceIdx)
 componentify idx st = let PlacedPiece ppos p = getpp st idx
     in case p of
         Block patt ->
-	    let comps = components $ Set.fromList patt
-		ppOfComp (v,patt) = PlacedPiece (v+^ppos) $ Block $ Set.toList patt
-	    in case comps of
-		[] -> (delPiece idx st, Nothing)
-		zeroComp:newComps ->
-		    (setpp idx (ppOfComp zeroComp)
-			$ foldr (addpp . ppOfComp) st newComps, Just idx)
-	_ -> (st,Nothing)
+            let comps = components $ Set.fromList patt
+                ppOfComp (v,patt) = PlacedPiece (v+^ppos) $ Block $ Set.toList patt
+            in case comps of
+                [] -> (delPiece idx st, Nothing)
+                zeroComp:newComps ->
+                    (setpp idx (ppOfComp zeroComp)
+                        $ foldr (addpp . ppOfComp) st newComps, Just idx)
+        _ -> (st,Nothing)
 
 springExtended,springCompressed,springFullyExtended
     ,springFullyCompressed :: GameState -> Connection -> Bool
@@ -225,21 +225,21 @@ springExtensionValid _ _ = True
 stateBoard :: GameState -> GameBoard
 stateBoard st@(GameState plPieces conns) =
     addConnAdjs st conns $
-	(Map.unions $ map plPieceBoard $ enumVec plPieces) `Map.union`
-	(Map.unions $ map (connectionBoard st) conns)
+        (Map.unions $ map plPieceBoard $ enumVec plPieces) `Map.union`
+        (Map.unions $ map (connectionBoard st) conns)
 
 addConnAdjs :: GameState -> [Connection] -> GameBoard -> GameBoard
 addConnAdjs st = flip $ foldr addConnAdj
     where
-	addConnAdj (Connection root end (Spring dir _)) board =
-	    addAdj (locusPos st root) dir $
-	    addAdj (locusPos st end) (neg dir) board
-	addConnAdj _ board = board
-	addAdj pos d =
-	    Map.adjust (\(o,tile) -> (o,case tile of
-		    BlockTile adjs -> BlockTile (d:adjs)
-		    _ -> tile))
-		pos
+        addConnAdj (Connection root end (Spring dir _)) board =
+            addAdj (locusPos st root) dir $
+            addAdj (locusPos st end) (neg dir) board
+        addConnAdj _ board = board
+        addAdj pos d =
+            Map.adjust (\(o,tile) -> (o,case tile of
+                    BlockTile adjs -> BlockTile (d:adjs)
+                    _ -> tile))
+                pos
 
 plPieceBoard :: (PieceIdx,PlacedPiece) -> GameBoard
 plPieceBoard (idx,pp) = fmap (\x -> (idx,x)) $ plPieceMap pp
@@ -248,13 +248,13 @@ plPieceMap :: PlacedPiece -> Map HexPos Tile
 plPieceMap (PlacedPiece pos (Block pattern)) =
     let pattSet = Set.fromList pattern
     in Map.fromList [ (rel +^ pos, BlockTile adjs)
-	| rel <- pattern
-	, let adjs = filter (\dir -> (rel +^ dir) `Set.member` pattSet) hexDirs ]
+        | rel <- pattern
+        , let adjs = filter (\dir -> (rel +^ dir) `Set.member` pattSet) hexDirs ]
 plPieceMap (PlacedPiece pos (Pivot arms)) =
     let overarmed = length arms > 2 in
     Map.fromList $ (pos, PivotTile $ if overarmed then (head arms) else zero ) :
-	[ (rel +^ pos, ArmTile rel main)
-	| (rel,main) <- zip arms $ repeat False ]
+        [ (rel +^ pos, ArmTile rel main)
+        | (rel,main) <- zip arms $ repeat False ]
 plPieceMap (PlacedPiece pos (Hook arm _)) =
     Map.fromList $ (pos, HookTile) : [ (arm +^ pos, ArmTile arm True) ]
 plPieceMap (PlacedPiece pos (Wrench mom)) = Map.singleton pos $ WrenchTile mom
@@ -283,19 +283,19 @@ collisions :: GameState -> PieceIdx -> PieceIdx -> [HexPos]
 -- the connections which connect the two pieces
 collisions st idx idx' =
     intersect (footprintAt st idx) (footprintAt st idx') \\
-	(concat $ map (connectionFootPrint st) $ connectionsBetween st idx idx')
+        (concat $ map (connectionFootPrint st) $ connectionsBetween st idx idx')
 
 connectionBoard :: GameState -> Connection -> GameBoard
 connectionBoard st (Connection root end@(eidx,_) (Spring dir natLen)) =
     let rootPos = locusPos st root
-	endPos = locusPos st end
-	curLen = hexLen (endPos -^ rootPos) - 1
+        endPos = locusPos st end
+        curLen = hexLen (endPos -^ rootPos) - 1
     in Map.fromList $
-	[ ((d *^ dir) +^ rootPos, (eidx, SpringTile extension dir))
-	    | d <- [1..curLen],
-	    let extension | d <= natLen - curLen = Compressed
-			  | curLen-d < 2*(curLen - natLen) = Stretched
-			  | otherwise = Relaxed ]
+        [ ((d *^ dir) +^ rootPos, (eidx, SpringTile extension dir))
+            | d <- [1..curLen],
+            let extension | d <= natLen - curLen = Compressed
+                          | curLen-d < 2*(curLen - natLen) = Stretched
+                          | otherwise = Relaxed ]
 connectionBoard _ _ = Map.empty
 
 connectionFootPrint :: GameState -> Connection -> [HexPos]
@@ -305,29 +305,29 @@ castRay :: HexPos -> HexDir -> GameBoard -> Maybe (PieceIdx, HexPos)
 castRay start dir board =
     castRay' 30 start
     where castRay' 0 _ = Nothing
-	  castRay' n pos =
-	      case Map.lookup pos board of
-		  Nothing -> castRay' (n-1) (dir+^pos)
-		  Just (idx,_) -> Just (idx,pos)
+          castRay' n pos =
+              case Map.lookup pos board of
+                  Nothing -> castRay' (n-1) (dir+^pos)
+                  Just (idx,_) -> Just (idx,pos)
 
 validGameState :: GameState -> Bool
 validGameState st@(GameState pps conns) = and
     [ checkValidHex st
     , checkConnGraphAcyclic st
     , and [ null $ collisions st idx idx'
-	    | idx <- ppidxs st
-	    , idx' <- [0..idx-1] ]
+            | idx <- ppidxs st
+            , idx' <- [0..idx-1] ]
     , and [ isHexDir dir
-	    && castRay (dir+^rpos) dir
-		(stateBoard $ GameState pps (conns \\ [c]))
-		== Just (eidx, epos)
-	    && springExtensionValid st c
-	    && (validRoot st root)
-	    && (validEnd st end)
-	    | c@(Connection root@(ridx,_) end@(eidx,_) (Spring dir _)) <- conns
-	    , let [rpos,epos] = map (locusPos st) [root,end] ]
+            && castRay (dir+^rpos) dir
+                (stateBoard $ GameState pps (conns \\ [c]))
+                == Just (eidx, epos)
+            && springExtensionValid st c
+            && (validRoot st root)
+            && (validEnd st end)
+            | c@(Connection root@(ridx,_) end@(eidx,_) (Spring dir _)) <- conns
+            , let [rpos,epos] = map (locusPos st) [root,end] ]
     , and [ 1 == length (components $ Set.fromList patt)
-	    | Block patt <- map placedPiece $ Vector.toList pps ]
+            | Block patt <- map placedPiece $ Vector.toList pps ]
     ]
 
 validRoot st (idx,v) = case placedPiece $ getpp st idx of
@@ -342,17 +342,17 @@ checkValidHex (GameState pps conns) = and
     [ all validPP $ Vector.toList pps
     , all validConn conns ]
     where
-	validVec (HexVec x y z) = x+y+z==0
-	validPos (PHS v) = validVec v
-	validDir v = validVec v && isHexDir v
-	validPP (PlacedPiece pos piece) = validPos pos && validPiece piece
-	validPiece (Block patt) = all validVec patt
-	validPiece (Pivot arms) = all validDir arms
-	validPiece (Hook dir _) = validDir dir
-	validPiece _ = True
-	validConn (Connection (_,rv) (_,ev) link) = all validVec [rv,ev] && validLink link
-	validLink (Free v) = validVec v
-	validLink (Spring dir _) = validDir dir
+        validVec (HexVec x y z) = x+y+z==0
+        validPos (PHS v) = validVec v
+        validDir v = validVec v && isHexDir v
+        validPP (PlacedPiece pos piece) = validPos pos && validPiece piece
+        validPiece (Block patt) = all validVec patt
+        validPiece (Pivot arms) = all validDir arms
+        validPiece (Hook dir _) = validDir dir
+        validPiece _ = True
+        validConn (Connection (_,rv) (_,ev) link) = all validVec [rv,ev] && validLink link
+        validLink (Free v) = validVec v
+        validLink (Spring dir _) = validDir dir
 
 protectedPiece :: PieceIdx -> Bool
 protectedPiece = isFrame

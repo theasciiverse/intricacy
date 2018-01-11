@@ -44,12 +44,12 @@ checkWon = do
     wasSolved <- gets psSolved
     let solved = checkSolved (frame,st)
     when (solved /= wasSolved) $ do
-	modify $ \ps -> ps {psSolved = solved}
-	obdg <- lift $ getUIBinding IMPlay CmdOpen
-	lift $ if solved then do
-		drawMessage $ "Unlocked! '"++obdg++"' to open."
-		reportAlerts st [AlertUnlocked]
-	    else drawMessage ""
+        modify $ \ps -> ps {psSolved = solved}
+        obdg <- lift $ getUIBinding IMPlay CmdOpen
+        lift $ if solved then do
+                drawMessage $ "Unlocked! '"++obdg++"' to open."
+                reportAlerts st [AlertUnlocked]
+            else drawMessage ""
 
 doForce force = do
     st:_ <- gets esGameStateStack
@@ -64,7 +64,7 @@ paintTilePath frame tile from to = if from == to
     then modify $ \es -> es {lastModPos = to}
     else do
         let from' = (hexVec2HexDirOrZero $ to-^from) +^ from
-	when (inEditable frame from') $ drawTile from' tile True
+        when (inEditable frame from') $ drawTile from' tile True
         paintTilePath frame tile from' to
 
 pushEState :: UIMonad uiM => GameState -> MainStateT uiM ()
@@ -76,7 +76,7 @@ pushPState (st,pm) = do
     st' <- gets psCurrentState
     stms <- gets psGameStateMoveStack
     when (st' /= st) $ modify $ \ps -> ps {psCurrentState = st,
-	    psGameStateMoveStack = (st',pm):stms, psUndoneStack = []}
+            psGameStateMoveStack = (st',pm):stms, psUndoneStack = []}
 modifyEState :: UIMonad uiM => (GameState -> GameState) -> MainStateT uiM ()
 modifyEState f = do
     st:_ <- gets esGameStateStack
@@ -91,13 +91,13 @@ nextLock :: Bool -> FilePath -> IO FilePath
 nextLock newer path = do
     lockdir <- confFilePath "locks"
     time <- (Just <$> (fullLockPath path >>= getModificationTime))
-	`catchIO` const (return Nothing)
+        `catchIO` const (return Nothing)
     paths <- getDirContentsRec lockdir
     maybe path (drop (length lockdir + 1) . fst) . listToMaybe .
-	(if newer then id else reverse) . sortBy (compare `on` snd) .
-	filter (maybe (const True)
-	    (\x y -> (if newer then (<) else (>)) x (snd y)) time) <$>
-	(\p -> (,) p <$> getModificationTime p) `mapM` paths
+        (if newer then id else reverse) . sortBy (compare `on` snd) .
+        filter (maybe (const True)
+            (\x y -> (if newer then (<) else (>)) x (snd y)) time) <$>
+        (\p -> (,) p <$> getModificationTime p) `mapM` paths
 
 hasLocks :: IO Bool
 hasLocks = do
@@ -116,17 +116,17 @@ declare undecl@(Undeclared soln ls al) = do
         [ CmdPlaceLock Nothing, CmdEdit, CmdHome ]
     haveLock <- isJust <$> gets curLock
     idx <- askLockIndex "Secure behind which lock?"
-	(if haveLock
+        (if haveLock
             then "First you must place ('"++pbdg++"') a lock to secure your solution behind, while at home ('"++hbdg++"')."
             else "First design a lock in the editor ('"++ebdg++"'), behind which to secure your solution.")
-	(\i -> isJust $ userLocks ourUInfo ! i)
+        (\i -> isJust $ userLocks ourUInfo ! i)
     guard $ isJust $ userLocks ourUInfo ! idx
     lift $ curServerActionAsyncThenInvalidate
-	(DeclareSolution soln ls al idx)
-	-- rather than recurse through the tree to find what scores may have
-	-- changed as a result of this declaration, or leave it to timeouts
-	-- and explicit refreshes to reveal it, we just invalidate all UInfos.
-	(Just AllCodenames)
+        (DeclareSolution soln ls al idx)
+        -- rather than recurse through the tree to find what scores may have
+        -- changed as a result of this declaration, or leave it to timeouts
+        -- and explicit refreshes to reveal it, we just invalidate all UInfos.
+        (Just AllCodenames)
 
 startMark = '^'
 
@@ -143,22 +143,22 @@ jumpMark :: UIMonad uiM => Char -> MainStateT uiM ()
 jumpMark ch = do
     mst <- get
     void.runMaybeT $ case ms2im mst of
-	IMEdit -> do
-	    st <- liftMaybe $ ch `Map.lookup` esMarks mst
-	    lift $ setMark True '\'' >> pushEState st
-	IMPlay -> do
-	    mst' <- liftMaybe $ ch `Map.lookup` psMarks mst
-	    put mst' { psMarks = Map.insert '\'' mst $ psMarks mst }
-	IMReplay -> do
-	    mst' <- liftMaybe $ ch `Map.lookup` rsMarks mst
-	    put mst' { rsMarks = Map.insert '\'' mst $ rsMarks mst }
-	_ -> return ()
+        IMEdit -> do
+            st <- liftMaybe $ ch `Map.lookup` esMarks mst
+            lift $ setMark True '\'' >> pushEState st
+        IMPlay -> do
+            mst' <- liftMaybe $ ch `Map.lookup` psMarks mst
+            put mst' { psMarks = Map.insert '\'' mst $ psMarks mst }
+        IMReplay -> do
+            mst' <- liftMaybe $ ch `Map.lookup` rsMarks mst
+            put mst' { rsMarks = Map.insert '\'' mst $ rsMarks mst }
+        _ -> return ()
 
 setMark :: (Monad m) => Bool -> Char -> MainStateT m ()
 setMark overwrite ch = get >>= \mst -> case mst of
     -- ugh... remind me why I'm not using lens?
     EditState { esMarks = marks, esGameStateStack = (st:_) } ->
-	put $ mst { esMarks = insertMark ch st marks }
+        put $ mst { esMarks = insertMark ch st marks }
     PlayState {} -> put $ mst { psMarks = insertMark ch mst $ psMarks mst }
     ReplayState {} -> put $ mst { rsMarks = insertMark ch mst $ rsMarks mst }
     _ -> return ()
@@ -168,15 +168,15 @@ askLockIndex :: UIMonad uiM => [Char] -> String -> (Int -> Bool) -> MaybeT (Main
 askLockIndex prompt failMessage pred = do
     let ok = filter pred [0,1,2]
     case length ok of
-	0 -> (lift.lift) (drawError failMessage) >> mzero
-	1 -> return $ head ok
-	_ -> ask ok
+        0 -> (lift.lift) (drawError failMessage) >> mzero
+        1 -> return $ head ok
+        _ -> ask ok
     where
-	ask ok = do
-	    let prompt' = prompt ++ " [" ++ intersperse ',' (map lockIndexChar ok) ++ "]"
-	    idx <- MaybeT $ lift $ join . (((charLockIndex<$>).listToMaybe)<$>) <$>
-		textInput prompt' 1 False True Nothing Nothing
-	    if idx `elem` ok then return idx else ask ok
+        ask ok = do
+            let prompt' = prompt ++ " [" ++ intersperse ',' (map lockIndexChar ok) ++ "]"
+            idx <- MaybeT $ lift $ join . (((charLockIndex<$>).listToMaybe)<$>) <$>
+                textInput prompt' 1 False True Nothing Nothing
+            if idx `elem` ok then return idx else ask ok
 confirmOrBail :: UIMonad uiM => String -> MaybeT (MainStateT uiM) ()
 confirmOrBail prompt = (guard =<<) $ lift.lift $ confirm prompt
 confirm :: UIMonad uiM => String -> uiM Bool
@@ -185,72 +185,72 @@ confirm prompt = do
     setYNButtons
     waitConfirm <* endPrompt
     where
-	waitConfirm = do
-	    cmds <- getInput IMTextInput
-	    case msum $ map ansOfCmd cmds of
-		Just answer -> return answer
-		Nothing -> waitConfirm
-	ansOfCmd (CmdInputChar 'y') = Just True
-	ansOfCmd (CmdInputChar 'Y') = Just True
-	ansOfCmd (CmdInputChar c) = if isPrint c then Just False else Nothing
-	ansOfCmd CmdRedraw = Just False
-	ansOfCmd CmdRefresh = Nothing
-	ansOfCmd CmdUnselect = Nothing
-	ansOfCmd _ = Just False
+        waitConfirm = do
+            cmds <- getInput IMTextInput
+            case msum $ map ansOfCmd cmds of
+                Just answer -> return answer
+                Nothing -> waitConfirm
+        ansOfCmd (CmdInputChar 'y') = Just True
+        ansOfCmd (CmdInputChar 'Y') = Just True
+        ansOfCmd (CmdInputChar c) = if isPrint c then Just False else Nothing
+        ansOfCmd CmdRedraw = Just False
+        ansOfCmd CmdRefresh = Nothing
+        ansOfCmd CmdUnselect = Nothing
+        ansOfCmd _ = Just False
 
 -- | TODO: draw cursor
 textInput :: UIMonad uiM => String -> Int -> Bool -> Bool -> Maybe [String] -> Maybe String -> uiM (Maybe String)
 textInput prompt maxlen hidden endOnMax mposss init = getText (fromMaybe "" init, Nothing) <* endPrompt
     where
-	getText :: UIMonad uiM => (String, Maybe String) -> uiM (Maybe String)
-	getText (s,mstem) = do
-	    drawPrompt (length s == maxlen) $ prompt ++ " " ++ if hidden then replicate (length s) '*' else s
-	    if endOnMax && isNothing mstem && maxlen <= length s
-	    then return $ Just $ take maxlen s
-	    else do
-		cmds <- getInput IMTextInput
-		case foldM applyCmd (s,mstem) cmds of
-		    Left False -> return Nothing
-		    Left True -> return $ Just s
-		    Right (s',mstem') -> getText (s',mstem')
-	    where
-		applyCmd (s,mstem) (CmdInputChar c) = case c of
-		    '\ESC' -> Left False
-		    '\a' -> Left False -- ^G
-		    '\ETX' -> Left False -- ^C
-		    '\n' -> Left True
-		    '\r' -> Left True
-		    '\NAK' -> Right ("",Nothing)  -- ^U
-		    '\b' -> Right $ (take (length s - 1) s, Nothing)
-		    '\DEL' -> Right $ (take (length s - 1) s, Nothing)
-		    '\t' -> case mposss of
-			Nothing -> Right (s,mstem)
-			Just possibilities -> case mstem of
-			    Nothing -> let
-				completions = filter (completes s) possibilities
-				pref = if null completions then s else
-				    let c = head completions
-				    in head [ c' | n <- reverse [0..length c],
-					let c'=take n c, all (completes c') completions ]
-				in Right (pref,Just pref)
-			    Just stem -> let
-				completions = filter (completes stem) possibilities
-				later = filter (>s) completions
-				s' | null completions = s
-				   | null later = head completions
-				   | otherwise = minimum later
-				in Right (s',mstem)
-		    _ -> Right $ if isPrint c
-			    then ((if length s >= maxlen then id else (++[c])) s, Nothing)
-			    else (s,mstem)
-		applyCmd x (CmdInputSelLock idx) =
+        getText :: UIMonad uiM => (String, Maybe String) -> uiM (Maybe String)
+        getText (s,mstem) = do
+            drawPrompt (length s == maxlen) $ prompt ++ " " ++ if hidden then replicate (length s) '*' else s
+            if endOnMax && isNothing mstem && maxlen <= length s
+            then return $ Just $ take maxlen s
+            else do
+                cmds <- getInput IMTextInput
+                case foldM applyCmd (s,mstem) cmds of
+                    Left False -> return Nothing
+                    Left True -> return $ Just s
+                    Right (s',mstem') -> getText (s',mstem')
+            where
+                applyCmd (s,mstem) (CmdInputChar c) = case c of
+                    '\ESC' -> Left False
+                    '\a' -> Left False -- ^G
+                    '\ETX' -> Left False -- ^C
+                    '\n' -> Left True
+                    '\r' -> Left True
+                    '\NAK' -> Right ("",Nothing)  -- ^U
+                    '\b' -> Right $ (take (length s - 1) s, Nothing)
+                    '\DEL' -> Right $ (take (length s - 1) s, Nothing)
+                    '\t' -> case mposss of
+                        Nothing -> Right (s,mstem)
+                        Just possibilities -> case mstem of
+                            Nothing -> let
+                                completions = filter (completes s) possibilities
+                                pref = if null completions then s else
+                                    let c = head completions
+                                    in head [ c' | n <- reverse [0..length c],
+                                        let c'=take n c, all (completes c') completions ]
+                                in Right (pref,Just pref)
+                            Just stem -> let
+                                completions = filter (completes stem) possibilities
+                                later = filter (>s) completions
+                                s' | null completions = s
+                                   | null later = head completions
+                                   | otherwise = minimum later
+                                in Right (s',mstem)
+                    _ -> Right $ if isPrint c
+                            then ((if length s >= maxlen then id else (++[c])) s, Nothing)
+                            else (s,mstem)
+                applyCmd x (CmdInputSelLock idx) =
                     setTextOrSubmit x $ [lockIndexChar idx]
-		applyCmd x (CmdInputSelUndecl (Undeclared _ _ (ActiveLock name idx))) =
+                applyCmd x (CmdInputSelUndecl (Undeclared _ _ (ActiveLock name idx))) =
                     setTextOrSubmit x $ name++[':',lockIndexChar idx]
-		applyCmd x (CmdInputCodename name) =
+                applyCmd x (CmdInputCodename name) =
                     setTextOrSubmit x $ name
-		applyCmd x CmdRefresh = Right x
-		applyCmd x CmdUnselect = Right x
-		applyCmd _ _ = Left False
-	completes s s' = take (length s) s' == s
+                applyCmd x CmdRefresh = Right x
+                applyCmd x CmdUnselect = Right x
+                applyCmd _ _ = Left False
+        completes s s' = take (length s) s' == s
         setTextOrSubmit (s,_) t = if s == t then Left True else Right (t,Nothing)

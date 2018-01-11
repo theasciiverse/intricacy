@@ -14,7 +14,7 @@
 delConnectionsAt :: Locus -> GameState -> GameState
 delConnectionsAt locus st =
     st {connections = filter
-	(\conn -> locus `notElem` [connectionRoot conn, connectionEnd conn])
+        (\conn -> locus `notElem` [connectionRoot conn, connectionEnd conn])
         $ connections st}
 collidePieces :: PlacedPiece -> PlacedPiece -> [HexPos]
 collidePieces pp pp' =
@@ -26,9 +26,9 @@ pieceIntersectsConnection s pp c =
     not $ null $ intersect (plPieceFootprint pp) (connectionFootPrint s c)
 checkConnGraphAcyclicNaive :: GameState -> Bool
 checkConnGraphAcyclicNaive st = and [ idx `notElem` descendents idx
-	| idx <- [0..Vector.length $ placedPieces st] ]
+        | idx <- [0..Vector.length $ placedPieces st] ]
     where descendents idx = let childs = map (fst.connectionRoot) $ springsEndAtIdx st idx
-	    in concat $ (childs:map descendents childs)
+            in concat $ (childs:map descendents childs)
 
 
 -- from SDLUI
@@ -36,23 +36,23 @@ drawPaintSel :: UIM ()
 drawPaintSel = do
     pti <- getEffPaintTileIndex
     case (paintTiles!!pti) of
-	Nothing -> return ()
-	Just t -> renderToMain $ drawAtRel (tileGlyph t (dim $ colourWheel 5)) (periphery 0)
+        Nothing -> return ()
+        Just t -> renderToMain $ drawAtRel (tileGlyph t (dim $ colourWheel 5)) (periphery 0)
 
 -- from GraphColouring.hs
 fourColour :: Ord a => Graph a -> Colouring a -> Colouring a
 fourColour (nodes,edges) lastCol =
     -- ^bruteforce
     if Map.keysSet lastCol == nodes && isColouring lastCol
-	then lastCol
-	else head $ filter isColouring colourings
+        then lastCol
+        else head $ filter isColouring colourings
     where
-	isColouring mapping = and [
-	    Map.lookup s mapping /= Map.lookup e mapping |
-		edge <- Set.toList edges
-		, [s,e] <- [Set.toList edge] ]
-	colourings = colourings' $ Set.toList nodes
-	colourings' [] = [ Map.empty ]
-	colourings' (n:ns) = [ Map.insert n c m |
-	    m <- colourings' ns
-	    , c <- [0..3] ]
+        isColouring mapping = and [
+            Map.lookup s mapping /= Map.lookup e mapping |
+                edge <- Set.toList edges
+                , [s,e] <- [Set.toList edge] ]
+        colourings = colourings' $ Set.toList nodes
+        colourings' [] = [ Map.empty ]
+        colourings' (n:ns) = [ Map.insert n c m |
+            m <- colourings' ns
+            , c <- [0..3] ]

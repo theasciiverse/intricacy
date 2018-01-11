@@ -54,27 +54,27 @@ winsPoint _ = True
 getAccessInfo :: UserInfo -> UserInfo -> [Maybe AccessedReason]
 getAccessInfo accessedUInfo accessorUInfo =
     let accessor = codename accessorUInfo
-	mlinfos = elems $ userLocks accessedUInfo
-	accessedSlot = maybe accessedAllExisting accessedLock
-	accessedAllExisting = all (maybe True accessedLock) mlinfos
-	accessedLock linfo = public linfo || accessor `elem` accessedBy linfo
+        mlinfos = elems $ userLocks accessedUInfo
+        accessedSlot = maybe accessedAllExisting accessedLock
+        accessedAllExisting = all (maybe True accessedLock) mlinfos
+        accessedLock linfo = public linfo || accessor `elem` accessedBy linfo
     in map (maybe
-	    (if accessedAllExisting then Just AccessedEmpty else Nothing)
-	    (\linfo -> if public linfo then Just AccessedPub else
-		if not $ accessedLock linfo then Nothing else Just $
-		    if countRead accessorUInfo linfo >= notesNeeded then AccessedPrivyRead
-			else AccessedPrivySolved $ not.null $
-			    [ n
-			    | n <- lockSolutions linfo 
-			    , noteAuthor n == accessor
-			    , noteBehind n == Nothing || n `elem` notesRead accessedUInfo ]))
-	mlinfos
+            (if accessedAllExisting then Just AccessedEmpty else Nothing)
+            (\linfo -> if public linfo then Just AccessedPub else
+                if not $ accessedLock linfo then Nothing else Just $
+                    if countRead accessorUInfo linfo >= notesNeeded then AccessedPrivyRead
+                        else AccessedPrivySolved $ not.null $
+                            [ n
+                            | n <- lockSolutions linfo 
+                            , noteAuthor n == accessor
+                            , noteBehind n == Nothing || n `elem` notesRead accessedUInfo ]))
+        mlinfos
 
 countRead :: UserInfo -> LockInfo -> Int
 countRead reader tlock = fromIntegral $ length
-	$ filter (\n -> (isNothing (noteBehind n) || n `elem` notesRead reader)
-	    && noteAuthor n /= codename reader)
-	$ lockSolutions tlock
+        $ filter (\n -> (isNothing (noteBehind n) || n `elem` notesRead reader)
+            && noteAuthor n /= codename reader)
+        $ lockSolutions tlock
 
 data UserInfoDelta
     = AddRead NoteInfo
@@ -138,12 +138,12 @@ instance Binary UserInfoDelta where
     put (PutLock ls li) = put (2::Word8) >> put ls >> put li
     put (LockDelta li ld) = put (3::Word8) >> put li >> put ld
     get = do
-	tag <- get :: Get Word8
-	case tag of
-	    0 -> AddRead <$> get
-	    1 -> DelRead <$> get
-	    2 -> PutLock <$> get <*> get
-	    3 -> LockDelta <$> get <*> get
+        tag <- get :: Get Word8
+        case tag of
+            0 -> AddRead <$> get
+            1 -> DelRead <$> get
+            2 -> PutLock <$> get <*> get
+            3 -> LockDelta <$> get <*> get
 
 instance Binary LockDelta where
     put (SetPubNote note) = put (0::Word8) >> put note
@@ -153,14 +153,14 @@ instance Binary LockDelta where
     put (AddAccessed name) = put (4::Word8) >> put name
     put SetPublic = put (5::Word8)
     get = do
-	tag <- get :: Get Word8
-	case tag of
-	    0 -> SetPubNote <$> get
-	    1 -> AddSecured <$> get
-	    2 -> DelSecured <$> get
-	    3 -> AddSolution <$> get
-	    4 -> AddAccessed <$> get
-	    5 -> return SetPublic
+        tag <- get :: Get Word8
+        case tag of
+            0 -> SetPubNote <$> get
+            1 -> AddSecured <$> get
+            2 -> DelSecured <$> get
+            3 -> AddSolution <$> get
+            4 -> AddAccessed <$> get
+            5 -> return SetPublic
 
 instance Binary LockInfo where
     put (LockInfo spec pk notes solved accessed) = put spec >> put pk >> put notes >> put solved >> put accessed

@@ -73,15 +73,15 @@ hexDot (HexVec x y z) (HexVec x' y' z') = x*x'+y*y'+z*z'
 
 hexDisc :: Int -> [HexVec] 
 hexDisc r = [ HexVec x y z | x <- [-r..r], y <- [-r..r],
-	let z = -x-y, abs z <= r ]
+        let z = -x-y, abs z <= r ]
 
 hextant :: HexVec -> Int
 -- ^undefined at zero
---	` 1 '
---	2` '0
---	--*--
---	3' `5
---	' 4 `
+--        ` 1 '
+--        2` '0
+--        --*--
+--        3' `5
+--        ' 4 `
 hextant (HexVec x y z)
     | x > 0 && y >= 0 = 0
     | -z > 0 && -x >= 0 = 1
@@ -99,8 +99,8 @@ rotate (-2) (HexVec x y z) = HexVec y z x
 rotate 1 v = neg $ rotate (-2) v
 rotate (-1) v = neg $ rotate 2 v
 rotate n v | n < 0 = rotate (n+6) v
-	| n > 6 = rotate (n-6) v
-	| otherwise = rotate (n-2) (rotate 2 v)
+        | n > 6 = rotate (n-6) v
+        | otherwise = rotate (n-2) (rotate 2 v)
 
 cmpAngles :: HexVec -> HexVec -> Ordering
 -- ^ordered by angle, taking cut along u
@@ -108,18 +108,18 @@ cmpAngles v@(HexVec x y _) v'@(HexVec x' y' _)
     | v == zero && v' == zero = EQ
     | v == zero = LT
     | compare (hextant v) (hextant v') /= EQ = 
-	compare (hextant v) (hextant v')
+        compare (hextant v) (hextant v')
     | hextant v /= 0 =
-	cmpAngles (rotate (-(hextant v)) v) (rotate (-(hextant v)) v')
+        cmpAngles (rotate (-(hextant v)) v) (rotate (-(hextant v)) v')
     | otherwise = compare (y%x) (y'%x')
 
 instance Ix HexVec where
     range (h,h') = 
-	[ tupxy2hv (x,y) | (x,y) <- range (hv2tupxy h, hv2tupxy h') ]
+        [ tupxy2hv (x,y) | (x,y) <- range (hv2tupxy h, hv2tupxy h') ]
     inRange (h,h') h'' =
-	inRange (hv2tupxy h, hv2tupxy h') (hv2tupxy h'')
+        inRange (hv2tupxy h, hv2tupxy h') (hv2tupxy h'')
     index (h,h') h'' =
-	index (hv2tupxy h , hv2tupxy h') (hv2tupxy h'')
+        index (hv2tupxy h , hv2tupxy h') (hv2tupxy h'')
 
 -- HexDirs are intended to be HexVecs of length <= 1
 type HexDir = HexVec
@@ -144,20 +144,20 @@ hexVec2HexDirOrZero v
 
 canonDir :: HexDir -> HexDir
 canonDir dir | dir `elem` [ hu, hv, hw ] = dir
-	     | isHexDir dir = canonDir $ neg dir
-	     | dir == zero = zero
-	     | otherwise = undefined
+             | isHexDir dir = canonDir $ neg dir
+             | dir == zero = zero
+             | otherwise = undefined
 
 scaleToLength :: Int -> HexVec -> HexVec
 scaleToLength n v@(HexVec x y z) =
     let
-	l = hexLen v
-	lv' = map ((`div`l).(n*)) [x,y,z]
-	minI = fst $ minimumBy (compare `on` snd) $
-	    zip [0..] $ map abs lv'
-	[x'',y'',z''] = zipWith (-) lv' [ d
-		| i <- [0..2]
-		, let d = if i == minI then sum lv' else 0 ]
+        l = hexLen v
+        lv' = map ((`div`l).(n*)) [x,y,z]
+        minI = fst $ minimumBy (compare `on` snd) $
+            zip [0..] $ map abs lv'
+        [x'',y'',z''] = zipWith (-) lv' [ d
+                | i <- [0..2]
+                , let d = if i == minI then sum lv' else 0 ]
     in HexVec x'' y'' z''
 truncateToLength :: Int -> HexVec -> HexVec
 truncateToLength n v = if hexLen v <= n then v else scaleToLength n v
@@ -203,9 +203,9 @@ instance (Grp a, Integral n) => MultAction n a where
     0 *^ _              = zero
     1 *^ x              = x
     n *^ x
-	| n < 0     = (-n) *^ (neg x)
-	| even n    = (n `div` 2) *^ (x +^ x)
-	| otherwise = x +^ ((n `div` 2) *^ (x +^ x))
+        | n < 0     = (-n) *^ (neg x)
+        | even n    = (n `div` 2) *^ (x +^ x)
+        | otherwise = x +^ ((n `div` 2) *^ (x +^ x))
 
 \end{code}
 

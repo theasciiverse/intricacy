@@ -100,22 +100,22 @@ instance Binary Action where
     put (SetEmail address) = put (12::Word8) >> put address
     put GetPublicKey = put (13::Word8)
     get = do
-	tag <- get :: Get Word8
-	case tag of
-	    0 -> return Authenticate
-	    1 -> return Register
-	    2 -> return GetServerInfo
-	    3 -> liftM GetLock get
-	    4 -> liftM2 GetUserInfo get get
-	    5 -> liftM GetHint get
-	    6 -> liftM GetSolution get
-	    7 -> liftM4 DeclareSolution get get get get
-	    8 -> liftM3 SetLock get get get
-	    9 -> liftM GetRandomNames get
-	    10 -> liftM ResetPassword get
-	    11 -> liftM GetRetired get
-	    12 -> liftM SetEmail get
-	    13 -> return GetPublicKey
+        tag <- get :: Get Word8
+        case tag of
+            0 -> return Authenticate
+            1 -> return Register
+            2 -> return GetServerInfo
+            3 -> liftM GetLock get
+            4 -> liftM2 GetUserInfo get get
+            5 -> liftM GetHint get
+            6 -> liftM GetSolution get
+            7 -> liftM4 DeclareSolution get get get get
+            8 -> liftM3 SetLock get get get
+            9 -> liftM GetRandomNames get
+            10 -> liftM ResetPassword get
+            11 -> liftM GetRetired get
+            12 -> liftM SetEmail get
+            13 -> return GetPublicKey
             _ -> return UndefinedAction
 
 instance Binary Auth where
@@ -138,22 +138,22 @@ instance Binary ServerResponse where
     put (ServedRetired lss) = put (12::Word8) >> put lss
     put (ServedPublicKey publicKey) = put (13::Word8) >> put (show publicKey)
     get = do
-	tag <- get :: Get Word8
-	case tag of
-	    0 -> return ServerAck
-	    1 -> liftM ServerMessage get
-	    2 -> liftM ServerError get
-	    3 -> liftM ServedServerInfo get
-	    4 -> liftM ServedLock get
-	    5 -> liftM ServedUserInfo get
-	    6 -> liftM ServedUserInfoDeltas get
-	    7 -> liftM ServedSolution get
-	    8 -> liftM ServedHint get
-	    9 -> liftM ServedRandomNames get
-	    10 -> return ServerCodenameFree
-	    11 -> return ServerFresh
-	    12 -> liftM ServedRetired get
-	    13 -> liftM (ServedPublicKey . read) get
+        tag <- get :: Get Word8
+        case tag of
+            0 -> return ServerAck
+            1 -> liftM ServerMessage get
+            2 -> liftM ServerError get
+            3 -> liftM ServedServerInfo get
+            4 -> liftM ServedLock get
+            5 -> liftM ServedUserInfo get
+            6 -> liftM ServedUserInfoDeltas get
+            7 -> liftM ServedSolution get
+            8 -> liftM ServedHint get
+            9 -> liftM ServedRandomNames get
+            10 -> return ServerCodenameFree
+            11 -> return ServerFresh
+            12 -> liftM ServedRetired get
+            13 -> liftM (ServedPublicKey . read) get
             _ -> return ServerUndefinedResponse
 instance Binary ServerInfo where
     put (ServerInfo sz str) = put sz >> put str

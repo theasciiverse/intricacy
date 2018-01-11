@@ -33,7 +33,7 @@ catchAll = E.catch
 readReadFile :: (Read a) => FilePath -> IO (Maybe a)
 readReadFile file =
     (tryRead . BSC.unpack <$> BS.readFile file)
-	`catchIO` (const $ return Nothing)
+        `catchIO` (const $ return Nothing)
 tryRead :: (Read a) => String -> Maybe a
 tryRead = (fst <$>) . listToMaybe . reads
 

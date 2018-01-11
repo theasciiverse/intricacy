@@ -32,8 +32,8 @@ fiveColour :: Ord a => PlanarGraph a -> Colouring a -> Colouring a
 -- Aims to minimise changes from given (partial) colouring lastCol.
 fiveColour g lastCol =
     if Map.keysSet lastCol == Map.keysSet g && isColouring g lastCol
-	then lastCol
-	else fiveColour' lastCol g
+        then lastCol
+        else fiveColour' lastCol g
 
 isColouring :: Ord a => PlanarGraph a -> Colouring a -> Bool
 isColouring g mapping = and
@@ -45,17 +45,17 @@ fiveColour' :: Ord a => Colouring a -> PlanarGraph a -> Colouring a
 fiveColour' pref g | g == Map.empty = Map.empty
 fiveColour' pref g =
     let adjsOf v = (nub $ g Map.! v) \\ [v]
-	v0 = head $ filter ((<=5) . length . adjsOf) $ Map.keys g
-	adjs = adjsOf v0
-	addTo c =
-	    let vc = head $ possCols pref v0 \\ map (c Map.!) adjs
-	    in Map.insert v0 vc c
+        v0 = head $ filter ((<=5) . length . adjsOf) $ Map.keys g
+        adjs = adjsOf v0
+        addTo c =
+            let vc = head $ possCols pref v0 \\ map (c Map.!) adjs
+            in Map.insert v0 vc c
     in if length adjs < 5
        then addTo $ fiveColour' pref $ deleteNode v0 g
        else let (v',v'') = if adjs!!2 `elem` (g Map.! (adjs!!0))
-		    then (adjs!!1,adjs!!3)
-		    else (adjs!!0,adjs!!2)
-	    in addTo $ demerge v' v'' $ fiveColour' pref $ merge v0 v' v'' g
+                    then (adjs!!1,adjs!!3)
+                    else (adjs!!0,adjs!!2)
+            in addTo $ demerge v' v'' $ fiveColour' pref $ merge v0 v' v'' g
 
 possCols :: Ord a => Colouring a -> a -> [Int]
 possCols pref v = maybe [0..4] (\lvc -> lvc:([0..4] \\ [lvc])) $ Map.lookup v pref
@@ -66,7 +66,7 @@ demerge v v' c = Map.insert v' (c Map.! v) c
 merge :: Ord a => a -> a -> a -> PlanarGraph a -> PlanarGraph a
 merge v v' v'' g =
     deleteNode v $ contractNodes v' v''
-	$ Map.adjust (concatAdjsOver v $ g Map.! v'') v' g
+        $ Map.adjust (concatAdjsOver v $ g Map.! v'') v' g
 
 concatAdjsOver :: Ord a => a -> [a] -> [a] -> [a]
 concatAdjsOver v adjs adjs' =

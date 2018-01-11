@@ -33,8 +33,8 @@ saddrPath (ServerAddr h p) = h ++ if p==defaultPort then "" else '#':show p
 
 strToSaddr str =
     case elemIndex ':' str of
-	Nothing -> Just $ ServerAddr str defaultPort
-	Just idx -> do
-	    let (addr,portstr) = splitAt idx str
-	    port <- fst <$> listToMaybe (reads (drop 1 portstr))
-	    return $ ServerAddr addr port
+        Nothing -> Just $ ServerAddr str defaultPort
+        Just idx -> do
+            let (addr,portstr) = splitAt idx str
+            port <- fst <$> listToMaybe (reads (drop 1 portstr))
+            return $ ServerAddr addr port

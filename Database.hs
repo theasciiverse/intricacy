@@ -100,8 +100,8 @@ getRecord :: Record -> DBM (Maybe RecordContents)
 getRecord rec = do
     path <- recordPath rec
     liftIO $ flip catchIO (const $ return Nothing) $ do
-	h <- openFile path ReadMode
-	getRecordh rec h <* hClose h
+        h <- openFile path ReadMode
+        getRecordh rec h <* hClose h
 getRecordh (RecPassword _) h = ((RCPassword <$>) . tryRead) <$> hGetStrict h
 getRecordh (RecEmail _) h = ((RCEmail <$>) . tryRead) <$> hGetStrict h
 getRecordh (RecUserInfo _) h = ((RCUserInfo <$>) . tryRead) <$> hGetStrict h
@@ -117,19 +117,19 @@ getRecordh RecSecretKey h = ((RCSecretKey <$>) . tryRead) <$> hGetStrict h
 
 hGetStrict h = CS.unpack <$> concatMWhileNonempty (repeat $ CS.hGet h 1024)
     where concatMWhileNonempty (m:ms) = do
-	    bs <- m
-	    if CS.null bs
-		then return bs
-		else (bs `CS.append`) <$> concatMWhileNonempty ms
+            bs <- m
+            if CS.null bs
+                then return bs
+                else (bs `CS.append`) <$> concatMWhileNonempty ms
 
 putRecord :: Record -> RecordContents -> DBM ()
 putRecord rec rc = do
     path <- recordPath rec
     liftIO $ do
-	mkdirhierto path
-	h <- openFile path WriteMode
-	putRecordh rc h
-	hClose h
+        mkdirhierto path
+        h <- openFile path WriteMode
+        putRecordh rc h
+        hClose h
 putRecordh (RCPassword hpw) h = hPutStr h $ show hpw
 putRecordh (RCEmail addr) h = hPutStr h $ show addr
 putRecordh (RCUserInfo info) h = hPutStr h $ show info
@@ -146,11 +146,11 @@ modifyRecord :: Record -> (RecordContents -> RecordContents) -> DBM ()
 modifyRecord rec f = do
     h <- recordPath rec >>= liftIO . flip openFile ReadWriteMode
     liftIO $ do
-	Just rc <- getRecordh rec h
-	hSeek h AbsoluteSeek 0
-	putRecordh (f rc) h
-	hTell h >>= hSetFileSize h
-	hClose h
+        Just rc <- getRecordh rec h
+        hSeek h AbsoluteSeek 0
+        putRecordh (f rc) h
+        hTell h >>= hSetFileSize h
+        hClose h
 
 delRecord :: Record -> DBM ()
 delRecord rec = recordPath rec >>= liftIO . removeFile
@@ -172,29 +172,29 @@ listUsers :: DBM [Codename]
 listUsers = do
     dbpath <- ask
     liftIO $ (map unpathifyName . filter ((==3).length)) <$>
-	getDirectoryContents (dbpath++[pathSeparator]++"users")
+        getDirectoryContents (dbpath++[pathSeparator]++"users")
 
 recordPath :: Record -> DBM FilePath
 recordPath rec =
     (++ ([pathSeparator] ++ recordPath' rec)) <$> ask
     where
-	recordPath' (RecPassword name) = userDir name ++ "passwd"
-	recordPath' (RecEmail name) = userDir name ++ "email"
-	recordPath' (RecUserInfo name) = userDir name ++ "info"
-	recordPath' (RecUserInfoLog name) = userDir name ++ "log"
-	recordPath' (RecLock ls) = locksDir ++ show ls
-	recordPath' (RecNote (NoteInfo name _  alock)) =
-	    userDir name ++ "notes" ++ [pathSeparator] ++ alockFN alock
-	recordPath' (RecRetiredLocks name) = userDir name ++ "retired"
-	recordPath' RecLockHashes = "lockHashes"
-	recordPath' RecServerInfo = "serverInfo"
-	recordPath' RecServerEmail = "serverEmail"
-	recordPath' RecPublicKey = "publicKey"
-	recordPath' RecSecretKey = "secretKey"
+        recordPath' (RecPassword name) = userDir name ++ "passwd"
+        recordPath' (RecEmail name) = userDir name ++ "email"
+        recordPath' (RecUserInfo name) = userDir name ++ "info"
+        recordPath' (RecUserInfoLog name) = userDir name ++ "log"
+        recordPath' (RecLock ls) = locksDir ++ show ls
+        recordPath' (RecNote (NoteInfo name _  alock)) =
+            userDir name ++ "notes" ++ [pathSeparator] ++ alockFN alock
+        recordPath' (RecRetiredLocks name) = userDir name ++ "retired"
+        recordPath' RecLockHashes = "lockHashes"
+        recordPath' RecServerInfo = "serverInfo"
+        recordPath' RecServerEmail = "serverEmail"
+        recordPath' RecPublicKey = "publicKey"
+        recordPath' RecSecretKey = "secretKey"
 
-	userDir name = "users" ++ [pathSeparator] ++ pathifyName name ++ [pathSeparator]
-	alockFN (ActiveLock name idx) = pathifyName name ++":"++ show idx
-	locksDir = "locks"++[pathSeparator]
+        userDir name = "users" ++ [pathSeparator] ++ pathifyName name ++ [pathSeparator]
+        alockFN (ActiveLock name idx) = pathifyName name ++":"++ show idx
+        locksDir = "locks"++[pathSeparator]
 
 pathifyName = winSux . dummyPunctuation
 
@@ -211,8 +211,8 @@ winSux name = if map toUpper name `elem` ["CON","PRN", "AUX","NUL"]
 dummyPunctuation = concatMap $ \c ->
     fromMaybe [c] (('_':) . pure <$> lookup c pathifyAssocs)
 unpathifyName = concatMap $ \c -> case c of
-	'_' -> ""
-	_ -> pure $ fromMaybe c (lookup c $ map swap pathifyAssocs)
+        '_' -> ""
+        _ -> pure $ fromMaybe c (lookup c $ map swap pathifyAssocs)
 pathifyAssocs =
     [ ('/','s')
     , ('.','d')

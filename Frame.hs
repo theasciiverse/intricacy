@@ -33,23 +33,23 @@ boltWidth (BasicFrame size) = size`div`4+1
 baseState :: Frame -> GameState
 baseState f =
     GameState
-	(Vector.fromList $ [ framePiece f, bolt ] ++ (initTools f))
-	[]
+        (Vector.fromList $ [ framePiece f, bolt ] ++ (initTools f))
+        []
     where
-	bolt = PlacedPiece (bolthole f +^ origin) $ Block $
-	    [ n*^hu | n <- [-1..boltWidth f - 1] ] -- ++ [(-2)*^hu+^neg hv]
+        bolt = PlacedPiece (bolthole f +^ origin) $ Block $
+            [ n*^hu | n <- [-1..boltWidth f - 1] ] -- ++ [(-2)*^hu+^neg hv]
 
 framePiece :: Frame -> PlacedPiece
 framePiece f@(BasicFrame size) =
     PlacedPiece origin $ Block $
-	map (bolthole f +^) (
-	    [ bw*^hu +^ n*^hv | n <- [0..bw] ]
-	    ++ [ bw*^hu +^ i*^hw +^ n*^hv | i <- [1..bw-1], n <- [0,bw+i] ])
-	++ (map (entrance f +^) [neg hu +^ hv, 2 *^ neg hu, neg hu +^ hw,
-		2 *^ hw, neg hv +^ hw])
-	++ (concat [
-		map (rotate r) [ (n*^hu) +^ (size*^hw) | n <- [0..size-1] ] | r <- [0..5] ] \\
-	    [bolthole f, entrance f])
+        map (bolthole f +^) (
+            [ bw*^hu +^ n*^hv | n <- [0..bw] ]
+            ++ [ bw*^hu +^ i*^hw +^ n*^hv | i <- [1..bw-1], n <- [0,bw+i] ])
+        ++ (map (entrance f +^) [neg hu +^ hv, 2 *^ neg hu, neg hu +^ hw,
+                2 *^ hw, neg hv +^ hw])
+        ++ (concat [
+                map (rotate r) [ (n*^hu) +^ (size*^hw) | n <- [0..size-1] ] | r <- [0..5] ] \\
+            [bolthole f, entrance f])
     where bw = boltWidth f
 
 initTools :: Frame -> [PlacedPiece]
@@ -63,7 +63,7 @@ clearToolArea f st = foldr delPieceIn st $ toolsArea f
 
 boltArea,toolsArea :: Frame -> [HexPos]
 boltArea f = map PHS
-	[ bolthole f +^ bw*^hu +^ i*^hw +^ n*^hv | i <- [1..bw-1], n <- [1..bw+i-1] ]
+        [ bolthole f +^ bw*^hu +^ i*^hw +^ n*^hv | i <- [1..bw-1], n <- [1..bw+i-1] ]
     where bw = boltWidth f
 toolsArea f = [entrance f +^ v +^ origin | v <- [ neg hu, hw, zero ] ]
 
@@ -80,7 +80,7 @@ truncateToBounds f pos@(PHS v) = PHS $ truncateToLength (frameSize f - 1) v
 truncateToEditable f pos@(PHS v) = if inBounds f pos
     then pos
     else head
-	$ [ pos'
-	    | n <- reverse [0..boltWidth f]
-	    , let pos' = PHS $ truncateToLength (frameSize f - 1 + n) v
-	    , inEditable f pos' ]
+        $ [ pos'
+            | n <- reverse [0..boltWidth f]
+            , let pos' = PHS $ truncateToLength (frameSize f - 1 + n) v
+            , inEditable f pos' ]

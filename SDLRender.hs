@@ -68,22 +68,22 @@ hexVec2FVec (HexVec x y z) =
 sVec2dHV :: Int -> SVec -> (Double,Double,Double)
 sVec2dHV size (SVec sx sy) =
     let sx',sy',size' :: Double
-	[sx',sy',size',ysize'] = map fi [sx,sy,size,ysize size]
-	y' = -sy' / ysize' / 3
-	x' = ((sx' / size') - y') / 2
-	z' = -((sx' / size') + y') / 2
+        [sx',sy',size',ysize'] = map fi [sx,sy,size,ysize size]
+        y' = -sy' / ysize' / 3
+        x' = ((sx' / size') - y') / 2
+        z' = -((sx' / size') + y') / 2
     in (x',y',z')
 
 sVec2HexVec :: Int -> SVec -> HexVec
 sVec2HexVec size sv =
     let (x',y',z') = sVec2dHV size sv
-	unrounded = Map.fromList [(1,x'),(2,y'),(3,z')]
-	rounded = Map.map round unrounded
-	maxdiff = fst $ maximumBy (compare `on` snd) $
-	    [ (i, abs $ c'-c) | i <- [1..3],
-		let c' = unrounded Map.! i, let c = fi $ rounded Map.! i]
-	[x,y,z] = map snd $ Map.toList $
-	    Map.adjust (\x -> x - (sum $ Map.elems rounded)) maxdiff rounded
+        unrounded = Map.fromList [(1,x'),(2,y'),(3,z')]
+        rounded = Map.map round unrounded
+        maxdiff = fst $ maximumBy (compare `on` snd) $
+            [ (i, abs $ c'-c) | i <- [1..3],
+                let c' = unrounded Map.! i, let c = fi $ rounded Map.! i]
+        [x,y,z] = map snd $ Map.toList $
+            Map.adjust (\x -> x - (sum $ Map.elems rounded)) maxdiff rounded
     in HexVec x y z
 
 
@@ -177,7 +177,7 @@ aaCircleR v rad col = do
 
 aaLinesR verts col =
     sequence_ [ aaLineR v v' col |
-	(v,v') <- zip (take (length verts - 1) verts) (drop 1 verts) ]
+        (v,v') <- zip (take (length verts - 1) verts) (drop 1 verts) ]
 
 rimmedPolygonR verts fillCol rimCol = do
     filledPolygonR verts fillCol
@@ -192,16 +192,16 @@ thickLineR :: (Functor m, MonadIO m) => FVec -> FVec -> Float -> Pixel -> Render
 thickLineR from to thickness col =
     let FVec dx dy = to -^ from
         baseThickness = (1/16)
-	s = baseThickness * thickness / (sqrt $ dx^2 + dy^2)
-	perp = (s/2) **^ FVec dy (-dx)
+        s = baseThickness * thickness / (sqrt $ dx^2 + dy^2)
+        perp = (s/2) **^ FVec dy (-dx)
     in rimmedPolygonR
         [ from +^ perp, to +^ perp
         , to +^ neg perp, from +^ neg perp]
-	(dim col) (bright col)
+        (dim col) (bright col)
 
 thickLinesR verts thickness col =
     sequence_ [ thickLineR v v' thickness col |
-	(v,v') <- zip (take (length verts - 1) verts) (drop 1 verts) ]
+        (v,v') <- zip (take (length verts - 1) verts) (drop 1 verts) ]
 
 thickPolygonR verts thickness col =
     thickLinesR (verts ++ take 1 verts) thickness col
@@ -214,36 +214,36 @@ ysize = (map (\size -> round $ fi size * ylen) [0..] !!)
 corner :: Int -> FVec
 corner hextant = FVec x y
     where
-	[x,y] = f hextant
-	f 0 = [1, -ylen]
-	f 1 = [0, -2*ylen]
-	f 2 = [-1, -ylen]
-	f n | n < 6 = let [x,y] = f (5-n) in [x,-y]
-	    | n < 0 = f (6-n)
-	    | otherwise = f (n`mod`6)
+        [x,y] = f hextant
+        f 0 = [1, -ylen]
+        f 1 = [0, -2*ylen]
+        f 2 = [-1, -ylen]
+        f n | n < 6 = let [x,y] = f (5-n) in [x,-y]
+            | n < 0 = f (6-n)
+            | otherwise = f (n`mod`6)
 
 innerCorner :: HexDir -> FVec
 innerCorner dir = FVec x y
     where
-	[x,y] = f dir
-	f dir
-	    | dir == hu = [2/3, 0]
-	    | dir == hv = [-1/3, -ylen]
-	    | dir == hw = [-1/3, ylen]
+        [x,y] = f dir
+        f dir
+            | dir == hu = [2/3, 0]
+            | dir == hv = [-1/3, -ylen]
+            | dir == hw = [-1/3, ylen]
             | dir == zero = [0,0]
-	    | not (isHexDir dir) = error "innerCorner: not a hexdir"
-	    | otherwise = map (\z -> -z) $ f $ neg dir
+            | not (isHexDir dir) = error "innerCorner: not a hexdir"
+            | otherwise = map (\z -> -z) $ f $ neg dir
 
 edge :: HexDir -> FVec
 edge dir = FVec x y
     where
-	[x,y] = f dir
-	f dir
-	    | dir == hu = [1, 0]
-	    | dir == hv = [-1/2, -3*ylen/2]
-	    | dir == hw = [-1/2, 3*ylen/2]
-	    | not (isHexDir dir) = error "edge: not a hexdir"
-	    | otherwise = map (\z -> -z) $ f $ neg dir
+        [x,y] = f dir
+        f dir
+            | dir == hu = [1, 0]
+            | dir == hv = [-1/2, -3*ylen/2]
+            | dir == hw = [-1/2, 3*ylen/2]
+            | not (isHexDir dir) = error "edge: not a hexdir"
+            | otherwise = map (\z -> -z) $ f $ neg dir
 
 rotFVec :: Float -> FVec -> FVec -> FVec
 rotFVec th (FVec cx cy) v@(FVec x y)
@@ -262,10 +262,10 @@ orange = Pixel 0xff7f0000
 colourWheel :: Int -> Pixel
 colourWheel n = Pixel $ (((((r * 0x100) + g) * 0x100) + b) * 0x100) + a
     where [r,g,b] = map (\on -> if on then 0xff else 0) $ colourWheel' n
-	  a = 0x00
-	  colourWheel' 0 = [True, False, False]
-	  colourWheel' 1 = [True, True, False]
-	  colourWheel' n = let [a,b,c] = colourWheel' $ n-2 in [c,a,b]
+          a = 0x00
+          colourWheel' 0 = [True, False, False]
+          colourWheel' 1 = [True, True, False]
+          colourWheel' n = let [a,b,c] = colourWheel' $ n-2 in [c,a,b]
 
 red = colourWheel 0
 yellow = colourWheel 1
@@ -277,8 +277,8 @@ purple = colourWheel 5
 colourOf :: Ord i => Map i Int -> i -> Pixel
 colourOf colouring idx =
     case Map.lookup idx colouring of
-	    Nothing -> white
-	    Just n -> colourWheel n
+            Nothing -> white
+            Just n -> colourWheel n
 
 setPixelAlpha alpha (Pixel v) = Pixel $ v `div` 0x100 * 0x100 + alpha
 bright = setPixelAlpha 0xff
@@ -290,13 +290,13 @@ invisible = setPixelAlpha 0x00
 
 pixelToRGBA (Pixel v) =
     let (r,v') = divMod v 0x1000000
-	(g,v'') = divMod v' 0x10000
-	(b,a) = divMod v'' 0x100
+        (g,v'') = divMod v' 0x10000
+        (b,a) = divMod v'' 0x100
     in (r,g,b,a)
 rgbaToPixel (r,g,b,a) = Pixel $ a+0x100*(b+0x100*(g+0x100*r))
 opaquify p =
     let (r,g,b,a) = pixelToRGBA p
-	[r',g',b'] = map (\v -> (v*a)`div`0xff) [r,g,b]
+        [r',g',b'] = map (\v -> (v*a)`div`0xff) [r,g,b]
     in rgbaToPixel (r',g',b',0xff)
 
 messageCol = white
@@ -318,10 +318,10 @@ renderStrColAt' centred c str v = void $ runMaybeT $ do
     fsurf <- MaybeT $ liftIO $ TTF.tryRenderTextBlended font str $ pixelToColor c
     (surf, scrCentre, size) <- lift $ asks $ liftM3 (,,) renderSurf renderSCentre renderSize
     let SVec x y = scrCentre +^ (hexVec2SVec size v)
-	    +^ neg (SVec 0 ((surfaceGetHeight fsurf-1)`div`2) +^
-		if centred
-		    then SVec ((surfaceGetWidth fsurf)`div`2) 0
-		    else SVec 0 0)
+            +^ neg (SVec 0 ((surfaceGetHeight fsurf-1)`div`2) +^
+                if centred
+                    then SVec ((surfaceGetWidth fsurf)`div`2) 0
+                    else SVec 0 0)
     void $ liftIO $ blitSurface fsurf Nothing surf (Just $ Rect x y 0 0)
 
 renderStrColAbove,renderStrColBelow :: (Functor m, MonadIO m) => Pixel -> String -> HexVec -> RenderT m ()
@@ -339,22 +339,22 @@ fillRectBG mrect = do
     surf <- asks renderSurf
     mbgsurf <- asks renderBGSurf
     void $ liftIO $ maybe
-	(fillRect surf mrect black)
-	(\bgsurf -> blitSurface bgsurf mrect surf mrect)
-	mbgsurf
+        (fillRect surf mrect black)
+        (\bgsurf -> blitSurface bgsurf mrect surf mrect)
+        mbgsurf
 
 blankRow v = do
     (surf, scrCentre, size) <- asks $ liftM3 (,,) renderSurf renderSCentre renderSize
     let SVec _ y = scrCentre +^ (hexVec2SVec size v)
-	w = surfaceGetWidth surf
-	h = ceiling $ fi (size * 3 `div` 2) * 2 / sqrt 3
+        w = surfaceGetWidth surf
+        h = ceiling $ fi (size * 3 `div` 2) * 2 / sqrt 3
     fillRectBG $ Just $ Rect 0 (y-h`div`2) w h
 
 blitAt :: (Functor m, MonadIO m) => Surface -> HexVec -> RenderT m ()
 blitAt surface v = do
     (surf, scrCentre, size) <- asks $ liftM3 (,,) renderSurf renderSCentre renderSize
     let SVec x y = scrCentre +^ (hexVec2SVec size v)
-	w = surfaceGetWidth surface
-	h = surfaceGetHeight surface
+        w = surfaceGetWidth surface
+        h = surfaceGetHeight surface
     void $ liftIO $ blitSurface surface Nothing surf $ Just $
-	Rect (x-w`div`2) (y-h`div`2) (w+1) (h+1)
+        Rect (x-w`div`2) (y-h`div`2) (w+1) (h+1)
