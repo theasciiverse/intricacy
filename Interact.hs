@@ -470,32 +470,32 @@ processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
     -- i <- liftMaybe $ readMay s
     -- guard $ 1 <= i && i <= length tuts
     let dotut i msps = do
-        let name = tuts !! (i-1)
-        let pref = tutdir ++ [pathSeparator] ++ name
-        (lock,_) <- MaybeT $ liftIO $ readLock (pref ++ ".lock")
-        text <- liftIO $ (fromMaybe "" . listToMaybe) <$> (readStrings (pref ++ ".text") `catchIO` const (return []))
-        solveLockSaving i msps True lock $ Just $ "Tutorial " ++ show i ++ ": " ++ text
-        if i+1 <= length tuts then do
-                -- confirmOrBail $ "Tutorial level completed! Play next tutorial level (" ++ show (i+1) ++ ")?"
-                dotut (i+1) Nothing
-            else lift $ do
-                modify $ \ms -> ms {tutProgress = (1,Nothing)}
-                mauth <- gets curAuth
-                cbdg <- lift $ getUIBinding IMMeta $ CmdSelCodename Nothing
-                rbdg <- lift $ getUIBinding IMMeta (CmdRegister False)
-                if isNothing mauth
-                    then do
-                        let showPage p prompt = lift $ withNoBG $ showHelp IMMeta p >>? do
-                                void $ textInput prompt 1 False True Nothing Nothing
-                        showPage (HelpPageInitiated 1) "[Tutorial complete! Press a key or RMB to continue]"
-                        showPage (HelpPageInitiated 2) "[Press a key or RMB to continue]"
-                        showPage (HelpPageInitiated 3) "[Press a key or RMB to continue]"
-                        --showPage HelpPageGame "[Press a key or RMB to continue; you can review this information later with '?']"
-                        lift $ drawMessage $ 
-                            "To join the game: pick a codename ('"++cbdg++
-                            "') and register it ('"++rbdg++"')."
-                    else lift $ drawMessage $ "Tutorial completed!"
-    
+            let name = tuts !! (i-1)
+            let pref = tutdir ++ [pathSeparator] ++ name
+            (lock,_) <- MaybeT $ liftIO $ readLock (pref ++ ".lock")
+            text <- liftIO $ (fromMaybe "" . listToMaybe) <$> (readStrings (pref ++ ".text") `catchIO` const (return []))
+            solveLockSaving i msps True lock $ Just $ "Tutorial " ++ show i ++ ": " ++ text
+            if i+1 <= length tuts then do
+                    -- confirmOrBail $ "Tutorial level completed! Play next tutorial level (" ++ show (i+1) ++ ")?"
+                    dotut (i+1) Nothing
+                else lift $ do
+                    modify $ \ms -> ms {tutProgress = (1,Nothing)}
+                    mauth <- gets curAuth
+                    cbdg <- lift $ getUIBinding IMMeta $ CmdSelCodename Nothing
+                    rbdg <- lift $ getUIBinding IMMeta (CmdRegister False)
+                    if isNothing mauth
+                        then do
+                            let showPage p prompt = lift $ withNoBG $ showHelp IMMeta p >>? do
+                                    void $ textInput prompt 1 False True Nothing Nothing
+                            showPage (HelpPageInitiated 1) "[Tutorial complete! Press a key or RMB to continue]"
+                            showPage (HelpPageInitiated 2) "[Press a key or RMB to continue]"
+                            showPage (HelpPageInitiated 3) "[Press a key or RMB to continue]"
+                            --showPage HelpPageGame "[Press a key or RMB to continue; you can review this information later with '?']"
+                            lift $ drawMessage $ 
+                                "To join the game: pick a codename ('"++cbdg++
+                                "') and register it ('"++rbdg++"')."
+                        else lift $ drawMessage $ "Tutorial completed!"
+        
     (onLevel,msps) <- lift $ gets tutProgress
     dotut onLevel msps
 processCommand' IMMeta CmdShowRetired = void.runMaybeT $ do
@@ -694,12 +694,12 @@ processCommand' IMEdit CmdMerge = do
     st:_ <- gets esGameStateStack
     lift $ drawMessage "Merge in which direction?"
     let getDir = do
-        cmd <- lift $ head <$> getSomeInput IMEdit
-        case cmd of
-            CmdDir _ mergeDir -> return $ Just mergeDir
-            CmdDrag _ mergeDir -> return $ Just mergeDir
-            CmdMoveTo _ -> getDir
-            _ -> return $ Nothing
+            cmd <- lift $ head <$> getSomeInput IMEdit
+            case cmd of
+                CmdDir _ mergeDir -> return $ Just mergeDir
+                CmdDrag _ mergeDir -> return $ Just mergeDir
+                CmdMoveTo _ -> getDir
+                _ -> return $ Nothing
     mergeDir <- getDir
     case mergeDir of
         Just mergeDir -> modifyEState $ mergeTiles selPos mergeDir True

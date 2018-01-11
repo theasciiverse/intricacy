@@ -406,14 +406,14 @@ withImpatience m = do
     finishedTV <- liftIO $ atomically $ newTVar Nothing
     id <- liftIO $ forkIO $ m >>= atomically . writeTVar finishedTV . Just
     let waitImpatiently ticks = do
-        finished <- liftIO $ atomically $ readTVar finishedTV
-        if isJust finished
-            then return finished
-            else do
-                abort <- impatience ticks
-                if abort
-                    then liftIO $ killThread id >> return Nothing
-                    else waitImpatiently $ ticks+1
+            finished <- liftIO $ atomically $ readTVar finishedTV
+            if isJust finished
+                then return finished
+                else do
+                    abort <- impatience ticks
+                    if abort
+                        then liftIO $ killThread id >> return Nothing
+                        else waitImpatiently $ ticks+1
     waitImpatiently 0
 
 
