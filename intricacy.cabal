@@ -9,10 +9,9 @@ maintainer:          mbays@sdf.org
 -- copyright:           
 category:            Game
 build-type:          Simple
-cabal-version:       >=1.18
+cabal-version:       >=1.10
 data-files: VeraMoBd.ttf tutorial/*.lock tutorial/*.text sounds/*.ogg
-extra-doc-files: README BUILD NEWS tutorial-extra/*.lock tutorial-extra/README
-extra-source-files: Main_stub.h
+extra-source-files: Main_stub.h README BUILD NEWS tutorial-extra/*.lock tutorial-extra/README
 
 description:
     A networked game with client-server architecture. The core game is a
