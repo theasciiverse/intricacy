@@ -1,5 +1,8 @@
 This is an abbreviated summary; see the git log for gory details.
 
+0.7.1.1:
+    Make server compatible with feed-1.0.0
+    Avoid DOS-reserved codenames
 0.7.1:
     Rework tutorial and intro.
     Animate movement.
