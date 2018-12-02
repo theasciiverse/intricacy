@@ -36,9 +36,9 @@ sha1 = hashlazy
 hash :: String -> String
 hash = CS.unpack . digestToHexByteString . sha1 . CL.pack
 
-
 data Record
-    = RecPassword Codename
+    = RecPasswordLegacy Codename
+    | RecPasswordArgon2 Codename
     | RecEmail Codename
     | RecUserInfo Codename
     | RecUserInfoLog Codename
@@ -52,7 +52,8 @@ data Record
     | RecSecretKey
     deriving (Eq, Ord, Show)
 data RecordContents
-    = RCPassword Password
+    = RCPasswordLegacy Password
+    | RCPasswordArgon2 String
     | RCUserInfo VersionedUInfo
     | RCUserInfoDeltas [UserInfoDelta]
     | RCLock Lock
@@ -75,7 +76,8 @@ rcOfServerResp _ = error "no corresponding rc"
 
 invariantRecord (RecUserInfo _) = False
 invariantRecord (RecUserInfoLog _) = False
-invariantRecord (RecPassword _) = False
+invariantRecord (RecPasswordLegacy _) = False
+invariantRecord (RecPasswordArgon2 _) = False
 invariantRecord (RecRetiredLocks _) = False
 invariantRecord (RecNote _) = False
 invariantRecord (RecEmail _) = False
@@ -102,7 +104,8 @@ getRecord rec = do
     liftIO $ flip catchIO (const $ return Nothing) $ do
         h <- openFile path ReadMode
         getRecordh rec h <* hClose h
-getRecordh (RecPassword _) h = ((RCPassword <$>) . tryRead) <$> hGetStrict h
+getRecordh (RecPasswordLegacy _) h = ((RCPasswordLegacy <$>) . tryRead) <$> hGetStrict h
+getRecordh (RecPasswordArgon2 _) h = ((RCPasswordArgon2 <$>) . tryRead) <$> hGetStrict h
 getRecordh (RecEmail _) h = ((RCEmail <$>) . tryRead) <$> hGetStrict h
 getRecordh (RecUserInfo _) h = ((RCUserInfo <$>) . tryRead) <$> hGetStrict h
 getRecordh (RecUserInfoLog _) h = ((RCUserInfoDeltas <$>) . tryRead) <$> hGetStrict h
@@ -130,7 +133,8 @@ putRecord rec rc = do
         h <- openFile path WriteMode
         putRecordh rc h
         hClose h
-putRecordh (RCPassword hpw) h = hPutStr h $ show hpw
+putRecordh (RCPasswordLegacy hpw) h = hPutStr h $ show hpw
+putRecordh (RCPasswordArgon2 hpw) h = hPutStr h $ show hpw
 putRecordh (RCEmail addr) h = hPutStr h $ show addr
 putRecordh (RCUserInfo info) h = hPutStr h $ show info
 putRecordh (RCUserInfoDeltas deltas) h = hPutStr h $ show deltas
@@ -178,7 +182,8 @@ recordPath :: Record -> DBM FilePath
 recordPath rec =
     (++ ([pathSeparator] ++ recordPath' rec)) <$> ask
     where
-        recordPath' (RecPassword name) = userDir name ++ "passwd"
+        recordPath' (RecPasswordLegacy name) = userDir name ++ "passwd"
+        recordPath' (RecPasswordArgon2 name) = userDir name ++ "passwd_argon2"
         recordPath' (RecEmail name) = userDir name ++ "email"
         recordPath' (RecUserInfo name) = userDir name ++ "info"
         recordPath' (RecUserInfoLog name) = userDir name ++ "log"

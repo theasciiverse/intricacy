@@ -36,6 +36,7 @@ import qualified Data.ByteString.Char8 as CS
 import qualified Data.Binary as B
 import qualified Data.Text as TS
 import qualified Data.Text.Lazy as TL
+import qualified Data.Text.Short as TSh
 import Data.Array
 import Control.Exception
 import System.IO.Error
@@ -54,6 +55,7 @@ import Data.Time.LocalTime
 import Crypto.Types.PubKey.RSA (PublicKey, PrivateKey)
 import Codec.Crypto.RSA (decrypt, generateKeyPair, RSAError)
 import Crypto.Random (newGenIO, SystemRandom)
+import qualified Crypto.Argon2 as A2
 
 import qualified Text.Email.Validate
 import qualified Network.Mail.SMTP as SMTP
@@ -136,6 +138,22 @@ setKeyPair = do
         let (publicKey, secretKey, _) = generateKeyPair g rsaKeyLength
         putRecord RecPublicKey $ RCPublicKey publicKey
         putRecord RecSecretKey $ RCSecretKey secretKey
+
+argon2 :: String -> ExceptT String IO String
+argon2 s = either (throwE . show) (return) $
+        TSh.unpack <$> A2.hashEncoded hashOptions (CS.pack s) (CS.pack salt)
+    where
+        salt = "intricacy salt"
+        -- |default argon2 hash options
+        hashOptions = A2.HashOptions
+                    { A2.hashIterations  = 3
+                    , A2.hashMemory      = 2 ^ 12 -- 4 MiB
+                    , A2.hashParallelism = 1
+                    , A2.hashVariant     = A2.Argon2i
+                    , A2.hashVersion     = A2.Argon2Version13
+                    , A2.hashLength      = 2 ^ 5 -- 32 bytes
+                    }
+
 
 -- | We lock the whole database during each request, using haskell's native
 -- file locking, meaning that we have at any time one writer *xor* any number
@@ -390,28 +408,36 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
                 decrypt secretKey . BL.fromStrict . CS.pack $ pw)
                 -- <=intricacy-0.6.2 sends the hashed password unencrypted
                 `catch` \(e :: RSAError) -> return pw
+        convertLegacyPW :: Codename -> IO ()
+        convertLegacyPW name = void . runExceptT $ do
+            RCPasswordLegacy legacyPw <- getRecordErrored (RecPasswordLegacy name)
+            pwA2 <- argon2 legacyPw
+            erroredDB $ putRecord (RecPasswordArgon2 name) (RCPasswordArgon2 pwA2)
+            erroredDB $ delRecord (RecPasswordLegacy name)
         checkAuth :: Maybe Auth -> ExceptT String IO ()
         checkAuth Nothing = throwE "Authentication required"
         checkAuth (Just (Auth name pw)) = do
             exists <- checkCodeName name
             unless exists $ throwE "No such user"
-            RCPassword correctPw <- getRecordErrored (RecPassword name)
+            liftIO $ convertLegacyPW name
             pw' <- decryptPassword pw
-            when (pw' /= correctPw) $ throwE "Wrong password"
+            RCPasswordArgon2 correctPwA2 <- getRecordErrored (RecPasswordArgon2 name)
+            pwA2 <- argon2 pw'
+            when (pwA2 /= correctPwA2) $ throwE "Wrong password"
         newUser :: Maybe Auth -> ExceptT String IO ()
         newUser Nothing = throwE "Require authentication"
         newUser (Just (Auth name pw)) = do
             exists <- checkCodeName name
             when exists $ throwE "Codename taken"
-            pw' <- decryptPassword pw
-            erroredDB $ putRecord (RecPassword name) (RCPassword pw')
+            pw' <- decryptPassword pw >>= argon2
+            erroredDB $ putRecord (RecPasswordArgon2 name) (RCPasswordArgon2 pw')
             erroredDB $ putRecord (RecUserInfo name) (RCUserInfo $ (1,initUserInfo name))
             erroredDB $ putRecord (RecUserInfoLog name) (RCUserInfoDeltas [])
         resetPassword Nothing _ = throwE "Authentication required"
         resetPassword auth@(Just (Auth name _)) newpw = do
             checkAuth auth
-            newpw' <- decryptPassword newpw
-            erroredDB $ putRecord (RecPassword name) (RCPassword newpw')
+            newpw' <- decryptPassword newpw >>= argon2
+            erroredDB $ putRecord (RecPasswordArgon2 name) (RCPasswordArgon2 newpw')
         setEmail Nothing _ = throwE "Authentication required"
         setEmail auth@(Just (Auth name _)) addressStr = do
             checkAuth auth
@@ -423,7 +449,10 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
         checkCodeName :: Codename -> ExceptT String IO Bool
         checkCodeName name = do
             unless (validCodeName name) $ throwE "Invalid codename"
-            liftIO $ withDB dbpath $ recordExists $ RecPassword name
+            liftIO $ withDB dbpath $ do
+                ok <- recordExists $ RecPasswordArgon2 name
+                oklegacy <- recordExists $ RecPasswordLegacy name
+                return $ ok || oklegacy
         --- | TODO: journalling so we can survive death during database writes?
         applyDeltasToRecords :: [(Codename, UserInfoDelta)] -> ExceptT String IO ()
         applyDeltasToRecords nds = sequence_ $ [applyDeltasToRecord name deltas

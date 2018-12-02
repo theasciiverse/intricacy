@@ -119,7 +119,8 @@ executable intricacy-server
         , RSA >= 2.0, crypto-pubkey-types >= 0.2, crypto-api >= 0.10
         , random >= 1.0, pipes >= 4
         , feed >= 1.0.0, xml-conduit >= 1.0.0
-        , email-validate >= 1.0.0, text, smtp-mail >= 0.1.4.1
+        , email-validate >= 1.0.0, text, text-short, smtp-mail >= 0.1.4.1
+        , argon2 >= 1.3
   else
     Buildable: False
   main-is:  Server.hs
