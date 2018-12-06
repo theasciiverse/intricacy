@@ -39,6 +39,7 @@ Some hopefully elucidatory diagrams:
 module Hex where
 
 import Data.Ix
+import Data.Semigroup as Sem
 import Data.Monoid
 import Data.Ratio
 import Data.List (minimumBy)
@@ -214,9 +215,11 @@ HexVec difference between two points (e.g. PHS HexVec).
 
 \begin{code}
 
+instance Sem.Semigroup HexVec where
+    (HexVec x y z) <> (HexVec x' y' z') = HexVec (x+x') (y+y') (z+z')
 instance Monoid HexVec where
-    (HexVec x y z) `mappend` (HexVec x' y' z') = HexVec (x+x') (y+y') (z+z')
     mempty = HexVec 0 0 0
+    mappend = (Sem.<>)
 instance Grp HexVec where
     neg (HexVec x y z) = HexVec (-x) (-y) (-z)
 
