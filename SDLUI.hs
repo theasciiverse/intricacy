@@ -29,6 +29,7 @@ import Data.Array
 import Data.List
 import Data.Ratio
 import Data.Function (on)
+import Data.Time.Clock (getCurrentTime)
 import System.FilePath
 --import Debug.Trace (traceShow)
 
@@ -809,10 +810,11 @@ initVideo w h = do
 
     clearMiniLocks
 
-    when (isNothing font) $ lift $ do
-        let text = "Warning: font file not found at "++fontpath++".\n"
+    when (isNothing font) $ liftIO $ do
+        now <- getCurrentTime
+        let text = show now ++ ": Warning: font file not found at "++fontpath++".\n"
         putStr text
-        writeFile "error.log" text
+        appendFile "intricacy-warnings.log" text
 
     where
         getDimensions = (videoInfoWidth &&& videoInfoHeight) <$> getVideoInfo
@@ -821,7 +823,12 @@ initVideo w h = do
 initAudio :: UIM ()
 #ifdef SOUND
 initAudio = do
-    liftIO $ tryOpenAudio defaultFrequency AudioS16Sys 1 1024
+    initialised <- liftIO $ tryOpenAudio defaultFrequency AudioS16Sys 1 1024
+    unless initialised $ liftIO $ do
+        now <- getCurrentTime
+        let text = show now ++ ": Warning: audio failed to initialise.\n"
+        putStr text
+        appendFile "intricacy-warnings.log" text
     -- liftIO $ querySpec >>= print
     liftIO $ allocateChannels 16
     let seqWhileJust (m:ms) = m >>= \ret -> case ret of
