@@ -11,13 +11,16 @@
 module CVec where
 
 import Hex
+import Data.Semigroup as Sem
 import Data.Monoid
 
 data CVec = CVec { cy, cx :: Int }
     deriving (Eq, Ord, Show)
+instance Sem.Semigroup CVec where
+    (CVec y x) <> (CVec y' x') = CVec (y+y') (x+x')
 instance Monoid CVec where
     mempty = CVec 0 0
-    mappend (CVec y x) (CVec y' x') = CVec (y+y') (x+x')
+    mappend = (Sem.<>)
 instance Grp CVec where
     neg (CVec y x) = CVec (-y) (-x)
 type CCoord = PHS CVec

@@ -14,6 +14,7 @@ module SDLRender where
 import Graphics.UI.SDL
 import Graphics.UI.SDL.Primitives
 import qualified Graphics.UI.SDL.TTF as TTF
+import Data.Semigroup as Sem
 import Data.Monoid
 import Control.Monad
 import Control.Monad.IO.Class
@@ -33,9 +34,11 @@ import Util
 -- |SVec: screen vectors, in pixels
 data SVec = SVec { cx, cy :: Int }
     deriving (Eq, Ord, Show)
+instance Sem.Semigroup SVec where
+    (SVec x y) <> (SVec x' y') = SVec (x+x') (y+y')
 instance Monoid SVec where
     mempty = SVec 0 0
-    mappend (SVec x y) (SVec x' y') = SVec (x+x') (y+y')
+    mappend = (Sem.<>)
 instance Grp SVec where
     neg (SVec x y) = SVec (-x) (-y)
 type CCoord = PHS SVec
@@ -43,9 +46,11 @@ type CCoord = PHS SVec
 -- |FVec: floating point screen vectors, multiplied by 'size' to get SVecs.
 data FVec = FVec { rcx, rcy :: Float }
     deriving (Eq, Ord, Show)
+instance Sem.Semigroup FVec where
+    (FVec x y) <> (FVec x' y') = FVec (x+x') (y+y')
 instance Monoid FVec where
     mempty = FVec 0 0
-    mappend (FVec x y) (FVec x' y') = FVec (x+x') (y+y')
+    mappend = (Sem.<>)
 instance Grp FVec where
     neg (FVec x y) = FVec (-x) (-y)
 

@@ -15,6 +15,7 @@ import Control.Concurrent.STM
 import Control.Applicative
 import qualified Data.Map as Map
 import Data.Map (Map)
+import Data.Semigroup as Sem
 import Data.Monoid
 import Data.Array
 import Data.Maybe
@@ -87,10 +88,12 @@ alignDraw gravity w (Draw w' d) = Draw (max w w') $ \(CVec y x) ->
             GravRight -> max 0 $ w - w'
             _ -> max 0 . (`div` 2) $ w - w'
 
+instance Sem.Semigroup Draw where
+    (Draw w d) <> (Draw w' d') =
+        Draw (w+w') $ \cpos@(CVec y x) -> d cpos >> d' (CVec y (x+w))
 instance Monoid Draw where
     mempty = Draw 0 (const $ return ())
-    mappend (Draw w d) (Draw w' d') =
-        Draw (w+w') $ \cpos@(CVec y x) -> d cpos >> d' (CVec y (x+w))
+    mappend = (Sem.<>)
 
 stringDraw :: Curses.Attr -> ColPair -> String -> Draw
 stringDraw attr col str =
