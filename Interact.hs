@@ -618,7 +618,7 @@ processCommand' IMReplay CmdUndo = processCommand' IMReplay (CmdReplayBack 1)
 processCommand' IMReplay CmdRedo = processCommand' IMReplay (CmdReplayForward 1)
 
 processCommand' IMEdit CmdPlay = do
-    st <- gets $ head.esGameStateStack
+    st <- gets esGameState
     frame <- gets esFrame
     modify $ \es -> es {selectedPiece = Nothing}
     subPlay (frame,st)
@@ -627,14 +627,15 @@ processCommand' IMEdit CmdTest = do
     modifyEState (\st -> snd $ canonify (frame, st))
     modify $ \es -> es {selectedPiece = Nothing}
     mpath <- gets esPath
-    st <- gets $ head.esGameStateStack
+    st <- gets esGameState
     void.runMaybeT $ do
         soln <- solveLock (frame,st) $ Just $ "testing " ++ fromMaybe "[unnamed lock]" mpath
         lift $ modify $ \es -> es { esTested = Just (st, soln) }
 processCommand' IMEdit CmdUndo = do
-    st:sts <- gets esGameStateStack
+    st <- gets esGameState
+    sts <- gets esGameStateStack
     usts <- gets esUndoneStack
-    unless (null sts) $ modify $ \es -> es {esGameStateStack = sts, esUndoneStack = st:usts}
+    unless (null sts) $ modify $ \es -> es {esGameState = head sts, esGameStateStack = tail sts, esUndoneStack = st:usts}
 processCommand' IMEdit CmdRedo = do
     usts <- gets esUndoneStack
     case usts of
@@ -647,7 +648,7 @@ processCommand' IMEdit CmdUnselect =
 processCommand' IMEdit CmdSelect = do
     selPiece <- gets selectedPiece
     selPos <- gets selectedPos
-    st:_ <- gets esGameStateStack
+    st <- gets esGameState
     let selPiece' =
             if isJust selPiece
                 then Nothing
@@ -663,13 +664,13 @@ processCommand' IMEdit (CmdDir _ dir) = do
 processCommand' IMEdit (CmdMoveTo newPos) =
     setSelectedPos newPos
 processCommand' IMEdit (CmdDrag pos dir) = do
-    board <- stateBoard.head <$> gets esGameStateStack
+    board <- stateBoard <$> gets esGameState
     void.runMaybeT $ do
         selIdx <- MaybeT $ gets selectedPiece
         idx <- liftMaybe $ fst <$> Map.lookup pos board
         guard $ idx == selIdx
         lift $ processCommand' IMEdit $ CmdDir WHSSelected $ dir
-        board' <- stateBoard.head <$> gets esGameStateStack
+        board' <- stateBoard <$> gets esGameState
         msum [ do
                 idx' <- liftMaybe $ fst <$> Map.lookup pos' board'
                 guard $ idx' == selIdx
@@ -691,7 +692,7 @@ processCommand' IMEdit (CmdPaintFromTo tile from to) = do
     paintTilePath frame tile (truncateToEditable frame from) (truncateToEditable frame to)
 processCommand' IMEdit CmdMerge = do
     selPos <- gets selectedPos
-    st:_ <- gets esGameStateStack
+    st <- gets esGameState
     lift $ drawMessage "Merge in which direction?"
     let getDir = do
             cmd <- lift $ head <$> getSomeInput IMEdit
@@ -708,14 +709,14 @@ processCommand' IMEdit CmdMerge = do
     modify $ \es -> es {selectedPiece = Nothing}
     lift $ drawMessage ""
 processCommand' IMEdit CmdWait = do
-    st:_ <- gets esGameStateStack
+    st <- gets esGameState
     (st',_) <- lift $ doPhysicsTick NullPM st
     pushEState st'
 
 processCommand' IMEdit CmdDelete = do
     selPos <- gets selectedPos
     selPiece <- gets selectedPiece
-    st:_ <- gets esGameStateStack
+    st <- gets esGameState
     case selPiece of
         Nothing -> drawTile selPos Nothing False
         Just p -> do modify $ \es -> es {selectedPiece = Nothing}
@@ -728,7 +729,7 @@ processCommand' IMEdit CmdWriteState = void.runMaybeT $ do
     liftIO (doesFileExist fullPath `catchIO` const (return True)) >>?
         confirmOrBail $ "Really overwrite '"++fullPath++"'?"
     lift $ do
-        st <- gets $ head.esGameStateStack
+        st <- gets esGameState
         frame <- gets esFrame
         msoln <- getCurTestSoln
         merr <- liftIO $ ((writeAsciiLockFile fullPath msoln $ canonify (frame, st)) >> return Nothing)

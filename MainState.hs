@@ -100,7 +100,8 @@ data MainState
         , rsMarks::Map Char MainState
         }
     | EditState
-        { esGameStateStack::[GameState]
+        { esGameState::GameState
+        , esGameStateStack::[GameState]
         , esUndoneStack::[GameState]
         , esFrame::Frame
         , esPath::Maybe FilePath
@@ -146,7 +147,7 @@ ms2im mainSt = case mainSt of
 
 newPlayState (frame,st) title isTut sub saved = PlayState st frame [] False False [] [] title isTut sub saved Map.empty
 newReplayState st soln title = ReplayState st [] soln [] title Map.empty
-newEditState (frame,st) msoln mpath = EditState [st] [] frame mpath
+newEditState (frame,st) msoln mpath = EditState st [] [] frame mpath
     ((\s->(st,s))<$>msoln) (Just (st, isJust msoln)) Nothing (PHS zero) (PHS zero) Map.empty
 initMetaState = do
     flag <- atomically $ newTVar False
@@ -227,7 +228,7 @@ getTitle = ms2im <$> get >>= \im -> case im of
 editStateUnsaved :: UIMonad uiM => MainStateT uiM Bool
 editStateUnsaved = (isNothing <$>) $ runMaybeT $ do
     (sst,tested) <- MaybeT $ gets lastSavedState
-    st <- MaybeT $ gets $ headMay.esGameStateStack
+    st <- gets $ esGameState
     guard $ sst == st
     nowTested <- isJust <$> lift getCurTestSoln
     guard $ tested == nowTested
@@ -235,7 +236,7 @@ editStateUnsaved = (isNothing <$>) $ runMaybeT $ do
 getCurTestSoln :: UIMonad uiM => MainStateT uiM (Maybe Solution)
 getCurTestSoln = runMaybeT $ do
     (st',soln) <- MaybeT $ gets esTested
-    st <- MaybeT $ gets $ headMay.esGameStateStack
+    st <- gets $ esGameState
     guard $ st == st'
     return soln
 

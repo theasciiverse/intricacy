@@ -102,7 +102,7 @@ instance UIMonad (StateT UIState IO) where
                 drawMainGameState [] False alerts st
                 registerUndoButtons canUndo canRedo
                 renderToMain $ drawCursorAt Nothing
-        drawMainState' (EditState { esGameStateStack=(st:sts), esUndoneStack=undostack,
+        drawMainState' (EditState { esGameState=st, esGameStateStack=sts, esUndoneStack=undostack,
                 selectedPiece=selPiece, selectedPos=selPos }) = lift $ do
             drawMainGameState (maybeToList selPiece) True [] st
             renderToMain $ drawCursorAt $ if isNothing selPiece then Just selPos else Nothing

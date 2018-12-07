@@ -52,7 +52,7 @@ checkWon = do
             else drawMessage ""
 
 doForce force = do
-    st:_ <- gets esGameStateStack
+    st <- gets esGameState
     let (st',alerts) = runWriter $ resolveSinglePlForce force st
     lift (reportAlerts st' alerts) >> pushEState st'
 drawTile pos tile painting = do
@@ -69,8 +69,9 @@ paintTilePath frame tile from to = if from == to
 
 pushEState :: UIMonad uiM => GameState -> MainStateT uiM ()
 pushEState st = do
-    st':sts <- gets esGameStateStack
-    when (st' /= st) $ modify $ \es -> es {esGameStateStack = st:st':sts, esUndoneStack = []}
+    st' <- gets esGameState
+    sts <- gets esGameStateStack
+    when (st' /= st) $ modify $ \es -> es {esGameState = st, esGameStateStack = st':sts, esUndoneStack = []}
 pushPState :: UIMonad uiM => (GameState,PlayerMove) -> MainStateT uiM ()
 pushPState (st,pm) = do
     st' <- gets psCurrentState
@@ -79,7 +80,7 @@ pushPState (st,pm) = do
             psGameStateMoveStack = (st',pm):stms, psUndoneStack = []}
 modifyEState :: UIMonad uiM => (GameState -> GameState) -> MainStateT uiM ()
 modifyEState f = do
-    st:_ <- gets esGameStateStack
+    st <- gets esGameState
     pushEState $ f st
 
 doPhysicsTick :: UIMonad uiM => PlayerMove -> GameState -> uiM (GameState, [Alert])
@@ -157,7 +158,7 @@ jumpMark ch = do
 setMark :: (Monad m) => Bool -> Char -> MainStateT m ()
 setMark overwrite ch = get >>= \mst -> case mst of
     -- ugh... remind me why I'm not using lens?
-    EditState { esMarks = marks, esGameStateStack = (st:_) } ->
+    EditState { esMarks = marks, esGameState = st } ->
         put $ mst { esMarks = insertMark ch st marks }
     PlayState {} -> put $ mst { psMarks = insertMark ch mst $ psMarks mst }
     ReplayState {} -> put $ mst { rsMarks = insertMark ch mst $ rsMarks mst }

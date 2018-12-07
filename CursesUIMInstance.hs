@@ -289,7 +289,7 @@ instance UIMonad (StateT UIState IO) where
         drawMainState' (ReplayState {}) = do
             lift . drawState [] False [] =<< gets rsCurrentState
             lift $ drawCursorAt Nothing
-        drawMainState' (EditState { esGameStateStack=(st:_), selectedPiece=selPiece,
+        drawMainState' (EditState { esGameState=st, selectedPiece=selPiece,
                 selectedPos=selPos, esFrame=frame }) = lift $ do
             drawState (maybeToList selPiece) True [] st
             drawBindingsTables IMEdit frame
