@@ -207,7 +207,7 @@ thickLineR from to thickness col =
     in rimmedPolygonR
         [ from +^ perp, to +^ perp
         , to +^ neg perp, from +^ neg perp]
-        (dim col) (bright col)
+        col (bright col)
 
 thickLinesR verts thickness col =
     sequence_ [ thickLineR v v' thickness col |

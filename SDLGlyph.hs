@@ -200,7 +200,7 @@ renderGlyph (SpringGlyph rootDisp endDisp extn dir col) =
                 Stretched -> 1
                 Relaxed -> 2
                 Compressed -> 4
-            brightness = if extn == Relaxed then dim else bright
+            brightness = dim
             dir' = if dir == zero then hu else dir
             s = corner (hextant dir' - 1) +^ innerCorner endDisp
             off = corner (hextant dir') +^ innerCorner endDisp
