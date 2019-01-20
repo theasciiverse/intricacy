@@ -121,7 +121,7 @@ renderToMainWithSurf surf m = do
     mfont <- gets dispFont
     bgsurf <- gets bgSurface
     cgs <- gets cachedGlyphs
-    (a,cgs') <- liftIO $ runRenderM m cgs $ RenderContext surf bgsurf centre scrCentre size mfont
+    (a,cgs') <- liftIO $ runRenderM m cgs $ RenderContext surf bgsurf centre scrCentre zero size mfont
     modify $ \s -> s { cachedGlyphs = cgs' }
     return a
 
@@ -724,7 +724,7 @@ drawMiniLock lock v = do
                 draw = sequence_ [ drawAt glyph pos |
                     (pos,glyph) <- Map.toList $ fmap (ownedTileGlyph colouring []) $ stateBoard st ]
             liftIO $ runRenderM draw emptyCachedGlyphs $
-                RenderContext surf Nothing (PHS zero) (SVec (width`div`2) (height`div`2)) minisize Nothing
+                RenderContext surf Nothing (PHS zero) (SVec (width`div`2) (height`div`2)) zero minisize Nothing
             clearOldMiniLocks
             modify $ \ds -> ds { miniLocks = Map.insert lock surf $ miniLocks ds }
             return surf

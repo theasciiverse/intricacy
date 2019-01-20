@@ -70,6 +70,11 @@ hexVec2FVec :: HexVec -> FVec
 hexVec2FVec (HexVec x y z) =
     FVec (fi $ x-z) (-(fi y) * 3 * ylen)
 
+fVec2SVec :: Int -> FVec -> SVec
+fVec2SVec size (FVec x y) = SVec
+    (round $ fi size * x)
+    (round $ fi size * y)
+
 sVec2dHV :: Int -> SVec -> (Double,Double,Double)
 sVec2dHV size (SVec sx sy) =
     let sx',sy',size' :: Double
@@ -97,6 +102,7 @@ data RenderContext = RenderContext
     , renderBGSurf :: Maybe Surface
     , renderHCentre :: HexPos
     , renderSCentre :: SVec
+    , renderOffset :: FVec
     , renderSize :: Int
     , renderFont :: Maybe TTF.Font
     }
@@ -104,24 +110,22 @@ type RenderT = ReaderT RenderContext
 
 runRenderT = runReaderT
 
-displaceRender :: Monad m => FVec -> RenderT m a -> RenderT m a
-displaceRender v m = do
-    size <- asks renderSize
-    let FVec x y = fi size **^ v
-    let sv = SVec (round x) (round y)
-    displaceRenderSVec sv m
+applyOffset :: RenderContext -> RenderContext
+applyOffset rc = rc
+    { renderSCentre = renderSCentre rc +^ fVec2SVec (renderSize rc) (renderOffset rc)
+    , renderOffset = zero
+    }
 
-displaceRenderSVec :: Monad m => SVec -> RenderT m a -> RenderT m a
-displaceRenderSVec sv =
-    local $ \rc -> rc { renderSCentre = renderSCentre rc +^ sv }
+displaceRender :: Monad m => FVec -> RenderT m a -> RenderT m a
+displaceRender d =
+    local $ \rc -> rc { renderOffset = renderOffset rc +^ d }
 
 recentreAt :: Monad m => HexVec -> RenderT m a -> RenderT m a
-recentreAt v m = do
-    size <- asks renderSize
-    displaceRenderSVec (hexVec2SVec size v) m
+recentreAt v m = displaceRender (hexVec2FVec v) m
 
-rescaleRender :: Monad m => RealFrac n => n -> RenderT m a -> RenderT m a
-rescaleRender r = local $ \rc -> rc { renderSize = round $ r * (fi $ renderSize rc) }
+rescaleRender :: Monad m => Float -> RenderT m a -> RenderT m a
+rescaleRender r = local $ (\rc -> rc
+        { renderSize = round $ r * (fi $ renderSize rc) } ) . applyOffset
 
 withFont :: Monad m => Maybe TTF.Font -> RenderT m a -> RenderT m a
 withFont font = local $ \rc -> rc { renderFont = font }
@@ -129,9 +133,10 @@ withFont font = local $ \rc -> rc { renderFont = font }
 renderPos :: Monad m => Integral i => FVec -> RenderT m (i,i)
 renderPos v = do
     size <- asks renderSize
-    let FVec dx dy = fi size **^ v
-    SVec x y <- asks renderSCentre
-    return $ (fi x + round dx, fi y + round dy)
+    c <- asks renderSCentre
+    off <- asks renderOffset
+    let SVec x y = c +^ fVec2SVec size (v +^ off)
+    return $ (fi x, fi y)
 renderLen :: Monad m => Integral i => Float -> RenderT m i
 renderLen l = do
     size <- asks renderSize
@@ -321,8 +326,8 @@ renderStrColAt' :: (Functor m, MonadIO m) => Bool -> Pixel -> String -> HexVec -
 renderStrColAt' centred c str v = void $ runMaybeT $ do
     font <- MaybeT $ asks renderFont
     fsurf <- MaybeT $ liftIO $ TTF.tryRenderTextBlended font str $ pixelToColor c
-    (surf, scrCentre, size) <- lift $ asks $ liftM3 (,,) renderSurf renderSCentre renderSize
-    let SVec x y = scrCentre +^ (hexVec2SVec size v)
+    (surf, scrCentre, off, size) <- lift $ asks $ liftM4 (,,,) renderSurf renderSCentre renderOffset renderSize
+    let SVec x y = scrCentre +^ fVec2SVec size (off +^ hexVec2FVec v)
             +^ neg (SVec 0 ((surfaceGetHeight fsurf-1)`div`2) +^
                 if centred
                     then SVec ((surfaceGetWidth fsurf)`div`2) 0
@@ -349,16 +354,16 @@ fillRectBG mrect = do
         mbgsurf
 
 blankRow v = do
-    (surf, scrCentre, size) <- asks $ liftM3 (,,) renderSurf renderSCentre renderSize
-    let SVec _ y = scrCentre +^ (hexVec2SVec size v)
+    (surf, scrCentre, off, size) <- asks $ liftM4 (,,,) renderSurf renderSCentre renderOffset renderSize
+    let SVec _ y = scrCentre +^ fVec2SVec size (off +^ hexVec2FVec v)
         w = surfaceGetWidth surf
         h = ceiling $ fi (size * 3 `div` 2) * 2 / sqrt 3
     fillRectBG $ Just $ Rect 0 (y-h`div`2) w h
 
 blitAt :: (Functor m, MonadIO m) => Surface -> HexVec -> RenderT m ()
 blitAt surface v = do
-    (surf, scrCentre, size) <- asks $ liftM3 (,,) renderSurf renderSCentre renderSize
-    let SVec x y = scrCentre +^ (hexVec2SVec size v)
+    (surf, scrCentre, off, size) <- asks $ liftM4 (,,,) renderSurf renderSCentre renderOffset renderSize
+    let SVec x y = scrCentre +^ fVec2SVec size (off +^ hexVec2FVec v)
         w = surfaceGetWidth surface
         h = surfaceGetHeight surface
     void $ liftIO $ blitSurface surface Nothing surf $ Just $

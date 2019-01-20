@@ -76,9 +76,7 @@ drawAt gl pos = do
         drawAtRel gl (pos -^ centre)
 
 drawAtRel :: Glyph -> HexVec -> RenderM ()
-drawAtRel gl v = do
-    size <- asks renderSize
-    displaceRenderSVec (hexVec2SVec size v) $ renderGlyphCaching gl
+drawAtRel gl v = recentreAt v $ renderGlyphCaching gl
 
 renderGlyphCaching :: Glyph -> RenderM ()
 -- Glyph caching:
@@ -97,7 +95,7 @@ renderGlyphCaching gl = do
             liftIO $ setColorKey csurf [SrcColorKey,RLEAccel] $ Pixel 0
             return csurf
         renderOnCache csurf =
-            let ccxt rc = rc { renderSurf = csurf, renderSCentre = SVec (w`div`2) (h`div`2) }
+            let ccxt rc = rc { renderSurf = csurf, renderSCentre = SVec (w`div`2) (h`div`2), renderOffset = zero }
             in local ccxt $ renderGlyph gl
         addToCache cacheFull csurf = do
             CachedGlyphs cmap clist <- lift get
