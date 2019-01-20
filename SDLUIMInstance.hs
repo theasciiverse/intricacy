@@ -560,7 +560,7 @@ instance UIMonad (StateT UIState IO) where
                                 "Right-click on piece to select, drag to move;",
                                 "While holding right-click: left-click to advance time, middle-click to delete;",
                                 "Scroll wheel to rotate selected piece; scroll wheel while held down to undo/redo."]
-                            IMReplay -> ["Scroll wheel with right button held down to undo/redo."]
+                            IMReplay -> ["Scroll wheel for undo/redo."]
                             IMMeta -> ["Left-clicking on something does most obvious thing;"
                                 , "Right-clicking does second-most obvious thing."]]
                     ++ case mode of
