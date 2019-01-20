@@ -67,7 +67,7 @@ executable intricacy
               cpp-options: -DSOUND
               build-depends: SDL-mixer >= 0.6, random >= 1.0
           if os(windows)
-              Extra-Lib-Dirs:    winlibs
+              -- Extra-Lib-Dirs:    winlibs
               Extra-Libraries:   SDL_ttf SDL SDL_gfx freetype
               if flag(Sound)
                   Extra-Libraries: SDL_mixer
