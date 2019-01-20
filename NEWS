@@ -1,5 +1,9 @@
 This is an abbreviated summary; see the git log for gory details.
 
+0.7.2:
+    Support ghc-8.0
+    Use Argon2 for server-side password hashing
+    Tweak graphics and text
 0.7.1.1:
     Make server compatible with feed-1.0.0 (thanks constatinus)
     Avoid DOS-reserved codenames (thanks constatinus)
