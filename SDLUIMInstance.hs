@@ -252,8 +252,6 @@ instance UIMonad (StateT UIState IO) where
                         [ ('-',-negScore,posLeft+^neg hv+^hw)
                         , ('+',posScore,posRight+^neg hv+^hw) ] ]
 
-        drawMainState' _ = return ()
-
     drawMessage = say
     drawPrompt full s = say $ s ++ (if full then "" else "_")
     endPrompt = say ""

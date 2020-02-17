@@ -105,8 +105,8 @@ executable intricacy
       CursesRender, CursesUI, CursesUIMInstance, CVec, Database,
       EditGameState, Frame, GameState, GameStateTypes, GraphColouring, Hex, Init,
       InputMode, Interact, InteractUtil, KeyBindings, Lock, MainState,
-      Maxlocksize, Metagame, Mundanities, Physics, Protocol, SDLGlyph,
-      SDLRender, SDLUI, SDLUIMInstance, ServerAddr, Util, Version
+      Maxlocksize, Metagame, Mundanities, Paths_intricacy, Physics, Protocol,
+      SDLGlyph, SDLRender, SDLUI, SDLUIMInstance, ServerAddr, Util, Version
 
 executable intricacy-server
   if flag(Server)
@@ -131,4 +131,5 @@ executable intricacy-server
   default-language: Haskell2010
   other-modules: AsciiLock, BinaryInstances, BoardColouring, CVec, Database,
       Frame, GameState, GameStateTypes, GraphColouring, Hex, Lock,
-      Maxlocksize, Metagame, Mundanities, Physics, Protocol, Util, Version
+      Maxlocksize, Metagame, Mundanities, Paths_intricacy, Physics, Protocol,
+      Util, Version
