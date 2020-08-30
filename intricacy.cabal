@@ -92,10 +92,7 @@ executable intricacy
             main-is: MainCurses.hs
           else
             Buildable: False
-            -- XXX: there must be a neater way to prevent the cabal flag sat
-            -- solver from thinking it's acceptable to have both SDL and Curses be
-            -- False... but this will have to do for now:
-            build-depends: Unsatisfiable >= 1337
+            build-depends: base < 0
   else
       main-is: MainBoth.hs
       Buildable: False
