@@ -36,4 +36,4 @@ modules.dot: $(sources)
 modules.png: modules.dot
 	dot -Tpng -o modules.png modules.dot
 index.html: index.md
-	markdown_py < index.md > index.html
+	multimarkdown < index.md > index.html

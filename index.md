@@ -47,7 +47,7 @@ ssh, and are happy with a text-only interface, try:
 
 ##Discuss
 * [Web forum](http://intricacy.thegonz.net/forum/)
-* Mailing list: mail mbays+intricacy@paunix.org with subject line '[intricacy-discuss] subscribe'.
+* Mailing list: mail mbays+intricacy@sdf.org with subject line '[intricacy-discuss] subscribe'.
 * IRC channel: #intricacy on irc.freenode.org
 
 <!--
