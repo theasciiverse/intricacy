@@ -58,6 +58,7 @@ flag server
     manual:      True
 
 executable intricacy
+    main-is:          Intricacy.hs
     other-modules:
         AsciiLock
         BinaryInstances
@@ -90,46 +91,46 @@ executable intricacy
         Version
 
     default-language: Haskell2010
-    main-is: Intricacy.hs
 
     if !flag(game)
         buildable: False
+
     else
         default-extensions: DoAndIfThenElse
         build-depends:
             base >=4.3 && <5,
-            mtl >=2.2.1,
-            transformers >=0.4.2.0,
-            stm >=2.1,
-            directory >=1.0,
-            filepath >=1.0,
-            time >=1.2,
-            bytestring >=0.10,
-            array >=0.3,
-            containers >=0.4,
-            vector >=0.9,
-            binary >=0.5,
-            network-fancy >=0.1.5,
+            mtl >=2.1.3.1 && <2.3,
+            transformers >=0.3.0.0 && <0.6,
+            stm >=2.1 && <2.6,
+            directory >=1.0 && <1.4,
+            filepath >=1.0 && <1.5,
+            time >=1.2 && <1.10,
+            bytestring ==0.10.*,
+            array >=0.3 && <0.6,
+            containers >=0.4 && <0.7,
+            vector >=0.9 && <0.13,
+            binary >=0.5 && <0.9,
+            network-fancy >=0.1.5 && <0.3,
             cryptohash >=0.8,
-            safe >=0.2,
-            RSA >=2.0,
-            crypto-pubkey-types >=0.2,
-            crypto-api >=0.10
+            safe >=0.2 && <0.4,
+            RSA >=2.0 && <2.5,
+            crypto-pubkey-types >=0.2 && <0.5,
+            crypto-api >=0.10 && <0.14
 
         if !impl(ghc >=8.0)
             build-depends: semigroups ==0.18.*
 
         if flag(sdl)
             build-depends:
-                SDL >=0.6.5,
-                SDL-ttf >=0.6,
-                SDL-gfx >=0.6
+                SDL >=0.6.5 && <0.7,
+                SDL-ttf ==0.6.*,
+                SDL-gfx >=0.6 && <0.8
 
             if flag(sound)
                 cpp-options:   -DSOUND
                 build-depends:
-                    SDL-mixer >=0.6,
-                    random >=1.0
+                    SDL-mixer ==0.6.*,
+                    random >=1.0 && <1.2
 
             if os(windows)
                 extra-libraries:
@@ -151,23 +152,24 @@ executable intricacy
                 build-depends: network-fancy <0.2.1
 
         if flag(curses)
-            cpp-options: -DMAIN_CURSES
-            extra-libraries: tinfow
-            build-depends: hscurses >=1.4
+            cpp-options:     -DMAIN_CURSES
             other-modules:
                 CursesRender
                 CursesUI
                 CursesUIMInstance
 
+            extra-libraries: tinfow
+            build-depends:   hscurses ==1.4.*
+
         if flag(sdl)
-            cpp-options: -DMAIN_SDL
+            cpp-options:   -DMAIN_SDL
             other-modules:
                 SDLGlyph
                 SDLRender
                 SDLUI
                 SDLUIMInstance
 
-        if !flag(sdl) && !flag(curses)
+        if (!flag(sdl) && !flag(curses))
             buildable:     False
             build-depends: base <0
 
