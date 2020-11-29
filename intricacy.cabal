@@ -97,8 +97,11 @@ executable intricacy
         Version
 
     default-language: Haskell2010
+    main-is: Intricacy.hs
 
-    if flag(game)
+    if !flag(game)
+        buildable: False
+    else
         default-extensions: DoAndIfThenElse
         build-depends:
             base >=4.3 && <5,
@@ -155,26 +158,15 @@ executable intricacy
                 build-depends: network-fancy <0.2.1
 
         if flag(curses)
+            cpp-options: -DMAIN_CURSES
             build-depends: hscurses >=1.4
 
         if flag(sdl)
-            if flag(curses)
-                main-is: MainBoth.hs
+            cpp-options: -DMAIN_SDL
 
-            else
-                main-is: MainSDL.hs
-
-        else
-            if flag(curses)
-                main-is: MainCurses.hs
-
-            else
-                buildable:     False
-                build-depends: base <0
-
-    else
-        main-is:   MainBoth.hs
-        buildable: False
+        if !flag(sdl) && !flag(curses)
+            buildable:     False
+            build-depends: base <0
 
 executable intricacy-server
     main-is:          Server.hs

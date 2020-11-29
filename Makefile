@@ -6,9 +6,9 @@ all: $(sources)
 	cabal install -O0 -f Server --bindir .
 intricacy: $(sources)
 	#cabal install -O0 --bindir .
-	ghc -o intricacy --make MainBoth.hs
+	ghc -o intricacy -DMAIN_SDL -DMAIN_CURSES --make Intricacy.hs
 intricacy-O2: $(sources)
-	ghc -o intricacy-O2 -O2 --make MainBoth.hs
+	ghc -o intricacy-O2 -DMAIN_SDL -DMAIN_CURSES -O2 --make Intricacy.hs
 intricacy-curses: $(sources)
 	cabal configure -f -SDL --bindir .
 	cabal build
@@ -22,7 +22,7 @@ intricacy-server: $(sources)
 intricacy-server-O2: $(sources)
 	ghc -o intricacy-server-O2 --make Server.hs
 intricacy-prof: $(sources)
-	ghc -o intricacy-prof --make -rtsopts -prof -auto-all MainBoth.hs
+	ghc -o intricacy-prof -DMAIN_SDL -DMAIN_CURSES --make -rtsopts -prof -auto-all Intricacy.hs
 intricacy-static: $(sources)
 	cabal configure --ghc-options="-static" --bindir=. --datadir=.
 	cabal build
