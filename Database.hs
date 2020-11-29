@@ -23,9 +23,9 @@ import           System.Directory
 import           System.FilePath
 import           System.IO
 
-import           Crypto.Hash                (Digest, SHA1,
-                                             digestToHexByteString, hashlazy)
-import           Crypto.Types.PubKey.RSA    (PrivateKey, PublicKey)
+import           Crypto.Hash                (Digest, SHA1, hashlazy)
+import           Crypto.PubKey.RSA.Types    (PrivateKey, PublicKey)
+import           Data.ByteArray.Encoding    (Base (..), convertToBase)
 
 import           Lock
 import           Metagame
@@ -36,6 +36,7 @@ sha1 :: CL.ByteString -> Digest SHA1
 sha1 = hashlazy
 hash :: String -> String
 hash = CS.unpack . digestToHexByteString . sha1 . CL.pack
+    where digestToHexByteString = convertToBase Base16
 
 data Record
     = RecPasswordLegacy Codename

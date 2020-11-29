@@ -35,9 +35,9 @@ import           Safe                       (readMay)
 import           System.Directory
 import           System.FilePath
 
-import           Codec.Crypto.RSA           (encrypt)
-import           Crypto.Random              (SystemRandom, newGenIO)
-import           Crypto.Types.PubKey.RSA    (PublicKey)
+import           Crypto.Hash.Algorithms     (SHA256 (..))
+import           Crypto.PubKey.RSA.OAEP     (defaultOAEPParams, encrypt)
+import           Crypto.PubKey.RSA.Types    (PublicKey)
 
 import           AsciiLock
 import           Cache
@@ -789,9 +789,8 @@ encryptPassword :: UIMonad uiM =>
 encryptPassword publicKey name password = msum
     [ MaybeT . liftIO .
         handle (\(e :: SomeException) -> return Nothing) $ do
-        g <- newGenIO :: IO SystemRandom
-        return . Just . CS.unpack . BL.toStrict . fst . encrypt g publicKey .
-            BL.fromStrict . CS.pack $ hashed
+        Right c <- encrypt (defaultOAEPParams SHA256) publicKey . CS.pack $ hashed
+        return . Just . CS.unpack $ c
     , confirmOrBail
         "Failed to encrypt password - send unencrypted?"
         >> return hashed

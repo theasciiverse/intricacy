@@ -26,6 +26,7 @@ import           Control.Monad.Trans.Maybe
 import           Control.Monad.Trans.Reader
 import           Control.Monad.Trans.State
 import           Data.Array
+import           Data.Bifunctor             (bimap)
 import qualified Data.Binary                as B
 import qualified Data.ByteString.Char8      as CS
 import qualified Data.ByteString.Lazy       as BL
@@ -53,10 +54,10 @@ import           Text.Feed.Export           (xmlFeed)
 import           Text.Feed.Import           (parseFeedFromFile)
 import qualified Text.XML                   as XML
 
-import           Codec.Crypto.RSA           (RSAError, decrypt, generateKeyPair)
 import qualified Crypto.Argon2              as A2
-import           Crypto.Random              (SystemRandom, newGenIO)
-import           Crypto.Types.PubKey.RSA    (PrivateKey, PublicKey)
+import           Crypto.Hash.Algorithms     (SHA256 (..))
+import           Crypto.PubKey.RSA          (generate)
+import           Crypto.PubKey.RSA.OAEP     (decrypt, defaultOAEPParams)
 
 import           Network.Mail.Mime          (plainPart)
 import qualified Network.Mail.SMTP          as SMTP
@@ -130,17 +131,16 @@ setDefaultServerInfo locksize = do
     alreadySet <- recordExists RecServerInfo
     unless alreadySet $ putRecord RecServerInfo (RCServerInfo $ defaultServerInfo locksize)
 
-rsaKeyLength = 2048
-
 setKeyPair :: DBM ()
 setKeyPair = do
     alreadySet <- recordExists RecPublicKey
     unless alreadySet $ do
-        g <- liftIO newGenIO :: DBM SystemRandom
-        let (publicKey, secretKey, _) = generateKeyPair g rsaKeyLength
+        (publicKey, secretKey) <- liftIO $ generate 256 65537
         putRecord RecPublicKey $ RCPublicKey publicKey
         putRecord RecSecretKey $ RCSecretKey secretKey
 
+-- Note: switching to cryptonite's argon2 implementation would not be 
+-- straightforwardsly backwards-compatible, the output format is different.
 argon2 :: String -> ExceptT String IO String
 argon2 s = either (throwE . show) return $
         TSh.unpack <$> A2.hashEncoded hashOptions (CS.pack s) (CS.pack salt)
@@ -406,10 +406,9 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
         decryptPassword :: String -> ExceptT String IO String
         decryptPassword pw = do
             RCSecretKey secretKey <- getRecordErrored RecSecretKey
-            liftIO $ evaluate (CS.unpack . BL.toStrict .
-                decrypt secretKey . BL.fromStrict . CS.pack $ pw)
+            ExceptT . return . bimap show CS.unpack .
+                decrypt Nothing (defaultOAEPParams SHA256) secretKey . CS.pack $ pw
                 -- <=intricacy-0.6.2 sends the hashed password unencrypted
-                `catch` \(e :: RSAError) -> return pw
         convertLegacyPW :: Codename -> IO ()
         convertLegacyPW name = void . runExceptT $ do
             RCPasswordLegacy legacyPw <- getRecordErrored (RecPasswordLegacy name)

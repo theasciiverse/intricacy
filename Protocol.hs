@@ -13,7 +13,7 @@ module Protocol where
 import           Control.Monad
 import           Data.Binary
 
-import           Crypto.Types.PubKey.RSA (PublicKey)
+import           Crypto.PubKey.RSA.Types (PublicKey)
 
 import           BinaryInstances
 import           Lock
