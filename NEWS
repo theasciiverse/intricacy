@@ -1,5 +1,7 @@
 This is an abbreviated summary; see the git log for gory details.
 
+0.7.2.1:
+    Support >=ghc-8.6.5
 0.7.2:
     Support ghc-8.0
     Use Argon2 for server-side password hashing
