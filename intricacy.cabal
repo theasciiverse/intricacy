@@ -152,6 +152,7 @@ executable intricacy
 
         if flag(curses)
             cpp-options: -DMAIN_CURSES
+            extra-libraries: tinfow
             build-depends: hscurses >=1.4
             other-modules:
                 CursesRender
