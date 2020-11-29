@@ -224,7 +224,7 @@ executable intricacy-server
             crypto-api >=0.10,
             random >=1.0,
             pipes >=4,
-            feed >=1.0.0,
+            feed >=1.1.0,
             xml-conduit >=1.0.0,
             email-validate >=1.0.0,
             text -any,

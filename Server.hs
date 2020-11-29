@@ -528,8 +528,7 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
             Nothing -> return ()
             Just feedPath -> lift $ void $ forkIO $ do
                 let baseFeed = withFeedTitle (TS.pack "Intricacy updates") $ newFeed $ RSSKind Nothing
-                feed <- (parseFeedFromFile feedPath) `catchAll`
-                    (const $ return baseFeed)
+                feed <- fromMaybe baseFeed <$> parseFeedFromFile feedPath
                 time <- formatTime defaultTimeLocale rfc822DateFormat <$> getZonedTime
                 let newsText = TS.pack news
                     timeText = TS.pack time
