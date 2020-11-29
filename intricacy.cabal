@@ -64,9 +64,6 @@ executable intricacy
         BoardColouring
         Cache
         Command
-        CursesRender
-        CursesUI
-        CursesUIMInstance
         CVec
         Database
         EditGameState
@@ -88,10 +85,6 @@ executable intricacy
         Paths_intricacy
         Physics
         Protocol
-        SDLGlyph
-        SDLRender
-        SDLUI
-        SDLUIMInstance
         ServerAddr
         Util
         Version
@@ -160,9 +153,18 @@ executable intricacy
         if flag(curses)
             cpp-options: -DMAIN_CURSES
             build-depends: hscurses >=1.4
+            other-modules:
+                CursesRender
+                CursesUI
+                CursesUIMInstance
 
         if flag(sdl)
             cpp-options: -DMAIN_SDL
+            other-modules:
+                SDLGlyph
+                SDLRender
+                SDLUI
+                SDLUIMInstance
 
         if !flag(sdl) && !flag(curses)
             buildable:     False
