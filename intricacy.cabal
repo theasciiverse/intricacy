@@ -51,6 +51,21 @@ flag sound
 
 flag curses
     description: Enable Curses UI
+    default:     False
+
+flag tinfo
+    description:
+        Link against libtinfo (workaround for https://github.com/skogsbaer/hscurses/issues/31)
+
+    default:     False
+    manual:      True
+
+flag tinfow
+    description:
+        Link against libtinfow (workaround for https://github.com/skogsbaer/hscurses/issues/31)
+
+    default:     False
+    manual:      True
 
 flag server
     description: Build server
@@ -152,14 +167,19 @@ executable intricacy
                 build-depends: network-fancy <0.2.1
 
         if flag(curses)
-            cpp-options:     -DMAIN_CURSES
+            cpp-options:   -DMAIN_CURSES
             other-modules:
                 CursesRender
                 CursesUI
                 CursesUIMInstance
 
-            extra-libraries: tinfow
-            build-depends:   hscurses ==1.4.*
+            build-depends: hscurses ==1.4.*
+
+            if flag(tinfo)
+                extra-libraries: tinfo
+
+            if flag(tinfow)
+                extra-libraries: tinfow
 
         if flag(sdl)
             cpp-options:   -DMAIN_SDL
