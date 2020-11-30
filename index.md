@@ -24,9 +24,9 @@ Written in Haskell, with SDL and Curses user interfaces.
 
 ##Download
 
-Latest version is 0.7.2.1 ([NEWS](NEWS)).
+Latest version is 0.7.2.2 ([NEWS](NEWS)).
 
-* Source: download the [source tarball](intricacy-0.7.2.1.tar.gz), or
+* Source: download the [source tarball](intricacy-0.7.2.2.tar.gz), or
      <tt>git clone git://repo.or.cz/intricacy.git</tt>
 * [Windows binary](intricacy-0.7.1.1-win32.zip)
     (intricacy version 0.7.1.1)

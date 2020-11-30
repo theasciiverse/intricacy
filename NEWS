@@ -1,5 +1,8 @@
 This is an abbreviated summary; see the git log for gory details.
 
+0.7.2.2:
+    Disable curses by default, to work around build error related to
+        https://github.com/skogsbaer/hscurses/issues/31 .
 0.7.2.1:
     Support >=ghc-8.6.5
 0.7.2:
