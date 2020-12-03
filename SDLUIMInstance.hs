@@ -63,9 +63,7 @@ instance UIMonad (StateT UIState IO) where
         lift $ do
             drawButtons mode
             drawUIOptionButtons mode
-            gets needHoverUpdate >>? do
-                updateHoverStr mode
-                modify (\ds -> ds {needHoverUpdate=False})
+            updateHoverStr mode
             drawMsgLine
             drawShortMouseHelp mode
             refresh
@@ -608,7 +606,7 @@ instance UIMonad (StateT UIState IO) where
         return True
     showHelp _ _ = return False
 
-    onNewMode mode = modify (\ds -> ds{needHoverUpdate=True}) >> say ""
+    onNewMode mode = say ""
 
     withNoBG m = do
         bg <- gets bgSurface
