@@ -142,7 +142,7 @@ drawLockInfo al@(ActiveLock name i) lockinfo = do
                 fillBox (CVec (top+1) (left+1)) (CVec (lockTop-1) (right-1)) 5 GravDown $
         [ (`drawNote` note) | note <- lockSolutions lockinfo ] ++
         [ \pos -> drawName False pos name
-                    | name <- accessedBy lockinfo \\ map noteAuthor (lockSolutions lockinfo) ]
+                    | name <- accessedBy lockinfo \\ (noteAuthor <$> lockSolutions lockinfo) ]
     lift $ drawStrCentred a0 white (CVec (startOn-1) vcentre) "Accessed by:"
 
     undecls <- gets undeclareds
@@ -157,7 +157,7 @@ drawLockInfo al@(ActiveLock name i) lockinfo = do
                 s = vcentre - (length rntext+(3+1)*3)`div`2
             lift $ drawStr a0 white (CVec (lockBottom+1) s) rntext
             void $ fillBox (CVec (lockBottom+1) (s+length rntext+1)) (CVec (lockBottom+1) right) 3 GravLeft
-                [ \pos -> drawName False pos name | name <- map noteAuthor read ]
+                [ \pos -> drawName False pos name | name <- noteAuthor <$> read ]
 
     lift $ drawStrCentred a0 white (CVec (lockBottom+2) vcentre) "Notes held:"
     if null $ notesSecured lockinfo
@@ -165,7 +165,7 @@ drawLockInfo al@(ActiveLock name i) lockinfo = do
             drawStrCentred a0 white (CVec (lockBottom+3) vcentre) "None"
         else
             void $ fillBox (CVec (lockBottom+3) (left+1)) (CVec bottom (right-1)) 5 GravUp
-                [ (`drawActiveLock` al) | al <- map noteOn $ notesSecured lockinfo ]
+                [ (`drawActiveLock` al) | al <- noteOn <$> notesSecured lockinfo ]
 
 
 data HelpReturn = HelpNone | HelpDone | HelpContinue Int
@@ -185,8 +185,8 @@ showHelpPaged' from mode HelpPageInput = do
     erase
     (h,w) <- liftIO Curses.scrSize
     let bdgWidth = 39
-        showKeys chs = intercalate "/" (map showKey chs)
-        maxkeyslen = maximum $ map (length.showKeys.map fst) $ groupBy ((==) `on` snd) bdgs
+        showKeys chs = intercalate "/" (showKey <$> chs)
+        maxkeyslen = maximum $ length . showKeys . map fst <$> groupBy ((==) `on` snd) bdgs
     drawStrCentred a0 cyan (CVec 0 (w`div`2)) "Bindings:"
     let groups = filter (not . null . describeCommand . snd . head) $
             drop from $ groupBy ((==) `on` snd) $ sortBy (compare `on` snd) bdgs
@@ -198,12 +198,11 @@ showHelpPaged' from mode HelpPageInput = do
                 | group <- groups
                 , let cmd = snd $ head group
                 , let desc = describeCommand cmd
-                , let chs = map fst group
+                , let chs = fst <$> group
                 , let keysStr = showKeys chs
                 , let pad = max 0 $ minimum [maxkeyslen + 1 - length keysStr,
                         bdgWidth - length desc - length keysStr - 1 - 1]
-                ]
-                (map (`divMod` (h-3)) [0..])
+                ] $ (`divMod` (h-3)) <$> [0..]
             , (x+1)*bdgWidth < w]
     sequence_ draws
     refresh
@@ -224,7 +223,7 @@ drawBasicHelpPage from (title,titleCol) (body,bodyCol) = do
     (h,w) <- liftIO Curses.scrSize
     drawStrCentred a0 titleCol (CVec 0 $ w`div`2) title
     let strs = drop from $
-            if w >= maximum (map length metagameHelpText)
+            if w >= maximum (length <$> metagameHelpText)
             then body
             else
                 let wrap max = wrap' max max
@@ -297,7 +296,7 @@ instance UIMonad (StateT UIState IO) where
                 cacheOnly=cOnly, curAuth=auth, codenameStack=names,
                 randomCodenames=rnamestvar, retiredLocks=mretired, curLockPath=path,
                 curLock=lock} = do
-            let ourName = fmap authUser auth
+            let ourName = authUser <$> auth
             let selName = listToMaybe names
             let home = isJust ourName && ourName == selName
             (h,w) <- liftIO Curses.scrSize
@@ -309,7 +308,7 @@ instance UIMonad (StateT UIState IO) where
                         [CmdSetServer, CmdToggleCacheOnly]
                     lockBdgsDraw = bindingsDraw bdgs $
                         CmdEdit : [CmdPlaceLock Nothing | path /= ""]
-                    leftBdgsWidth = (+3) . maximum $ map drawWidth [serverBdgsDraw, lockBdgsDraw]
+                    leftBdgsWidth = (+3) . maximum $ drawWidth <$> [serverBdgsDraw, lockBdgsDraw]
                     helpDraw = bindingsDraw bdgs [CmdTutorials] <> greyDraw " tutorial  " <>
                         bindingsDraw bdgs [CmdHelp] <> greyDraw " help"
                     serverTextDraw = greyDraw . take (w - leftBdgsWidth - drawWidth helpDraw - 1) $
@@ -379,7 +378,7 @@ instance UIMonad (StateT UIState IO) where
                 let accessed = [ ActiveLock us i
                         | i<-[0..2]
                         , Just lock <- [ userLocks ourUInfo ! i ]
-                        , public lock || selName `elem` map Just (accessedBy lock) ]
+                        , public lock || selName `elem` (Just <$> accessedBy lock) ]
                 guard $ not $ null accessed
                 let str = "has accessed:"
                 let s = (w-(4 + length str + 6*length accessed))`div`2

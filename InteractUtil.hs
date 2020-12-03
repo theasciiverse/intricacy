@@ -174,7 +174,7 @@ askLockIndex prompt failMessage pred = do
         _ -> ask ok
     where
         ask ok = do
-            let prompt' = prompt ++ " [" ++ intersperse ',' (map lockIndexChar ok) ++ "]"
+            let prompt' = prompt ++ " [" ++ intersperse ',' (lockIndexChar <$> ok) ++ "]"
             idx <- MaybeT $ lift $ (((charLockIndex<$>).listToMaybe) =<<) <$>
                 textInput prompt' 1 False True Nothing Nothing
             if idx `elem` ok then return idx else ask ok
@@ -188,7 +188,7 @@ confirm prompt = do
     where
         waitConfirm = do
             cmds <- getInput IMTextInput
-            maybe waitConfirm return (msum $ map ansOfCmd cmds)
+            maybe waitConfirm return (msum $ ansOfCmd <$> cmds)
         ansOfCmd (CmdInputChar 'y') = Just True
         ansOfCmd (CmdInputChar 'Y') = Just True
         ansOfCmd (CmdInputChar c) = if isPrint c then Just False else Nothing

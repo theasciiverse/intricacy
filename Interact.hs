@@ -178,7 +178,7 @@ processCommand' im CmdJumpMark = void.runMaybeT $ do
     marks <- lift marksSet
     str <- MaybeT $ lift $ textInput
         ("Jump to mark [" ++ intersperse ',' marks ++ "]: ")
-            1 False True (Just $ map (:[]) marks) Nothing
+            1 False True (Just $ (:[]) <$> marks) Nothing
     ch <- liftMaybe $ listToMaybe str
     lift $ jumpMark ch
 processCommand' im CmdReset = jumpMark startMark
@@ -212,7 +212,7 @@ processCommand' IMMeta CmdSetServer = void.runMaybeT $ do
     saddrs <- liftIO knownServers
     newSaddr' <- MaybeT $ ((>>= strToSaddr) <$>) $
         lift $ textInput "Set server:" 256 False False
-            (Just $ map saddrStr saddrs) (Just $ saddrStr saddr)
+            (Just $ saddrStr <$> saddrs) (Just $ saddrStr saddr)
     let newSaddr = if nullSaddr newSaddr' then defaultServerAddr else newSaddr'
     modify $ \ms -> ms { curServer = newSaddr }
     msum [ void.MaybeT $ getFreshRecBlocking RecServerInfo
@@ -383,7 +383,7 @@ processCommand' IMMeta (CmdViewSolution mnote) = void.runMaybeT $ do
             | mlockinfo <- elems $ userLocks uinfo ]
         idx <- askLockIndex "View solution to which lock?" "No solutions to view" $ not.null.(noteses!!)
         let notes = noteses!!idx
-            authors = map noteAuthor notes
+            authors = noteAuthor <$> notes
         author <- if length notes == 1
             then return $ noteAuthor $ head notes
             else (map toUpper <$>) $ MaybeT $ lift $
@@ -558,7 +558,7 @@ processCommand' IMPlay (CmdDrag pos dir) = do
                 tp' <- liftMaybe $ tileType . snd <$> Map.lookup pos' board'
                 guard $ tp' == if wsel then WrenchTile zero else HookTile
                 lift.lift $ warpPointer pos'
-            | pos' <- map (+^pos) $ hexDisc 2 ]
+            | pos' <- (+^pos) <$> hexDisc 2 ]
 
 processCommand' IMPlay cmd = do
     wsel <- gets wrenchSelected
@@ -648,7 +648,7 @@ processCommand' IMEdit CmdSelect = do
     let selPiece' =
             if isJust selPiece
                 then Nothing
-                else fmap fst $ Map.lookup selPos $ stateBoard st
+                else fmap fst . Map.lookup selPos $ stateBoard st
     modify $ \es -> es {selectedPiece = selPiece'}
 processCommand' IMEdit (CmdDir _ dir) = do
     selPos <- gets selectedPos
@@ -786,7 +786,7 @@ solveLockTut = solveLock' True
 solveLock' isTut lock title = do
     (InteractSuccess solved, ps) <- lift $ runSubMainState $ newPlayState (reframe lock) title isTut False False
     guard solved
-    return $ reverse $ map snd $ psGameStateMoveStack ps
+    return . reverse $ snd <$> psGameStateMoveStack ps
 
 solveLockSaving :: UIMonad uiM => LockSpec -> Maybe SavedPlayState -> Bool -> Lock -> Maybe String -> MaybeT (MainStateT uiM) Solution
 solveLockSaving ls msps isTut lock title = do
@@ -794,8 +794,8 @@ solveLockSaving ls msps isTut lock title = do
         maybe newPlayState restorePlayState msps (reframe lock) title isTut False True
     if solved
         then do
-            unless isTut $ lift $ modify $ \ms -> ms { partialSolutions = Map.delete ls $ partialSolutions ms }
-            return $ reverse $ map snd $ psGameStateMoveStack ps
+            unless isTut . lift . modify $ \ms -> ms { partialSolutions = Map.delete ls $ partialSolutions ms }
+            return . reverse $ snd <$> psGameStateMoveStack ps
         else do
             lift $ modify $ \ms -> if isTut then ms { tutProgress = (ls,Just $ savePlayState ps) }
                 else ms { partialSolutions = Map.insert ls (savePlayState ps) $ partialSolutions ms }

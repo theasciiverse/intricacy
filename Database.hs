@@ -175,7 +175,7 @@ newLockRecord lock = do
 listUsers :: DBM [Codename]
 listUsers = do
     dbpath <- ask
-    liftIO $ map unpathifyName . filter ((==3).length) <$>
+    liftIO $ (unpathifyName <$>) . filter ((==3).length) <$>
         getDirectoryContents (dbpath++[pathSeparator]++"users")
 
 recordPath :: Record -> DBM FilePath
@@ -205,7 +205,7 @@ pathifyName = winSux . dummyPunctuation
 
 -- | Hilariously, "CON", "PRN", "AUX", and "NUL" are reserved on DOS, and
 -- Windows apparently crashes rather than write a directory with that name!
-winSux name = if map toUpper name `elem` ["CON","PRN", "AUX","NUL"]
+winSux name = if (toUpper <$> name) `elem` ["CON","PRN", "AUX","NUL"]
     then '_':name
     else name
 
@@ -217,7 +217,7 @@ dummyPunctuation = concatMap $ \c ->
     maybe [c] (('_':) . pure) (lookup c pathifyAssocs)
 unpathifyName = concatMap $ \c -> case c of
         '_' -> ""
-        _ -> pure $ fromMaybe c (lookup c $ map swap pathifyAssocs)
+        _ -> pure $ fromMaybe c (lookup c $ swap <$> pathifyAssocs)
 pathifyAssocs =
     [ ('/','s')
     , ('.','d')

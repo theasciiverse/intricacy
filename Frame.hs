@@ -41,7 +41,7 @@ baseState f =
 
 framePiece :: Frame -> PlacedPiece
 framePiece f@(BasicFrame size) =
-    PlacedPiece origin $ Block $
+    PlacedPiece origin . Block $
         map (bolthole f +^) (
             [ bw*^hu +^ n*^hv | n <- [0..bw] ]
             ++ [ bw*^hu +^ i*^hw +^ n*^hv | i <- [1..bw-1], n <- [0,bw+i] ])

@@ -48,7 +48,7 @@ stateToAscii st =
 lockOfAscii :: AsciiLock -> Maybe Lock
 lockOfAscii lines = do
     board <- asciiToBoard lines
-    let size = maximum $ map (hx . (-^origin)) $ Map.keys board
+    let size = maximum $ hx . (-^origin) <$> Map.keys board
         frame = BasicFrame size
     st <- asciiBoardState frame board
     return (frame, st)
@@ -57,9 +57,9 @@ boardToAscii :: PieceColouring -> GameBoard -> AsciiLock
 boardToAscii colouring board =
     let asciiBoard :: Map CVec Char
         asciiBoard = Map.mapKeys (hexVec2CVec . (-^origin))
-            $ fmap (monochromeOTileChar colouring) board
-        (miny,maxy) = minmax $ map cy $ Map.keys asciiBoard
-        (minx,maxx) = minmax $ map cx $ Map.keys asciiBoard
+            $ monochromeOTileChar colouring <$> board
+        (miny,maxy) = minmax $ cy <$> Map.keys asciiBoard
+        (minx,maxx) = minmax $ cx <$> Map.keys asciiBoard
         asciiBoard' = Map.mapKeys (-^CVec miny minx) asciiBoard
     in [ [ Map.findWithDefault ' ' (CVec y x) asciiBoard'
             | x <- [0..(maxx-minx)] ]
@@ -72,10 +72,10 @@ asciiToBoard lines =
             | (line,y) <- zip lines [0..]
             , (ch,x) <- zip line [0..]
             , ch `notElem` "\t\r\n "]
-        (miny,maxy) = minmax $ map cy $ Map.keys asciiBoard
+        (miny,maxy) = minmax $ cy <$> Map.keys asciiBoard
         midy = miny+(maxy-miny)`div`2
         midline = filter ((==midy).cy) $ Map.keys asciiBoard
-        (minx,maxx) = minmax $ map cx midline
+        (minx,maxx) = minmax $ cx <$> midline
         centre = CVec midy (minx+(maxx-minx)`div`2)
     in Map.mapKeys ((+^origin) . cVec2HexVec . (-^centre))
         <$> T.mapM monoToOTile asciiBoard
@@ -103,7 +103,7 @@ asciiBoardState frame board =
         componentifyNew st = foldr ((fst.).componentify) st $ filter (/=0) $ ppidxs st
         -- | we assume that the largest wholly out-of-bounds block is the frame
         setFrame st = fromMaybe st $ do
-            (idx,pp) <- listToMaybe $ map fst $ sortBy (flip compare `on` snd)
+            (idx,pp) <- listToMaybe $ fst <$> sortBy (flip compare `on` snd)
                     [ ((idx,pp),length vs)
                     | (idx,pp) <- enumVec $ placedPieces st
                     , let fp = plPieceFootprint pp

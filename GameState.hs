@@ -43,7 +43,7 @@ setpp idx pp st@(GameState pps _) =
             | eidx == idx = Connection root (eidx,epos+^displacement) link
             | otherwise = conn
     in st {placedPieces = pps // [(idx, pp)]
-        , connections = map updateConn $ connections st }
+        , connections = updateConn <$> connections st }
 
 addpp :: PlacedPiece -> GameState -> GameState
 addpp pp st@(GameState pps _) = st {placedPieces = Vector.snoc pps pp}
@@ -83,7 +83,7 @@ delPiece idx (GameState pps conns) =
 
 delPieceIn :: HexPos -> GameState -> GameState
 delPieceIn pos st =
-    case fmap fst $ Map.lookup pos $ stateBoard st of
+    case fst <$> Map.lookup pos (stateBoard st) of
         Just idx -> delPiece idx st
         _ -> st
 
@@ -148,19 +148,19 @@ connGraphPathExists st ridx eidx = (ridx == eidx) ||
 
 connGraphHeight :: GameState -> PieceIdx -> Int
 connGraphHeight st idx =
-    maximum (0 : map ((+1) . connGraphHeight st . fst . connectionRoot) (springsEndAtIdx st idx))
+    maximum . (0:) $ (+1) . connGraphHeight st . fst . connectionRoot <$> springsEndAtIdx st idx
 
 type Digraph a = Map a (Set a)
 checkConnGraphAcyclic :: GameState -> Bool
 checkConnGraphAcyclic st =
     let idxs = ppidxs st
-        leaves dg = map fst $ filter (Set.null . snd) $ Map.toList dg
+        leaves dg = (fst <$>) . filter (Set.null . snd) $ Map.toList dg
         checkDigraphAcyclic :: Ord a => Digraph a -> Bool
         checkDigraphAcyclic dg = case listToMaybe $ leaves dg of
             Nothing -> Map.null dg
-            Just leaf -> checkDigraphAcyclic $ Map.delete leaf $ fmap (Set.delete leaf) dg
+            Just leaf -> checkDigraphAcyclic $ Map.delete leaf $ Set.delete leaf <$> dg
     in checkDigraphAcyclic $ Map.fromList
-        [ (idx, Set.fromList $ map (fst.connectionRoot) $ springsEndAtIdx st idx) | idx <- idxs ]
+        [ (idx, Set.fromList $ fst . connectionRoot <$> springsEndAtIdx st idx) | idx <- idxs ]
 
 repossessConns :: GameState -> GameState -> GameState
 repossessConns st st' =
@@ -224,8 +224,8 @@ springExtensionValid _ _ = True
 stateBoard :: GameState -> GameBoard
 stateBoard st@(GameState plPieces conns) =
     addConnAdjs st conns $
-        Map.unions (map plPieceBoard $ enumVec plPieces) `Map.union`
-        Map.unions (map (connectionBoard st) conns)
+        Map.unions (plPieceBoard <$> enumVec plPieces) `Map.union`
+        Map.unions (connectionBoard st <$> conns)
 
 addConnAdjs :: GameState -> [Connection] -> GameBoard -> GameBoard
 addConnAdjs st = flip $ foldr addConnAdj
@@ -324,9 +324,9 @@ validGameState st@(GameState pps conns) = and
             && validRoot st root
             && validEnd st end
             | c@(Connection root@(ridx,_) end@(eidx,_) (Spring dir _)) <- conns
-            , let [rpos,epos] = map (locusPos st) [root,end] ]
+            , let [rpos,epos] = locusPos st <$> [root,end] ]
     , and [ 1 == length (components $ Set.fromList patt)
-            | Block patt <- map placedPiece $ Vector.toList pps ]
+            | Block patt <- placedPiece <$> Vector.toList pps ]
     ]
 
 validRoot st (idx,v) = case placedPiece $ getpp st idx of

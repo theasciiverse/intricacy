@@ -108,7 +108,7 @@ cmpAngles :: HexVec -> HexVec -> Ordering
 cmpAngles v@(HexVec x y _) v'@(HexVec x' y' _)
     | v == zero && v' == zero = EQ
     | v == zero = LT
-    | (hextant v) /= (hextant v') = 
+    | hextant v /= hextant v' =
         compare (hextant v) (hextant v')
     | hextant v /= 0 =
         cmpAngles (rotate (-(hextant v)) v) (rotate (-(hextant v)) v')
