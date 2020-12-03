@@ -8,7 +8,7 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
-{-# LANGUAGE FlexibleInstances, FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, FlexibleInstances, LambdaCase #-}
 module CursesUIMInstance () where
 
 import qualified UI.HSCurses.Curses as Curses
@@ -172,7 +172,7 @@ data HelpReturn = HelpNone | HelpDone | HelpContinue Int
 
 showHelpPaged :: Int -> InputMode -> HelpPage -> UIM Bool
 showHelpPaged from mode page =
-    showHelpPaged' from mode page >>= \ret -> case ret of
+    showHelpPaged' from mode page >>= \case
         HelpNone -> return False
         HelpDone -> return True
         HelpContinue from' -> do

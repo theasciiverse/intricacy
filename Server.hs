@@ -251,7 +251,7 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
                     when (frame /= BasicFrame serverSize) $ throwE $
                         "Server only accepts size "++show serverSize++" locks."
                     unless (validLock $ reframe lock) $ throwE "Invalid lock!"
-                    when (checkSolved reframe lock) $ throwE "Lock not locked!"
+                    when (checkSolved $ reframe lock) $ throwE "Lock not locked!"
                     RCLockHashes hashes <- getRecordErrored RecLockHashes
                             `catchE` const (return (RCLockHashes []))
                     let hashed = hash $ show lock

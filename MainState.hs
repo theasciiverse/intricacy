@@ -8,6 +8,8 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
+{-# LANGUAGE TupleSections #-}
+
 module MainState where
 
 import Control.Monad.State
@@ -148,7 +150,7 @@ ms2im mainSt = case mainSt of
 newPlayState (frame,st) title isTut sub saved = PlayState st frame [] False False [] [] title isTut sub saved Map.empty
 newReplayState st soln title = ReplayState st [] soln [] title Map.empty
 newEditState (frame,st) msoln mpath = EditState st [] [] frame mpath
-    ((\s->(st,s))<$>msoln) (Just (st, isJust msoln)) Nothing (PHS zero) (PHS zero) Map.empty
+    ((st,)<$>msoln) (Just (st, isJust msoln)) Nothing (PHS zero) (PHS zero) Map.empty
 initMetaState = do
     flag <- newTVarIO False
     errtvar <- newTVarIO Nothing
@@ -200,7 +202,7 @@ partialSolutions=partials, tutProgress=tut } = unless (nullSaddr saddr) $ do
 
 readLock :: FilePath -> IO (Maybe (Lock, Maybe Solution))
 readLock path = runMaybeT $ msum
-        [ (\l->(l,Nothing)) <$> MaybeT (readReadFile path)
+        [ (,Nothing) <$> MaybeT (readReadFile path)
         , do
             (mlock,msoln) <- lift $ readAsciiLockFile path
             lock <- liftMaybe mlock

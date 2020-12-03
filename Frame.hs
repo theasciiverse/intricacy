@@ -17,7 +17,7 @@ import GameState
 import GameStateTypes
 import Hex
 
-data Frame = BasicFrame Int
+newtype Frame = BasicFrame Int
     deriving (Eq, Ord, Show, Read)
 
 frameSize :: Frame -> Int

@@ -8,7 +8,7 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE LambdaCase, ScopedTypeVariables #-}
 
 module Interact (interactUI) where
 
@@ -497,7 +497,7 @@ processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
     dotut onLevel msps
 processCommand' IMMeta CmdShowRetired = void.runMaybeT $ do
     name <- mgetCurName
-    newRL <- lift (gets retiredLocks) >>= \rl -> case rl of
+    newRL <- lift (gets retiredLocks) >>= \case
         Nothing -> do
             RCLockSpecs lss <- MaybeT $ getFreshRecBlocking $ RecRetiredLocks name
             if null lss

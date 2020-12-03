@@ -8,7 +8,7 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
-{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleContexts, TupleSections #-}
 module GameState where
 
 import Control.Applicative
@@ -241,7 +241,7 @@ addConnAdjs st = flip $ foldr addConnAdj
                 pos
 
 plPieceBoard :: (PieceIdx,PlacedPiece) -> GameBoard
-plPieceBoard (idx,pp) = (\x -> (idx,x)) <$> plPieceMap pp
+plPieceBoard (idx,pp) = (idx,) <$> plPieceMap pp
 
 plPieceMap :: PlacedPiece -> Map HexPos Tile
 plPieceMap (PlacedPiece pos (Block patt)) =

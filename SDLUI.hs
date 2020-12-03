@@ -8,7 +8,7 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
-{-# LANGUAGE CPP, TupleSections #-}
+{-# LANGUAGE CPP, LambdaCase, TupleSections #-}
 
 module SDLUI where
 
@@ -376,14 +376,14 @@ uiOB1 = UIOptButton useFiveColouring (\v o -> o {useFiveColouring=v}) [True,Fals
         [IMPlay, IMReplay, IMEdit] Nothing
 uiOB2 = UIOptButton showBlocks (\v o -> o {showBlocks=v}) [ShowBlocksBlocking,ShowBlocksAll,ShowBlocksNone]
         (periphery 0 +^ 2 *^ hu +^ 2 *^ neg hv) ShowBlocksButton
-        (\v -> case v of
+        (\case
             ShowBlocksBlocking -> "Blocking forces are annotated"
             ShowBlocksAll -> "Blocked and blocking forces are annotated"
             ShowBlocksNone -> "Blockage annotations disabled")
         [IMPlay, IMReplay] Nothing
 uiOB3 = UIOptButton whsButtons (\v o -> o {whsButtons=v}) [Nothing, Just WHSSelected, Just WHSWrench, Just WHSHook]
         (periphery 3 +^ 3 *^ hv) WhsButtonsButton
-        (\v -> case v of
+        (\case
             Nothing -> "Click to show (and rebind) keyboard control buttons."
             Just whs -> "Showing buttons for controlling " ++ case whs of
                 WHSSelected -> "selected piece; right-click to rebind"
