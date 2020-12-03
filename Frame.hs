@@ -10,12 +10,12 @@
 
 module Frame where
 
-import Data.List ((\\))
-import qualified Data.Vector as Vector
+import           Data.List      ((\\))
+import qualified Data.Vector    as Vector
 
-import GameState
-import GameStateTypes
-import Hex
+import           GameState
+import           GameStateTypes
+import           Hex
 
 newtype Frame = BasicFrame Int
     deriving (Eq, Ord, Show, Read)

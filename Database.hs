@@ -10,26 +10,27 @@
 
 module Database where
 
-import Data.Maybe
-import Data.Tuple (swap)
-import Data.Char (toUpper)
-import Control.Applicative
-import Control.Monad
-import System.IO
-import System.FilePath
-import System.Directory
-import Control.Monad.Trans.Reader
-import Control.Monad.IO.Class
+import           Control.Applicative
+import           Control.Monad
+import           Control.Monad.IO.Class
+import           Control.Monad.Trans.Reader
+import qualified Data.ByteString.Char8      as CS
 import qualified Data.ByteString.Lazy.Char8 as CL
-import qualified Data.ByteString.Char8 as CS
+import           Data.Char                  (toUpper)
+import           Data.Maybe
+import           Data.Tuple                 (swap)
+import           System.Directory
+import           System.FilePath
+import           System.IO
 
-import Crypto.Hash (hashlazy, Digest, SHA1, digestToHexByteString)
-import Crypto.Types.PubKey.RSA (PublicKey, PrivateKey)
+import           Crypto.Hash                (Digest, SHA1,
+                                             digestToHexByteString, hashlazy)
+import           Crypto.Types.PubKey.RSA    (PrivateKey, PublicKey)
 
-import Protocol
-import Metagame
-import Lock
-import Mundanities
+import           Lock
+import           Metagame
+import           Mundanities
+import           Protocol
 
 sha1 :: CL.ByteString -> Digest SHA1
 sha1 = hashlazy
@@ -67,29 +68,29 @@ data RecordContents
     deriving (Eq, Show)
 
 rcOfServerResp (ServedServerInfo x) = RCServerInfo x
-rcOfServerResp (ServedLock x) = RCLock x
-rcOfServerResp (ServedSolution x) = RCSolution x
-rcOfServerResp (ServedUserInfo x) = RCUserInfo x
-rcOfServerResp (ServedRetired x) = RCLockSpecs x
-rcOfServerResp (ServedPublicKey x) = RCPublicKey x
-rcOfServerResp _ = error "no corresponding rc"
+rcOfServerResp (ServedLock x)       = RCLock x
+rcOfServerResp (ServedSolution x)   = RCSolution x
+rcOfServerResp (ServedUserInfo x)   = RCUserInfo x
+rcOfServerResp (ServedRetired x)    = RCLockSpecs x
+rcOfServerResp (ServedPublicKey x)  = RCPublicKey x
+rcOfServerResp _                    = error "no corresponding rc"
 
-invariantRecord (RecUserInfo _) = False
-invariantRecord (RecUserInfoLog _) = False
+invariantRecord (RecUserInfo _)       = False
+invariantRecord (RecUserInfoLog _)    = False
 invariantRecord (RecPasswordLegacy _) = False
 invariantRecord (RecPasswordArgon2 _) = False
-invariantRecord (RecRetiredLocks _) = False
-invariantRecord (RecNote _) = False
-invariantRecord (RecEmail _) = False
-invariantRecord _ = True
+invariantRecord (RecRetiredLocks _)   = False
+invariantRecord (RecNote _)           = False
+invariantRecord (RecEmail _)          = False
+invariantRecord _                     = True
 
-askForRecord RecServerInfo = GetServerInfo
-askForRecord (RecUserInfo name) = GetUserInfo name Nothing
-askForRecord (RecLock ls) = GetLock ls
-askForRecord (RecNote note) = GetSolution note
+askForRecord RecServerInfo          = GetServerInfo
+askForRecord (RecUserInfo name)     = GetUserInfo name Nothing
+askForRecord (RecLock ls)           = GetLock ls
+askForRecord (RecNote note)         = GetSolution note
 askForRecord (RecRetiredLocks name) = GetRetired name
-askForRecord RecPublicKey = GetPublicKey
-askForRecord _ = error "no corresponding request"
+askForRecord RecPublicKey           = GetPublicKey
+askForRecord _                      = error "no corresponding request"
 
 type DBM = ReaderT FilePath IO
 withDB :: FilePath -> DBM a -> IO a
@@ -133,18 +134,18 @@ putRecord rec rc = do
         h <- openFile path WriteMode
         putRecordh rc h
         hClose h
-putRecordh (RCPasswordLegacy hpw) h = hPutStr h $ show hpw
-putRecordh (RCPasswordArgon2 hpw) h = hPutStr h $ show hpw
-putRecordh (RCEmail addr) h = hPutStr h $ show addr
-putRecordh (RCUserInfo info) h = hPutStr h $ show info
+putRecordh (RCPasswordLegacy hpw) h    = hPutStr h $ show hpw
+putRecordh (RCPasswordArgon2 hpw) h    = hPutStr h $ show hpw
+putRecordh (RCEmail addr) h            = hPutStr h $ show addr
+putRecordh (RCUserInfo info) h         = hPutStr h $ show info
 putRecordh (RCUserInfoDeltas deltas) h = hPutStr h $ show deltas
-putRecordh (RCLock lock) h = hPutStr h $ show lock
-putRecordh (RCSolution solution) h = hPutStr h $ show solution
-putRecordh (RCLockHashes hashes) h = hPutStr h $ show hashes
-putRecordh (RCLockSpecs lss) h = hPutStr h $ show lss
-putRecordh (RCServerInfo sinfo) h = hPutStr h $ show sinfo
-putRecordh (RCPublicKey publicKey) h = hPutStr h $ show publicKey
-putRecordh (RCSecretKey secretKey) h = hPutStr h $ show secretKey
+putRecordh (RCLock lock) h             = hPutStr h $ show lock
+putRecordh (RCSolution solution) h     = hPutStr h $ show solution
+putRecordh (RCLockHashes hashes) h     = hPutStr h $ show hashes
+putRecordh (RCLockSpecs lss) h         = hPutStr h $ show lss
+putRecordh (RCServerInfo sinfo) h      = hPutStr h $ show sinfo
+putRecordh (RCPublicKey publicKey) h   = hPutStr h $ show publicKey
+putRecordh (RCSecretKey secretKey) h   = hPutStr h $ show secretKey
 
 modifyRecord :: Record -> (RecordContents -> RecordContents) -> DBM ()
 modifyRecord rec f = do
@@ -217,7 +218,7 @@ dummyPunctuation = concatMap $ \c ->
     maybe [c] (('_':) . pure) (lookup c pathifyAssocs)
 unpathifyName = concatMap $ \c -> case c of
         '_' -> ""
-        _ -> pure $ fromMaybe c (lookup c $ swap <$> pathifyAssocs)
+        _   -> pure $ fromMaybe c (lookup c $ swap <$> pathifyAssocs)
 pathifyAssocs =
     [ ('/','s')
     , ('.','d')

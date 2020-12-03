@@ -10,27 +10,27 @@
 
 module SDLGlyph where
 
-import Graphics.UI.SDL
-import Control.Monad
-import Control.Monad.IO.Class
-import Control.Monad.Trans.State
-import Control.Monad.Trans.Reader
-import Control.Monad.Trans.Maybe
-import Control.Monad.Trans.Class
-import Data.Map (Map)
-import qualified Data.Map as Map
-import qualified Data.List as List
-import Control.Applicative
-import System.Random (randomRIO)
+import           Control.Applicative
+import           Control.Monad
+import           Control.Monad.IO.Class
+import           Control.Monad.Trans.Class
+import           Control.Monad.Trans.Maybe
+import           Control.Monad.Trans.Reader
+import           Control.Monad.Trans.State
+import qualified Data.List                  as List
+import           Data.Map                   (Map)
+import qualified Data.Map                   as Map
+import           Graphics.UI.SDL
+import           System.Random              (randomRIO)
 
-import Hex
-import SDLRender
-import GameState
-import GameStateTypes
-import BoardColouring
-import Physics
-import Command
-import Util
+import           BoardColouring
+import           Command
+import           GameState
+import           GameStateTypes
+import           Hex
+import           Physics
+import           SDLRender
+import           Util
 
 
 data ShowBlocks = ShowBlocksBlocking | ShowBlocksAll | ShowBlocksNone
@@ -137,16 +137,16 @@ renderGlyphCaching gl = do
             -- TODO: we should find a way to deal with at least some of these;
             -- springs in particular are common and expensive to draw.
             -- Maybe we could truncate the spring glyphs to a hex?
-            TileGlyph (BlockTile adjs) _ -> null adjs
+            TileGlyph (BlockTile adjs) _      -> null adjs
             TileGlyph (SpringTile extn dir) _ -> False
-            SpringGlyph {} -> False
-            FilledHexGlyph _ -> False
-            HollowGlyph _ -> False
-            BlockedBlock {} -> False
-            BlockedPush _ _ -> False
-            CollisionMarker -> False
-            DisplacedGlyph _ _ -> False
-            _ -> True
+            SpringGlyph {}                    -> False
+            FilledHexGlyph _                  -> False
+            HollowGlyph _                     -> False
+            BlockedBlock {}                   -> False
+            BlockedPush _ _                   -> False
+            CollisionMarker                   -> False
+            DisplacedGlyph _ _                -> False
+            _                                 -> True
 
 renderGlyph :: Glyph -> RenderM ()
 renderGlyph (TileGlyph (BlockTile adjs) col) =
@@ -194,8 +194,8 @@ renderGlyph (SpringGlyph rootDisp endDisp extn dir col) =
         where
             n :: Int
             n = 3*case extn of
-                Stretched -> 1
-                Relaxed -> 2
+                Stretched  -> 1
+                Relaxed    -> 2
                 Compressed -> 4
             brightness = dim
             dir' = if dir == zero then hu else dir
@@ -322,7 +322,7 @@ renderGlyph (FullscreenButton fs) = do
     thickPolygonR corners 1 $ activeCol (not fs)
     thickPolygonR corners' 1 $ activeCol fs
     where
-        activeCol True = opaquify $ dim green
+        activeCol True  = opaquify $ dim green
         activeCol False = opaquify $ dim red
         corners = [ (2/3) **^ (if dir `elem` [hu,neg hu] then edge else innerCorner) dir
             | dir <- hexDirs ]
@@ -347,7 +347,7 @@ ownedTileGlyph colouring highlight (owner,t) =
 
 drawCursorAt :: Maybe HexPos -> RenderM ()
 drawCursorAt (Just pos) = drawAt cursorGlyph pos
-drawCursorAt _ = return ()
+drawCursorAt _          = return ()
 
 drawBasicBG :: Int -> RenderM ()
 drawBasicBG maxR = sequence_ [ drawAtRel (HollowGlyph $ colAt v) v | v <- hexDisc maxR ]
@@ -362,7 +362,7 @@ drawBlocked st colouring blocking (Torque idx dir) = do
     let (pos,arms) = case getpp st idx of
             PlacedPiece pos (Pivot arms) -> (pos,arms)
             PlacedPiece pos (Hook arm _) -> (pos,[arm])
-            _ -> (pos,[])
+            _                            -> (pos,[])
         col = if blocking then bright purple else dim $ colourOf colouring idx
     sequence_ [ drawAt (BlockedArm arm dir col) (arm +^ pos) |
         arm <- arms ]
@@ -380,7 +380,7 @@ drawApplied st colouring (Torque idx dir) = do
     let (pos,arms) = case getpp st idx of
             PlacedPiece pos (Pivot arms) -> (pos,arms)
             PlacedPiece pos (Hook arm _) -> (pos,[arm])
-            _ -> (pos,[])
+            _                            -> (pos,[])
         col = dim $ colourOf colouring idx
     sequence_ [ drawAt (TurnedArm arm dir col) (arm +^ pos) |
             arm <- arms ]

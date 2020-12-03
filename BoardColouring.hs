@@ -10,21 +10,21 @@
 
 module BoardColouring where
 
-import Control.Applicative
-import Control.Monad
-import Data.Function (on)
-import qualified Data.Map as Map
-import Data.Map (Map)
-import qualified Data.Set as Set
-import Data.Set (Set)
-import Data.List
-import Data.Maybe
+import           Control.Applicative
+import           Control.Monad
+import           Data.Function       (on)
+import           Data.List
+import           Data.Map            (Map)
+import qualified Data.Map            as Map
+import           Data.Maybe
+import           Data.Set            (Set)
+import qualified Data.Set            as Set
 
-import Hex
-import GameState
-import GameStateTypes
-import Util
-import GraphColouring
+import           GameState
+import           GameStateTypes
+import           GraphColouring
+import           Hex
+import           Util
 
 type PieceColouring = Map PieceIdx Int
 
@@ -84,7 +84,7 @@ boardColouring st coloured = fiveColour graph
                     , (fst <$> Map.lookup pos' board) /= Just idx
                     ]
                 (path,ns) = case mNext of
-                    Nothing -> ([],[])
+                    Nothing   -> ([],[])
                     Just next -> march idx startPos next False
             in (pos:path, maybeToList mn++ns)
 

@@ -10,26 +10,26 @@
 
 module Cache where
 
-import Network.Fancy
-import Control.Concurrent.STM
-import Control.Concurrent
-import Control.Applicative
-import Control.Exception
-import Control.Monad.Trans.Reader
-import System.Directory
-import Control.Monad
-import Data.Maybe
-import qualified Data.ByteString as BS
-import qualified Data.ByteString.Lazy as BL
-import Data.Binary
-import System.IO
-import System.FilePath
+import           Control.Applicative
+import           Control.Concurrent
+import           Control.Concurrent.STM
+import           Control.Exception
+import           Control.Monad
+import           Control.Monad.Trans.Reader
+import           Data.Binary
+import qualified Data.ByteString            as BS
+import qualified Data.ByteString.Lazy       as BL
+import           Data.Maybe
+import           Network.Fancy
+import           System.Directory
+import           System.FilePath
+import           System.IO
 
-import Database
-import Protocol
-import Metagame
-import Mundanities
-import ServerAddr
+import           Database
+import           Metagame
+import           Mundanities
+import           Protocol
+import           ServerAddr
 
 data FetchedRecord = FetchedRecord {fresh :: Bool, fetchError :: Maybe String, fetchedRC :: Maybe RecordContents}
     deriving (Eq, Show)

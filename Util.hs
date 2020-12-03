@@ -9,10 +9,10 @@
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
 module Util where
-import qualified Data.Vector as Vector
-import Data.Vector (Vector)
-import Control.Monad
-import Control.Monad.Trans.Maybe
+import           Control.Monad
+import           Control.Monad.Trans.Maybe
+import           Data.Vector               (Vector)
+import qualified Data.Vector               as Vector
 
 enumVec :: Vector a -> [(Int,a)]
 enumVec = Vector.toList . Vector.indexed

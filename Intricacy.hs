@@ -8,24 +8,24 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP                      #-}
 #ifdef APPLE
 {-# LANGUAGE ForeignFunctionInterface #-}
 #endif
 module Main where
 
 #ifdef MAIN_SDL
-import qualified SDLUI (UIM)
-import SDLUIMInstance ()
+import qualified SDLUI             (UIM)
+import           SDLUIMInstance    ()
 #endif
 
 #ifdef MAIN_CURSES
-import qualified CursesUI (UIM)
-import CursesUIMInstance ()
+import qualified CursesUI          (UIM)
+import           CursesUIMInstance ()
 #endif
 
-import Init
-import MainState
+import           Init
+import           MainState
 
 #ifdef APPLE
 foreign export ccall hs_MAIN :: IO ()

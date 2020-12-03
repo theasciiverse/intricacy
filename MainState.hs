@@ -12,40 +12,40 @@
 
 module MainState where
 
-import Control.Monad.State
-import Control.Applicative
-import qualified Data.Vector as Vector
-import qualified Data.Map as Map
-import Data.Map (Map)
-import Control.Monad.Writer
-import Control.Monad.Trans.Maybe
-import Data.Maybe
-import Data.Char
-import Data.List
-import Control.Concurrent.STM
-import Control.Concurrent
-import System.Directory
-import System.FilePath
-import Data.Time.Clock
-import Data.Array
-import Data.Function (on)
-import Safe
+import           Control.Applicative
+import           Control.Concurrent
+import           Control.Concurrent.STM
+import           Control.Monad.State
+import           Control.Monad.Trans.Maybe
+import           Control.Monad.Writer
+import           Data.Array
+import           Data.Char
+import           Data.Function             (on)
+import           Data.List
+import           Data.Map                  (Map)
+import qualified Data.Map                  as Map
+import           Data.Maybe
+import           Data.Time.Clock
+import qualified Data.Vector               as Vector
+import           Safe
+import           System.Directory
+import           System.FilePath
 
-import Hex
-import Mundanities
-import AsciiLock
-import GameStateTypes
-import Physics
-import Command
-import Frame
-import Lock
-import Cache
-import Database
-import Protocol
-import Metagame
-import ServerAddr
-import InputMode
-import Util
+import           AsciiLock
+import           Cache
+import           Command
+import           Database
+import           Frame
+import           GameStateTypes
+import           Hex
+import           InputMode
+import           Lock
+import           Metagame
+import           Mundanities
+import           Physics
+import           Protocol
+import           ServerAddr
+import           Util
 
 class (Applicative m, MonadIO m) => UIMonad m where
     runUI :: m a -> IO a
@@ -80,59 +80,59 @@ class (Applicative m, MonadIO m) => UIMonad m where
 -- | this could be neatened using GADTs
 data MainState
     = PlayState
-        { psCurrentState::GameState
-        , psFrame::Frame
-        , psLastAlerts::[Alert]
-        , wrenchSelected::Bool
-        , psSolved::Bool
-        , psGameStateMoveStack::[(GameState, PlayerMove)]
-        , psUndoneStack::[(GameState, PlayerMove)]
-        , psTitle::Maybe String
-        , psIsTut::Bool
-        , psIsSub::Bool
-        , psSaved::Bool
-        , psMarks::Map Char MainState
+        { psCurrentState       :: GameState
+        , psFrame              :: Frame
+        , psLastAlerts         :: [Alert]
+        , wrenchSelected       :: Bool
+        , psSolved             :: Bool
+        , psGameStateMoveStack :: [(GameState, PlayerMove)]
+        , psUndoneStack        :: [(GameState, PlayerMove)]
+        , psTitle              :: Maybe String
+        , psIsTut              :: Bool
+        , psIsSub              :: Bool
+        , psSaved              :: Bool
+        , psMarks              :: Map Char MainState
         }
     | ReplayState
-        { rsCurrentState::GameState
-        , rsLastAlerts::[Alert]
-        , rsMoveStack::[PlayerMove]
-        , rsGameStateMoveStack::[(GameState, PlayerMove)]
-        , rsTitle::Maybe String
-        , rsMarks::Map Char MainState
+        { rsCurrentState       :: GameState
+        , rsLastAlerts         :: [Alert]
+        , rsMoveStack          :: [PlayerMove]
+        , rsGameStateMoveStack :: [(GameState, PlayerMove)]
+        , rsTitle              :: Maybe String
+        , rsMarks              :: Map Char MainState
         }
     | EditState
-        { esGameState::GameState
-        , esGameStateStack::[GameState]
-        , esUndoneStack::[GameState]
-        , esFrame::Frame
-        , esPath::Maybe FilePath
-        , esTested::Maybe (GameState,Solution)
-        , lastSavedState::Maybe (GameState, Bool)
-        , selectedPiece::Maybe PieceIdx
-        , selectedPos::HexPos
-        , lastModPos::HexPos
-        , esMarks::Map Char GameState
+        { esGameState      :: GameState
+        , esGameStateStack :: [GameState]
+        , esUndoneStack    :: [GameState]
+        , esFrame          :: Frame
+        , esPath           :: Maybe FilePath
+        , esTested         :: Maybe (GameState,Solution)
+        , lastSavedState   :: Maybe (GameState, Bool)
+        , selectedPiece    :: Maybe PieceIdx
+        , selectedPos      :: HexPos
+        , lastModPos       :: HexPos
+        , esMarks          :: Map Char GameState
         }
     | MetaState
-        { curServer :: ServerAddr
-        , undeclareds :: [Undeclared]
+        { curServer        :: ServerAddr
+        , undeclareds      :: [Undeclared]
         , partialSolutions :: PartialSolutions
-        , tutProgress :: TutProgress
-        , cacheOnly :: Bool
-        , curAuth :: Maybe Auth
-        , codenameStack :: [Codename]
-        , newAsync :: TVar Bool
-        , asyncCount :: TVar Int
-        , asyncError :: TVar (Maybe String)
-        , asyncInvalidate :: TVar (Maybe Codenames)
-        , randomCodenames :: TVar [Codename]
-        , userInfoTVs :: Map Codename (TVar FetchedRecord, UTCTime)
-        , indexedLocks :: Map LockSpec (TVar FetchedRecord)
-        , retiredLocks :: Maybe [LockSpec]
-        , curLockPath :: FilePath
-        , curLock :: Maybe (Lock,Maybe Solution)
-        , listOffset :: Int
+        , tutProgress      :: TutProgress
+        , cacheOnly        :: Bool
+        , curAuth          :: Maybe Auth
+        , codenameStack    :: [Codename]
+        , newAsync         :: TVar Bool
+        , asyncCount       :: TVar Int
+        , asyncError       :: TVar (Maybe String)
+        , asyncInvalidate  :: TVar (Maybe Codenames)
+        , randomCodenames  :: TVar [Codename]
+        , userInfoTVs      :: Map Codename (TVar FetchedRecord, UTCTime)
+        , indexedLocks     :: Map LockSpec (TVar FetchedRecord)
+        , retiredLocks     :: Maybe [LockSpec]
+        , curLockPath      :: FilePath
+        , curLock          :: Maybe (Lock,Maybe Solution)
+        , listOffset       :: Int
         }
 
 type MainStateT = StateT MainState
@@ -142,10 +142,10 @@ data HelpPage = HelpPageInput | HelpPageGame | HelpPageInitiated Int | HelpPageF
 
 ms2im :: MainState -> InputMode
 ms2im mainSt = case mainSt of
-    PlayState {} -> IMPlay
+    PlayState {}   -> IMPlay
     ReplayState {} -> IMReplay
-    EditState {} -> IMEdit
-    MetaState {} -> IMMeta
+    EditState {}   -> IMEdit
+    MetaState {}   -> IMMeta
 
 newPlayState (frame,st) title isTut sub saved = PlayState st frame [] False False [] [] title isTut sub saved Map.empty
 newReplayState st soln title = ReplayState st [] soln [] title Map.empty
@@ -281,7 +281,7 @@ invalidateAllUInfo =
 data Codenames = AllCodenames | SomeCodenames [Codename]
 
 invalidateUInfos :: UIMonad uiM => Codenames -> MainStateT uiM ()
-invalidateUInfos AllCodenames = invalidateAllUInfo
+invalidateUInfos AllCodenames          = invalidateAllUInfo
 invalidateUInfos (SomeCodenames names) = mapM_ invalidateUInfo names
 
 
@@ -363,7 +363,7 @@ curServerActionAsyncThenInvalidate act names = do
                 else makeRequest saddr $ ClientRequest protocolVersion auth act
         case resp of
             ServerError err -> atomically $ writeTVar errtvar $ Just err
-            _ -> atomically $ writeTVar invaltvar names
+            _               -> atomically $ writeTVar invaltvar names
         atomically $ writeTVar flag True
         atomically $ modifyTVar count (+(-1))
 
@@ -401,7 +401,7 @@ getFreshRecBlocking rec = do
         Nothing -> lift (drawError "Request aborted") >> return Nothing
         Just fetched ->
             case fetchError fetched of
-                Nothing -> return $ fetchedRC fetched
+                Nothing  -> return $ fetchedRC fetched
                 Just err -> lift (drawError err) >> return Nothing
 
 -- |indicate waiting for server, and allow cancellation

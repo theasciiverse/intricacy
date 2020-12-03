@@ -11,15 +11,15 @@
 module KeyBindings (KeyBindings, bindings, findBindings, findBinding, showKey,
     showKeyFriendly, showKeyFriendlyShort) where
 
-import Data.Maybe
-import Data.Char
-import Data.List
-import Data.Bits (xor)
+import           Data.Bits      (xor)
+import           Data.Char
+import           Data.List
+import           Data.Maybe
 
-import Command
-import Hex
-import GameStateTypes
-import InputMode
+import           Command
+import           GameStateTypes
+import           Hex
+import           InputMode
 
 type KeyBindings = [ (Char,Command) ]
 
@@ -196,12 +196,12 @@ impatienceBindings = lowerToo
     , (ctrl 'C', CmdQuit) ]
 
 bindings :: InputMode -> KeyBindings
-bindings IMEdit = editBindings
-bindings IMPlay = playBindings
-bindings IMMeta = metaBindings
-bindings IMReplay = replayBindings
+bindings IMEdit       = editBindings
+bindings IMPlay       = playBindings
+bindings IMMeta       = metaBindings
+bindings IMReplay     = replayBindings
 bindings IMImpatience = impatienceBindings
-bindings _ = []
+bindings _            = []
 
 findBindings :: KeyBindings -> Command -> [Char]
 findBindings bdgs cmd = nub
@@ -217,14 +217,14 @@ showKey ch
     | isPrint (unctrl ch) = '^':[unctrl ch]
     | otherwise = "[?]"
 
-showKeyFriendly ' ' = "space"
+showKeyFriendly ' '  = "space"
 showKeyFriendly '\r' = "return"
 showKeyFriendly '\n' = "newline"
 showKeyFriendly '\t' = "tab"
 showKeyFriendly '\b' = "bksp"
-showKeyFriendly ch = showKey ch
+showKeyFriendly ch   = showKey ch
 
 showKeyFriendlyShort '\r' = "ret"
 showKeyFriendlyShort '\t' = "tab"
 showKeyFriendlyShort '\b' = "bksp"
-showKeyFriendlyShort ch = showKey ch
+showKeyFriendlyShort ch   = showKey ch

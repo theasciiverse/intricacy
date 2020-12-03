@@ -10,41 +10,41 @@
 
 module CursesUI where
 
-import qualified UI.HSCurses.Curses as Curses
-import Control.Concurrent.STM
-import Control.Applicative
-import Data.Bifunctor (second)
-import qualified Data.Map as Map
-import Data.Map (Map)
-import Data.Semigroup as Sem
-import Data.Monoid
-import Data.Array
-import Data.Maybe
-import Data.List
-import Control.Monad.Trans.Maybe
-import Control.Monad.State
-import Data.Function (on)
+import           Control.Applicative
+import           Control.Concurrent.STM
+import           Control.Monad.State
+import           Control.Monad.Trans.Maybe
+import           Data.Array
+import           Data.Bifunctor            (second)
+import           Data.Function             (on)
+import           Data.List
+import           Data.Map                  (Map)
+import qualified Data.Map                  as Map
+import           Data.Maybe
+import           Data.Monoid
+import           Data.Semigroup            as Sem
+import qualified UI.HSCurses.Curses        as Curses
 
-import Hex
-import GameState (stateBoard)
-import GameStateTypes
-import BoardColouring
-import Frame
-import KeyBindings
-import Command
-import Mundanities
-import ServerAddr
-import InputMode
-import CursesRender
-import CVec
+import           BoardColouring
+import           CVec
+import           Command
+import           CursesRender
+import           Frame
+import           GameState                 (stateBoard)
+import           GameStateTypes
+import           Hex
+import           InputMode
+import           KeyBindings
+import           Mundanities
+import           ServerAddr
 
 data UIState = UIState
-    { dispCPairs::[Curses.Pair]
-    , dispCentre::HexPos
-    , dispLastCol::PieceColouring
+    { dispCPairs    :: [Curses.Pair]
+    , dispCentre    :: HexPos
+    , dispLastCol   :: PieceColouring
     , uiKeyBindings :: Map InputMode KeyBindings
-    , monochrome::Bool
-    , message::Maybe (Curses.Attr, ColPair, String)}
+    , monochrome    :: Bool
+    , message       :: Maybe (Curses.Attr, ColPair, String)}
 type UIM = StateT UIState IO
 nullUIState = UIState [] (PHS zero) Map.empty Map.empty False Nothing
 
@@ -85,9 +85,9 @@ alignDraw gravity w (Draw w' d) = Draw (max w w') $ \(CVec y x) ->
     d $ CVec y $ x + shift
     where
         shift = case gravity of
-            GravLeft -> 0
+            GravLeft  -> 0
             GravRight -> max 0 $ w - w'
-            _ -> max 0 . (`div` 2) $ w - w'
+            _         -> max 0 . (`div` 2) $ w - w'
 
 instance Sem.Semigroup Draw where
     (Draw w d) <> (Draw w' d') =

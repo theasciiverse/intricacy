@@ -10,13 +10,13 @@
 
 module GraphColouring (fiveColour) where
 
-import qualified Data.Map as Map
-import Data.Map (Map)
-import qualified Data.Set as Set
-import Data.Set (Set)
+import           Data.List
+import           Data.Map    (Map)
+import qualified Data.Map    as Map
+import           Data.Maybe
+import           Data.Set    (Set)
+import qualified Data.Set    as Set
 import qualified Data.Vector as Vector
-import Data.List
-import Data.Maybe
 
 type Colouring a = Map a Int
 type Graph a = (Set a, Set (Set a))

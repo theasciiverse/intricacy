@@ -8,56 +8,57 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
-{-# LANGUAGE LambdaCase, ScopedTypeVariables #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Interact (interactUI) where
 
-import Control.Monad.State
-import Control.Applicative
-import qualified Data.Vector as Vector
-import qualified Data.Map as Map
-import Data.Map (Map)
-import Control.Monad.Writer
-import Control.Monad.Trans.Except
-import Control.Monad.Trans.Maybe
-import Control.Exception
-import Data.Maybe
-import Data.Char
-import Data.List
-import Control.Concurrent.STM
-import Control.Concurrent
-import System.Directory
-import System.FilePath
-import Data.Array
-import Data.Function (on)
-import Safe (readMay)
-import qualified Data.ByteString.Lazy as BL
-import qualified Data.ByteString.Char8 as CS
+import           Control.Applicative
+import           Control.Concurrent
+import           Control.Concurrent.STM
+import           Control.Exception
+import           Control.Monad.State
+import           Control.Monad.Trans.Except
+import           Control.Monad.Trans.Maybe
+import           Control.Monad.Writer
+import           Data.Array
+import qualified Data.ByteString.Char8      as CS
+import qualified Data.ByteString.Lazy       as BL
+import           Data.Char
+import           Data.Function              (on)
+import           Data.List
+import           Data.Map                   (Map)
+import qualified Data.Map                   as Map
+import           Data.Maybe
+import qualified Data.Vector                as Vector
+import           Safe                       (readMay)
+import           System.Directory
+import           System.FilePath
 
-import Crypto.Types.PubKey.RSA (PublicKey)
-import Codec.Crypto.RSA (encrypt)
-import Crypto.Random (newGenIO, SystemRandom)
+import           Codec.Crypto.RSA           (encrypt)
+import           Crypto.Random              (SystemRandom, newGenIO)
+import           Crypto.Types.PubKey.RSA    (PublicKey)
 
-import Hex
-import Command
-import Physics
-import Mundanities
-import AsciiLock
-import GameState
-import GameStateTypes
-import EditGameState
-import Frame
-import Lock
-import Cache
-import Database
-import Protocol
-import Metagame
-import ServerAddr
-import MainState
-import InputMode
-import Maxlocksize
-import InteractUtil
-import Util
+import           AsciiLock
+import           Cache
+import           Command
+import           Database
+import           EditGameState
+import           Frame
+import           GameState
+import           GameStateTypes
+import           Hex
+import           InputMode
+import           InteractUtil
+import           Lock
+import           MainState
+import           Maxlocksize
+import           Metagame
+import           Mundanities
+import           Physics
+import           Protocol
+import           ServerAddr
+import           Util
 
 newtype InteractSuccess = InteractSuccess Bool
 
@@ -575,14 +576,14 @@ processCommand' IMPlay cmd = do
         (wsel', pm) =
             case cmd of
                 CmdTile (WrenchTile _) -> (True, Nothing)
-                CmdTile HookTile -> (False, Nothing)
-                CmdTile (ArmTile _ _) -> (False, Nothing)
-                CmdToggle -> (not wsel, Nothing)
-                CmdDir whs dir -> (wsel, push whs dir)
-                CmdRotate whs dir -> (wsel, torque whs dir)
-                CmdWait -> (wsel, Just NullPM)
-                CmdSelect -> (wsel, Just NullPM)
-                _ -> (wsel, Nothing)
+                CmdTile HookTile       -> (False, Nothing)
+                CmdTile (ArmTile _ _)  -> (False, Nothing)
+                CmdToggle              -> (not wsel, Nothing)
+                CmdDir whs dir         -> (wsel, push whs dir)
+                CmdRotate whs dir      -> (wsel, torque whs dir)
+                CmdWait                -> (wsel, Just NullPM)
+                CmdSelect              -> (wsel, Just NullPM)
+                _                      -> (wsel, Nothing)
     modify $ \ps -> ps {wrenchSelected = wsel'}
     case pm of
          Nothing -> return ()
@@ -676,7 +677,7 @@ processCommand' IMEdit (CmdRotate _ dir) = do
     selPiece <- gets selectedPiece
     case selPiece of
         Nothing -> return ()
-        Just p -> doForce $ Torque p dir
+        Just p  -> doForce $ Torque p dir
 processCommand' IMEdit (CmdTile tile) = do
     selPos <- gets selectedPos
     drawTile selPos (Just tile) False
@@ -693,14 +694,14 @@ processCommand' IMEdit CmdMerge = do
     let getDir = do
             cmd <- lift $ head <$> getSomeInput IMEdit
             case cmd of
-                CmdDir _ mergeDir -> return $ Just mergeDir
+                CmdDir _ mergeDir  -> return $ Just mergeDir
                 CmdDrag _ mergeDir -> return $ Just mergeDir
-                CmdMoveTo _ -> getDir
-                _ -> return Nothing
+                CmdMoveTo _        -> getDir
+                _                  -> return Nothing
     mergeDir <- getDir
     case mergeDir of
         Just mergeDir -> modifyEState $ mergeTiles selPos mergeDir True
-        _ -> return ()
+        _             -> return ()
     -- XXX: merging might invalidate selectedPiece
     modify $ \es -> es {selectedPiece = Nothing}
     lift $ drawMessage ""
@@ -732,7 +733,7 @@ processCommand' IMEdit CmdWriteState = void.runMaybeT $ do
             `catchIO` (return . Just . show)
         modify $ \es -> es {lastSavedState = Just (st,isJust msoln)}
         case merr of
-            Nothing -> modify $ \es -> es {esPath = Just newPath}
+            Nothing  -> modify $ \es -> es {esPath = Just newPath}
             Just err -> lift $ drawError $ "Write failed: "++err
 processCommand' _ _ = return ()
 

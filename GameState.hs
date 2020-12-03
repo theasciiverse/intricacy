@@ -8,25 +8,26 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
-{-# LANGUAGE FlexibleContexts, TupleSections #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TupleSections    #-}
 module GameState where
 
-import Control.Applicative
-import Data.Function (on)
-import qualified Data.Map as Map
-import Data.Map (Map)
-import qualified Data.Set as Set
-import Data.Set (Set)
-import qualified Data.Vector as Vector
-import Data.Maybe
-import Control.Monad
-import Control.Monad.State
-import Data.List
-import Data.Vector (Vector, (!), (//))
+import           Control.Applicative
+import           Control.Monad
+import           Control.Monad.State
+import           Data.Function       (on)
+import           Data.List
+import           Data.Map            (Map)
+import qualified Data.Map            as Map
+import           Data.Maybe
+import           Data.Set            (Set)
+import qualified Data.Set            as Set
+import           Data.Vector         (Vector, (!), (//))
+import qualified Data.Vector         as Vector
 
-import Hex
-import Util
-import GameStateTypes
+import           GameStateTypes
+import           Hex
+import           Util
 --import Debug
 
 ppidxs :: GameState -> [PieceIdx]
@@ -85,7 +86,7 @@ delPieceIn :: HexPos -> GameState -> GameState
 delPieceIn pos st =
     case fst <$> Map.lookup pos (stateBoard st) of
         Just idx -> delPiece idx st
-        _ -> st
+        _        -> st
 
 setPiece :: PieceIdx -> Piece -> GameState -> GameState
 setPiece idx p st =
@@ -237,7 +238,7 @@ addConnAdjs st = flip $ foldr addConnAdj
         addAdj pos d =
             Map.adjust (\(o,tile) -> (o,case tile of
                     BlockTile adjs -> BlockTile (d:adjs)
-                    _ -> tile))
+                    _              -> tile))
                 pos
 
 plPieceBoard :: (PieceIdx,PlacedPiece) -> GameBoard
@@ -306,7 +307,7 @@ castRay start dir board =
     where castRay' 0 _ = Nothing
           castRay' n pos =
               case Map.lookup pos board of
-                  Nothing -> castRay' (n-1) (dir+^pos)
+                  Nothing      -> castRay' (n-1) (dir+^pos)
                   Just (idx,_) -> Just (idx,pos)
 
 validGameState :: GameState -> Bool
@@ -332,10 +333,10 @@ validGameState st@(GameState pps conns) = and
 validRoot st (idx,v) = case placedPiece $ getpp st idx of
     (Block _) -> True
     (Pivot _) -> v==zero
-    _ -> False
+    _         -> False
 validEnd st (idx,_) = case placedPiece $ getpp st idx of
     (Block _) -> True
-    _ -> False
+    _         -> False
 
 checkValidHex (GameState pps conns) = all validPP (Vector.toList pps) && all validConn conns
     where
@@ -346,9 +347,9 @@ checkValidHex (GameState pps conns) = all validPP (Vector.toList pps) && all val
         validPiece (Block patt) = all validVec patt
         validPiece (Pivot arms) = all validDir arms
         validPiece (Hook dir _) = validDir dir
-        validPiece _ = True
+        validPiece _            = True
         validConn (Connection (_,rv) (_,ev) link) = all validVec [rv,ev] && validLink link
-        validLink (Free v) = validVec v
+        validLink (Free v)       = validVec v
         validLink (Spring dir _) = validDir dir
 
 protectedPiece :: PieceIdx -> Bool

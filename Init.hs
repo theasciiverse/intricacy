@@ -11,23 +11,23 @@
 module Init where
 
 
-import Control.Applicative
-import Control.Monad
-import Control.Monad.Trans
-import Control.Monad.Trans.Maybe
-import Control.Monad.Trans.State
-import Data.Maybe
-import System.Exit
-import System.Environment
-import System.Directory
-import System.FilePath
-import System.Console.GetOpt
+import           Control.Applicative
+import           Control.Monad
+import           Control.Monad.Trans
+import           Control.Monad.Trans.Maybe
+import           Control.Monad.Trans.State
+import           Data.Maybe
+import           System.Console.GetOpt
+import           System.Directory
+import           System.Environment
+import           System.Exit
+import           System.FilePath
 
-import Lock
-import MainState
-import Interact
-import Util
-import Version
+import           Interact
+import           Lock
+import           MainState
+import           Util
+import           Version
 
 data Opt = LockSize Int | ForceCurses | Help | Version
     deriving (Eq, Ord, Show)
@@ -45,7 +45,7 @@ usage = usageInfo header options
 parseArgs :: [String] -> IO ([Opt],[String])
 parseArgs argv =
     case getOpt Permute options argv of
-        (o,n,[]) -> return (o,n)
+        (o,n,[])   -> return (o,n)
         (_,_,errs) -> ioError (userError (concat errs ++ usage))
 
 setup :: IO (Maybe Lock,[Opt],Maybe String)
@@ -71,7 +71,7 @@ main' :: (UIMonad s, UIMonad c) =>
 main' msdlUI mcursesUI = do
     (mlock,opts,mpath) <- setup
     initMState <- case mlock of
-            Nothing -> initMetaState
+            Nothing   -> initMetaState
             Just lock -> return $ newEditState lock Nothing mpath
     void $ runMaybeT $ msum [ do
             finalState <- msum

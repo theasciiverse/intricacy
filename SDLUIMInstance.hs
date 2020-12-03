@@ -8,48 +8,49 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE FlexibleInstances, FlexibleContexts #-}
+{-# LANGUAGE CPP               #-}
+{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE FlexibleInstances #-}
 module SDLUIMInstance () where
 
-import Graphics.UI.SDL hiding (flip, name)
-import qualified Graphics.UI.SDL as SDL
-import qualified Graphics.UI.SDL.TTF as TTF
-import Control.Concurrent.STM
-import Control.Applicative
-import System.Timeout
-import qualified Data.Map as Map
-import Data.Map (Map)
-import qualified Data.Vector as Vector
-import Data.Maybe
-import Control.Concurrent (threadDelay)
-import Control.Monad.State
-import Control.Monad.Trans.Maybe
-import Control.Monad.Trans.Reader
-import Data.Word
-import Data.Array
-import Data.List
-import Data.Function (on)
-import Data.Foldable (for_)
+import           Control.Applicative
+import           Control.Concurrent         (threadDelay)
+import           Control.Concurrent.STM
+import           Control.Monad.State
+import           Control.Monad.Trans.Maybe
+import           Control.Monad.Trans.Reader
+import           Data.Array
+import           Data.Foldable              (for_)
+import           Data.Function              (on)
+import           Data.List
+import           Data.Map                   (Map)
+import qualified Data.Map                   as Map
+import           Data.Maybe
+import qualified Data.Vector                as Vector
+import           Data.Word
+import           Graphics.UI.SDL            hiding (flip, name)
+import qualified Graphics.UI.SDL            as SDL
+import qualified Graphics.UI.SDL.TTF        as TTF
+import           System.Timeout
 --import Debug.Trace (traceShow)
 
-import MainState
-import Hex
-import Command
-import GameStateTypes
-import Lock
-import KeyBindings
-import Mundanities
-import Metagame
-import Protocol
-import Cache
-import Database
-import ServerAddr
-import Util
-import InputMode
-import SDLRender
-import SDLGlyph
-import SDLUI
+import           Cache
+import           Command
+import           Database
+import           GameStateTypes
+import           Hex
+import           InputMode
+import           KeyBindings
+import           Lock
+import           MainState
+import           Metagame
+import           Mundanities
+import           Protocol
+import           SDLGlyph
+import           SDLRender
+import           SDLUI
+import           ServerAddr
+import           Util
 
 instance UIMonad (StateT UIState IO) where
     runUI m = evalStateT m nullUIState
@@ -480,7 +481,7 @@ instance UIMonad (StateT UIState IO) where
                         return [cmd]
                     , case mode of
                         IMPlay -> return [ CmdClear, CmdWait ]
-                        _ -> return [ CmdClear, CmdSelect ] ]
+                        _      -> return [ CmdClear, CmdSelect ] ]
             processEvent (MouseButtonUp _ _ ButtonRight) = do
                 modify $ \s -> s { rightButtonDown = Nothing }
                 return [ CmdUnselect ]
@@ -515,9 +516,9 @@ instance UIMonad (StateT UIState IO) where
                     return []
 
 
-            drawCmd mt True = CmdPaint mt
+            drawCmd mt True        = CmdPaint mt
             drawCmd (Just t) False = CmdTile t
-            drawCmd Nothing _ = CmdDelete
+            drawCmd Nothing _      = CmdDelete
 
             getMousePos :: UIM ((HexVec,Bool),(Double,Double,Double))
             getMousePos = do
@@ -649,7 +650,7 @@ waitEvent' = loop
                     event <- pollEvent
                     case event of
                       NoEvent -> threadDelay 10000 >> loop
-                      _ -> return event
+                      _       -> return event
 
 getEvents = do
     e <- waitEvent'
@@ -769,10 +770,10 @@ nameCol name = do
             Just score -> scoreColour score
 scoreColour :: Int -> Pixel
 scoreColour score = Pixel $ case score of
-        0 -> 0x80800000
-        1 -> 0x70a00000
-        2 -> 0x40c00000
-        3 -> 0x00ff0000
+        0    -> 0x80800000
+        1    -> 0x70a00000
+        2    -> 0x40c00000
+        3    -> 0x00ff0000
         (-1) -> 0xa0700000
         (-2) -> 0xc0400000
         (-3) -> 0xff000000

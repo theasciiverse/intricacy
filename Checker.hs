@@ -10,15 +10,15 @@
 
 module Main where
 
-import System.Environment
-import System.Exit
-import Control.Monad.Writer
+import           Control.Monad.Writer
+import           System.Environment
+import           System.Exit
 
-import Hex
-import Mundanities
-import Physics
-import Frame
-import Lock
+import           Frame
+import           Hex
+import           Lock
+import           Mundanities
+import           Physics
 
 main = do
     [lockfn,solutionfn] <- getArgs

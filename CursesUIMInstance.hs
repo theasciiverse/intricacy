@@ -8,43 +8,45 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
-{-# LANGUAGE FlexibleContexts, FlexibleInstances, LambdaCase #-}
+{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE LambdaCase        #-}
 module CursesUIMInstance () where
 
-import qualified UI.HSCurses.Curses as Curses
-import qualified UI.HSCurses.CursesHelper as CursesH
-import Control.Concurrent.STM
-import Control.Concurrent
-import Control.Applicative
-import Data.Char ( ord, chr )
-import Data.Monoid
-import qualified Data.Map as Map
-import Data.Map (Map)
-import Data.Array
-import Data.Maybe
-import Data.List
-import Control.Monad.Trans.Maybe
-import Control.Monad.State
-import Data.Function (on)
-import Data.Foldable (for_)
+import           Control.Applicative
+import           Control.Concurrent
+import           Control.Concurrent.STM
+import           Control.Monad.State
+import           Control.Monad.Trans.Maybe
+import           Data.Array
+import           Data.Char                 (chr, ord)
+import           Data.Foldable             (for_)
+import           Data.Function             (on)
+import           Data.List
+import           Data.Map                  (Map)
+import qualified Data.Map                  as Map
+import           Data.Maybe
+import           Data.Monoid
+import qualified UI.HSCurses.Curses        as Curses
+import qualified UI.HSCurses.CursesHelper  as CursesH
 
-import Hex
-import GameStateTypes
-import Physics
-import Frame
-import Command
-import KeyBindings
-import ServerAddr
-import Cache
-import Database
-import Metagame
-import Protocol
-import Util
-import InputMode
-import MainState
-import CursesUI
-import CursesRender
-import CVec
+import           CVec
+import           Cache
+import           Command
+import           CursesRender
+import           CursesUI
+import           Database
+import           Frame
+import           GameStateTypes
+import           Hex
+import           InputMode
+import           KeyBindings
+import           MainState
+import           Metagame
+import           Physics
+import           Protocol
+import           ServerAddr
+import           Util
 
 
 drawName :: Bool -> CVec -> Codename -> MainStateT UIM ()
@@ -246,17 +248,17 @@ drawBasicHelpPage from (title,titleCol) (body,bodyCol) = do
 
 charify :: Curses.Key -> Maybe Char
 charify key = case key of
-    Curses.KeyChar ch -> Just ch
+    Curses.KeyChar ch   -> Just ch
     Curses.KeyBackspace -> Just '\b'
-    Curses.KeyLeft -> Just '4'
-    Curses.KeyRight -> Just '6'
-    Curses.KeyDown -> Just '2'
-    Curses.KeyUp -> Just '8'
-    Curses.KeyHome -> Just '7'
-    Curses.KeyNPage -> Just '3'
-    Curses.KeyPPage -> Just '9'
-    Curses.KeyEnd -> Just '1'
-    _ -> Nothing
+    Curses.KeyLeft      -> Just '4'
+    Curses.KeyRight     -> Just '6'
+    Curses.KeyDown      -> Just '2'
+    Curses.KeyUp        -> Just '8'
+    Curses.KeyHome      -> Just '7'
+    Curses.KeyNPage     -> Just '3'
+    Curses.KeyPPage     -> Just '9'
+    Curses.KeyEnd       -> Just '1'
+    _                   -> Nothing
 
 handleEsc k@(Curses.KeyChar '\ESC') = do
     Curses.timeout 100
@@ -396,7 +398,7 @@ instance UIMonad (StateT UIState IO) where
                  liftIO $ threadDelay $ 5*10^4
         where
             drawAlert (AlertCollision pos) = drawAt cGlyph pos
-            drawAlert _ = return ()
+            drawAlert _                    = return ()
             cGlyph = Glyph '!' 0 a0
 
     drawMessage = say

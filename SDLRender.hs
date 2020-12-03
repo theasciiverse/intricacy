@@ -11,25 +11,25 @@
 -- |SDLRender: generic wrapper around sdl-gfx for drawing on hex grids
 module SDLRender where
 
-import Graphics.UI.SDL
-import Graphics.UI.SDL.Primitives
-import qualified Graphics.UI.SDL.TTF as TTF
-import Data.Semigroup as Sem
-import Data.Monoid
-import Control.Monad
-import Control.Monad.IO.Class
-import Control.Monad.Trans.Reader
-import Control.Monad.Trans.Maybe
-import Control.Monad.Trans.Class
-import Data.Map (Map)
-import qualified Data.Map as Map
-import Data.List (maximumBy)
-import Data.Function (on)
-import GHC.Int (Int16)
-import Control.Applicative
+import           Control.Applicative
+import           Control.Monad
+import           Control.Monad.IO.Class
+import           Control.Monad.Trans.Class
+import           Control.Monad.Trans.Maybe
+import           Control.Monad.Trans.Reader
+import           Data.Function              (on)
+import           Data.List                  (maximumBy)
+import           Data.Map                   (Map)
+import qualified Data.Map                   as Map
+import           Data.Monoid
+import           Data.Semigroup             as Sem
+import           GHC.Int                    (Int16)
+import           Graphics.UI.SDL
+import           Graphics.UI.SDL.Primitives
+import qualified Graphics.UI.SDL.TTF        as TTF
 
-import Hex
-import Util
+import           Hex
+import           Util
 
 -- |SVec: screen vectors, in pixels
 data SVec = SVec { cx, cy :: Int }
@@ -98,13 +98,13 @@ sVec2HexVec size sv =
 
 
 data RenderContext = RenderContext
-    { renderSurf :: Surface
-    , renderBGSurf :: Maybe Surface
+    { renderSurf    :: Surface
+    , renderBGSurf  :: Maybe Surface
     , renderHCentre :: HexPos
     , renderSCentre :: SVec
-    , renderOffset :: FVec
-    , renderSize :: Int
-    , renderFont :: Maybe TTF.Font
+    , renderOffset  :: FVec
+    , renderSize    :: Int
+    , renderFont    :: Maybe TTF.Font
     }
 type RenderT = ReaderT RenderContext
 

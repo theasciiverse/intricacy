@@ -10,9 +10,9 @@
 
 module CVec where
 
-import Hex
-import Data.Semigroup as Sem
-import Data.Monoid
+import           Data.Monoid
+import           Data.Semigroup as Sem
+import           Hex
 
 data CVec = CVec { cy, cx :: Int }
     deriving (Eq, Ord, Show)

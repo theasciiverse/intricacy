@@ -9,18 +9,18 @@
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
 module Mundanities where
-import Control.Applicative
-import Control.Arrow
-import Control.Monad
-import qualified Control.Exception as E
-import System.Directory
-import System.Environment (getEnv)
-import System.FilePath
-import Data.Maybe
-import Data.List
-import qualified Data.ByteString as BS
+import           Control.Applicative
+import           Control.Arrow
+import qualified Control.Exception     as E
+import           Control.Monad
+import qualified Data.ByteString       as BS
 import qualified Data.ByteString.Char8 as BSC
-import Paths_intricacy
+import           Data.List
+import           Data.Maybe
+import           Paths_intricacy
+import           System.Directory
+import           System.Environment    (getEnv)
+import           System.FilePath
 
 -- | This is "catchIOError" in >=base-4.4, but we reimplement it to support
 -- older bases.

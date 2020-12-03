@@ -12,67 +12,67 @@
 
 module Main where
 
-import Network.Fancy
+import           Network.Fancy
 
-import Control.Concurrent (threadDelay,forkIO)
-import Control.Applicative
-import Control.Monad
-import Control.Monad.Trans.State
-import Control.Monad.Trans.Except
-import Control.Monad.Trans.Maybe
-import Control.Monad.Trans.Reader
-import Control.Monad.Trans
-import Control.Monad.IO.Class
-import System.Random
-import Data.Maybe
-import Data.Word
-import Data.Foldable (for_)
-import Data.Time.Clock
-import System.IO
-import System.FilePath
-import System.Directory (renameFile)
-import qualified Data.ByteString.Lazy as BL
-import qualified Data.ByteString.Char8 as CS
-import qualified Data.Binary as B
-import qualified Data.Text as TS
-import qualified Data.Text.Lazy as TL
-import qualified Data.Text.Short as TSh
-import Data.Array
-import Control.Exception
-import System.IO.Error
-import Data.List
-import Data.Function (on)
-import Pipes
-import qualified Pipes.Prelude as P
+import           Control.Applicative
+import           Control.Concurrent         (forkIO, threadDelay)
+import           Control.Exception
+import           Control.Monad
+import           Control.Monad.IO.Class
+import           Control.Monad.Trans
+import           Control.Monad.Trans.Except
+import           Control.Monad.Trans.Maybe
+import           Control.Monad.Trans.Reader
+import           Control.Monad.Trans.State
+import           Data.Array
+import qualified Data.Binary                as B
+import qualified Data.ByteString.Char8      as CS
+import qualified Data.ByteString.Lazy       as BL
+import           Data.Foldable              (for_)
+import           Data.Function              (on)
+import           Data.List
+import           Data.Maybe
+import qualified Data.Text                  as TS
+import qualified Data.Text.Lazy             as TL
+import qualified Data.Text.Short            as TSh
+import           Data.Time.Clock
+import           Data.Word
+import           Pipes
+import qualified Pipes.Prelude              as P
+import           System.Directory           (renameFile)
+import           System.FilePath
+import           System.IO
+import           System.IO.Error
+import           System.Random
 
-import Text.Feed.Import (parseFeedFromFile)
-import Text.Feed.Export (xmlFeed)
-import Text.Feed.Constructor
-import qualified Text.XML as XML
-import Data.Time.Format
-import Data.Time.LocalTime
+import           Data.Time.Format
+import           Data.Time.LocalTime
+import           Text.Feed.Constructor
+import           Text.Feed.Export           (xmlFeed)
+import           Text.Feed.Import           (parseFeedFromFile)
+import qualified Text.XML                   as XML
 
-import Crypto.Types.PubKey.RSA (PublicKey, PrivateKey)
-import Codec.Crypto.RSA (decrypt, generateKeyPair, RSAError)
-import Crypto.Random (newGenIO, SystemRandom)
-import qualified Crypto.Argon2 as A2
+import           Codec.Crypto.RSA           (RSAError, decrypt, generateKeyPair)
+import qualified Crypto.Argon2              as A2
+import           Crypto.Random              (SystemRandom, newGenIO)
+import           Crypto.Types.PubKey.RSA    (PrivateKey, PublicKey)
 
+import qualified Network.Mail.SMTP          as SMTP
 import qualified Text.Email.Validate
-import qualified Network.Mail.SMTP as SMTP
 
-import System.Environment
-import System.Console.GetOpt
-import System.Exit
+import           System.Console.GetOpt
+import           System.Environment
+import           System.Exit
 
-import Protocol
-import Metagame
-import Lock
-import Frame
-import Database
-import AsciiLock
-import Mundanities
-import Maxlocksize
-import Version
+import           AsciiLock
+import           Database
+import           Frame
+import           Lock
+import           Maxlocksize
+import           Metagame
+import           Mundanities
+import           Protocol
+import           Version
 
 defaultPort = 27001 -- 27001 == ('i'<<8) + 'y'
 
@@ -119,7 +119,7 @@ main = do
     withDB dbpath $ setDefaultServerInfo locksize >> setKeyPair
     writeFile (lockFilePath dbpath) ""
     logh <- case listToMaybe [ f | LogFile f <- opts ] of
-        Nothing -> return stdout
+        Nothing   -> return stdout
         Just path -> openFile path AppendMode
     streamServer serverSpec{address = IPv4 "" port, threading=Threaded} $ handler dbpath delay logh mfeedPath
     sleepForever
@@ -179,9 +179,9 @@ handler dbpath delay logh mfeedPath hdl addr = handle ((\e -> return ()) :: Some
             response <- handle (\e -> return $ ServerError $ show (e::SomeException)) $ do
                 request <- B.decode <$> BL.hGetContents hdl
                 let hostname = case addr of
-                        IP n _ -> n
-                        IPv4 n _ -> n
-                        IPv6 n _ -> n
+                        IP n _    -> n
+                        IPv4 n _  -> n
+                        IPv6 n _  -> n
                         Unix path -> path
                     hashedHostname = take 8 $ hash hostname
                 now <- liftIO getCurrentTime
@@ -212,15 +212,15 @@ showResponse resp = show resp
 handleRequest :: FilePath -> Maybe FilePath -> ClientRequest -> IO ServerResponse
 handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
     let lockMode = case action of
-            Authenticate -> ReadMode
-            GetServerInfo -> ReadMode
-            GetPublicKey -> ReadMode
-            GetLock _ -> ReadMode
-            GetUserInfo _ _ -> ReadMode
-            GetRetired _ -> ReadMode
-            GetSolution _ -> ReadMode
+            Authenticate     -> ReadMode
+            GetServerInfo    -> ReadMode
+            GetPublicKey     -> ReadMode
+            GetLock _        -> ReadMode
+            GetUserInfo _ _  -> ReadMode
+            GetRetired _     -> ReadMode
+            GetSolution _    -> ReadMode
             GetRandomNames _ -> ReadMode
-            _ -> ReadWriteMode
+            _                -> ReadWriteMode
 
     -- check solutions prior to write-locking database:
     withDBLock dbpath ReadMode (runExceptT checkRequest) >>=
@@ -360,7 +360,7 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
         erroredIO c = do
             ret <- liftIO $ catchIO (Right <$> c) (return.Left)
             case ret of
-                Left e -> throwE $ "Server IO error: " ++ show e
+                Left e  -> throwE $ "Server IO error: " ++ show e
                 Right x -> return x
         erroredDB :: DBM a -> ExceptT String IO a
         erroredDB = erroredIO . withDB dbpath
@@ -389,7 +389,7 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
             info <- getUserInfo name
             checkValidLockIndex idx
             case ((!idx).userLocks) info of
-                Nothing -> throwE "Lock not set"
+                Nothing       -> throwE "Lock not set"
                 Just lockinfo -> return lockinfo
         checkValidLockIndex idx =
             unless (0<=idx && idx < maxLocks) $ throwE "Bad lock index"

@@ -8,79 +8,85 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
-{-# LANGUAGE CPP, LambdaCase, TupleSections #-}
+{-# LANGUAGE CPP           #-}
+{-# LANGUAGE LambdaCase    #-}
+{-# LANGUAGE TupleSections #-}
 
 module SDLUI where
 
-import Graphics.UI.SDL hiding (flip)
-import qualified Graphics.UI.SDL as SDL
-import qualified Graphics.UI.SDL.TTF as TTF
-import Control.Concurrent.STM
-import Control.Applicative
-import qualified Data.Map as Map
-import Data.Map (Map)
-import Data.Maybe
-import Control.Monad ((<=<))
-import Control.Monad.State
-import Control.Monad.Trans.Maybe
-import Control.Monad.Trans.Reader
-import Control.Arrow
-import Data.Word
-import Data.Array
-import Data.List
-import Data.Ratio
-import Data.Function (on)
-import Data.Time.Clock (getCurrentTime)
-import System.FilePath
+import           Control.Applicative
+import           Control.Arrow
+import           Control.Concurrent.STM
+import           Control.Monad              ((<=<))
+import           Control.Monad.State
+import           Control.Monad.Trans.Maybe
+import           Control.Monad.Trans.Reader
+import           Data.Array
+import           Data.Function              (on)
+import           Data.List
+import           Data.Map                   (Map)
+import qualified Data.Map                   as Map
+import           Data.Maybe
+import           Data.Ratio
+import           Data.Time.Clock            (getCurrentTime)
+import           Data.Word
+import           Graphics.UI.SDL            hiding (flip)
+import qualified Graphics.UI.SDL            as SDL
+import qualified Graphics.UI.SDL.TTF        as TTF
+import           System.FilePath
 --import Debug.Trace (traceShow)
 
 #ifdef SOUND
-import Graphics.UI.SDL.Mixer
-import System.Random (randomRIO)
+import           Graphics.UI.SDL.Mixer
+import           System.Random              (randomRIO)
 #endif
 
-import Hex
-import Command
-import GameStateTypes
-import BoardColouring
-import Lock
-import Physics
-import GameState
-import KeyBindings
-import Mundanities
-import Metagame
-import SDLRender
-import SDLGlyph
-import InputMode
-import Maxlocksize
-import Util
+import           BoardColouring
+import           Command
+import           GameState
+import           GameStateTypes
+import           Hex
+import           InputMode
+import           KeyBindings
+import           Lock
+import           Maxlocksize
+import           Metagame
+import           Mundanities
+import           Physics
+import           SDLGlyph
+import           SDLRender
+import           Util
 
-data UIState = UIState { scrHeight::Int, scrWidth::Int
-    , gsSurface::Maybe Surface
-    , bgSurface::Maybe Surface
-    , cachedGlyphs::CachedGlyphs
-    , lastDrawArgs::Maybe DrawArgs
-    , miniLocks::Map Lock Surface
-    , registeredSelectables::Map HexVec Selectable
-    , contextButtons::[ButtonGroup]
-    , uiOptions::UIOptions
-    , settingBinding::Maybe Command
-    , uiKeyBindings :: Map InputMode KeyBindings
-    , dispFont::Maybe TTF.Font
-    , dispFontSmall::Maybe TTF.Font
-    , lastFrameTicks::Word32
-    , paintTileIndex::Int
-    , leftButtonDown::Maybe HexVec, middleButtonDown::Maybe HexVec, rightButtonDown::Maybe HexVec
-    , mousePos::(HexVec,Bool)
-    , message::Maybe (Pixel, String)
-    , hoverStr :: Maybe String
-    , dispCentre::HexPos
-    , dispLastCol::PieceColouring
-    , animFrame::Int
-    , nextAnimFrameAt::Maybe Word32
-    , fps::Int
+data UIState = UIState
+    { scrHeight             :: Int
+    , scrWidth              :: Int
+    , gsSurface             :: Maybe Surface
+    , bgSurface             :: Maybe Surface
+    , cachedGlyphs          :: CachedGlyphs
+    , lastDrawArgs          :: Maybe DrawArgs
+    , miniLocks             :: Map Lock Surface
+    , registeredSelectables :: Map HexVec Selectable
+    , contextButtons        :: [ButtonGroup]
+    , uiOptions             :: UIOptions
+    , settingBinding        :: Maybe Command
+    , uiKeyBindings         :: Map InputMode KeyBindings
+    , dispFont              :: Maybe TTF.Font
+    , dispFontSmall         :: Maybe TTF.Font
+    , lastFrameTicks        :: Word32
+    , paintTileIndex        :: Int
+    , leftButtonDown        :: Maybe HexVec
+    , middleButtonDown      :: Maybe HexVec
+    , rightButtonDown       :: Maybe HexVec
+    , mousePos              :: (HexVec,Bool)
+    , message               :: Maybe (Pixel, String)
+    , hoverStr              :: Maybe String
+    , dispCentre            :: HexPos
+    , dispLastCol           :: PieceColouring
+    , animFrame             :: Int
+    , nextAnimFrameAt       :: Maybe Word32
+    , fps                   :: Int
 #ifdef SOUND
-    , sounds::Map String [Chunk]
+    , sounds                :: Map String [Chunk]
 #endif
     }
     deriving (Eq, Ord, Show)
@@ -93,15 +99,15 @@ nullUIState = UIState 0 0 Nothing Nothing emptyCachedGlyphs Nothing Map.empty Ma
 #endif
 
 data UIOptions = UIOptions
-    { useFiveColouring::Bool
-    , showBlocks::ShowBlocks
-    , whsButtons::Maybe WrHoSel
-    , useBackground::Bool
-    , fullscreen::Bool
-    , showButtonText::Bool
-    , useSounds::Bool
-    , uiAnimTime::Word32
-    , shortUiAnimTime::Word32
+    { useFiveColouring :: Bool
+    , showBlocks       :: ShowBlocks
+    , whsButtons       :: Maybe WrHoSel
+    , useBackground    :: Bool
+    , fullscreen       :: Bool
+    , showButtonText   :: Bool
+    , useSounds        :: Bool
+    , uiAnimTime       :: Word32
+    , shortUiAnimTime  :: Word32
     }
     deriving (Eq, Ord, Show, Read)
 defaultUIOptions = UIOptions False ShowBlocksBlocking Nothing True False True True 100 20
@@ -140,7 +146,7 @@ waitFrame = do
     modify $ \ds -> ds { lastFrameTicks = now }
 
 
-data Button = Button { buttonPos::HexVec, buttonCmd::Command, buttonHelp::[ButtonHelp] }
+data Button = Button { buttonPos :: HexVec, buttonCmd :: Command, buttonHelp :: [ButtonHelp] }
     deriving (Eq, Ord, Show)
 type ButtonGroup = ([Button],(Int,Int))
 type ButtonHelp = (String, HexVec)
@@ -364,9 +370,9 @@ helpAtMousePos (mPos,_) _ =
     gets $ (helpOfSelectable <=< Map.lookup mPos) . registeredSelectables
 
 
-data UIOptButton a = UIOptButton { getUIOpt::UIOptions->a, setUIOpt::a->UIOptions->UIOptions,
-    uiOptVals::[a], uiOptPos::HexVec, uiOptGlyph::a->Glyph, uiOptDescr::a->String,
-    uiOptModes::[InputMode], onSet :: Maybe (a -> UIM ()) }
+data UIOptButton a = UIOptButton { getUIOpt :: UIOptions->a, setUIOpt :: a->UIOptions->UIOptions,
+    uiOptVals :: [a], uiOptPos :: HexVec, uiOptGlyph :: a->Glyph, uiOptDescr :: a->String,
+    uiOptModes :: [InputMode], onSet :: Maybe (a -> UIM ()) }
 
 -- non-uniform type, so can't use a list...
 uiOB1 = UIOptButton useFiveColouring (\v o -> o {useFiveColouring=v}) [True,False]
@@ -378,8 +384,8 @@ uiOB2 = UIOptButton showBlocks (\v o -> o {showBlocks=v}) [ShowBlocksBlocking,Sh
         (periphery 0 +^ 2 *^ hu +^ 2 *^ neg hv) ShowBlocksButton
         (\case
             ShowBlocksBlocking -> "Blocking forces are annotated"
-            ShowBlocksAll -> "Blocked and blocking forces are annotated"
-            ShowBlocksNone -> "Blockage annotations disabled")
+            ShowBlocksAll      -> "Blocked and blocking forces are annotated"
+            ShowBlocksNone     -> "Blockage annotations disabled")
         [IMPlay, IMReplay] Nothing
 uiOB3 = UIOptButton whsButtons (\v o -> o {whsButtons=v}) [Nothing, Just WHSSelected, Just WHSWrench, Just WHSHook]
         (periphery 3 +^ 3 *^ hv) WhsButtonsButton
@@ -387,8 +393,8 @@ uiOB3 = UIOptButton whsButtons (\v o -> o {whsButtons=v}) [Nothing, Just WHSSele
             Nothing -> "Click to show (and rebind) keyboard control buttons."
             Just whs -> "Showing buttons for controlling " ++ case whs of
                 WHSSelected -> "selected piece; right-click to rebind"
-                WHSWrench -> "wrench; right-click to rebind"
-                WHSHook -> "hook; right-click to rebind")
+                WHSWrench   -> "wrench; right-click to rebind"
+                WHSHook     -> "hook; right-click to rebind")
         [IMPlay, IMEdit] Nothing
 uiOB4 = UIOptButton showButtonText (\v o -> o {showButtonText=v}) [True,False]
         (periphery 0 +^ 2 *^ hu +^ 2 *^ hv) ShowButtonTextButton
@@ -430,7 +436,7 @@ toggleUIOption (UIOptButton getopt setopt vals _ _ _ _ monSet) = do
     let value' = cycle vals !! max 0 (1 + fromMaybe 0 (elemIndex value vals))
     modifyUIOptions $ setopt value'
     case monSet of
-        Nothing -> return ()
+        Nothing    -> return ()
         Just onSet -> onSet value'
 
 readUIConfigFile :: UIM ()
@@ -439,7 +445,7 @@ readUIConfigFile = do
     mOpts <- liftIO $ readReadFile path
     case mOpts of
         Just opts -> modify $ \s -> s {uiOptions = opts}
-        Nothing -> return ()
+        Nothing   -> return ()
 writeUIConfigFile :: UIM ()
 writeUIConfigFile = do
     path <- liftIO $ confFilePath "SDLUI.conf"
@@ -453,7 +459,7 @@ readBindings = do
     mbdgs <- liftIO $ readReadFile path
     case mbdgs of
         Just bdgs -> modify $ \s -> s {uiKeyBindings = bdgs}
-        Nothing -> return ()
+        Nothing   -> return ()
 writeBindings :: UIM ()
 writeBindings = do
     path <- liftIO $ confFilePath "bindings"
@@ -495,7 +501,7 @@ drawPaintButtons = do
         do
             let gl = case paintTiles!!i of
                     Nothing -> HollowInnerGlyph $ dim purple
-                    Just t -> TileGlyph t $ dim purple
+                    Just t  -> TileGlyph t $ dim purple
             drawAtRel gl pos
             when selected $ drawAtRel cursorGlyph pos
         | i <- take (length paintTiles) [0..]
@@ -510,7 +516,7 @@ periphery n = rotate n $ periphery 0
 messageLineCentre = ((maxlocksize+1)`div`2)*^hw +^ ((maxlocksize+1+1)`div`2)*^neg hv
 titlePos = (maxlocksize+1)*^hv +^ ((maxlocksize+1)`div`2)*^hu
 
-screenWidthHexes,screenHeightHexes::Int
+screenWidthHexes,screenHeightHexes :: Int
 screenWidthHexes = 32
 screenHeightHexes = 25
 getGeom :: UIM (SVec, Int)
@@ -566,9 +572,9 @@ drawMainGameState' args@(DrawArgs highlight colourFixed alerts st uiopts) = do
                 splitAlerts frameAs (a:as) =
                     splitAlerts (a:frameAs) as
                 splitAlerts frameAs [] = [(frameAs,st,False)]
-                isGlobalAlert (AlertAppliedForce _) = False
+                isGlobalAlert (AlertAppliedForce _)      = False
                 isGlobalAlert (AlertIntermediateState _) = False
-                isGlobalAlert _ = True
+                isGlobalAlert _                          = True
             let animAlertedStates = nub $
                     let ass = splitAlerts [] transitoryAlerts
                     in if last ass == ([],st,False) then ass else ass ++ [([],st,False)]
@@ -827,7 +833,7 @@ initAudio = do
     liftIO $ allocateChannels 16
     let seqWhileJust (m:ms) = m >>= \ret -> case ret of
             Nothing -> return []
-            Just a -> (a:) <$> seqWhileJust ms
+            Just a  -> (a:) <$> seqWhileJust ms
     soundsdir <- liftIO $ getDataPath "sounds"
     sounds <- sequence [ do
             chunks <- liftIO $ seqWhileJust
@@ -840,9 +846,9 @@ initAudio = do
                         "-" ++ (if n < 10 then ('0':) else id) (show n) ++ ext
                         | ext <- [".ogg", ".wav"] ]
                 , let vol = case sound of
-                        "pivot" -> 64
+                        "pivot"        -> 64
                         "wrenchscrape" -> 64
-                        _ -> 128
+                        _              -> 128
                 ]
             return (sound,chunks)
         | sound <- ["hookblocked","hookarmblocked","wrenchblocked","wrenchscrape","pivot","unlocked","ballmove"]
@@ -880,7 +886,7 @@ setMsgLineNoRefresh col str = do
 setMsgLine col str = setMsgLineNoRefresh col str >> refresh
 
 drawTitle (Just title) = renderToMain $ renderStrColAt messageCol title titlePos
-drawTitle Nothing = return ()
+drawTitle Nothing      = return ()
 
 say = setMsgLine messageCol
 sayError = setMsgLine errorCol

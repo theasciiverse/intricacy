@@ -10,16 +10,16 @@
 
 module Metagame where
 
-import Control.Applicative
-import Data.Array
-import Data.Binary
-import Control.Monad
-import Data.List (delete)
-import Data.Char
-import Data.Maybe
+import           Control.Applicative
+import           Control.Monad
+import           Data.Array
+import           Data.Binary
+import           Data.Char
+import           Data.List           (delete)
+import           Data.Maybe
 
-import GameStateTypes
-import Lock
+import           GameStateTypes
+import           Lock
 
 notesNeeded = 3
 maxLocks = 3
@@ -49,7 +49,7 @@ data AccessedReason = AccessedPrivyRead | AccessedPrivySolved {noteReadByOwner::
     deriving (Eq, Ord, Show, Read)
 winsPoint :: AccessedReason -> Bool
 winsPoint (AccessedPrivySolved True) = False
-winsPoint _ = True
+winsPoint _                          = True
 
 getAccessInfo :: UserInfo -> UserInfo -> [Maybe AccessedReason]
 getAccessInfo accessedUInfo accessorUInfo =
@@ -133,9 +133,9 @@ instance Binary UserInfo where
     get = liftM3 UserInfo get get get
 
 instance Binary UserInfoDelta where
-    put (AddRead note) = put (0::Word8) >> put note
-    put (DelRead note) = put (1::Word8) >> put note
-    put (PutLock ls li) = put (2::Word8) >> put ls >> put li
+    put (AddRead note)    = put (0::Word8) >> put note
+    put (DelRead note)    = put (1::Word8) >> put note
+    put (PutLock ls li)   = put (2::Word8) >> put ls >> put li
     put (LockDelta li ld) = put (3::Word8) >> put li >> put ld
     get = do
         tag <- get :: Get Word8
@@ -146,12 +146,12 @@ instance Binary UserInfoDelta where
             3 -> LockDelta <$> get <*> get
 
 instance Binary LockDelta where
-    put (SetPubNote note) = put (0::Word8) >> put note
-    put (AddSecured note) = put (1::Word8) >> put note
-    put (DelSecured note) = put (2::Word8) >> put note
+    put (SetPubNote note)  = put (0::Word8) >> put note
+    put (AddSecured note)  = put (1::Word8) >> put note
+    put (DelSecured note)  = put (2::Word8) >> put note
     put (AddSolution note) = put (3::Word8) >> put note
     put (AddAccessed name) = put (4::Word8) >> put name
-    put SetPublic = put (5::Word8)
+    put SetPublic          = put (5::Word8)
     get = do
         tag <- get :: Get Word8
         case tag of

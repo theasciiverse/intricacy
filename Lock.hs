@@ -9,16 +9,16 @@
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
 module Lock where
-import Control.Monad.Writer
-import Data.Maybe
-import qualified Data.Map as Map
+import           Control.Monad.Writer
+import qualified Data.Map             as Map
+import           Data.Maybe
 
-import Frame
-import GameState
-import GameStateTypes
-import Hex
-import Util
-import Physics
+import           Frame
+import           GameState
+import           GameStateTypes
+import           Hex
+import           Physics
+import           Util
 
 type Lock = (Frame, GameState)
 liftLock :: (GameState -> GameState) -> (Lock -> Lock)

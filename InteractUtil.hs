@@ -10,32 +10,32 @@
 
 module InteractUtil where
 
-import Control.Monad.State
-import Control.Applicative
-import qualified Data.Map as Map
-import Data.Map (Map)
-import Control.Monad.Writer
-import Control.Monad.Trans.Maybe
-import Data.Maybe
-import Data.Char
-import Data.List
-import System.Directory
-import Data.Array
-import Data.Function (on)
+import           Control.Applicative
+import           Control.Monad.State
+import           Control.Monad.Trans.Maybe
+import           Control.Monad.Writer
+import           Data.Array
+import           Data.Char
+import           Data.Function             (on)
+import           Data.List
+import           Data.Map                  (Map)
+import qualified Data.Map                  as Map
+import           Data.Maybe
+import           System.Directory
 
-import Hex
-import Command
-import Physics
-import Mundanities
-import GameStateTypes
-import EditGameState
-import Frame
-import Lock
-import Protocol
-import Metagame
-import MainState
-import InputMode
-import Util
+import           Command
+import           EditGameState
+import           Frame
+import           GameStateTypes
+import           Hex
+import           InputMode
+import           Lock
+import           MainState
+import           Metagame
+import           Mundanities
+import           Physics
+import           Protocol
+import           Util
 
 checkWon :: UIMonad uiM => MainStateT uiM ()
 checkWon = do
@@ -135,10 +135,10 @@ marksSet :: UIMonad uiM => MainStateT uiM [Char]
 marksSet = do
     mst <- get
     return $ case ms2im mst of
-        IMEdit -> Map.keys $ esMarks mst
-        IMPlay -> Map.keys $ psMarks mst
+        IMEdit   -> Map.keys $ esMarks mst
+        IMPlay   -> Map.keys $ psMarks mst
         IMReplay -> Map.keys $ rsMarks mst
-        _ -> []
+        _        -> []
 
 jumpMark :: UIMonad uiM => Char -> MainStateT uiM ()
 jumpMark ch = do
@@ -191,11 +191,11 @@ confirm prompt = do
             maybe waitConfirm return (msum $ ansOfCmd <$> cmds)
         ansOfCmd (CmdInputChar 'y') = Just True
         ansOfCmd (CmdInputChar 'Y') = Just True
-        ansOfCmd (CmdInputChar c) = if isPrint c then Just False else Nothing
-        ansOfCmd CmdRedraw = Just False
-        ansOfCmd CmdRefresh = Nothing
-        ansOfCmd CmdUnselect = Nothing
-        ansOfCmd _ = Just False
+        ansOfCmd (CmdInputChar c)   = if isPrint c then Just False else Nothing
+        ansOfCmd CmdRedraw          = Just False
+        ansOfCmd CmdRefresh         = Nothing
+        ansOfCmd CmdUnselect        = Nothing
+        ansOfCmd _                  = Just False
 
 -- | TODO: draw cursor
 textInput :: UIMonad uiM => String -> Int -> Bool -> Bool -> Maybe [String] -> Maybe String -> uiM (Maybe String)
@@ -209,8 +209,8 @@ textInput prompt maxlen hidden endOnMax mposss init = getText (fromMaybe "" init
             else do
                 cmds <- getInput IMTextInput
                 case foldM applyCmd (s,mstem) cmds of
-                    Left False -> return Nothing
-                    Left True -> return $ Just s
+                    Left False        -> return Nothing
+                    Left True         -> return $ Just s
                     Right (s',mstem') -> getText (s',mstem')
             where
                 applyCmd (s,mstem) (CmdInputChar c) = case c of

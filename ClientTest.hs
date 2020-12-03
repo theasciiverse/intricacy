@@ -10,25 +10,25 @@
 
 module Main where
 
-import System.Environment
-import Control.Monad
-import Data.Maybe
-import System.IO
+import           Control.Monad
+import           Data.Binary
 import qualified Data.ByteString.Lazy as L
-import Data.Binary
-import Data.List (intersperse)
-import Data.Char
+import           Data.Char
+import           Data.List            (intersperse)
+import           Data.Maybe
+import           System.Environment
+import           System.IO
 
 --import Data.BinaryCom as BC
-import Network.Fancy
-import Text.Show.Pretty (ppShow)
+import           Network.Fancy
+import           Text.Show.Pretty     (ppShow)
 
-import Protocol
-import Metagame
-import BinaryInstances
-import Mundanities
-import Lock
-import Physics
+import           BinaryInstances
+import           Lock
+import           Metagame
+import           Mundanities
+import           Physics
+import           Protocol
 
 port = 27001 -- 27001 == ('i'<<8) + 'y'
 main = withStream (IP "localhost" port) handler

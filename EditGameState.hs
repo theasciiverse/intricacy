@@ -10,17 +10,17 @@
 
 module EditGameState (modTile, mergeTiles) where
 
-import Control.Applicative
-import Data.Function (on)
-import qualified Data.Map as Map
-import Data.Map (Map)
-import Data.Maybe
-import Control.Monad
-import Data.List
+import           Control.Applicative
+import           Control.Monad
+import           Data.Function       (on)
+import           Data.List
+import           Data.Map            (Map)
+import qualified Data.Map            as Map
+import           Data.Maybe
 
-import Hex
-import GameState
-import GameStateTypes
+import           GameState
+import           GameStateTypes
+import           Hex
 --import Debug
 
 modTile :: Maybe Tile -> HexPos -> HexPos -> Bool -> GameState -> GameState
@@ -28,9 +28,9 @@ modTile tile pos lastPos painting st =
     let board = stateBoard st
         curOwnedTile = Map.lookup pos board
         (st',mowner) = case curOwnedTile of
-            Nothing -> (st,Nothing)
+            Nothing                     -> (st,Nothing)
             Just (owner,SpringTile _ _) -> (delConnectionsIn pos st, Just owner)
-            Just (owner,_) -> delPiecePos owner pos st -- XXX may invalidate board's indices to st
+            Just (owner,_)              -> delPiecePos owner pos st -- XXX may invalidate board's indices to st
         board' = stateBoard st'
         addPiece p = addpp $ PlacedPiece pos p
         lastMOwner = do
@@ -54,7 +54,7 @@ modTile tile pos lastPos painting st =
         validSpringRootTile ot = case snd ot of
             BlockTile _ -> True
             PivotTile _ -> True
-            _ -> False
+            _           -> False
         -- |Find next adjacent, skipping over current entity.
         nextOfAdjacents adjs loop = listToMaybe $ fromMaybe adjs $ do
                 owner <- mowner
@@ -75,7 +75,7 @@ modTile tile pos lastPos painting st =
                        else nextOfAdjacents adjacentBlocks False
                in case addToIdx of
                   Nothing -> addPiece $ Block [zero]
-                  Just b -> addBlockPos b pos
+                  Just b  -> addBlockPos b pos
            Just (ArmTile armdir _) ->
                let adjacentPivots = [ idx |
                        dir <- if armdir == zero then hexDirs else [armdir, neg armdir]
@@ -85,7 +85,7 @@ modTile tile pos lastPos painting st =
                        else nextOfAdjacents adjacentPivots True
                in case addToIdx of
                       Nothing -> id
-                      Just p -> addPivotArm p pos
+                      Just p  -> addPivotArm p pos
            Just (SpringTile _ _) ->
                let possibleSprings = [ Connection root end $ Spring sdir natLen |
                        sdir <- hexDirs

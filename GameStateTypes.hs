@@ -10,12 +10,12 @@
 
 module GameStateTypes where
 
-import Data.Map (Map)
-import Data.Vector (Vector)
-import Hex
+import           Data.Map    (Map)
+import           Data.Vector (Vector)
+import           Hex
 
 data GameState = GameState { placedPieces :: Vector PlacedPiece,
-        connections :: [Connection] }
+        connections                       :: [Connection] }
     deriving (Eq, Ord, Show, Read)
 
 data PlacedPiece = PlacedPiece { placedPos :: HexPos, placedPiece :: Piece }
@@ -59,13 +59,13 @@ data Tile = BlockTile [HexDir] | PivotTile HexDir | ArmTile HexDir Bool | HookTi
     deriving (Eq, Ord, Show, Read)
 
 tileType :: Tile -> Tile
-tileType (BlockTile _) = BlockTile []
-tileType (PivotTile _) = PivotTile zero
-tileType (ArmTile _ _) = ArmTile zero False
-tileType (WrenchTile _) = WrenchTile zero
-tileType BallTile = BallTile
+tileType (BlockTile _)    = BlockTile []
+tileType (PivotTile _)    = PivotTile zero
+tileType (ArmTile _ _)    = ArmTile zero False
+tileType (WrenchTile _)   = WrenchTile zero
+tileType BallTile         = BallTile
 tileType (SpringTile _ _) = SpringTile Relaxed zero
-tileType t = t
+tileType t                = t
 
 type OwnedTile = (PieceIdx, Tile)
 type GameBoard = Map HexPos OwnedTile

@@ -9,9 +9,9 @@
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
 module Command where
-import Hex
-import GameStateTypes
-import Metagame
+import           GameStateTypes
+import           Hex
+import           Metagame
 
 data Command
     = CmdDir WrHoSel HexDir | CmdRotate WrHoSel TorqueDir | CmdWait
@@ -106,15 +106,15 @@ describeCommand CmdQuit = "quit"
 describeCommand CmdHelp = "help"
 describeCommand _ = ""
 
-tileStr HookTile = "hook"
-tileStr (WrenchTile _) = "wrench"
-tileStr (ArmTile _ _) = "arm"
-tileStr (PivotTile _) = "pivot"
+tileStr HookTile         = "hook"
+tileStr (WrenchTile _)   = "wrench"
+tileStr (ArmTile _ _)    = "arm"
+tileStr (PivotTile _)    = "pivot"
 tileStr (SpringTile _ _) = "spring"
-tileStr (BlockTile _) = "block"
-tileStr BallTile = "ball"
-whsStr WHSWrench = "wrench"
-whsStr WHSHook = "hook"
+tileStr (BlockTile _)    = "block"
+tileStr BallTile         = "ball"
+whsStr WHSWrench   = "wrench"
+whsStr WHSHook     = "hook"
 whsStr WHSSelected = "tool"
 dirStr v
     | v == hu = "right"

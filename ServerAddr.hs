@@ -10,9 +10,9 @@
 
 module ServerAddr where
 
-import Data.List
-import Data.Maybe
-import Control.Applicative
+import           Control.Applicative
+import           Data.List
+import           Data.Maybe
 
 data ServerAddr = ServerAddr {hostname::String, port::Int}
     deriving (Eq, Ord, Show, Read)

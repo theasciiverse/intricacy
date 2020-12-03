@@ -10,16 +10,16 @@
 
 module CursesRender where
 
+import           Data.Char          (ord)
+import           Data.Map           (Map)
+import qualified Data.Map           as Map
 import qualified UI.HSCurses.Curses as Curses
-import Data.Char (ord)
-import qualified Data.Map as Map
-import Data.Map (Map)
 
-import Hex
-import CVec
-import GameStateTypes
-import BoardColouring (PieceColouring)
-import AsciiLock
+import           AsciiLock
+import           BoardColouring     (PieceColouring)
+import           CVec
+import           GameStateTypes
+import           Hex
 
 -- From Curses.CursesHelper:
 -- | Converts a list of 'Curses.Color' pairs (foreground color and
@@ -84,7 +84,7 @@ ownedTileGlyph mono@False colouring reversed (owner,t) =
     let (ch,attr) = tileChar t
         pair = case Map.lookup owner colouring of
                     Nothing -> 0
-                    Just n -> n+1
+                    Just n  -> n+1
         rev = owner `elem` reversed
     in Glyph ch pair (Curses.setReverse attr rev)
 

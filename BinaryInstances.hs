@@ -9,15 +9,15 @@
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
 module BinaryInstances where
-import Data.Binary
-import qualified Data.Vector as Vector
-import Control.Monad
-import Data.Int (Int8)
+import           Control.Monad
+import           Data.Binary
+import           Data.Int       (Int8)
+import qualified Data.Vector    as Vector
 
-import GameStateTypes
-import Physics
-import Hex
-import Frame
+import           Frame
+import           GameStateTypes
+import           Hex
+import           Physics
 
 newtype SmallInt = SmallInt {fromSmallInt :: Int}
 newtype SmallNat = SmallNat {fromSmallNat :: Int}
@@ -75,11 +75,11 @@ instance Binary PlacedPiece where
     put (PlacedPiece ppos p) = put ppos >> put p
     get = liftM2 PlacedPiece get get
 instance Binary Piece where
-    put (Block patt) = put (0::Word8) >> put (ShortList patt)
-    put (Pivot arms) = put (1::Word8) >> put (ShortList arms)
+    put (Block patt)         = put (0::Word8) >> put (ShortList patt)
+    put (Pivot arms)         = put (1::Word8) >> put (ShortList arms)
     put (Hook arm stiffness) = put (2::Word8) >> put arm >> put stiffness
-    put (Wrench mom) = put (3::Word8) >> put mom
-    put Ball = put (4::Word8)
+    put (Wrench mom)         = put (3::Word8) >> put mom
+    put Ball                 = put (4::Word8)
     get = do
         tag <- get :: Get Word8
         case tag of
@@ -97,7 +97,7 @@ instance Binary Connection where
         ep <- get
         Connection (ri,rp) (ei,ep) <$> get
 instance Binary Link where
-    put (Free p) = put (0::Word8) >> put p
+    put (Free p)     = put (0::Word8) >> put p
     put (Spring d l) = put (1::Word8) >> put d >> putPackedInt l
     get = do
         tag <- get :: Get Word8
@@ -105,9 +105,9 @@ instance Binary Link where
             0 -> Free <$> get
             1 -> liftM2 Spring get getPackedInt
 instance Binary HookForce where
-    put NullHF = put (0::Word8)
+    put NullHF         = put (0::Word8)
     put (TorqueHF dir) = put (1::Word8) >> putPackedInt dir
-    put (PushHF v) = put (2::Word8) >> put v
+    put (PushHF v)     = put (2::Word8) >> put v
     get = do
         tag <- get :: Get Word8
         case tag of
@@ -119,10 +119,10 @@ instance Binary Frame where
     get = BasicFrame <$> getPackedInt
 
 instance Binary PlayerMove where
-    put NullPM = put (0::Word8)
-    put (HookPush v) = put (1::Word8) >> put v
+    put NullPM           = put (0::Word8)
+    put (HookPush v)     = put (1::Word8) >> put v
     put (HookTorque dir) = put (2::Word8) >> putPackedInt dir
-    put (WrenchPush v) = put (3::Word8) >> put v
+    put (WrenchPush v)   = put (3::Word8) >> put v
     get = do
         tag <- get :: Get Word8
         case tag of

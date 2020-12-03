@@ -10,19 +10,19 @@
 
 module Physics where
 
-import qualified Data.Set as Set
-import Data.Set (Set)
-import qualified Data.Vector as Vector
-import Control.Monad.State
-import Control.Monad.Writer
-import Data.Foldable (foldrM)
-import Data.List
-import Data.Vector (Vector, (!), (//))
+import           Control.Monad.State
+import           Control.Monad.Writer
+import           Data.Foldable        (foldrM)
+import           Data.List
+import           Data.Set             (Set)
+import qualified Data.Set             as Set
+import           Data.Vector          (Vector, (!), (//))
+import qualified Data.Vector          as Vector
 
-import Hex
-import Util
-import GameState
-import GameStateTypes
+import           GameState
+import           GameStateTypes
+import           Hex
+import           Util
 
 -- | a list of forces to try in order:
 newtype ForceChoice = ForceChoice {getForceChoice :: [Force]}
@@ -30,14 +30,14 @@ newtype ForceChoice = ForceChoice {getForceChoice :: [Force]}
 type ForceChoices = Vector.Vector ForceChoice
 
 forceIdx :: Force -> PieceIdx
-forceIdx force = case force of (Push idx _) -> idx
+forceIdx force = case force of (Push idx _)   -> idx
                                (Torque idx _) -> idx
 
 isPush,isTorque,forceIsNull :: Force -> Bool
 isPush (Push _ _) = True
-isPush _ = False
+isPush _          = False
 isTorque = not . isPush
-forceIsNull (Push _ dir) = dir == zero
+forceIsNull (Push _ dir)   = dir == zero
 forceIsNull (Torque _ dir) = dir == 0
 
 getForcedpp :: GameState -> Force -> PlacedPiece
@@ -56,8 +56,8 @@ toolForces st pm = Vector.fromList $
     , not $ null (wmom++wmove)
     ] ++ case pm of
         HookTorque ht -> [ ForceChoice [Torque hidx ht] | hidx <- hidxs ]
-        HookPush hp -> [ ForceChoice [Push hidx hp] | hidx <- hidxs ]
-        _ -> []
+        HookPush hp   -> [ ForceChoice [Push hidx hp] | hidx <- hidxs ]
+        _             -> []
     where
         epps = enumVec $ placedPieces st
         hidxs = [ hidx | (hidx, PlacedPiece _ (Hook _ _)) <- epps ]
@@ -89,11 +89,11 @@ setTools :: PlayerMove -> GameState -> GameState
 setTools pm st =
     let hf = case pm of
             HookTorque dir -> TorqueHF dir
-            HookPush v -> PushHF v
-            _ -> NullHF
+            HookPush v     -> PushHF v
+            _              -> NullHF
     in adjustPieces (\p -> case p of
                 Hook arm _ -> Hook arm hf
-                _ -> p) st
+                _          -> p) st
 
 physicsTick :: PlayerMove -> GameState -> Writer [Alert] GameState
 physicsTick pm st =
@@ -114,9 +114,9 @@ resolveForces :: ForceChoices -> ForceChoices -> Dominance -> GameState -> Write
 resolveForces plForces eForces eDominates st =
     let pln = Vector.length plForces
         dominates i j = case map (< pln) [i,j] of
-                [True,False] -> True
+                [True,False]  -> True
                 [False,False] -> eDominates (i-pln) (j-pln)
-                _ -> False
+                _             -> False
         initGrps = (propagate st True <$> plForces) Vector.++
                 (propagate st False <$> eForces)
         blockInconsistent :: Int -> Int -> StateT (Vector (Writer Any [Force])) (Writer [Alert]) ()
@@ -180,7 +180,7 @@ applyForce f s =
         pp' = applyForceTo (getpp s idx) f
         pp'' = case (placedPiece pp',f) of
                    ( Wrench _ , Push _ dir ) -> pp' {placedPiece = Wrench dir}
-                   _ -> pp'
+                   _                         -> pp'
         in
         s { placedPieces = placedPieces s // [(idx, pp'')] }
 
@@ -210,9 +210,9 @@ pieceResists st force =
                      (Block _) -> null springs
                      (Wrench mom) -> case force of
                             Push _ v -> v /= mom
-                            _ -> True
+                            _        -> True
                      (Hook _ hf) -> case force of
-                            Push _ v -> hf /= PushHF v
+                            Push _ v     -> hf /= PushHF v
                             Torque _ dir -> hf /= TorqueHF dir
                      _ -> False
     in fixed
@@ -229,9 +229,9 @@ transmittedForce st idx cpos dir =
             LT -> Torque idx $ -1
             EQ -> Push idx dir
     in case piece of
-            Pivot _ -> armPush
+            Pivot _             -> armPush
             Hook _ (TorqueHF _) -> armPush
-            _ -> Push idx dir
+            _                   -> Push idx dir
 
 -- |propagateForce: return forces a force causes via bumps and fully
 -- compressed/extended springs

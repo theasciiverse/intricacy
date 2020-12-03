@@ -13,26 +13,26 @@
 module AsciiLock (lockToAscii, lockOfAscii, stateToAscii
     , readAsciiLockFile, writeAsciiLockFile, monochromeOTileChar) where
 
-import Data.Function (on)
-import Control.Applicative
-import Control.Monad
-import Control.Arrow ((&&&))
-import qualified Data.Map as Map
-import Data.Map (Map)
-import qualified Data.Vector as Vector
-import Data.Maybe
-import Data.Traversable as T
-import Data.List
+import           Control.Applicative
+import           Control.Arrow       ((&&&))
+import           Control.Monad
+import           Data.Function       (on)
+import           Data.List
+import           Data.Map            (Map)
+import qualified Data.Map            as Map
+import           Data.Maybe
+import           Data.Traversable    as T
+import qualified Data.Vector         as Vector
 
-import Lock
-import GameStateTypes
-import GameState
-import BoardColouring
-import Frame
-import Hex
-import CVec
-import Util
-import Mundanities
+import           BoardColouring
+import           CVec
+import           Frame
+import           GameState
+import           GameStateTypes
+import           Hex
+import           Lock
+import           Mundanities
+import           Util
 
 
 type AsciiLock = [String]
@@ -85,12 +85,12 @@ asciiBoardState frame board =
     let addPreBase st = foldr addpp st (replicate 6 $ PlacedPiece origin $ Block [])
         addBase st = foldr addBaseOT st $ Map.toList $
             Map.filter (isBaseTile.snd) board
-        isBaseTile (BlockTile _) = True
-        isBaseTile (PivotTile _) = True
-        isBaseTile HookTile = True
+        isBaseTile (BlockTile _)  = True
+        isBaseTile (PivotTile _)  = True
+        isBaseTile HookTile       = True
         isBaseTile (WrenchTile _) = True
-        isBaseTile BallTile = True
-        isBaseTile _ = False
+        isBaseTile BallTile       = True
+        isBaseTile _              = False
         addBaseOT :: (HexPos,(PieceIdx,Tile)) -> GameState -> GameState
         addBaseOT (pos,(o,BlockTile [])) = addBlockPos o pos
         addBaseOT (pos,(-1,t)) = addpp $ PlacedPiece pos $ basePieceOfTile t
@@ -135,8 +135,8 @@ asciiBoardState frame board =
                             , let pos' = i*^dir+^rpos
                             , Just (_,SpringTile extn _) <- [ Map.lookup pos' board ] ]
                         extnValue Compressed = 4
-                        extnValue Relaxed = 2
-                        extnValue Stretched = 1
+                        extnValue Relaxed    = 2
+                        extnValue Stretched  = 1
                         Just root = posLocus baseSt rpos
                         Just end = posLocus baseSt epos
                     Just $ flip addConn st $ Connection root end $ Spring dir $ twiceNatLen`div`2
@@ -151,7 +151,7 @@ monochromeOTileChar colouring (idx,BlockTile _) =
         Just 2 -> '"'
         Just 3 -> '&'
         Just 4 -> '~'
-        _ -> '#'
+        _      -> '#'
 monochromeOTileChar _ (_,t) = monochromeTileChar t
 monochromeTileChar :: Tile -> Char
 monochromeTileChar (PivotTile _) = 'o'
@@ -167,29 +167,29 @@ monochromeTileChar (WrenchTile _) = '*'
 monochromeTileChar BallTile = 'O'
 monochromeTileChar (SpringTile extn dir)
     | dir == hu = case extn of
-        Stretched                  -> 's'
-        Relaxed                    -> 'S'
-        Compressed                 -> '$'
+        Stretched  -> 's'
+        Relaxed    -> 'S'
+        Compressed -> '$'
     | dir == hv = case extn of
-        Stretched                  -> 'z'
-        Relaxed                    -> 'Z'
-        Compressed                 -> '5'
+        Stretched  -> 'z'
+        Relaxed    -> 'Z'
+        Compressed -> '5'
     | dir == hw = case extn of
-        Stretched                  -> '('
-        Relaxed                    -> '['
-        Compressed                 -> '{'
+        Stretched  -> '('
+        Relaxed    -> '['
+        Compressed -> '{'
     | dir == neg hu = case extn of
-        Stretched                  -> 'c'
-        Relaxed                    -> 'C'
-        Compressed                 -> 'D'
+        Stretched  -> 'c'
+        Relaxed    -> 'C'
+        Compressed -> 'D'
     | dir == neg hv = case extn of
-        Stretched                  -> ')'
-        Relaxed                    -> ']'
-        Compressed                 -> '}'
+        Stretched  -> ')'
+        Relaxed    -> ']'
+        Compressed -> '}'
     | dir == neg hw = case extn of
-        Stretched                  -> '1'
-        Relaxed                    -> '7'
-        Compressed                 -> '9'
+        Stretched  -> '1'
+        Relaxed    -> '7'
+        Compressed -> '9'
 monochromeTileChar _ = '?'
 monoToOTile :: Char -> Maybe OwnedTile
 monoToOTile '#' = Just (1,BlockTile [])
@@ -197,37 +197,37 @@ monoToOTile '%' = Just (2,BlockTile [])
 monoToOTile '"' = Just (3,BlockTile [])
 monoToOTile '&' = Just (4,BlockTile [])
 monoToOTile '~' = Just (5,BlockTile [])
-monoToOTile ch = (-1,) <$> monoToTile ch
+monoToOTile ch  = (-1,) <$> monoToTile ch
 monoToTile :: Char -> Maybe Tile
-monoToTile 'o' = Just $ PivotTile zero
-monoToTile '-' = Just $ ArmTile hu False
+monoToTile 'o'  = Just $ PivotTile zero
+monoToTile '-'  = Just $ ArmTile hu False
 monoToTile '\\' = Just $ ArmTile hv False
-monoToTile '/' = Just $ ArmTile hw False
-monoToTile '.' = Just $ ArmTile (neg hu) False
-monoToTile '`' = Just $ ArmTile (neg hv) False
+monoToTile '/'  = Just $ ArmTile hw False
+monoToTile '.'  = Just $ ArmTile (neg hu) False
+monoToTile '`'  = Just $ ArmTile (neg hv) False
 monoToTile '\'' = Just $ ArmTile (neg hw) False
-monoToTile '@' = Just HookTile
-monoToTile '*' = Just $ WrenchTile zero
-monoToTile 'O' = Just BallTile
-monoToTile 's' = Just $ SpringTile Stretched hu
-monoToTile 'S' = Just $ SpringTile Relaxed hu
-monoToTile '$' = Just $ SpringTile Compressed hu
-monoToTile 'z' = Just $ SpringTile Stretched hv
-monoToTile 'Z' = Just $ SpringTile Relaxed hv
-monoToTile '5' = Just $ SpringTile Compressed hv
-monoToTile '(' = Just $ SpringTile Stretched hw
-monoToTile '[' = Just $ SpringTile Relaxed hw
-monoToTile '{' = Just $ SpringTile Compressed hw
-monoToTile 'c' = Just $ SpringTile Stretched (neg hu)
-monoToTile 'C' = Just $ SpringTile Relaxed (neg hu)
-monoToTile 'D' = Just $ SpringTile Compressed (neg hu)
-monoToTile ')' = Just $ SpringTile Stretched (neg hv)
-monoToTile ']' = Just $ SpringTile Relaxed (neg hv)
-monoToTile '}' = Just $ SpringTile Compressed (neg hv)
-monoToTile '1' = Just $ SpringTile Stretched (neg hw)
-monoToTile '7' = Just $ SpringTile Relaxed (neg hw)
-monoToTile '9' = Just $ SpringTile Compressed (neg hw)
-monoToTile _ = Nothing
+monoToTile '@'  = Just HookTile
+monoToTile '*'  = Just $ WrenchTile zero
+monoToTile 'O'  = Just BallTile
+monoToTile 's'  = Just $ SpringTile Stretched hu
+monoToTile 'S'  = Just $ SpringTile Relaxed hu
+monoToTile '$'  = Just $ SpringTile Compressed hu
+monoToTile 'z'  = Just $ SpringTile Stretched hv
+monoToTile 'Z'  = Just $ SpringTile Relaxed hv
+monoToTile '5'  = Just $ SpringTile Compressed hv
+monoToTile '('  = Just $ SpringTile Stretched hw
+monoToTile '['  = Just $ SpringTile Relaxed hw
+monoToTile '{'  = Just $ SpringTile Compressed hw
+monoToTile 'c'  = Just $ SpringTile Stretched (neg hu)
+monoToTile 'C'  = Just $ SpringTile Relaxed (neg hu)
+monoToTile 'D'  = Just $ SpringTile Compressed (neg hu)
+monoToTile ')'  = Just $ SpringTile Stretched (neg hv)
+monoToTile ']'  = Just $ SpringTile Relaxed (neg hv)
+monoToTile '}'  = Just $ SpringTile Compressed (neg hv)
+monoToTile '1'  = Just $ SpringTile Stretched (neg hw)
+monoToTile '7'  = Just $ SpringTile Relaxed (neg hw)
+monoToTile '9'  = Just $ SpringTile Compressed (neg hw)
+monoToTile _    = Nothing
 
 minmax :: Ord a => [a] -> (a,a)
 minmax = minimum &&& maximum
@@ -244,5 +244,5 @@ readAsciiLockFile path = flip catchIO (const $ return (Nothing,Nothing)) $ do
 writeAsciiLockFile :: FilePath -> Maybe Solution -> Lock -> IO ()
 writeAsciiLockFile path msoln lock = do
     writeStrings path $ lockToAscii lock ++ case msoln of
-        Nothing -> []
+        Nothing   -> []
         Just soln -> ["Solution:", show soln]
