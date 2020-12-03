@@ -150,13 +150,13 @@ newReplayState st soln title = ReplayState st [] soln [] title Map.empty
 newEditState (frame,st) msoln mpath = EditState st [] [] frame mpath
     ((\s->(st,s))<$>msoln) (Just (st, isJust msoln)) Nothing (PHS zero) (PHS zero) Map.empty
 initMetaState = do
-    flag <- atomically $ newTVar False
-    errtvar <- atomically $ newTVar Nothing
-    invaltvar <- atomically $ newTVar Nothing
-    rnamestvar <- atomically $ newTVar []
-    counttvar <- atomically $ newTVar 0
+    flag <- newTVarIO False
+    errtvar <- newTVarIO Nothing
+    invaltvar <- newTVarIO Nothing
+    rnamestvar <- newTVarIO []
+    counttvar <- newTVarIO 0
     (saddr', auth, path) <- confFilePath "metagame.conf" >>=
-        liftM (fromMaybe (defaultServerAddr, Nothing, "")) . readReadFile
+        fmap (fromMaybe (defaultServerAddr, Nothing, "")) . readReadFile
     let saddr = updateDefaultSAddr saddr'
     let names = maybeToList $ authUser <$> auth
     (undecls,partials,tut) <- readServerSolns saddr
@@ -172,7 +172,7 @@ savePlayState :: MainState -> SavedPlayState
 savePlayState ps = SavedPlayState (getMoves ps) $ Map.map getMoves $ psMarks ps
     where getMoves = reverse . map snd . psGameStateMoveStack
 
-restorePlayState :: SavedPlayState -> Lock -> (Maybe String) -> Bool -> Bool -> Bool -> MainState
+restorePlayState :: SavedPlayState -> Lock -> Maybe String -> Bool -> Bool -> Bool -> MainState
 restorePlayState (SavedPlayState pms markPMs) (frame,st) title isTut sub saved =
     (stateAfterMoves pms) { psMarks = Map.map stateAfterMoves markPMs }
     where
@@ -185,50 +185,51 @@ restorePlayState (SavedPlayState pms markPMs) (frame,st) title isTut sub saved =
 readServerSolns :: ServerAddr -> IO ([Undeclared],PartialSolutions,TutProgress)
 readServerSolns saddr = if nullSaddr saddr then return ([],Map.empty,(1,Nothing)) else do
     undecls <- confFilePath ("undeclared" ++ [pathSeparator] ++ saddrPath saddr) >>=
-        liftM (fromMaybe []) . readReadFile
+        fmap (fromMaybe []) . readReadFile
     partials <- confFilePath ("partialSolutions" ++ [pathSeparator] ++ saddrPath saddr) >>=
-        liftM (fromMaybe Map.empty) . readReadFile
+        fmap (fromMaybe Map.empty) . readReadFile
     tut <- confFilePath "tutProgress" >>=
-        liftM (fromMaybe (1,Nothing)) . readReadFile
+        fmap (fromMaybe (1,Nothing)) . readReadFile
     return (undecls,partials,tut)
 
-writeServerSolns saddr ms@(MetaState { undeclareds=undecls,
-partialSolutions=partials, tutProgress=tut }) = unless (nullSaddr saddr) $ do
+writeServerSolns saddr ms@MetaState { undeclareds=undecls,
+partialSolutions=partials, tutProgress=tut } = unless (nullSaddr saddr) $ do
     confFilePath ("undeclared" ++ [pathSeparator] ++ saddrPath saddr) >>= flip writeReadFile undecls
     confFilePath ("partialSolutions" ++ [pathSeparator] ++ saddrPath saddr) >>= flip writeReadFile partials
-    confFilePath ("tutProgress") >>= flip writeReadFile tut
+    confFilePath "tutProgress" >>= flip writeReadFile tut
 
 readLock :: FilePath -> IO (Maybe (Lock, Maybe Solution))
 readLock path = runMaybeT $ msum
-        [ (\l->(l,Nothing)) <$> (MaybeT $ readReadFile path)
+        [ (\l->(l,Nothing)) <$> MaybeT (readReadFile path)
         , do
             (mlock,msoln) <- lift $ readAsciiLockFile path
             lock <- liftMaybe mlock
-            return $ (lock,msoln) ]
+            return (lock,msoln) ]
 -- writeLock :: FilePath -> Lock -> IO ()
 -- writeLock path lock = fullLockPath path >>= flip writeReadFile lock
 
-writeMetaState ms@(MetaState { curServer=saddr, curAuth=auth, curLockPath=path }) = do
+writeMetaState ms@MetaState { curServer=saddr, curAuth=auth, curLockPath=path } = do
     confFilePath "metagame.conf" >>= flip writeReadFile (saddr, auth, path)
     writeServerSolns saddr ms
 
 getTitle :: UIMonad uiM => MainStateT uiM (Maybe String)
-getTitle = ms2im <$> get >>= \im -> case im of
-    IMEdit -> do
+getTitle = get >>= title . ms2im
+    where
+    title IMEdit = do
         mpath <- gets esPath
         unsaved <- editStateUnsaved
         isTested <- isJust <$> getCurTestSoln
         return $ Just $ "editing " ++ fromMaybe "[unnamed lock]" mpath ++
             (if isTested then " (Tested)" else "") ++
             (if unsaved then " [+]" else "    ")
-    IMPlay -> gets psTitle
-    IMReplay -> gets rsTitle
-    _ -> return Nothing
+    title IMPlay = gets psTitle
+    title IMReplay = gets rsTitle
+    title _ = return Nothing
 
 editStateUnsaved :: UIMonad uiM => MainStateT uiM Bool
 editStateUnsaved = (isNothing <$>) $ runMaybeT $ do
     (sst,tested) <- MaybeT $ gets lastSavedState
-    st <- gets $ esGameState
+    st <- gets esGameState
     guard $ sst == st
     nowTested <- isJust <$> lift getCurTestSoln
     guard $ tested == nowTested
@@ -236,14 +237,14 @@ editStateUnsaved = (isNothing <$>) $ runMaybeT $ do
 getCurTestSoln :: UIMonad uiM => MainStateT uiM (Maybe Solution)
 getCurTestSoln = runMaybeT $ do
     (st',soln) <- MaybeT $ gets esTested
-    st <- gets $ esGameState
+    st <- gets esGameState
     guard $ st == st'
     return soln
 
 mgetOurName :: (UIMonad uiM) => MaybeT (MainStateT uiM) Codename
-mgetOurName = MaybeT $ (authUser <$>) <$> gets curAuth
+mgetOurName = MaybeT $ gets ((authUser <$>) . curAuth)
 mgetCurName :: (UIMonad uiM) => MaybeT (MainStateT uiM) Codename
-mgetCurName = MaybeT $ listToMaybe <$> gets codenameStack
+mgetCurName = MaybeT $ gets (listToMaybe . codenameStack)
 
 getUInfoFetched :: UIMonad uiM => Integer -> Codename -> MainStateT uiM FetchedRecord
 getUInfoFetched staleTime name = do
@@ -252,13 +253,13 @@ getUInfoFetched staleTime name = do
         now <- liftIO getCurrentTime
         if floor (diffUTCTime now time) > staleTime
             then set
-            else liftIO $ atomically $ readTVar tvar
+            else liftIO $ readTVarIO tvar
     where
         set = do
             now <- liftIO getCurrentTime
             tvar <- getRecordCachedFromCur True $ RecUserInfo name
             modify $ \ms -> ms {userInfoTVs = Map.insert name (tvar, now) $ userInfoTVs ms}
-            liftIO $ atomically $ readTVar tvar
+            liftIO $ readTVarIO tvar
 
 mgetUInfo :: UIMonad uiM => Codename -> MaybeT (MainStateT uiM) UserInfo
 mgetUInfo name = do
@@ -284,12 +285,12 @@ invalidateUInfos (SomeCodenames names) = mapM_ invalidateUInfo names
 
 mgetLock :: UIMonad uiM => LockSpec -> MaybeT (MainStateT uiM) Lock
 mgetLock ls = do
-    tvar <- msum [ MaybeT $ (Map.lookup ls) <$> gets indexedLocks
+    tvar <- msum [ MaybeT $ gets (Map.lookup ls . indexedLocks)
         , lift $ do
             tvar <- getRecordCachedFromCur True $ RecLock ls
             modify $ \ms -> ms { indexedLocks = Map.insert ls tvar $ indexedLocks ms }
             return tvar ]
-    RCLock lock <- MaybeT $ (fetchedRC<$>) $ liftIO $ atomically $ readTVar tvar
+    RCLock lock <- MaybeT $ (fetchedRC<$>) $ liftIO $ readTVarIO tvar
     return $ reframe lock
 
 invalidateAllIndexedLocks :: UIMonad uiM => MainStateT uiM ()
@@ -404,10 +405,10 @@ getFreshRecBlocking rec = do
 -- |indicate waiting for server, and allow cancellation
 withImpatience :: UIMonad uiM => IO a -> uiM (Maybe a)
 withImpatience m = do
-    finishedTV <- liftIO $ atomically $ newTVar Nothing
+    finishedTV <- liftIO $ newTVarIO Nothing
     id <- liftIO $ forkIO $ m >>= atomically . writeTVar finishedTV . Just
     let waitImpatiently ticks = do
-            finished <- liftIO $ atomically $ readTVar finishedTV
+            finished <- liftIO $ readTVarIO finishedTV
             if isJust finished
                 then return finished
                 else do
@@ -426,7 +427,7 @@ getRelScoreDetails name = runMaybeT $ do
     uinfo <- mgetUInfo name
     ourUInfo <- mgetUInfo ourName
     let (neg,pos) = (countPoints ourUInfo uinfo, countPoints uinfo ourUInfo)
-    return $ (pos-neg,(pos,neg))
+    return (pos-neg,(pos,neg))
     where
         countPoints mugu masta = length $ filter (maybe False winsPoint) $ getAccessInfo mugu masta
 
@@ -447,9 +448,9 @@ getNotesReadOn lockinfo = (fromMaybe [] <$>) $ runMaybeT $ do
 
 testAuth :: UIMonad uiM => MainStateT uiM ()
 testAuth = isJust <$> gets curAuth >>? do
-    resp <- curServerAction $ Authenticate
+    resp <- curServerAction Authenticate
     case resp of
-        ServerMessage msg -> (lift $ drawMessage $ "Server: " ++ msg)
+        ServerMessage msg -> lift $ drawMessage $ "Server: " ++ msg
         ServerError err -> do
             lift $ drawMessage err
             modify $ \ms -> ms {curAuth = Nothing}

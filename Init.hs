@@ -77,12 +77,12 @@ main' msdlUI mcursesUI = do
             finalState <- msum
                 [ do
                     guard $ ForceCurses `notElem` opts
-                    sdlUI <- liftMaybe $ msdlUI
+                    sdlUI <- liftMaybe msdlUI
                     MaybeT $ sdlUI $ interactUI `execStateT` initMState
                 , do
-                    cursesUI <- liftMaybe $ mcursesUI
+                    cursesUI <- liftMaybe mcursesUI
                     MaybeT $ cursesUI $ interactUI `execStateT` initMState
                 ]
             when (isNothing mlock) $ lift $ writeMetaState finalState
-            lift $ exitSuccess
+            lift exitSuccess
         , lift exitFailure ]

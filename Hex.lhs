@@ -67,7 +67,7 @@ tupxy2hv :: (Int,Int) -> HexVec
 tupxy2hv (x,y) = HexVec x y (-(x+y))
 
 hexLen :: HexVec -> Int
-hexLen (HexVec x y z) = maximum $ map abs [x,y,z]
+hexLen (HexVec x y z) = maximum $ abs <$> [x,y,z]
 
 hexDot :: HexVec -> HexVec -> Int
 hexDot (HexVec x y z) (HexVec x' y' z') = x*x'+y*y'+z*z'
@@ -90,7 +90,7 @@ hextant (HexVec x y z)
     | -x > 0 && -y >= 0 = 3
     | z > 0 && x >= 0 = 4
     | -y > 0 && -z >= 0 = 5
-    | otherwise = error $ "Tried to take hextant of zero"
+    | otherwise = error "Tried to take hextant of zero"
 
 -- hextant (rotate n hu) == n
 rotate :: Int -> HexVec -> HexVec
@@ -108,7 +108,7 @@ cmpAngles :: HexVec -> HexVec -> Ordering
 cmpAngles v@(HexVec x y _) v'@(HexVec x' y' _)
     | v == zero && v' == zero = EQ
     | v == zero = LT
-    | compare (hextant v) (hextant v') /= EQ = 
+    | (hextant v) /= (hextant v') = 
         compare (hextant v) (hextant v')
     | hextant v /= 0 =
         cmpAngles (rotate (-(hextant v)) v) (rotate (-(hextant v)) v')
@@ -132,7 +132,7 @@ isHexDirOrZero :: HexVec -> Bool
 isHexDirOrZero v = hexLen v <= 1
 
 hexDirs :: [HexDir]
-hexDirs = map (`rotate` hu) [0..5]
+hexDirs = (`rotate` hu) <$> [0..5]
 
 hexVec2HexDirOrZero :: HexVec -> HexDirOrZero
 hexVec2HexDirOrZero v
@@ -153,9 +153,9 @@ scaleToLength :: Int -> HexVec -> HexVec
 scaleToLength n v@(HexVec x y z) =
     let
         l = hexLen v
-        lv' = map ((`div`l).(n*)) [x,y,z]
+        lv' = (`div`l) . (n*) <$> [x,y,z]
         minI = fst $ minimumBy (compare `on` snd) $
-            zip [0..] $ map abs lv'
+            zip [0..] $ abs <$> lv'
         [x'',y'',z''] = zipWith (-) lv' [ d
                 | i <- [0..2]
                 , let d = if i == minI then sum lv' else 0 ]
@@ -186,7 +186,7 @@ instance Monoid m => Action m m where
 class Differable a b c where
     (-^) :: a -> b -> c
 instance Grp g => Differable g g g where
-    x -^ y = x +^ (neg y)
+    x -^ y = x +^ neg y
 
 newtype PHS g = PHS { getPHS :: g }
     deriving (Eq, Ord, Show, Read)
@@ -204,7 +204,7 @@ instance (Grp a, Integral n) => MultAction n a where
     0 *^ _              = zero
     1 *^ x              = x
     n *^ x
-        | n < 0     = (-n) *^ (neg x)
+        | n < 0     = (-n) *^ neg x
         | even n    = (n `div` 2) *^ (x +^ x)
         | otherwise = x +^ ((n `div` 2) *^ (x +^ x))
 

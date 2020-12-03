@@ -105,16 +105,16 @@ instance Binary Action where
             0 -> return Authenticate
             1 -> return Register
             2 -> return GetServerInfo
-            3 -> liftM GetLock get
+            3 -> GetLock <$> get
             4 -> liftM2 GetUserInfo get get
-            5 -> liftM GetHint get
-            6 -> liftM GetSolution get
+            5 -> GetHint <$> get
+            6 -> GetSolution <$> get
             7 -> liftM4 DeclareSolution get get get get
             8 -> liftM3 SetLock get get get
-            9 -> liftM GetRandomNames get
-            10 -> liftM ResetPassword get
-            11 -> liftM GetRetired get
-            12 -> liftM SetEmail get
+            9 -> GetRandomNames <$> get
+            10 -> ResetPassword <$> get
+            11 -> GetRetired <$> get
+            12 -> SetEmail <$> get
             13 -> return GetPublicKey
             _ -> return UndefinedAction
 
@@ -133,27 +133,27 @@ instance Binary ServerResponse where
     put (ServedSolution soln) = put (7::Word8) >> put soln
     put (ServedHint hint) = put (8::Word8) >> put hint
     put (ServedRandomNames names) = put (9::Word8) >> put names
-    put (ServerCodenameFree) = put (10::Word8)
-    put (ServerFresh) = put (11::Word8)
+    put ServerCodenameFree = put (10::Word8)
+    put ServerFresh = put (11::Word8)
     put (ServedRetired lss) = put (12::Word8) >> put lss
     put (ServedPublicKey publicKey) = put (13::Word8) >> put (show publicKey)
     get = do
         tag <- get :: Get Word8
         case tag of
             0 -> return ServerAck
-            1 -> liftM ServerMessage get
-            2 -> liftM ServerError get
-            3 -> liftM ServedServerInfo get
-            4 -> liftM ServedLock get
-            5 -> liftM ServedUserInfo get
-            6 -> liftM ServedUserInfoDeltas get
-            7 -> liftM ServedSolution get
-            8 -> liftM ServedHint get
-            9 -> liftM ServedRandomNames get
+            1 -> ServerMessage <$> get
+            2 -> ServerError <$> get
+            3 -> ServedServerInfo <$> get
+            4 -> ServedLock <$> get
+            5 -> ServedUserInfo <$> get
+            6 -> ServedUserInfoDeltas <$> get
+            7 -> ServedSolution <$> get
+            8 -> ServedHint <$> get
+            9 -> ServedRandomNames <$> get
             10 -> return ServerCodenameFree
             11 -> return ServerFresh
-            12 -> liftM ServedRetired get
-            13 -> liftM (ServedPublicKey . read) get
+            12 -> ServedRetired <$> get
+            13 -> ServedPublicKey . read <$> get
             _ -> return ServerUndefinedResponse
 instance Binary ServerInfo where
     put (ServerInfo sz str) = put sz >> put str

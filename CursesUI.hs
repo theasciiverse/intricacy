@@ -13,6 +13,7 @@ module CursesUI where
 import qualified UI.HSCurses.Curses as Curses
 import Control.Concurrent.STM
 import Control.Applicative
+import Data.Bifunctor (second)
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.Semigroup as Sem
@@ -61,14 +62,14 @@ writeBindings = do
 
 getBindings :: InputMode -> UIM KeyBindings
 getBindings mode = do
-    uibdgs <- Map.findWithDefault [] mode <$> gets uiKeyBindings
+    uibdgs <- gets (Map.findWithDefault [] mode . uiKeyBindings)
     return $ uibdgs ++ bindings mode
 
 bindingsStr :: InputMode -> [Command] -> UIM String
 bindingsStr mode cmds = do
     bdgs <- getBindings mode
     return $ (("["++).(++"]")) $ intercalate "," $
-        map (maybe "" showKey . findBinding bdgs) cmds
+        maybe "" showKey . findBinding bdgs <$> cmds
 
 
 data Gravity = GravUp | GravLeft | GravRight | GravDown | GravCentre
@@ -106,9 +107,9 @@ bindingsDraw :: KeyBindings -> [Command] -> Draw
 bindingsDraw = bindingsDrawColour white
 bindingsDrawColour :: ColPair -> KeyBindings -> [Command] -> Draw
 bindingsDrawColour col bdgs cmds =
-    mconcat . ((stringDraw a0 col "[") :) . (++ [stringDraw a0 col "]"]) .
+    mconcat . (stringDraw a0 col "[" :) . (++ [stringDraw a0 col "]"]) .
     intersperse (stringDraw a0 col ",") $
-        catMaybes $ ((keyDraw <$>) . findBinding bdgs) <$> cmds
+        catMaybes $ (keyDraw <$>) . findBinding bdgs <$> cmds
     where
         keyDraw = stringDraw bold col . showKeyFriendlyShort
 
@@ -124,9 +125,9 @@ drawBindingsTables mode frame | mode `elem` [ IMEdit, IMPlay ] = do
             (greyDraw desc, bindingsDraw bdgs cmds)
     forM_ [GravLeft, GravRight] $ \grav ->
         let table = bindingsTable mode grav
-            drawsTable = map (\(line, entry) -> (line, entryDraws entry)) table
-            maxDesc = maximum $ map (drawWidth . fst . snd) drawsTable
-            maxBdgs = maximum $ map (drawWidth . snd . snd) drawsTable
+            drawsTable = second entryDraws <$> table
+            maxDesc = maximum $ drawWidth . fst . snd <$> drawsTable
+            maxBdgs = maximum $ drawWidth . snd . snd <$> drawsTable
             descX = (w `div` 2) + if grav == GravRight
                 then startRight + maxBdgs + 2
                 else -(startRight + maxBdgs + 2 + maxDesc)
@@ -149,13 +150,13 @@ drawBindingsTables mode frame | mode `elem` [ IMEdit, IMPlay ] = do
     where
         bindingsTable IMPlay GravLeft =
             [ (-5, BindingsEntry "move tool" $
-                map (CmdDir WHSSelected) hexDirs)
+                CmdDir WHSSelected <$> hexDirs)
             , (-4, BindingsEntry "select tool"
                 [CmdToggle, CmdTile $ WrenchTile zero, CmdTile HookTile])
             , (-3, BindingsEntry "move hook" $
-                map (CmdDir WHSHook) hexDirs)
+                CmdDir WHSHook <$> hexDirs)
             , (-2, BindingsEntry "move wrench" $
-                map (CmdDir WHSWrench) hexDirs)
+                CmdDir WHSWrench <$> hexDirs)
             , (-1, BindingsEntry "rotate hook"
                 [CmdRotate whs dir | whs <- [WHSSelected, WHSHook], dir <- [-1,1]])
             , ( 0, BindingsEntry "wait" [CmdWait])
@@ -179,7 +180,7 @@ drawBindingsTables mode frame | mode `elem` [ IMEdit, IMPlay ] = do
             , (7, BindingsEntry "quit" [CmdQuit])
             ]
         bindingsTable IMEdit GravLeft =
-            [ (-4, BindingsEntry "move" $ map (CmdDir WHSSelected) hexDirs)
+            [ (-4, BindingsEntry "move" $ CmdDir WHSSelected <$> hexDirs)
             , (-3, BindingsEntry "rotate"
                 [CmdRotate whs dir | whs <- [WHSSelected], dir <- [-1,1]])
             , (-1, BindingsEntry "select" [CmdSelect])
@@ -191,7 +192,7 @@ drawBindingsTables mode frame | mode `elem` [ IMEdit, IMPlay ] = do
         bindingsTable IMEdit GravRight =
             [ (-7, BindingsEntry "help" [CmdHelp])
             , (-6, BindingsEntry "bind" [CmdBind Nothing])
-            , (-4, BindingsEntry "place" $ map CmdTile
+            , (-4, BindingsEntry "place" $ CmdTile <$>
                 [ BlockTile []
                 , SpringTile Relaxed zero
                 , PivotTile zero
@@ -232,7 +233,7 @@ drawAt gl pos =
 
 drawAtWithGeom :: Glyph -> HexPos -> Geom -> UIM ()
 drawAtWithGeom gl pos geom@(scrCentre,centre) =
-    drawAtCVec gl $ scrCentre +^ (hexVec2CVec $ pos -^ centre)
+    drawAtCVec gl $ scrCentre +^ hexVec2CVec (pos -^ centre)
 
 drawAtCVec :: Glyph -> CVec -> UIM ()
 drawAtCVec gl cpos = do
@@ -247,7 +248,7 @@ drawStrGrey :: CVec -> String -> UIM ()
 drawStrGrey = drawStr a0 0
 drawStrCentred :: Curses.Attr -> ColPair -> CVec -> [Char] -> UIM ()
 drawStrCentred attr col v str =
-    drawStr attr col (truncateCVec $ (v +^ CVec 0 (-length str `div` 2))) str
+    drawStr attr col (truncateCVec (v +^ CVec 0 (-length str `div` 2))) str
 
 
 drawCursorAt :: Maybe HexPos -> UIM ()
@@ -256,7 +257,7 @@ drawCursorAt Nothing =
 drawCursorAt (Just pos) = do
     geom@(scrCentre,centre) <- getGeom
     liftIO $ Curses.cursSet Curses.CursorVisible
-    liftIO $ move $ scrCentre +^ (hexVec2CVec $ pos -^ centre)
+    liftIO $ move $ scrCentre +^ hexVec2CVec (pos -^ centre)
 
 drawState :: [PieceIdx] -> Bool -> [Alert] -> GameState -> UIM ()
 drawState reversed colourFixed alerts st = do
@@ -269,7 +270,7 @@ drawStateWithGeom reversed colourFixed lastCol st geom = do
     let colouring = boardColouring st (colouredPieces colourFixed st) lastCol
     mono <- gets monochrome
     sequence_ [ drawAtWithGeom glyph pos geom |
-        (pos,glyph) <- Map.toList $ fmap (ownedTileGlyph mono colouring reversed) $ stateBoard st
+        (pos,glyph) <- Map.toList $ ownedTileGlyph mono colouring reversed <$> stateBoard st
         ]
     return colouring
 

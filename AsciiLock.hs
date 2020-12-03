@@ -8,6 +8,8 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
+{-# LANGUAGE TupleSections #-}
+
 module AsciiLock (lockToAscii, lockOfAscii, stateToAscii
     , readAsciiLockFile, writeAsciiLockFile, monochromeOTileChar) where
 
@@ -73,7 +75,7 @@ asciiToBoard lines =
         (miny,maxy) = minmax $ map cy $ Map.keys asciiBoard
         midy = miny+(maxy-miny)`div`2
         midline = filter ((==midy).cy) $ Map.keys asciiBoard
-        (minx,maxx) = minmax $ map cx $ midline
+        (minx,maxx) = minmax $ map cx midline
         centre = CVec midy (minx+(maxx-minx)`div`2)
     in Map.mapKeys ((+^origin) . cVec2HexVec . (-^centre))
         <$> T.mapM monoToOTile asciiBoard
@@ -87,7 +89,7 @@ asciiBoardState frame board =
         isBaseTile (PivotTile _) = True
         isBaseTile HookTile = True
         isBaseTile (WrenchTile _) = True
-        isBaseTile (BallTile) = True
+        isBaseTile BallTile = True
         isBaseTile _ = False
         addBaseOT :: (HexPos,(PieceIdx,Tile)) -> GameState -> GameState
         addBaseOT (pos,(o,BlockTile [])) = addBlockPos o pos
@@ -104,10 +106,10 @@ asciiBoardState frame board =
             (idx,pp) <- listToMaybe $ map fst $ sortBy (flip compare `on` snd)
                     [ ((idx,pp),length vs)
                     | (idx,pp) <- enumVec $ placedPieces st
-                    , Block vs <- [placedPiece pp]
                     , let fp = plPieceFootprint pp
                     , not $ null fp
-                    , all (not.inBounds frame) fp
+                    , not $ any (inBounds frame) fp
+                    , Block vs <- [placedPiece pp]
                     ]
             return $ delPiece idx $ setpp 0 pp st
         baseSt = setFrame . componentifyNew . addBase . addPreBase $ GameState Vector.empty []
@@ -190,12 +192,12 @@ monochromeTileChar (SpringTile extn dir)
         Compressed                 -> '9'
 monochromeTileChar _ = '?'
 monoToOTile :: Char -> Maybe OwnedTile
-monoToOTile '#' = Just $ (1,BlockTile [])
-monoToOTile '%' = Just $ (2,BlockTile [])
-monoToOTile '"' = Just $ (3,BlockTile [])
-monoToOTile '&' = Just $ (4,BlockTile [])
-monoToOTile '~' = Just $ (5,BlockTile [])
-monoToOTile ch = ((,) (-1)) <$> monoToTile ch
+monoToOTile '#' = Just (1,BlockTile [])
+monoToOTile '%' = Just (2,BlockTile [])
+monoToOTile '"' = Just (3,BlockTile [])
+monoToOTile '&' = Just (4,BlockTile [])
+monoToOTile '~' = Just (5,BlockTile [])
+monoToOTile ch = (-1,) <$> monoToTile ch
 monoToTile :: Char -> Maybe Tile
 monoToTile 'o' = Just $ PivotTile zero
 monoToTile '-' = Just $ ArmTile hu False
@@ -204,9 +206,9 @@ monoToTile '/' = Just $ ArmTile hw False
 monoToTile '.' = Just $ ArmTile (neg hu) False
 monoToTile '`' = Just $ ArmTile (neg hv) False
 monoToTile '\'' = Just $ ArmTile (neg hw) False
-monoToTile '@' = Just $ HookTile
+monoToTile '@' = Just HookTile
 monoToTile '*' = Just $ WrenchTile zero
-monoToTile 'O' = Just $ BallTile
+monoToTile 'O' = Just BallTile
 monoToTile 's' = Just $ SpringTile Stretched hu
 monoToTile 'S' = Just $ SpringTile Relaxed hu
 monoToTile '$' = Just $ SpringTile Compressed hu

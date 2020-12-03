@@ -60,7 +60,7 @@ instance Grp FVec where
 -- So instead, we define a new operator:
 (**^) :: Float -> FVec -> FVec
 r **^ FVec x y = FVec (r*x) (r*y)
-    
+
 
 hexVec2SVec :: Int -> HexVec -> SVec
 hexVec2SVec size (HexVec x y z) =
@@ -68,7 +68,7 @@ hexVec2SVec size (HexVec x y z) =
 
 hexVec2FVec :: HexVec -> FVec
 hexVec2FVec (HexVec x y z) =
-    FVec (fi $ x-z) (-(fi y) * 3 * ylen)
+    FVec (fi $ x-z) (-fi y * 3 * ylen)
 
 fVec2SVec :: Int -> FVec -> SVec
 fVec2SVec size (FVec x y) = SVec
@@ -93,7 +93,7 @@ sVec2HexVec size sv =
             [ (i, abs $ c'-c) | i <- [1..3],
                 let c' = unrounded Map.! i, let c = fi $ rounded Map.! i]
         [x,y,z] = map snd $ Map.toList $
-            Map.adjust (\x -> x - (sum $ Map.elems rounded)) maxdiff rounded
+            Map.adjust (\x -> x - sum (Map.elems rounded)) maxdiff rounded
     in HexVec x y z
 
 
@@ -121,11 +121,11 @@ displaceRender d =
     local $ \rc -> rc { renderOffset = renderOffset rc +^ d }
 
 recentreAt :: Monad m => HexVec -> RenderT m a -> RenderT m a
-recentreAt v m = displaceRender (hexVec2FVec v) m
+recentreAt v = displaceRender (hexVec2FVec v)
 
 rescaleRender :: Monad m => Float -> RenderT m a -> RenderT m a
 rescaleRender r = local $ (\rc -> rc
-        { renderSize = round $ r * (fi $ renderSize rc) } ) . applyOffset
+        { renderSize = round $ r * fi (renderSize rc) } ) . applyOffset
 
 withFont :: Monad m => Maybe TTF.Font -> RenderT m a -> RenderT m a
 withFont font = local $ \rc -> rc { renderFont = font }
@@ -136,7 +136,7 @@ renderPos v = do
     c <- asks renderSCentre
     off <- asks renderOffset
     let SVec x y = c +^ fVec2SVec size (v +^ off)
-    return $ (fi x, fi y)
+    return (fi x, fi y)
 renderLen :: Monad m => Integral i => Float -> RenderT m i
 renderLen l = do
     size <- asks renderSize
@@ -173,15 +173,14 @@ filledCircleR v rad col = do
     void.liftIO $ filledCircle surf x y r col
 
 -- aaPolygon seems to be a bit buggy in sdl-gfx-0.6.0
-aaPolygonR verts col =
-    aaLinesR (verts ++ take 1 verts) col
+aaPolygonR verts = aaLinesR (verts ++ take 1 verts)
 
 -- aaCircle too
 aaCircleR v rad col = do
     (x,y) <- renderPos v
     r <- renderLen rad
     surf <- asks renderSurf
-    if (r <= 1) then void.liftIO $ pixel surf x y col
+    if r <= 1 then void.liftIO $ pixel surf x y col
     else void.liftIO $ aaCircle surf x y r col
 
 
@@ -202,7 +201,7 @@ thickLineR :: (Functor m, MonadIO m) => FVec -> FVec -> Float -> Pixel -> Render
 thickLineR from to thickness col =
     let FVec dx dy = to -^ from
         baseThickness = (1/16)
-        s = baseThickness * thickness / (sqrt $ dx^2 + dy^2)
+        s = baseThickness * thickness / sqrt (dx^2 + dy^2)
         perp = (s/2) **^ FVec dy (-dx)
     in rimmedPolygonR
         [ from +^ perp, to +^ perp
@@ -213,8 +212,7 @@ thickLinesR verts thickness col =
     sequence_ [ thickLineR v v' thickness col |
         (v,v') <- zip (take (length verts - 1) verts) (drop 1 verts) ]
 
-thickPolygonR verts thickness col =
-    thickLinesR (verts ++ take 1 verts) thickness col
+thickPolygonR verts = thickLinesR (verts ++ take 1 verts)
 
 
 ylen = 1 / sqrt 3
@@ -286,9 +284,7 @@ purple = colourWheel 5
 
 colourOf :: Ord i => Map i Int -> i -> Pixel
 colourOf colouring idx =
-    case Map.lookup idx colouring of
-            Nothing -> white
-            Just n -> colourWheel n
+    maybe white colourWheel (Map.lookup idx colouring)
 
 setPixelAlpha alpha (Pixel v) = Pixel $ v `div` 0x100 * 0x100 + alpha
 bright = setPixelAlpha 0xff
@@ -330,7 +326,7 @@ renderStrColAt' centred c str v = void $ runMaybeT $ do
     let SVec x y = scrCentre +^ fVec2SVec size (off +^ hexVec2FVec v)
             +^ neg (SVec 0 ((surfaceGetHeight fsurf-1)`div`2) +^
                 if centred
-                    then SVec ((surfaceGetWidth fsurf)`div`2) 0
+                    then SVec (surfaceGetWidth fsurf`div`2) 0
                     else SVec 0 0)
     void $ liftIO $ blitSurface fsurf Nothing surf (Just $ Rect x y 0 0)
 

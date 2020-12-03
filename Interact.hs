@@ -120,11 +120,11 @@ processCommand :: UIMonad uiM => InputMode -> Command -> ExceptT InteractSuccess
 processCommand im CmdQuit = do
     case im of
         IMReplay -> throwE $ InteractSuccess False
-        IMPlay -> lift (or <$> sequence [gets psIsSub, gets psSaved, null <$> gets psGameStateMoveStack])
+        IMPlay -> lift (or <$> sequence [gets psIsSub, gets psSaved, gets (null . psGameStateMoveStack)])
             >>? throwE $ InteractSuccess False
         IMEdit -> lift editStateUnsaved >>! throwE $ InteractSuccess True
         _ -> return ()
-    title <- lift $ getTitle
+    title <- lift getTitle
     (lift . lift . confirm) ("Really quit"
             ++ (if im == IMEdit then " without saving" else "")
             ++ maybe "" (" from "++) title ++ "?")
@@ -144,11 +144,11 @@ processCommand' im CmdHelp = lift $ do
         IMMeta -> return [HelpPageInput, HelpPageGame]
         IMEdit -> do
             first <- not <$> liftIO hasLocks
-            return $ [HelpPageInput] ++ if first then [HelpPageFirstEdit] else []
+            return $ HelpPageInput : [HelpPageFirstEdit | first]
         _ -> return [HelpPageInput]
     let showPage p = withNoBG $ showHelp im p >>? do
             void $ textInput "[press a key or RMB]" 1 False True Nothing Nothing
-    sequence_ $ map showPage helpPages
+    mapM_ showPage helpPages
 processCommand' im (CmdBind mcmd)= lift $ (>> endPrompt) $ runMaybeT $ do
     cmd <- liftMaybe mcmd `mplus` do
         lift $ drawPrompt False "Command to bind: "
@@ -184,7 +184,7 @@ processCommand' im CmdJumpMark = void.runMaybeT $ do
 processCommand' im CmdReset = jumpMark startMark
 processCommand' IMMeta (CmdSelCodename mname) = void.runMaybeT $ do
     mauth <- gets curAuth
-    name <- msum [ liftMaybe $ mname
+    name <- msum [ liftMaybe mname
         , do
             newCodename <- (map toUpper <$>) $ MaybeT $ lift $
                 textInput "Select codename:"
@@ -194,13 +194,13 @@ processCommand' IMMeta (CmdSelCodename mname) = void.runMaybeT $ do
         ]
     guard $ validCodeName name
     lift $ do
-        modify $ \ms -> ms { codenameStack = (name:codenameStack ms) }
+        modify $ \ms -> ms { codenameStack = name:codenameStack ms }
         invalidateUInfo name
         refreshUInfoUI
 processCommand' IMMeta CmdHome = void.runMaybeT $ do
     ourName <- mgetOurName
     lift $ do
-        modify $ \ms -> ms { codenameStack = (ourName:codenameStack ms) }
+        modify $ \ms -> ms { codenameStack = ourName:codenameStack ms }
         refreshUInfoUI
 processCommand' IMMeta CmdBackCodename = do
     stack <- gets codenameStack
@@ -209,7 +209,7 @@ processCommand' IMMeta CmdBackCodename = do
         refreshUInfoUI
 processCommand' IMMeta CmdSetServer = void.runMaybeT $ do
     saddr <- gets curServer
-    saddrs <- liftIO $ knownServers
+    saddrs <- liftIO knownServers
     newSaddr' <- MaybeT $ ((>>= strToSaddr) <$>) $
         lift $ textInput "Set server:" 256 False False
             (Just $ map saddrStr saddrs) (Just $ saddrStr saddr)
@@ -286,7 +286,7 @@ processCommand' IMMeta (CmdRegister _) = void.runMaybeT $ do
                     ServerError err -> lift $ drawError err
                     _ -> lift $ drawMessage $ "Bad server response: " ++ show resp
 
-        
+
 processCommand' IMMeta CmdAuth = void.runMaybeT $ do
     auth <- lift $ gets curAuth
     if isJust auth then do
@@ -297,7 +297,7 @@ processCommand' IMMeta CmdAuth = void.runMaybeT $ do
         passwd <- inputPassword name False $ "Enter password for "++name++":"
         lift $ do
             modify $ \ms -> ms {curAuth = Just $ Auth name passwd}
-            resp <- curServerAction $ Authenticate
+            resp <- curServerAction Authenticate
             case resp of
                 ServerAck -> lift $ drawMessage "Authenticated."
                 ServerMessage msg -> lift $ drawMessage $ "Server: " ++ msg
@@ -321,10 +321,10 @@ processCommand' IMMeta (CmdSolve midx) = void.runMaybeT $ do
                 declare undecl
         , do
             RCLock lock <- MaybeT $ getFreshRecBlocking $ RecLock ls
-            mpartial <- Map.lookup ls <$> gets partialSolutions
+            mpartial <- gets (Map.lookup ls . partialSolutions)
             soln <- solveLockSaving ls mpartial False lock $ Just $
                 "solving " ++ name ++ ":" ++ [lockIndexChar idx] ++ "  (#" ++ show ls ++")"
-            mourName <- lift $ (authUser <$>) <$> gets curAuth
+            mourName <- lift $ gets ((authUser <$>) . curAuth)
             guard $ mourName /= Just name
             let undecl = Undeclared soln ls (ActiveLock name idx)
             msum [ do
@@ -332,7 +332,7 @@ processCommand' IMMeta (CmdSolve midx) = void.runMaybeT $ do
                     confirmOrBail "Declare solution?"
                     declare undecl
                 , unless (any (\(Undeclared _ ls' _) -> ls == ls') undecls) $
-                    modify $ \ms -> ms { undeclareds = (undecl : undeclareds ms) }
+                    modify $ \ms -> ms { undeclareds = undecl : undeclareds ms }
                 ]
         ]
 processCommand' IMMeta (CmdPlayLockSpec mls) = void.runMaybeT $ do
@@ -354,7 +354,7 @@ processCommand' IMMeta (CmdDeclare mundecl) = void.runMaybeT $ do
         then return $ head undecls
         else do
             which <- MaybeT $ lift $ textInput
-                ("Declare which solution?")
+                "Declare which solution?"
                 5 False True Nothing Nothing
             liftMaybe $ msum
                 [ do
@@ -364,11 +364,8 @@ processCommand' IMMeta (CmdDeclare mundecl) = void.runMaybeT $ do
                 , listToMaybe $
                     [ undecl
                     | undecl@(Undeclared _ _ (ActiveLock name' i)) <- undecls
-                    , or
-                        [ take (length which) (name' ++ ":" ++ [lockIndexChar i]) ==
-                            map toUpper which
-                        , name'==name && [lockIndexChar i] == which
-                        ]
+                    , (take (length which) (name' ++ ":" ++ [lockIndexChar i]) ==
+                            map toUpper which) || (name'==name && [lockIndexChar i] == which)
                     ]
                 ]
         ]
@@ -393,7 +390,7 @@ processCommand' IMMeta (CmdViewSolution mnote) = void.runMaybeT $ do
                 textInput ("View solution by which player? ["
                     ++ intercalate "," (take 3 authors)
                     ++ if length authors > 3 then ",...]" else "]")
-                3 False True (Just $ authors) Nothing
+                3 False True (Just authors) Nothing
         liftMaybe $ find ((==author).noteAuthor) notes
     let ActiveLock name idx = noteOn note
     uinfo <- mgetUInfo name
@@ -416,7 +413,7 @@ processCommand' IMMeta (CmdPlaceLock midx) = void.runMaybeT $ do
         askLockIndex ("Place " ++ show lockpath ++ " in which slot?") "bug" $ const True
     when (isJust $ userLocks ourUInfo ! idx) $
         confirmOrBail "Really retire existing lock?"
-    soln <- (liftMaybe msoln `mplus`) $ solveLock lock $ Just $ "testing lock"
+    soln <- (liftMaybe msoln `mplus`) $ solveLock lock $ Just "testing lock"
     lift $ curServerActionAsyncThenInvalidate
         (SetLock lock idx soln)
         (Just (SomeCodenames [ourName]))
@@ -435,7 +432,7 @@ processCommand' IMMeta CmdNextPage =
 processCommand' IMMeta CmdPrevPage =
     modify $ \ms -> ms { listOffset = max 0 $ listOffset ms - 1 }
 processCommand' IMMeta CmdEdit = void.runMaybeT $ do
-    (lock, msoln) <- (MaybeT $ gets curLock) `mplus` do
+    (lock, msoln) <- MaybeT (gets curLock) `mplus` do
         size <- msum
             [ do
                 gets curServer
@@ -460,8 +457,8 @@ processCommand' IMMeta CmdEdit = void.runMaybeT $ do
     lift $ setLockPath newPath
 processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
     tutdir <- liftIO $ getDataPath "tutorial"
-    tuts <- liftIO $ (sort . map (takeWhile (/='.')) . filter (isSuffixOf ".lock")) <$>
-        getDirectoryContents tutdir `catchIO` (const $ return [])
+    tuts <- liftIO $ sort . map (takeWhile (/='.')) . filter (isSuffixOf ".lock") <$>
+        getDirectoryContents tutdir `catchIO` const (return [])
     when (null tuts) $ do
         lift.lift $ drawError "No tutorial levels found"
         mzero
@@ -473,7 +470,7 @@ processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
             let name = tuts !! (i-1)
             let pref = tutdir ++ [pathSeparator] ++ name
             (lock,_) <- MaybeT $ liftIO $ readLock (pref ++ ".lock")
-            text <- liftIO $ (fromMaybe "" . listToMaybe) <$> (readStrings (pref ++ ".text") `catchIO` const (return []))
+            text <- liftIO $ fromMaybe "" . listToMaybe <$> (readStrings (pref ++ ".text") `catchIO` const (return []))
             solveLockSaving i msps True lock $ Just $ "Tutorial " ++ show i ++ ": " ++ text
             if i+1 <= length tuts then do
                     -- confirmOrBail $ "Tutorial level completed! Play next tutorial level (" ++ show (i+1) ++ ")?"
@@ -491,11 +488,11 @@ processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
                             showPage (HelpPageInitiated 2) "[Press a key or RMB to continue]"
                             showPage (HelpPageInitiated 3) "[Press a key or RMB to continue]"
                             --showPage HelpPageGame "[Press a key or RMB to continue; you can review this information later with '?']"
-                            lift $ drawMessage $ 
+                            lift $ drawMessage $
                                 "To join the game: pick a codename ('"++cbdg++
                                 "') and register it ('"++rbdg++"')."
-                        else lift $ drawMessage $ "Tutorial completed!"
-        
+                        else lift $ drawMessage "Tutorial completed!"
+
     (onLevel,msps) <- lift $ gets tutProgress
     dotut onLevel msps
 processCommand' IMMeta CmdShowRetired = void.runMaybeT $ do
@@ -529,26 +526,25 @@ processCommand' IMPlay CmdRedo = do
             pushPState (st',pm)
             modify $ \ps -> ps {psLastAlerts = alerts, psUndoneStack = ustms'}
 processCommand' IMPlay (CmdManipulateToolAt pos) = do
-    board <- stateBoard <$> gets psCurrentState
+    board <- gets (stateBoard . psCurrentState)
     wsel <- gets wrenchSelected
-    void.runMaybeT $ msum $ [ do
+    void.runMaybeT $ msum $ (do
             tile <- liftMaybe $ snd <$> Map.lookup pos board
             guard $ case tile of {WrenchTile _ -> True; HookTile -> True; _ -> False}
-            lift $ processCommand' IMPlay $ CmdTile tile
-        ] ++ [ do
+            lift $ processCommand' IMPlay $ CmdTile tile) : [ do
             tile <- liftMaybe $ snd <$> Map.lookup (d+^pos) board
             guard $ tileType tile == if wsel then WrenchTile zero else HookTile
             lift $ processCommand' IMPlay $ CmdDir WHSSelected $ neg d
             | d <- hexDirs ]
 processCommand' IMPlay (CmdDrag pos dir) = do
-    board <- stateBoard <$> gets psCurrentState
+    board <- gets (stateBoard . psCurrentState)
     wsel <- gets wrenchSelected
     void.runMaybeT $ do
         tp <- liftMaybe $ tileType . snd <$> Map.lookup pos board
         msum [ guard $ tp == HookTile
             , do
                 guard $ tp == WrenchTile zero
-                board' <- lift $ stateBoard . fst . runWriter . physicsTick (WrenchPush dir) <$> gets psCurrentState
+                board' <- lift $ gets ((stateBoard . fst . runWriter . physicsTick (WrenchPush dir)) . psCurrentState)
                 msum $ [ do
                         tp' <- liftMaybe $ tileType . snd <$> Map.lookup pos' board'
                         guard $ tp' == WrenchTile zero
@@ -556,8 +552,8 @@ processCommand' IMPlay (CmdDrag pos dir) = do
                     , let pos' = d *^ dir +^ pos ]
                     ++ [ (lift.lift $ warpPointer pos) >> mzero ]
             ]
-        lift $ processCommand' IMPlay $ CmdDir WHSSelected $ dir
-        board' <- stateBoard <$> gets psCurrentState
+        lift $ processCommand' IMPlay $ CmdDir WHSSelected dir
+        board' <- gets (stateBoard . psCurrentState)
         msum [ do
                 tp' <- liftMaybe $ tileType . snd <$> Map.lookup pos' board'
                 guard $ tp' == if wsel then WrenchTile zero else HookTile
@@ -596,7 +592,7 @@ processCommand' IMPlay cmd = do
             pushPState (st',pm')
 
 processCommand' IMReplay (CmdReplayBack 1) = void.runMaybeT $ do
-    (st',pm) <- MaybeT $ listToMaybe <$> gets rsGameStateMoveStack
+    (st',pm) <- MaybeT $ gets (listToMaybe . rsGameStateMoveStack)
     lift $ modify $ \rs -> rs {rsCurrentState=st'
         , rsLastAlerts = []
         , rsGameStateMoveStack = tail $ rsGameStateMoveStack rs
@@ -604,7 +600,7 @@ processCommand' IMReplay (CmdReplayBack 1) = void.runMaybeT $ do
 processCommand' IMReplay (CmdReplayBack n) = replicateM_ n $
     processCommand' IMReplay (CmdReplayBack 1)
 processCommand' IMReplay (CmdReplayForward 1) = void.runMaybeT $ do
-    pm <- MaybeT $ listToMaybe <$> gets rsMoveStack
+    pm <- MaybeT $ gets (listToMaybe . rsMoveStack)
     lift $ do
         st <- gets rsCurrentState
         (st',alerts) <- lift $ doPhysicsTick pm st
@@ -652,7 +648,7 @@ processCommand' IMEdit CmdSelect = do
     let selPiece' =
             if isJust selPiece
                 then Nothing
-                else liftM fst $ Map.lookup selPos $ stateBoard st
+                else fmap fst $ Map.lookup selPos $ stateBoard st
     modify $ \es -> es {selectedPiece = selPiece'}
 processCommand' IMEdit (CmdDir _ dir) = do
     selPos <- gets selectedPos
@@ -664,17 +660,17 @@ processCommand' IMEdit (CmdDir _ dir) = do
 processCommand' IMEdit (CmdMoveTo newPos) =
     setSelectedPos newPos
 processCommand' IMEdit (CmdDrag pos dir) = do
-    board <- stateBoard <$> gets esGameState
+    board <- gets (stateBoard . esGameState)
     void.runMaybeT $ do
         selIdx <- MaybeT $ gets selectedPiece
         idx <- liftMaybe $ fst <$> Map.lookup pos board
         guard $ idx == selIdx
-        lift $ processCommand' IMEdit $ CmdDir WHSSelected $ dir
-        board' <- stateBoard <$> gets esGameState
+        lift $ processCommand' IMEdit $ CmdDir WHSSelected dir
+        board' <- gets (stateBoard . esGameState)
         msum [ do
                 idx' <- liftMaybe $ fst <$> Map.lookup pos' board'
                 guard $ idx' == selIdx
-                lift.lift $ warpPointer $ pos'
+                lift.lift $ warpPointer pos'
             | pos' <- [dir+^pos, pos] ]
 processCommand' IMEdit (CmdRotate _ dir) = do
     selPiece <- gets selectedPiece
@@ -700,7 +696,7 @@ processCommand' IMEdit CmdMerge = do
                 CmdDir _ mergeDir -> return $ Just mergeDir
                 CmdDrag _ mergeDir -> return $ Just mergeDir
                 CmdMoveTo _ -> getDir
-                _ -> return $ Nothing
+                _ -> return Nothing
     mergeDir <- getDir
     case mergeDir of
         Just mergeDir -> modifyEState $ mergeTiles selPos mergeDir True
@@ -732,7 +728,7 @@ processCommand' IMEdit CmdWriteState = void.runMaybeT $ do
         st <- gets esGameState
         frame <- gets esFrame
         msoln <- getCurTestSoln
-        merr <- liftIO $ ((writeAsciiLockFile fullPath msoln $ canonify (frame, st)) >> return Nothing)
+        merr <- liftIO $ (writeAsciiLockFile fullPath msoln (canonify (frame, st)) >> return Nothing)
             `catchIO` (return . Just . show)
         modify $ \es -> es {lastSavedState = Just (st,isJust msoln)}
         case merr of
@@ -782,24 +778,24 @@ setSelectedPos pos = do
 
 subPlay :: UIMonad uiM => Lock -> MainStateT uiM ()
 subPlay lock =
-    pushEState =<< psCurrentState <$> (execSubMainState $ newPlayState lock Nothing False True False)
+    pushEState . psCurrentState =<< execSubMainState (newPlayState lock Nothing False True False)
 
 solveLock,solveLockTut :: UIMonad uiM => Lock -> Maybe String -> MaybeT (MainStateT uiM) Solution
 solveLock = solveLock' False
 solveLockTut = solveLock' True
 solveLock' isTut lock title = do
     (InteractSuccess solved, ps) <- lift $ runSubMainState $ newPlayState (reframe lock) title isTut False False
-    guard $ solved
-    return $ reverse $ (map snd) $ psGameStateMoveStack ps
+    guard solved
+    return $ reverse $ map snd $ psGameStateMoveStack ps
 
 solveLockSaving :: UIMonad uiM => LockSpec -> Maybe SavedPlayState -> Bool -> Lock -> Maybe String -> MaybeT (MainStateT uiM) Solution
 solveLockSaving ls msps isTut lock title = do
     (InteractSuccess solved, ps) <- lift $ runSubMainState $
-        ((maybe newPlayState restorePlayState) msps) (reframe lock) title isTut False True
+        maybe newPlayState restorePlayState msps (reframe lock) title isTut False True
     if solved
         then do
             unless isTut $ lift $ modify $ \ms -> ms { partialSolutions = Map.delete ls $ partialSolutions ms }
-            return $ reverse $ (map snd) $ psGameStateMoveStack ps
+            return $ reverse $ map snd $ psGameStateMoveStack ps
         else do
             lift $ modify $ \ms -> if isTut then ms { tutProgress = (ls,Just $ savePlayState ps) }
                 else ms { partialSolutions = Map.insert ls (savePlayState ps) $ partialSolutions ms }

@@ -8,7 +8,7 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP, TupleSections #-}
 
 module SDLUI where
 
@@ -20,6 +20,7 @@ import Control.Applicative
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.Maybe
+import Control.Monad ((<=<))
 import Control.Monad.State
 import Control.Monad.Trans.Maybe
 import Control.Monad.Trans.Reader
@@ -40,7 +41,6 @@ import System.Random (randomRIO)
 
 import Hex
 import Command
-import GameState (stateBoard)
 import GameStateTypes
 import BoardColouring
 import Lock
@@ -148,20 +148,19 @@ singleButton :: HexVec -> Command -> Int -> [ButtonHelp] -> ButtonGroup
 singleButton pos cmd col helps = ([Button pos cmd helps], (col,0))
 getButtons :: InputMode -> UIM [ ButtonGroup ]
 getButtons mode = do
-    mwhs <- gets $ whsButtons.uiOptions
+    mwhs <- gets $ whsButtons . uiOptions
     cntxtButtons <- gets contextButtons
     return $ cntxtButtons ++ global ++ case mode of
         IMEdit -> [
             singleButton (tl+^hv+^neg hw) CmdTest 1 [("test", hu+^neg hw)]
-            , singleButton (tl+^(neg hw)) CmdPlay 2 [("play", hu+^neg hw)]
+            , singleButton (tl+^neg hw) CmdPlay 2 [("play", hu+^neg hw)]
             , markGroup
             , singleButton (br+^2*^hu) CmdWriteState 2 [("save", hu+^neg hw)] ]
             ++ whsBGs mwhs mode
             ++ [ ([Button (paintButtonStart +^ hu +^ i*^hv) (paintTileCmds!!i) []
                 | i <- take (length paintTiles) [0..] ],(5,0)) ]
         IMPlay ->
-            [ markGroup ]
-            ++ whsBGs mwhs mode
+            markGroup : whsBGs mwhs mode
         IMReplay -> [ markGroup ]
         IMMeta ->
             [ singleButton serverPos CmdSetServer 0 [("server",7*^neg hu)]
@@ -183,23 +182,20 @@ getButtons mode = do
             whsBGs (Just whs) mode =
                 let edit = mode == IMEdit
                 in [ ( [ Button bl (if edit then CmdSelect else CmdWait) [] ], (0,0))
-                , ( [ Button (bl+^dir) (CmdDir whs dir)
+                    , ( [ Button (bl+^dir) (CmdDir whs dir)
                         (if dir==hu then [("move",hu+^neg hw),(if edit then "piece" else whsStr whs,hu+^neg hv)] else [])
-                    | dir <- hexDirs ], (5,0) )
+                        | dir <- hexDirs ], (5,0) )
                 ] ++
-                (if whs == WHSWrench then [] else
-                    [ ( [ Button (bl+^((-2)*^hv))
-                            (CmdRotate whs (-1))
-                            [("turn",hu+^neg hw),("cw",hu+^neg hv)]
-                        , Button (bl+^((-2)*^hw))
-                            (CmdRotate whs 1)
-                            [("turn",hu+^neg hw),("ccw",hu+^neg hv)]
-                        ], (5,0) )
-                ]) ++
-                (if whs /= WHSSelected || mode == IMEdit then [] else
-                    [ ( [ Button (bl+^(2*^hv)+^hw+^neg hu) (CmdTile $ HookTile) [("select",hu+^neg hw),("hook",hu+^neg hv)]
-                        , Button (bl+^(2*^hv)+^neg hu) (CmdTile $ WrenchTile zero) [("select",hu+^neg hw),("wrench",hu+^neg hv)]
-                        ], (2,0) ) ])
+                ([( [ Button (bl+^((-2)*^hv))
+                           (CmdRotate whs (-1))
+                           [("turn",hu+^neg hw),("cw",hu+^neg hv)]
+                       , Button (bl+^((-2)*^hw))
+                           (CmdRotate whs 1)
+                           [("turn",hu+^neg hw),("ccw",hu+^neg hv)]
+                       ], (5,0) ) | whs /= WHSWrench]) ++
+                ([( [ Button (bl+^(2*^hv)+^hw+^neg hu) (CmdTile HookTile) [("select",hu+^neg hw),("hook",hu+^neg hv)]
+                       , Button (bl+^(2*^hv)+^neg hu) (CmdTile $ WrenchTile zero) [("select",hu+^neg hw),("wrench",hu+^neg hv)]
+                       ], (2,0) ) | whs == WHSSelected && mode /= IMEdit])
             tr = periphery 0
             tl = periphery 2
             bl = periphery 3
@@ -233,8 +229,8 @@ data Selectable = SelOurLock
 
 registerSelectable :: HexVec -> Int -> Selectable -> UIM ()
 registerSelectable v r s =
-    modify $ \ds -> ds {registeredSelectables = foldr
-        (`Map.insert` s) (registeredSelectables ds) $ map (v+^) $ hexDisc r}
+    modify $ \ds -> ds {registeredSelectables = foldr (
+        (`Map.insert` s) . (v+^)) (registeredSelectables ds) (hexDisc r)}
 registerButtonGroup :: ButtonGroup -> UIM ()
 registerButtonGroup g = modify $ \ds -> ds {contextButtons = g:contextButtons ds}
 registerButton :: HexVec -> Command -> Int -> [ButtonHelp] -> UIM ()
@@ -248,15 +244,15 @@ registerUndoButtons noUndo noRedo = do
     unless noUndo $ registerButton (periphery 2+^hu) CmdUndo 0 [("undo",hu+^neg hw)]
     unless noRedo $ registerButton (periphery 2+^hu+^neg hv) CmdRedo 2 [("redo",hu+^neg hw)]
 
-commandOfSelectable IMMeta SelOurLock _ = Just $ CmdEdit
+commandOfSelectable IMMeta SelOurLock _ = Just CmdEdit
 commandOfSelectable IMMeta (SelLock (ActiveLock _ i)) False = Just $ CmdSolve (Just i)
 commandOfSelectable IMMeta (SelLock (ActiveLock _ i)) True = Just $ CmdPlaceLock (Just i)
 commandOfSelectable IMMeta (SelScoreLock Nothing _ (ActiveLock _ i)) False = Just $ CmdSolve (Just i)
 commandOfSelectable IMMeta (SelScoreLock Nothing _ (ActiveLock _ i)) True = Just $ CmdPlaceLock (Just i)
-commandOfSelectable IMMeta (SelScoreLock (Just _) _ _) _ = Just $ CmdHome
+commandOfSelectable IMMeta (SelScoreLock (Just _) _ _) _ = Just CmdHome
 commandOfSelectable IMMeta (SelLockUnset True (ActiveLock _ i)) _ = Just $ CmdPlaceLock (Just i)
 commandOfSelectable IMMeta (SelSelectedCodeName _) False = Just $ CmdSelCodename Nothing
-commandOfSelectable IMMeta (SelSelectedCodeName _) True = Just $ CmdHome
+commandOfSelectable IMMeta (SelSelectedCodeName _) True = Just CmdHome
 commandOfSelectable IMMeta (SelUndeclared undecl) _ = Just $ CmdDeclare $ Just undecl
 commandOfSelectable IMMeta (SelReadNote note) False = Just $ CmdSelCodename $ Just $ noteAuthor note
 commandOfSelectable IMMeta (SelReadNote note) True = Just $ CmdViewSolution $ Just note
@@ -267,7 +263,7 @@ commandOfSelectable IMMeta (SelRandom name) _ = Just $ CmdSelCodename $ Just nam
 commandOfSelectable IMMeta (SelSecured note) False = Just $ CmdSelCodename $ Just $ lockOwner $ noteOn note
 commandOfSelectable IMMeta (SelSecured note) True = Just $ CmdViewSolution $ Just note
 commandOfSelectable IMMeta (SelOldLock ls) _ = Just $ CmdPlayLockSpec $ Just ls
-commandOfSelectable IMMeta (SelLockPath) _ = Just $ CmdSelectLock
+commandOfSelectable IMMeta SelLockPath _ = Just CmdSelectLock
 commandOfSelectable IMTextInput (SelLock (ActiveLock _ i)) _ = Just $ CmdInputSelLock i
 commandOfSelectable IMTextInput (SelScoreLock _ _ (ActiveLock _ i)) _ = Just $ CmdInputSelLock i
 commandOfSelectable IMTextInput (SelLockUnset _ (ActiveLock _ i)) _ = Just $ CmdInputSelLock i
@@ -282,9 +278,9 @@ helpOfSelectable SelOurLock = Just
     "Design a lock."
 helpOfSelectable (SelSelectedCodeName name) = Just $
     "Currently viewing "++name++"."
-helpOfSelectable SelRelScore = Just $
+helpOfSelectable SelRelScore = Just
     "The extent to which you are held in higher esteem than this fellow guild member."
-helpOfSelectable SelRelScoreComponent = Just $
+helpOfSelectable SelRelScoreComponent = Just
     "Contribution to total relative esteem."
 helpOfSelectable (SelLock (ActiveLock name i)) = Just $
     name++"'s lock "++[lockIndexChar i]++"."
@@ -304,7 +300,7 @@ helpOfSelectable (SelScoreLock (Just name) (Just (AccessedPrivySolved False)) _)
     "Your lock, on which "++name++" has declared a note which you have not read: -1 to relative esteem."
 helpOfSelectable (SelScoreLock (Just name) (Just (AccessedPrivySolved True)) _) = Just $
     "Your lock, on which "++name++" has declared a note which you have, however, read."
-helpOfSelectable (SelScoreLock (Just name) (Just AccessedPub) _) = Just $
+helpOfSelectable (SelScoreLock (Just name) (Just AccessedPub) _) = Just
     "Your lock, the secrets of which have been publically revealed: -1 to relative esteem."
 helpOfSelectable (SelScoreLock (Just name) (Just AccessedEmpty) _) = Just $
     "Your empty lock slot; "++name++" can unlock all your locks: -1 to relative esteem."
@@ -322,7 +318,7 @@ helpOfSelectable (SelScoreLock Nothing (Just AccessedEmpty) (ActiveLock name _))
     name++"'s empty lock slot; you can unlock all "++name++"'s locks: +1 to relative esteem."
 helpOfSelectable (SelReadNote note) = Just $
     "You have read "++noteAuthor note++"'s note on this lock."
-helpOfSelectable SelReadNoteSlot = Just $
+helpOfSelectable SelReadNoteSlot = Just
     "Reading three notes on this lock would suffice to reveal its secrets."
 helpOfSelectable (SelSecured note) = let ActiveLock owner idx = noteOn note in
     Just $ "Secured note on "++owner++"'s lock "++[lockIndexChar idx]++"."
@@ -332,7 +328,7 @@ helpOfSelectable (SelSolution note) = Just $ case noteBehind note of
     Nothing -> noteAuthor note ++ "'s note on this lock is public knowledge."
 helpOfSelectable (SelAccessed name) = Just $
     name ++ " did not pick this lock, but learnt how to unlock it by reading three notes on it."
-helpOfSelectable (SelPublicLock) = Just
+helpOfSelectable SelPublicLock = Just
     "Notes behind retired or public locks are public; locks with three public notes are public."
 helpOfSelectable (SelAccessedInfo meth) = Just $ case meth of
     AccessedSolved -> "You picked this lock and declared your solution, so may read any notes it secures."
@@ -342,17 +338,17 @@ helpOfSelectable (SelAccessedInfo meth) = Just $ case meth of
         "Having read three notes on others' solutions to this lock, you have unravelled its secrets."
 helpOfSelectable (SelOldLock ls) = Just $
     "Retired lock, #"++show ls++". Any notes which were secured by the lock are now public knowledge."
-helpOfSelectable SelLockPath = Just $
+helpOfSelectable SelLockPath = Just
     "Select a lock by its name. The names you give your locks are not revealed to others."
-helpOfSelectable SelPrivyHeader = Just $
+helpOfSelectable SelPrivyHeader = Just
     "Fellow guild members able to unlock this lock, hence able to read its secured notes."
-helpOfSelectable SelNotesHeader = Just $
+helpOfSelectable SelNotesHeader = Just
     "Secured notes. Notes are obfuscated sketches of method, proving success but revealing little."
-helpOfSelectable SelToolWrench = Just $ "The wrench, one of your lockpicking tools. Click and drag to move."
-helpOfSelectable SelToolHook = Just $ "The hook, one of your lockpicking tools. Click and drag to move, use mousewheel to turn."
+helpOfSelectable SelToolWrench = Just "The wrench, one of your lockpicking tools. Click and drag to move."
+helpOfSelectable SelToolHook = Just "The hook, one of your lockpicking tools. Click and drag to move, use mousewheel to turn."
 
 cmdAtMousePos pos@(mPos,central) im selMode = do
-    buttons <- (concat . map fst) <$> getButtons im
+    buttons <- concatMap fst <$> getButtons im
     sels <- gets registeredSelectables
     return $ listToMaybe $
         [ buttonCmd button
@@ -365,7 +361,7 @@ cmdAtMousePos pos@(mPos,central) im selMode = do
 
 helpAtMousePos :: (HexVec, Bool) -> InputMode -> UIM (Maybe [Char])
 helpAtMousePos (mPos,_) _ =
-    join . fmap helpOfSelectable . Map.lookup mPos <$> gets registeredSelectables
+    gets $ (helpOfSelectable <=< Map.lookup mPos) . registeredSelectables
 
 
 data UIOptButton a = UIOptButton { getUIOpt::UIOptions->a, setUIOpt::a->UIOptions->UIOptions,
@@ -421,17 +417,17 @@ drawUIOptionButtons mode = do
     drawUIOptionButton mode uiOB6
 #endif
 drawUIOptionButton im b = when (im `elem` uiOptModes b) $ do
-    value <- gets $ (getUIOpt b).uiOptions
+    value <- gets $ getUIOpt b . uiOptions
     renderToMain $ mapM_ (\g -> drawAtRel g (uiOptPos b))
         [HollowGlyph $ obscure purple, uiOptGlyph b value]
 describeUIOptionButton :: UIOptButton a -> MaybeT UIM String
 describeUIOptionButton b = do
-    value <- gets $ (getUIOpt b).uiOptions
+    value <- gets $ getUIOpt b . uiOptions
     return $ uiOptDescr b value
 -- XXX: hand-hacking lenses...
 toggleUIOption (UIOptButton getopt setopt vals _ _ _ _ monSet) = do
-    value <- gets $ getopt.uiOptions
-    let value' = head $ drop (1 + (fromMaybe 0 $ elemIndex value vals)) $ cycle vals
+    value <- gets $ getopt . uiOptions
+    let value' = cycle vals !! max 0 (1 + fromMaybe 0 (elemIndex value vals))
     modifyUIOptions $ setopt value'
     case monSet of
         Nothing -> return ()
@@ -467,7 +463,7 @@ writeBindings = do
 
 getBindings :: InputMode -> UIM [(Char, Command)]
 getBindings mode = do
-    uibdgs <- Map.findWithDefault [] mode `liftM` gets uiKeyBindings
+    uibdgs <- gets (Map.findWithDefault [] mode . uiKeyBindings)
     return $ uibdgs ++ bindings mode
 
 paintTiles :: [ Maybe Tile ]
@@ -528,7 +524,7 @@ getGeom = do
     --        where ysize size = round $ fi size / sqrt 3
     -- Minimum allowed size is 2 (get segfaults on SDL_FreeSurface with 1).
     let size = max 2 $ minimum [ w`div`(2*screenWidthHexes)
-            , floor $ sqrt 3 * (0.5 + (fi $ h`div`(3*screenHeightHexes)))]
+            , floor $ sqrt 3 * (0.5 + fi (h`div`(3*screenHeightHexes)))]
     return (scrCentre, size)
 
 data DrawArgs = DrawArgs [PieceIdx] Bool [Alert] GameState UIOptions
@@ -550,14 +546,14 @@ drawMainGameState' args@(DrawArgs highlight colourFixed alerts st uiopts) = do
 
     lastAnimFrame <- gets animFrame
     now <- liftIO getTicks
-    anim <- maybe False (<now) <$> gets nextAnimFrameAt
+    anim <- gets (maybe False (<now) . nextAnimFrameAt)
     when anim $
         modify $ \ds -> ds { animFrame = lastAnimFrame+1, nextAnimFrameAt = Nothing }
     animFrameToDraw <- gets animFrame
-    void $ if (lastArgs == Just args && lastAnimFrame == animFrameToDraw)
+    void $ if lastArgs == Just args && lastAnimFrame == animFrameToDraw
         then do
             vidSurf <- liftIO getVideoSurface
-            gsSurf <- liftM fromJust $ gets gsSurface
+            gsSurf <- gets (fromJust . gsSurface)
             liftIO $ blitSurface gsSurf Nothing vidSurf Nothing
         else do
             modify $ \ds -> ds { lastDrawArgs = Just args }
@@ -580,10 +576,9 @@ drawMainGameState' args@(DrawArgs highlight colourFixed alerts st uiopts) = do
             let (drawAlerts',drawSt,isIntermediate) = animAlertedStates !! animFrameToDraw
             let drawAlerts = drawAlerts' ++ globalAlerts
             -- let drawAlerts = takeWhile (/= AlertIntermediateState drawSt) alerts
-            nextIsSet <- isJust <$> gets nextAnimFrameAt
+            nextIsSet <- gets (isJust . nextAnimFrameAt)
             when (not nextIsSet && frames > animFrameToDraw+1) $ do
-                time <- (if isIntermediate then uiAnimTime else shortUiAnimTime) <$>
-                    gets uiOptions
+                time <- gets ((if isIntermediate then uiAnimTime else shortUiAnimTime) . uiOptions)
                 modify $ \ds -> ds { nextAnimFrameAt = Just $ now + time }
 
             let board = stateBoard drawSt
@@ -593,9 +588,9 @@ drawMainGameState' args@(DrawArgs highlight colourFixed alerts st uiopts) = do
                 then boardColouring drawSt coloured lastCol
                 else pieceTypeColouring drawSt coloured
             modify $ \ds -> ds { dispLastCol = colouring }
-            gsSurf <- liftM fromJust $ gets gsSurface
+            gsSurf <- gets (fromJust . gsSurface)
             renderToMainWithSurf gsSurf $ do
-                let tileGlyphs = fmap (ownedTileGlyph colouring highlight) board
+                let tileGlyphs = ownedTileGlyph colouring highlight <$> board
 
                     applyAlert (AlertAppliedForce f@(Torque idx tdir)) =
                         let poss = case getpp drawSt idx of
@@ -634,8 +629,8 @@ drawMainGameState' args@(DrawArgs highlight colourFixed alerts st uiopts) = do
                             displaceSpring _ _ = id
 
                             displaceSprings =
-                                (flip (foldr $ displaceSpring True) $ springsRootAtIdx drawSt idx) .
-                                (flip (foldr $ displaceSpring False) $ springsEndAtIdx drawSt idx)
+                                flip (foldr $ displaceSpring True) (springsRootAtIdx drawSt idx) .
+                                flip (foldr $ displaceSpring False) (springsEndAtIdx drawSt idx)
                     applyAlert _ = id
 
                     applyAlerts = flip (foldr applyAlert) drawAlerts
@@ -646,9 +641,9 @@ drawMainGameState' args@(DrawArgs highlight colourFixed alerts st uiopts) = do
                     ]
 
                 when (showBlocks uiopts /= ShowBlocksNone) $ sequence_
-                    $ [ drawBlocked drawSt colouring False force
-                        | AlertBlockedForce force <- drawAlerts
-                        , showBlocks uiopts == ShowBlocksAll ]
+                    $ [drawBlocked drawSt colouring False force |
+                   showBlocks uiopts == ShowBlocksAll,
+                   AlertBlockedForce force <- drawAlerts]
                     ++ [ drawBlocked drawSt colouring True force
                         | AlertBlockingForce force <- drawAlerts ]
                     -- ++ [ drawBlocked drawSt colouring True force |
@@ -703,13 +698,13 @@ playAlertSounds _ _ = return ()
 
 drawMiniLock :: Lock -> HexVec -> UIM ()
 drawMiniLock lock v = do
-    surface <- Map.lookup lock <$> gets miniLocks >>= maybe new return
+    surface <- gets miniLocks >>= maybe new return . Map.lookup lock
     renderToMain $ blitAt surface v
     where
         miniLocksize = 3
         new = do
             (_, size) <- getGeom
-            let minisize = size `div` (ceiling $ lockSize lock % miniLocksize)
+            let minisize = size `div` ceiling (lockSize lock % miniLocksize)
             let width = size*2*(miniLocksize*2+1)
             let height = ceiling $ fi size * sqrt 3 * fi (miniLocksize*2+1+1)
             surf <- liftIO $ createRGBSurface [] width height 16 0 0 0 0
@@ -721,7 +716,7 @@ drawMiniLock lock v = do
                     then boardColouring st coloured Map.empty
                     else pieceTypeColouring st coloured
                 draw = sequence_ [ drawAt glyph pos |
-                    (pos,glyph) <- Map.toList $ fmap (ownedTileGlyph colouring []) $ stateBoard st ]
+                    (pos,glyph) <- Map.toList $ ownedTileGlyph colouring [] <$> stateBoard st ]
             liftIO $ runRenderM draw emptyCachedGlyphs $
                 RenderContext surf Nothing (PHS zero) (SVec (width`div`2) (height`div`2)) zero minisize Nothing
             clearOldMiniLocks
@@ -739,7 +734,7 @@ drawEmptyMiniLock v =
 getBindingStr :: InputMode -> UIM (Command -> String)
 getBindingStr mode = do
     setting <- gets settingBinding
-    uibdgs <- Map.findWithDefault [] mode `liftM` gets uiKeyBindings
+    uibdgs <- gets (Map.findWithDefault [] mode . uiKeyBindings)
     return (\cmd ->
         if Just cmd == setting then "??"
         else maybe "" showKey $ findBinding (uibdgs ++ bindings mode) cmd)
@@ -748,7 +743,7 @@ drawButtons :: InputMode -> UIM ()
 drawButtons mode = do
     buttons <- getButtons mode
     bindingStr <- getBindingStr mode
-    showBT <- showButtonText <$> gets uiOptions
+    showBT <- gets (showButtonText . uiOptions)
     smallFont <- gets dispFontSmall
     renderToMain $ sequence_ $ concat [ [ do
                 drawAtRel (ButtonGlyph col) v
@@ -757,7 +752,7 @@ drawButtons mode = do
                 when showBT $
                     withFont smallFont $ recentreAt v $ rescaleRender (1/4) $
                     sequence_ [ renderStrColAtLeft white s dv | (s,dv) <- helps ]
-            | (i,(v,bdg,helps)) <- enumerate $ map (\b->(buttonPos b, bindingStr $ buttonCmd b, buttonHelp b)) $ buttonGroup
+            | (i,(v,bdg,helps)) <- enumerate $ map (\b->(buttonPos b, bindingStr $ buttonCmd b, buttonHelp b)) buttonGroup
                 , let col = dim $ colourWheel (base+inc*i) ]
         | (buttonGroup,(base,inc)) <- buttons
         ]
@@ -773,16 +768,16 @@ initVideo w h = do
         -- current screen res rather than current window size
         (quitSubSystem [InitVideo] >> initSubSystem [InitVideo] >> initMisc)
 
-    fs <- fullscreen <$> gets uiOptions
+    fs <- gets (fullscreen . uiOptions)
     liftIO $ do
-        (w',h') <- if (fs || (w,h)/=(0,0)) then return (w,h) else do
+        (w',h') <- if fs || (w,h)/=(0,0) then return (w,h) else do
             -- use smaller dimensions than the screen's, to work around a bug
             -- seen on mac, whereby a resizable window created with
             -- (w,h)=(0,0), or even with the (w,h) given by getDimensions
             -- after creating such a window, is reported to be larger than it
             -- is.
             (w',h') <- getDimensions
-            return $ (4*w'`div`5,4*h'`div`5)
+            return (4*w'`div`5,4*h'`div`5)
         setVideoMode w' h' 0 $ if fs then [Fullscreen] else [Resizable]
 
     (w',h') <- liftIO getDimensions
@@ -799,10 +794,10 @@ initVideo w h = do
     smallFont <- liftIO $ TTF.tryOpenFont fontpath (2*size`div`3)
     modify $ \ds -> ds { dispFont = font, dispFontSmall = smallFont }
 
-    useBG <- gets $ useBackground.uiOptions
+    useBG <- gets $ useBackground . uiOptions
     mbg <- if useBG then do
             bgsurf <- liftIO $ createRGBSurface [] w' h' 16 0 0 0 0
-            renderToMainWithSurf bgsurf $ drawBasicBG $ 2*(max screenWidthHexes screenHeightHexes)`div`3
+            renderToMainWithSurf bgsurf $ drawBasicBG $ 2*max screenWidthHexes screenHeightHexes`div`3
             return $ Just bgsurf
         else return Nothing
     modify $ \ds -> ds { bgSurface = mbg }
@@ -868,7 +863,7 @@ pollEvents = do
 
 drawMsgLine = void.runMaybeT $ do
     (col,str) <- msum
-        [ ((,) dimWhiteCol) <$> MaybeT (gets hoverStr)
+        [ (dimWhiteCol,) <$> MaybeT (gets hoverStr)
         , MaybeT $ gets message
         ]
     lift $ do

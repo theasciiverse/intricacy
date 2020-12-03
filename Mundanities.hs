@@ -33,12 +33,12 @@ catchAll = E.catch
 readReadFile :: (Read a) => FilePath -> IO (Maybe a)
 readReadFile file =
     (tryRead . BSC.unpack <$> BS.readFile file)
-        `catchIO` (const $ return Nothing)
+        `catchIO` const (return Nothing)
 tryRead :: (Read a) => String -> Maybe a
 tryRead = (fst <$>) . listToMaybe . reads
 
 readStrings :: FilePath -> IO [String]
-readStrings file = (lines . BSC.unpack) <$> BS.readFile file
+readStrings file = lines . BSC.unpack <$> BS.readFile file
 
 writeReadFile :: (Show a) => FilePath -> a -> IO ()
 writeReadFile file x = do
@@ -71,7 +71,7 @@ mkdirhier path = do
 
 getDirContentsRec :: FilePath -> IO [FilePath]
 getDirContentsRec path = flip catchIO (const $ return []) $ do
-    contents <- map ((path++[pathSeparator])++) <$> filter ((/='.').head) <$> getDirectoryContents path
+    contents <- map ((path++[pathSeparator])++) . filter ((/='.').head) <$> getDirectoryContents path
     annotated <- (\p -> (,) p <$> doesDirectoryExist p) `mapM` contents
     let (dirs,files) = join (***) (map fst) $ partition snd annotated
     (files++) . concat <$> getDirContentsRec `mapM` dirs

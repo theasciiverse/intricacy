@@ -139,10 +139,10 @@ renderGlyphCaching gl = do
             -- Maybe we could truncate the spring glyphs to a hex?
             TileGlyph (BlockTile adjs) _ -> null adjs
             TileGlyph (SpringTile extn dir) _ -> False
-            SpringGlyph _ _ _ _ _ -> False
+            SpringGlyph {} -> False
             FilledHexGlyph _ -> False
             HollowGlyph _ -> False
-            BlockedBlock _ _ _ -> False
+            BlockedBlock {} -> False
             BlockedPush _ _ -> False
             CollisionMarker -> False
             DisplacedGlyph _ _ -> False
@@ -153,11 +153,9 @@ renderGlyph (TileGlyph (BlockTile adjs) col) =
     rimmedPolygonR corners col $ bright col
         where
             corners = concat [
-                if or $ map adjAt [0,1]
+                if any adjAt [0,1]
                 then [corner $ hextant dir]
-                else if adjAt $ -1
-                    then []
-                    else [innerCorner dir]
+                else [innerCorner dir | not (adjAt $ -1)]
                 | dir <- hexDirs
                 , let adjAt r = rotate r dir `elem` adjs
                 ]
@@ -180,13 +178,12 @@ renderGlyph (TileGlyph (WrenchTile mom) col) = do
         let
             from = innerCorner $ neg mom
             to = edge $ neg mom
-            shifts = [ (1/2) **^ (b -^ a)
-                | rot <- [-1,0,1]
-                , let a = innerCorner $ neg mom
-                , let b = innerCorner $ rotate rot $ neg mom
-                ]
+            shifts = [(1 / 2) **^ (b -^ a) |
+               let a = innerCorner $ neg mom,
+               rot <- [- 1, 0, 1],
+               let b = innerCorner $ rotate rot $ neg mom]
         in sequence_
-            [ aaLineR (from+^shift) (to+^shift) $ col
+            [ aaLineR (from+^shift) (to+^shift) col
             | shift <- shifts ]
 
 renderGlyph (TileGlyph BallTile col) =
@@ -214,7 +211,6 @@ renderGlyph (PivotGlyph rot dir col) = do
     rimmedCircleR zero (7/8) col $ bright col
     when (dir /= zero)
         $ aaLineR from to $ bright col
-    return ()
         where
             from = rotFVec th c $ (7/8) **^ edge (neg dir)
             to = rotFVec th c $ (7/8) **^ edge dir
@@ -227,7 +223,7 @@ renderGlyph (ArmGlyph rot dir col) =
             dir' = if dir == zero then hu else dir
             from = rotFVec th c $ edge $ neg dir'
             to = rotFVec th c $ innerCorner dir'
-            c = (2 **^ edge (neg dir'))
+            c = 2 **^ edge (neg dir')
             th = - fi rot * pi / 12
 
 renderGlyph (BlockedArm armdir tdir col) =
@@ -252,7 +248,7 @@ renderGlyph (BlockedBlock tile dir col) =
 
 renderGlyph (BlockedPush dir col) = do
     thickLineR zero tip 1 col
-    thickLineR tip (arms!!0) 1 col
+    thickLineR tip (head arms) 1 col
     thickLineR tip (arms!!1) 1 col
     where
         tip@(FVec tx ty) = edge dir
@@ -260,7 +256,7 @@ renderGlyph (BlockedPush dir col) = do
 
 renderGlyph CollisionMarker = do
     -- rimmedCircle surf centre (size`div`3) (bright purple) $ bright purple
-    aaLineR start end $ col
+    aaLineR start end col
     aaCircleR zero rad col
     where
         [start,end] = map (((1/2)**^) . corner) [0,3]
@@ -302,10 +298,10 @@ renderGlyph (ShowButtonTextButton showing) = do
         sequence_ [ pixelR (FVec (1/3 + i/4) (-1/4)) (bright white) | i <- [-1..1] ]
 
 renderGlyph (UseSoundsButton use) = do
-    sequence [ arcR (FVec (-2/3) 0) r (-20) 20
+    sequence_ [ arcR (FVec (-2/3) 0) r (-20) 20
             (if use then bright green else dim red)
         | r <- [1/3,2/3,1] ]
-    when (not use) $
+    unless use $
         aaLineR (innerCorner hw) (innerCorner $ neg hw) $ dim red
 
 renderGlyph (WhsButtonsButton Nothing) = rescaleRender (1/3) $ do
@@ -335,13 +331,13 @@ renderGlyph (FullscreenButton fs) = do
 renderGlyph (DisplacedGlyph dir glyph) =
     displaceRender (innerCorner dir) $ renderGlyph glyph
 
-renderGlyph (UnfreshGlyph) = do
+renderGlyph UnfreshGlyph = do
     let col = bright red
     renderGlyph (HollowInnerGlyph col)
     sequence_ [pixelR (FVec (i/4) 0) col
         | i <- [-1..1] ]
 
-playerGlyph col = FilledHexGlyph col
+playerGlyph = FilledHexGlyph
 
 cursorGlyph = HollowGlyph $ bright white
 
@@ -357,7 +353,7 @@ drawBasicBG :: Int -> RenderM ()
 drawBasicBG maxR = sequence_ [ drawAtRel (HollowGlyph $ colAt v) v | v <- hexDisc maxR ]
     where
         colAt v@(HexVec hx hy hz) = let
-                [r,g,b] = map (\h -> fi $ ((0xff*)$ 5 + abs h)`div`maxR) [hx,hy,hz]
+                [r,g,b] = map (\h -> fi $ 0xff * (5 + abs h)`div`maxR) [hx,hy,hz]
                 a = fi $ (0x70 * (maxR - abs (hexLen v)))`div`maxR
             in rgbaToPixel (r,g,b,a)
 
@@ -367,7 +363,7 @@ drawBlocked st colouring blocking (Torque idx dir) = do
             PlacedPiece pos (Pivot arms) -> (pos,arms)
             PlacedPiece pos (Hook arm _) -> (pos,[arm])
             _ -> (pos,[])
-        col = if blocking then bright $ purple else dim $ colourOf colouring idx
+        col = if blocking then bright purple else dim $ colourOf colouring idx
     sequence_ [ drawAt (BlockedArm arm dir col) (arm +^ pos) |
         arm <- arms ]
 drawBlocked st colouring blocking (Push idx dir) = do

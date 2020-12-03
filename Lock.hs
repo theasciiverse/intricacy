@@ -39,11 +39,7 @@ reframe :: Lock -> Lock
 reframe l@(f, st) = addTools $ delTools $ liftLock (setpp 0 (framePiece f)) l
 
 validLock :: Lock -> Bool
-validLock lock@(f,st) = and
-    [ st == stepPhysics st
-    , lock == reframe lock
-    , validGameState st
-    ]
+validLock lock@(f,st) = (st == stepPhysics st) && (lock == reframe lock) && validGameState st
 
 type Solution = [PlayerMove]
 
@@ -65,7 +61,7 @@ delTools :: Lock -> Lock
 delTools = liftLock delTools' where
         delTools' :: GameState -> GameState
         delTools' st =
-            fromMaybe st $ listToMaybe 
+            fromMaybe st $ listToMaybe
                 [ delTools' $ delPiece idx st
                 | (idx,pp) <- enumVec $ placedPieces st
                 , isTool $ placedPiece pp ]
@@ -90,5 +86,5 @@ delOOB l@(f,st) =
         [ delOOB $ liftLock (delPiece idx) l
         | (idx,_) <- enumVec $ placedPieces st
         , not $ isFrame idx
-        , all (not.inBounds f) $ fullFootprint st idx
+        , not (any (inBounds f) (fullFootprint st idx))
         , null $ springsEndAtIdx st idx]

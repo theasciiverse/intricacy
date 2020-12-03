@@ -63,7 +63,7 @@ tileType (BlockTile _) = BlockTile []
 tileType (PivotTile _) = PivotTile zero
 tileType (ArmTile _ _) = ArmTile zero False
 tileType (WrenchTile _) = WrenchTile zero
-tileType (BallTile) = BallTile
+tileType BallTile = BallTile
 tileType (SpringTile _ _) = SpringTile Relaxed zero
 tileType t = t
 

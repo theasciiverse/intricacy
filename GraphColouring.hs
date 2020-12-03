@@ -44,7 +44,7 @@ isColouring g mapping = and
 fiveColour' :: Ord a => Colouring a -> PlanarGraph a -> Colouring a
 fiveColour' pref g | g == Map.empty = Map.empty
 fiveColour' pref g =
-    let adjsOf v = (nub $ g Map.! v) \\ [v]
+    let adjsOf v = nub (g Map.! v) \\ [v]
         v0 = head $ filter ((<=5) . length . adjsOf) $ Map.keys g
         adjs = adjsOf v0
         addTo c =
@@ -52,9 +52,9 @@ fiveColour' pref g =
             in Map.insert v0 vc c
     in if length adjs < 5
        then addTo $ fiveColour' pref $ deleteNode v0 g
-       else let (v',v'') = if adjs!!2 `elem` (g Map.! (adjs!!0))
+       else let (v',v'') = if adjs!!2 `elem` (g Map.! head adjs)
                     then (adjs!!1,adjs!!3)
-                    else (adjs!!0,adjs!!2)
+                    else (head adjs,adjs!!2)
             in addTo $ demerge v' v'' $ fiveColour' pref $ merge v0 v' v'' g
 
 possCols :: Ord a => Colouring a -> a -> [Int]

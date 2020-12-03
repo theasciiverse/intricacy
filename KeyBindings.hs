@@ -30,7 +30,7 @@ unctrl = ctrl
 unmeta = meta
 
 lowerToo :: KeyBindings -> KeyBindings
-lowerToo = concat . map addLower
+lowerToo = concatMap addLower
     where addLower b@(c, cmd) = [ b, (toLower c, cmd) ]
 
 qwertyViHex =
@@ -191,7 +191,7 @@ metaBindings = lowerToo
     , ('<', CmdPrevPage)
     ] ++ miscGlobal
 
-impatienceBindings = lowerToo $
+impatienceBindings = lowerToo
     [ ('Q', CmdQuit)
     , (ctrl 'C', CmdQuit) ]
 
@@ -214,7 +214,7 @@ findBinding = (listToMaybe.) . findBindings
 showKey ch
     | isAscii (unmeta ch) = 'M':'-':showKey (unmeta ch)
     | isPrint ch = [ch]
-    | isPrint (unctrl ch) = ('^':[unctrl ch])
+    | isPrint (unctrl ch) = '^':[unctrl ch]
     | otherwise = "[?]"
 
 showKeyFriendly ' ' = "space"

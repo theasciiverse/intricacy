@@ -63,7 +63,7 @@ drawTile pos tile painting = do
 paintTilePath frame tile from to = if from == to
     then modify $ \es -> es {lastModPos = to}
     else do
-        let from' = (hexVec2HexDirOrZero $ to-^from) +^ from
+        let from' = hexVec2HexDirOrZero (to-^from) +^ from
         when (inEditable frame from') $ drawTile from' tile True
         paintTilePath frame tile from' to
 
@@ -115,7 +115,7 @@ declare undecl@(Undeclared soln ls al) = do
     ourUInfo <- mgetUInfo ourName
     [pbdg,ebdg,hbdg] <- mapM (lift.lift . getUIBinding IMMeta)
         [ CmdPlaceLock Nothing, CmdEdit, CmdHome ]
-    haveLock <- isJust <$> gets curLock
+    haveLock <- gets (isJust . curLock)
     idx <- askLockIndex "Secure behind which lock?"
         (if haveLock
             then "First you must place ('"++pbdg++"') a lock to secure your solution behind, while at home ('"++hbdg++"')."
@@ -175,7 +175,7 @@ askLockIndex prompt failMessage pred = do
     where
         ask ok = do
             let prompt' = prompt ++ " [" ++ intersperse ',' (map lockIndexChar ok) ++ "]"
-            idx <- MaybeT $ lift $ join . (((charLockIndex<$>).listToMaybe)<$>) <$>
+            idx <- MaybeT $ lift $ (((charLockIndex<$>).listToMaybe) =<<) <$>
                 textInput prompt' 1 False True Nothing Nothing
             if idx `elem` ok then return idx else ask ok
 confirmOrBail :: UIMonad uiM => String -> MaybeT (MainStateT uiM) ()
@@ -188,9 +188,7 @@ confirm prompt = do
     where
         waitConfirm = do
             cmds <- getInput IMTextInput
-            case msum $ map ansOfCmd cmds of
-                Just answer -> return answer
-                Nothing -> waitConfirm
+            maybe waitConfirm return (msum $ map ansOfCmd cmds)
         ansOfCmd (CmdInputChar 'y') = Just True
         ansOfCmd (CmdInputChar 'Y') = Just True
         ansOfCmd (CmdInputChar c) = if isPrint c then Just False else Nothing
@@ -222,8 +220,8 @@ textInput prompt maxlen hidden endOnMax mposss init = getText (fromMaybe "" init
                     '\n' -> Left True
                     '\r' -> Left True
                     '\NAK' -> Right ("",Nothing)  -- ^U
-                    '\b' -> Right $ (take (length s - 1) s, Nothing)
-                    '\DEL' -> Right $ (take (length s - 1) s, Nothing)
+                    '\b' -> Right (take (length s - 1) s, Nothing)
+                    '\DEL' -> Right (take (length s - 1) s, Nothing)
                     '\t' -> case mposss of
                         Nothing -> Right (s,mstem)
                         Just possibilities -> case mstem of
@@ -245,11 +243,11 @@ textInput prompt maxlen hidden endOnMax mposss init = getText (fromMaybe "" init
                             then ((if length s >= maxlen then id else (++[c])) s, Nothing)
                             else (s,mstem)
                 applyCmd x (CmdInputSelLock idx) =
-                    setTextOrSubmit x $ [lockIndexChar idx]
+                    setTextOrSubmit x [lockIndexChar idx]
                 applyCmd x (CmdInputSelUndecl (Undeclared _ _ (ActiveLock name idx))) =
                     setTextOrSubmit x $ name++[':',lockIndexChar idx]
                 applyCmd x (CmdInputCodename name) =
-                    setTextOrSubmit x $ name
+                    setTextOrSubmit x name
                 applyCmd x CmdRefresh = Right x
                 applyCmd x CmdUnselect = Right x
                 applyCmd _ _ = Left False

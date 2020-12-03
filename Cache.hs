@@ -37,11 +37,11 @@ data FetchedRecord = FetchedRecord {fresh :: Bool, fetchError :: Maybe String, f
 
 getRecordCached :: ServerAddr -> Maybe Auth -> Maybe (TVar Bool) -> Bool -> Record -> IO (TVar FetchedRecord)
 getRecordCached saddr _ _ _ _ | nullSaddr saddr = do
-    atomically $ newTVar $ FetchedRecord True (Just "No server set.") Nothing
+    newTVarIO (FetchedRecord True (Just "No server set.") Nothing)
 getRecordCached saddr auth mflag cOnly rec = do
     fromCache <- withCache saddr $ getRecord rec
     let fresh = isJust fromCache && invariantRecord rec
-    tvar <- atomically $ newTVar $ FetchedRecord fresh Nothing fromCache
+    tvar <- newTVarIO (FetchedRecord fresh Nothing fromCache)
     unless (cOnly || fresh) $ void $ forkIO $ getRecordFromServer fromCache tvar
     return tvar
     where
@@ -80,21 +80,21 @@ makeRequest saddr _ | nullSaddr saddr =
 makeRequest saddr@(ServerAddr host port) request =
     handle (return . ServerError . (show::SomeException -> String)) $
         withStream (IP host port) makeRequest'
-            `catchIO` (const $ return $ ServerError $ "Cannot connect to "++saddrStr saddr++"!")
+            `catchIO` const (return $ ServerError $ "Cannot connect to "++saddrStr saddr++"!")
     where
         makeRequest' hdl = do
             BS.hPut hdl $ BL.toStrict $ encode request
             hFlush hdl
-            (decode . BL.fromStrict) `liftM` BS.hGetContents hdl
+            decode . BL.fromStrict <$> BS.hGetContents hdl
 
 knownServers :: IO [ServerAddr]
 knownServers = flip catchIO (const $ return []) $ do
     cachedir <- confFilePath "cache"
     saddrstrs <- getDirectoryContents cachedir >>= filterM (\dir ->
         doesFileExist $ cachedir++[pathSeparator]++dir++[pathSeparator]++"serverInfo")
-    return $ concat $ map (maybeToList . strToSaddr) saddrstrs
+    return $ mapMaybe strToSaddr saddrstrs
 
 withCache :: ServerAddr -> DBM a -> IO a
 withCache saddr m = do
-    cachedir <- (++[pathSeparator]++saddrPath saddr) `liftM` confFilePath "cache"
+    cachedir <- (++pathSeparator : saddrPath saddr) <$> confFilePath "cache"
     runReaderT m cachedir

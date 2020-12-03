@@ -140,7 +140,7 @@ setKeyPair = do
         putRecord RecSecretKey $ RCSecretKey secretKey
 
 argon2 :: String -> ExceptT String IO String
-argon2 s = either (throwE . show) (return) $
+argon2 s = either (throwE . show) return $
         TSh.unpack <$> A2.hashEncoded hashOptions (CS.pack s) (CS.pack salt)
     where
         salt = "intricacy salt"
@@ -202,7 +202,7 @@ showAction (SetLock lock idx soln) = "SetLock " ++ show idx ++ " lock:"
     ++ (if not $ validLock $ reframe lock then " [INVALID LOCK] " else "\n" ++ unlines (lockToAscii lock))
     ++ "[SOLN]"
 showAction (DeclareSolution soln ls target idx) = "DeclareSolution [SOLN] "
-    ++ (concat $ intersperse " " $ [show ls,show target,show idx])
+    ++ unwords [show ls,show target,show idx]
 showAction act = show act
 showResponse :: ServerResponse -> String
 showResponse (ServedLock lock) = "ServedLock lock:\n" ++ unlines (lockToAscii lock)
@@ -223,9 +223,9 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
             _ -> ReadWriteMode
 
     -- check solutions prior to write-locking database:
-    (withDBLock dbpath ReadMode $ runExceptT checkRequest) >>= 
+    withDBLock dbpath ReadMode (runExceptT checkRequest) >>=
         either (return . ServerError) (const $
-        withDBLock dbpath lockMode $ runExceptT handleRequest' >>= 
+        withDBLock dbpath lockMode $ runExceptT handleRequest' >>=
             either (return . ServerError) return)
     where
         checkRequest = do
@@ -251,7 +251,7 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
                     when (frame /= BasicFrame serverSize) $ throwE $
                         "Server only accepts size "++show serverSize++" locks."
                     unless (validLock $ reframe lock) $ throwE "Invalid lock!"
-                    unless (not.checkSolved $ reframe lock) $ throwE "Lock not locked!"
+                    when (checkSolved reframe lock) $ throwE "Lock not locked!"
                     RCLockHashes hashes <- getRecordErrored RecLockHashes
                             `catchE` const (return (RCLockHashes []))
                     let hashed = hash $ show lock
@@ -327,19 +327,19 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
                     ls <- erroredDB $ newLockRecord lock
                     let oldLockInfo = userLocks info ! idx
                     execStateT (do
-                            when (isJust $ oldLockInfo) $
+                            when (isJust oldLockInfo) $
                                 lift (getALock al) >>= retireLock
                             addDelta name $ PutLock ls idx
                         ) [] >>= applyDeltasToRecords
 
                     for_ oldLockInfo $ \oldui -> do
                         lss <- getRetired name
-                        erroredDB $ putRecord (RecRetiredLocks name) $ RCLockSpecs $ (lockSpec oldui):lss
+                        erroredDB $ putRecord (RecRetiredLocks name) $ RCLockSpecs $ lockSpec oldui:lss
                     doNews $ "New lock " ++ alockStr al ++ "."
                     return ServerAck
                 GetRandomNames n -> do
-                    names <- erroredDB $ listUsers
-                    gen <- erroredIO $ getStdGen
+                    names <- erroredDB listUsers
+                    gen <- erroredIO getStdGen
                     let l = length names
                         namesArray = listArray (0,l-1) names
                         negligible name = do
@@ -377,13 +377,13 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
             RCSolution soln <- getRecordErrored $ RecNote note
             return soln
         getServerInfo = do
-            RCServerInfo sinfo <- getRecordErrored $ RecServerInfo
+            RCServerInfo sinfo <- getRecordErrored RecServerInfo
             return sinfo
         getPublicKey = do
-            RCPublicKey publicKey <- getRecordErrored $ RecPublicKey
+            RCPublicKey publicKey <- getRecordErrored RecPublicKey
             return publicKey
         getRetired name = do
-            RCLockSpecs lss <- fromMaybe (RCLockSpecs []) <$> (erroredDB $ getRecord $ RecRetiredLocks name)
+            RCLockSpecs lss <- fromMaybe (RCLockSpecs []) <$> erroredDB (getRecord $ RecRetiredLocks name)
             return lss
         getALock (ActiveLock name idx) = do
             info <- getUserInfo name
@@ -431,7 +431,7 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
             when exists $ throwE "Codename taken"
             pw' <- decryptPassword pw >>= argon2
             erroredDB $ putRecord (RecPasswordArgon2 name) (RCPasswordArgon2 pw')
-            erroredDB $ putRecord (RecUserInfo name) (RCUserInfo $ (1,initUserInfo name))
+            erroredDB $ putRecord (RecUserInfo name) (RCUserInfo (1,initUserInfo name))
             erroredDB $ putRecord (RecUserInfoLog name) (RCUserInfoDeltas [])
         resetPassword Nothing _ = throwE "Authentication required"
         resetPassword auth@(Just (Auth name _)) newpw = do
@@ -444,7 +444,7 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
             serverAddr <- erroredDB $ getRecord RecServerEmail
             when (isNothing serverAddr) $ throwE "This server is not configured to support email notifications."
             let addr = CS.pack addressStr
-            when (not $ CS.null addr || Text.Email.Validate.isValid addr) $ throwE "Invalid email address"
+            unless (CS.null addr || Text.Email.Validate.isValid addr) $ throwE "Invalid email address"
             erroredDB $ putRecord (RecEmail name) (RCEmail addr)
         checkCodeName :: Codename -> ExceptT String IO Bool
         checkCodeName name = do
@@ -463,7 +463,7 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
             erroredDB $ modifyRecord (RecUserInfoLog name) $
                 \(RCUserInfoDeltas deltas') -> RCUserInfoDeltas $ deltas ++ deltas'
             erroredDB $ modifyRecord (RecUserInfo name) $
-                \(RCUserInfo (v,info)) -> RCUserInfo $
+                \(RCUserInfo (v,info)) -> RCUserInfo
                     (v+length deltas, applyDeltas info deltas)
         declareNote note@(NoteInfo _ _ target) behind@(ActiveLock name idx) = do
             accessLock name target =<< getCurrALock target
@@ -492,16 +492,16 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
         scrapNote _ = return ()
         unreadNote note@(NoteInfo name (Just al) _) = do
             lock <- getCurrALock al
-            mapM_ (\name' -> addDelta name' (DelRead note)) $ name:(accessedBy lock)
+            mapM_ (\name' -> addDelta name' (DelRead note)) $ name:accessedBy lock
         publiciseNote note@(NoteInfo _ _ al@(ActiveLock name idx)) = do
             unreadNote note
             addDelta name $ LockDelta idx $ SetPubNote note
             publified <- checkSuffPubNotes al
             unless publified $ do
                 lock <- getCurrALock al
-                accessorsOfNotesOnLock <- ((++ map noteAuthor (lockSolutions lock)).concat)
-                    <$> (sequence
-                        [ accessedBy <$> getCurrALock behind | NoteInfo _ (Just behind) _ <- lockSolutions lock ] )
+                accessorsOfNotesOnLock <- (++ map noteAuthor (lockSolutions lock)).concat
+                    <$> sequence
+                        [ accessedBy <$> getCurrALock behind | NoteInfo _ (Just behind) _ <- lockSolutions lock ]
                 forM_ accessorsOfNotesOnLock $ checkSuffReadNotes al
         checkSuffReadNotes target name = do
             info <- getCurrUserInfo name
@@ -513,16 +513,16 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
             lock <- getCurrALock al
             let countPub = fromIntegral $ length $
                     filter (isNothing.noteBehind) $ lockSolutions lock
-            if (countPub == notesNeeded)
+            if countPub == notesNeeded
                 then publiciseLock al lock >> return True
                 else return False
         -- | XXX we apply deltas right-to-left, so in the order of adding
         addDelta name delta = modify ((name,delta):)
         getCurrUserInfo name = do
             info <- lift $ getUserInfo name
-            (applyDeltas info . map snd . filter ((==name).fst)) <$> get
+            applyDeltas info . map snd . filter ((==name).fst) <$> get
         getCurrALock al@(ActiveLock name idx) =
-             (fromJust.(!idx).userLocks) <$> getCurrUserInfo name
+             fromJust.(!idx).userLocks <$> getCurrUserInfo name
         doNews :: String -> ExceptT String IO ()
         doNews news = case mfeedPath of
             Nothing -> return ()

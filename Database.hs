@@ -104,19 +104,19 @@ getRecord rec = do
     liftIO $ flip catchIO (const $ return Nothing) $ do
         h <- openFile path ReadMode
         getRecordh rec h <* hClose h
-getRecordh (RecPasswordLegacy _) h = ((RCPasswordLegacy <$>) . tryRead) <$> hGetStrict h
-getRecordh (RecPasswordArgon2 _) h = ((RCPasswordArgon2 <$>) . tryRead) <$> hGetStrict h
-getRecordh (RecEmail _) h = ((RCEmail <$>) . tryRead) <$> hGetStrict h
-getRecordh (RecUserInfo _) h = ((RCUserInfo <$>) . tryRead) <$> hGetStrict h
-getRecordh (RecUserInfoLog _) h = ((RCUserInfoDeltas <$>) . tryRead) <$> hGetStrict h
-getRecordh (RecLock _) h = ((RCLock <$>) . tryRead) <$> hGetStrict h
-getRecordh (RecNote _) h = ((RCSolution <$>) . tryRead) <$> hGetStrict h
-getRecordh RecLockHashes h = ((RCLockHashes <$>) . tryRead) <$> hGetStrict h
-getRecordh (RecRetiredLocks name) h = ((RCLockSpecs <$>) . tryRead) <$> hGetStrict h
-getRecordh RecServerInfo h = ((RCServerInfo <$>) . tryRead) <$> hGetStrict h
-getRecordh RecServerEmail h = ((RCEmail <$>) . tryRead) <$> hGetStrict h
-getRecordh RecPublicKey h = ((RCPublicKey <$>) . tryRead) <$> hGetStrict h
-getRecordh RecSecretKey h = ((RCSecretKey <$>) . tryRead) <$> hGetStrict h
+getRecordh (RecPasswordLegacy _) h = (RCPasswordLegacy <$>) . tryRead <$> hGetStrict h
+getRecordh (RecPasswordArgon2 _) h = (RCPasswordArgon2 <$>) . tryRead <$> hGetStrict h
+getRecordh (RecEmail _) h = (RCEmail <$>) . tryRead <$> hGetStrict h
+getRecordh (RecUserInfo _) h = (RCUserInfo <$>) . tryRead <$> hGetStrict h
+getRecordh (RecUserInfoLog _) h = (RCUserInfoDeltas <$>) . tryRead <$> hGetStrict h
+getRecordh (RecLock _) h = (RCLock <$>) . tryRead <$> hGetStrict h
+getRecordh (RecNote _) h = (RCSolution <$>) . tryRead <$> hGetStrict h
+getRecordh RecLockHashes h = (RCLockHashes <$>) . tryRead <$> hGetStrict h
+getRecordh (RecRetiredLocks name) h = (RCLockSpecs <$>) . tryRead <$> hGetStrict h
+getRecordh RecServerInfo h = (RCServerInfo <$>) . tryRead <$> hGetStrict h
+getRecordh RecServerEmail h = (RCEmail <$>) . tryRead <$> hGetStrict h
+getRecordh RecPublicKey h = (RCPublicKey <$>) . tryRead <$> hGetStrict h
+getRecordh RecSecretKey h = (RCSecretKey <$>) . tryRead <$> hGetStrict h
 
 hGetStrict h = CS.unpack <$> concatMWhileNonempty (repeat $ CS.hGet h 1024)
     where concatMWhileNonempty (m:ms) = do
@@ -175,12 +175,12 @@ newLockRecord lock = do
 listUsers :: DBM [Codename]
 listUsers = do
     dbpath <- ask
-    liftIO $ (map unpathifyName . filter ((==3).length)) <$>
+    liftIO $ map unpathifyName . filter ((==3).length) <$>
         getDirectoryContents (dbpath++[pathSeparator]++"users")
 
 recordPath :: Record -> DBM FilePath
 recordPath rec =
-    (++ ([pathSeparator] ++ recordPath' rec)) <$> ask
+    (++ (pathSeparator : recordPath' rec)) <$> ask
     where
         recordPath' (RecPasswordLegacy name) = userDir name ++ "passwd"
         recordPath' (RecPasswordArgon2 name) = userDir name ++ "passwd_argon2"
@@ -214,7 +214,7 @@ winSux name = if map toUpper name `elem` ["CON","PRN", "AUX","NUL"]
 -- To avoid collisions on case-insensitive filesystems, we use '_' as an
 -- escape character.
 dummyPunctuation = concatMap $ \c ->
-    fromMaybe [c] (('_':) . pure <$> lookup c pathifyAssocs)
+    maybe [c] (('_':) . pure) (lookup c pathifyAssocs)
 unpathifyName = concatMap $ \c -> case c of
         '_' -> ""
         _ -> pure $ fromMaybe c (lookup c $ map swap pathifyAssocs)

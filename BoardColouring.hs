@@ -32,8 +32,7 @@ colouredPieces :: Bool -> GameState -> [PieceIdx]
 colouredPieces colourFixed st = [ idx |
     (idx, PlacedPiece _ p) <- enumVec $ placedPieces st
     , isPivot p ||
-        and [ isBlock p, idx > 0
-              , or [ colourFixed, not $ null $ springsEndAtIdx st idx ] ] ]
+        isBlock p && (idx > 0) && colourFixed || not (null $ springsEndAtIdx st idx) ]
 
 pieceTypeColouring :: GameState -> [PieceIdx] -> PieceColouring
 pieceTypeColouring st coloured = Map.fromList
@@ -43,8 +42,7 @@ pieceTypeColouring st coloured = Map.fromList
 
 
 boardColouring :: GameState -> [PieceIdx] -> PieceColouring -> PieceColouring
-boardColouring st coloured lastCol =
-   fiveColour graph lastCol
+boardColouring st coloured = fiveColour graph
     where
         board = stateBoard st
         graph = Map.fromList [ (idx, nub $ neighbours idx)
@@ -82,11 +80,11 @@ boardColouring st coloured lastCol =
                 mNext = listToMaybe
                     [ (pos', rotate (h-2) basedir)
                     | h <- [1..5]
-                    , let pos' = (rotate h basedir)+^pos
+                    , let pos' = rotate h basedir+^pos
                     , (fst <$> Map.lookup pos' board) /= Just idx
                     ]
                 (path,ns) = case mNext of
                     Nothing -> ([],[])
                     Just next -> march idx startPos next False
-            in (pos:path, (maybeToList mn)++ns)
+            in (pos:path, maybeToList mn++ns)
 

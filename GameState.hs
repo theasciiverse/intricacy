@@ -30,14 +30,14 @@ import GameStateTypes
 --import Debug
 
 ppidxs :: GameState -> [PieceIdx]
-ppidxs = Vector.toList . (Vector.findIndices $ const True) . placedPieces
+ppidxs = Vector.toList . Vector.findIndices (const True) . placedPieces
 
 getpp :: GameState -> PieceIdx -> PlacedPiece
-getpp st idx = (placedPieces st) ! idx
+getpp st idx = placedPieces st ! idx
 
 setpp :: PieceIdx -> PlacedPiece -> GameState -> GameState
 setpp idx pp st@(GameState pps _) =
-    let displacement = (placedPos $ getpp st idx) -^ placedPos pp
+    let displacement = placedPos (getpp st idx) -^ placedPos pp
         updateConn conn@(Connection root@(ridx,rpos) end@(eidx,epos) link)
             | ridx == idx = Connection (ridx,rpos+^displacement) end link
             | eidx == idx = Connection root (eidx,epos+^displacement) link
@@ -83,7 +83,7 @@ delPiece idx (GameState pps conns) =
 
 delPieceIn :: HexPos -> GameState -> GameState
 delPieceIn pos st =
-    case liftM fst $ Map.lookup pos $ stateBoard st of
+    case fmap fst $ Map.lookup pos $ stateBoard st of
         Just idx -> delPiece idx st
         _ -> st
 
@@ -93,9 +93,8 @@ setPiece idx p st =
 
 adjustPieces :: (Piece -> Piece) -> GameState -> GameState
 adjustPieces f st =
-    st { placedPieces = fmap
-        (\pp -> pp { placedPiece = f $ placedPiece pp })
-       $ placedPieces st }
+    st { placedPieces =
+        (\pp -> pp { placedPiece = f $ placedPiece pp }) <$> placedPieces st }
 
 addBlockPos :: PieceIdx -> HexPos -> GameState -> GameState
 addBlockPos b pos st =
@@ -108,7 +107,7 @@ addPivotArm p pos st =
     in setPiece p (Pivot (pos -^ ppos:arms)) st
 
 locusPos :: GameState -> Locus -> HexPos
-locusPos s (idx,v) = v +^ (placedPos $ getpp s idx)
+locusPos s (idx,v) = v +^ placedPos (getpp s idx)
 
 posLocus :: GameState -> HexPos -> Maybe Locus
 posLocus st pos = listToMaybe [ (idx,pos-^ppos) |
@@ -225,8 +224,8 @@ springExtensionValid _ _ = True
 stateBoard :: GameState -> GameBoard
 stateBoard st@(GameState plPieces conns) =
     addConnAdjs st conns $
-        (Map.unions $ map plPieceBoard $ enumVec plPieces) `Map.union`
-        (Map.unions $ map (connectionBoard st) conns)
+        Map.unions (map plPieceBoard $ enumVec plPieces) `Map.union`
+        Map.unions (map (connectionBoard st) conns)
 
 addConnAdjs :: GameState -> [Connection] -> GameBoard -> GameBoard
 addConnAdjs st = flip $ foldr addConnAdj
@@ -242,17 +241,17 @@ addConnAdjs st = flip $ foldr addConnAdj
                 pos
 
 plPieceBoard :: (PieceIdx,PlacedPiece) -> GameBoard
-plPieceBoard (idx,pp) = fmap (\x -> (idx,x)) $ plPieceMap pp
+plPieceBoard (idx,pp) = (\x -> (idx,x)) <$> plPieceMap pp
 
 plPieceMap :: PlacedPiece -> Map HexPos Tile
-plPieceMap (PlacedPiece pos (Block pattern)) =
-    let pattSet = Set.fromList pattern
+plPieceMap (PlacedPiece pos (Block patt)) =
+    let pattSet = Set.fromList patt
     in Map.fromList [ (rel +^ pos, BlockTile adjs)
-        | rel <- pattern
+        | rel <- patt
         , let adjs = filter (\dir -> (rel +^ dir) `Set.member` pattSet) hexDirs ]
 plPieceMap (PlacedPiece pos (Pivot arms)) =
     let overarmed = length arms > 2 in
-    Map.fromList $ (pos, PivotTile $ if overarmed then (head arms) else zero ) :
+    Map.fromList $ (pos, PivotTile $ if overarmed then head arms else zero ) :
         [ (rel +^ pos, ArmTile rel main)
         | (rel,main) <- zip arms $ repeat False ]
 plPieceMap (PlacedPiece pos (Hook arm _)) =
@@ -266,24 +265,24 @@ plPieceFootprint = Map.keys . plPieceMap
 fullFootprint :: GameState -> PieceIdx -> [HexPos]
 -- ^footprint of piece and connections ending at it
 fullFootprint st idx = plPieceFootprint (getpp st idx) ++
-    (concat $ map (connectionFootPrint st) $ springsEndAtIdx st idx)
+    concatMap (connectionFootPrint st) (springsEndAtIdx st idx)
 
 footprintAt :: GameState -> PieceIdx -> [HexPos]
 -- ^footprint of piece and any connections at it
 footprintAt st idx = plPieceFootprint (getpp st idx) ++
-    (concat $ map (connectionFootPrint st) $ springsAtIdx st idx)
+    concatMap (connectionFootPrint st) (springsAtIdx st idx)
 
 footprintAtIgnoring :: GameState -> PieceIdx -> PieceIdx -> [HexPos]
 -- ^footprint of piece and any connections at it, except those with idx'
 footprintAtIgnoring st idx idx' = plPieceFootprint (getpp st idx) ++
-    (concat $ map (connectionFootPrint st) $ springsAtIdxIgnoring st idx idx')
+    concatMap (connectionFootPrint st) (springsAtIdxIgnoring st idx idx')
 
 collisions :: GameState -> PieceIdx -> PieceIdx -> [HexPos]
 -- ^intersections of two pieces and their connections, disregarding
 -- the connections which connect the two pieces
 collisions st idx idx' =
     intersect (footprintAt st idx) (footprintAt st idx') \\
-        (concat $ map (connectionFootPrint st) $ connectionsBetween st idx idx')
+        concatMap (connectionFootPrint st) (connectionsBetween st idx idx')
 
 connectionBoard :: GameState -> Connection -> GameBoard
 connectionBoard st (Connection root end@(eidx,_) (Spring dir natLen)) =
@@ -322,8 +321,8 @@ validGameState st@(GameState pps conns) = and
                 (stateBoard $ GameState pps (conns \\ [c]))
                 == Just (eidx, epos)
             && springExtensionValid st c
-            && (validRoot st root)
-            && (validEnd st end)
+            && validRoot st root
+            && validEnd st end
             | c@(Connection root@(ridx,_) end@(eidx,_) (Spring dir _)) <- conns
             , let [rpos,epos] = map (locusPos st) [root,end] ]
     , and [ 1 == length (components $ Set.fromList patt)
@@ -338,9 +337,7 @@ validEnd st (idx,_) = case placedPiece $ getpp st idx of
     (Block _) -> True
     _ -> False
 
-checkValidHex (GameState pps conns) = and
-    [ all validPP $ Vector.toList pps
-    , all validConn conns ]
+checkValidHex (GameState pps conns) = all validPP (Vector.toList pps) && all validConn conns
     where
         validVec (HexVec x y z) = x+y+z==0
         validPos (PHS v) = validVec v

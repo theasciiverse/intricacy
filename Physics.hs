@@ -51,7 +51,7 @@ toolForces :: GameState -> PlayerMove -> ForceChoices
 toolForces st pm = Vector.fromList $
     [ ForceChoice (wmom++wmove)
     | (widx, PlacedPiece _ (Wrench mom)) <- epps
-    , let wmom = if mom == zero then [] else [Push widx mom]
+    , let wmom = [Push widx mom | mom /= zero]
     , let wmove = case pm of {WrenchPush v -> [Push widx v]; _ -> []}
     , not $ null (wmom++wmove)
     ] ++ case pm of
@@ -101,7 +101,7 @@ physicsTick pm st =
         (efs, dominates) = envForces st
     in do
         st' <- resolveForces tfs Vector.empty (\_ _->False) $ setTools pm st
-        tell $ [AlertIntermediateState st']
+        tell [AlertIntermediateState st']
         resolveForces Vector.empty efs dominates $ setTools NullPM st'
 
 stepPhysics :: GameState -> GameState
@@ -117,8 +117,8 @@ resolveForces plForces eForces eDominates st =
                 [True,False] -> True
                 [False,False] -> eDominates (i-pln) (j-pln)
                 _ -> False
-        initGrps = fmap (propagate st True) plForces Vector.++
-                fmap (propagate st False) eForces
+        initGrps = (propagate st True <$> plForces) Vector.++
+                (propagate st False <$> eForces)
         blockInconsistent :: Int -> Int -> StateT (Vector (Writer Any [Force])) (Writer [Alert]) ()
         blockInconsistent i j = do
             grps <- mapM gets [(!i),(!j)]
@@ -154,7 +154,7 @@ resolveForces plForces eForces eDominates st =
             , Wrench mom <- [placedPiece $ getpp st idx]
             , mom `notElem` [zero,dir] ]
     in do
-        let unresisted = [ s | (s, (_, Any False)) <- enumVec $ fmap runWriter initGrps ]
+        let unresisted = [ s | (s, (_, Any False)) <- enumVec $ runWriter <$> initGrps ]
 
         -- check for inconsistencies within, and between pairs of, forcegroups
         grps <- sequence [ blockInconsistent i j
@@ -162,7 +162,7 @@ resolveForces plForces eForces eDominates st =
                         , i <= j ]
                     `execStateT` initGrps
 
-        let [blocked, unblocked] = map (nub.concat.(map (fst.runWriter)).Vector.toList) $
+        let [blocked, unblocked] = map (nub.concatMap (fst.runWriter) . Vector.toList) $
                 (\(x,y) -> [x,y]) $ Vector.partition (getAny.snd.runWriter) grps
         tell $ map AlertBlockedForce blocked
         tell $ map AlertAppliedForce unblocked
@@ -170,9 +170,9 @@ resolveForces plForces eForces eDominates st =
         return $ stopBlockedWrenches blocked unblocked $ foldr applyForce st unblocked
 
 resolveSinglePlForce :: Force -> GameState -> Writer [Alert] GameState
-resolveSinglePlForce force st = resolveForces
+resolveSinglePlForce force = resolveForces
     (Vector.singleton (ForceChoice [force])) Vector.empty
-    (\_ _->False) st
+    (\_ _->False)
 
 applyForce :: Force -> GameState -> GameState
 applyForce f s =
@@ -182,11 +182,11 @@ applyForce f s =
                    ( Wrench _ , Push _ dir ) -> pp' {placedPiece = Wrench dir}
                    _ -> pp'
         in
-        s { placedPieces = (placedPieces s) // [(idx, pp'')] }
+        s { placedPieces = placedPieces s // [(idx, pp'')] }
 
 collisionsWithForce :: GameState -> Force -> PieceIdx -> [HexPos]
 collisionsWithForce st (Push idx dir) idx' =
-    intersect (map (dir+^) $ footprintAtIgnoring st idx idx') (footprintAtIgnoring st idx' idx)
+    map (dir+^) (footprintAtIgnoring st idx idx') `intersect` footprintAtIgnoring st idx' idx
 collisionsWithForce st force idx' =
     collisions (applyForce force st) (forceIdx force) idx'
 
@@ -223,15 +223,15 @@ transmittedForce st idx cpos dir =
     let pp@(PlacedPiece _ piece) = getpp st idx
         rpos = cpos -^ placedPos pp
         armPush = case
-                (dir `hexDot` ((rotate 1 rpos) -^ rpos)) `compare`
-                (dir `hexDot` ((rotate (-1) rpos) -^ rpos)) of
+                (dir `hexDot` (rotate 1 rpos -^ rpos)) `compare`
+                (dir `hexDot` (rotate (-1) rpos -^ rpos)) of
             GT -> Torque idx 1
             LT -> Torque idx $ -1
             EQ -> Push idx dir
     in case piece of
             Pivot _ -> armPush
             Hook _ (TorqueHF _) -> armPush
-            _ -> (Push idx dir)
+            _ -> Push idx dir
 
 -- |propagateForce: return forces a force causes via bumps and fully
 -- compressed/extended springs
@@ -270,11 +270,11 @@ propagateForce st@(GameState _ conns) isPlSource force =
 -- forcechoice and the first results in a block due to resistance, try the
 -- next instead.
 propagate :: GameState -> Bool -> ForceChoice -> Writer Any [Force]
-propagate st isPlSource fch = Set.toList `liftM` propagate' isPlSource Set.empty fch where
+propagate st isPlSource fch = Set.toList <$> propagate' isPlSource Set.empty fch where
     propagate' isPlForce ps (ForceChoice (f:backups)) =
         if f `Set.member` ps then return ps
         else
-            let (ps', failed) = if pieceResists st f && (not isPlForce)
+            let (ps', failed) = if pieceResists st f && not isPlForce
                     then (ps, Any True)
                     else runWriter $ foldrM
                             (flip $ propagate' False)

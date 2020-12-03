@@ -65,9 +65,9 @@ getAccessInfo accessedUInfo accessorUInfo =
                     if countRead accessorUInfo linfo >= notesNeeded then AccessedPrivyRead
                         else AccessedPrivySolved $ not.null $
                             [ n
-                            | n <- lockSolutions linfo 
+                            | n <- lockSolutions linfo
                             , noteAuthor n == accessor
-                            , noteBehind n == Nothing || n `elem` notesRead accessedUInfo ]))
+                            , isNothing (noteBehind n) || n `elem` notesRead accessedUInfo ]))
         mlinfos
 
 countRead :: UserInfo -> LockInfo -> Int
@@ -115,17 +115,17 @@ applyDeltas :: UserInfo -> [UserInfoDelta] -> UserInfo
 applyDeltas = foldr applyDelta
 
 applyDelta :: UserInfoDelta -> UserInfo -> UserInfo
-applyDelta (AddRead n) info = info { notesRead = n:(notesRead info) }
+applyDelta (AddRead n) info = info { notesRead = n:notesRead info }
 applyDelta (DelRead n) info = info { notesRead = delete n (notesRead info) }
 applyDelta (PutLock ls li) info = info { userLocks = userLocks info // [(li, Just $ initLockInfo ls)] }
 applyDelta (LockDelta li ld) info =
-    info { userLocks = userLocks info // [(li, liftM (applyLockDelta ld) (userLocks info ! li))] }
+    info { userLocks = userLocks info // [(li, fmap (applyLockDelta ld) (userLocks info ! li))] }
 applyLockDelta (SetPubNote n) lockinfo = lockinfo { lockSolutions = map
     (\n' -> if n' == n then n {noteBehind=Nothing} else n') (lockSolutions lockinfo) }
-applyLockDelta (AddSecured n) lockinfo = lockinfo { notesSecured = n:(notesSecured lockinfo) }
+applyLockDelta (AddSecured n) lockinfo = lockinfo { notesSecured = n:notesSecured lockinfo }
 applyLockDelta (DelSecured n) lockinfo = lockinfo { notesSecured = delete n $ notesSecured lockinfo }
-applyLockDelta (AddSolution n) lockinfo = lockinfo { lockSolutions = n:(lockSolutions lockinfo) }
-applyLockDelta (AddAccessed name) lockinfo = lockinfo { accessedBy = name:(delete name $ accessedBy lockinfo) }
+applyLockDelta (AddSolution n) lockinfo = lockinfo { lockSolutions = n:lockSolutions lockinfo }
+applyLockDelta (AddAccessed name) lockinfo = lockinfo { accessedBy = name:delete name (accessedBy lockinfo) }
 applyLockDelta SetPublic lockinfo = lockinfo { public = True, lockSolutions = [], accessedBy = [], notesSecured = []}
 
 instance Binary UserInfo where

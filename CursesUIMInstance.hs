@@ -16,16 +16,14 @@ import qualified UI.HSCurses.CursesHelper as CursesH
 import Control.Concurrent.STM
 import Control.Concurrent
 import Control.Applicative
-import Data.Char (ord)
+import Data.Char ( ord, chr )
 import Data.Monoid
 import qualified Data.Map as Map
 import Data.Map (Map)
 import Data.Array
 import Data.Maybe
 import Data.List
-import Data.Char (chr)
 import Control.Monad.Trans.Maybe
-import Control.Concurrent (threadDelay)
 import Control.Monad.State
 import Data.Function (on)
 import Data.Foldable (for_)
@@ -51,7 +49,7 @@ import CVec
 
 drawName :: Bool -> CVec -> Codename -> MainStateT UIM ()
 drawName showScore pos name = do
-    ourName <- (authUser <$>) <$> gets curAuth
+    ourName <- gets ((authUser <$>) . curAuth)
     relScore <- getRelScore name
     let (attr,col) = case relScore of
             Just 0 -> (a0,yellow)
@@ -99,26 +97,27 @@ fillBox (CVec t l) (CVec b r) width grav draws = do
             GravRight  -> CVec cv r
             GravCentre -> CVec cv ch
         locs = sortBy (compare `on` dist) $ concat
-            [ map (CVec j) [ l+margin + (width+1)*i | i <- [0..(r-l-(2*margin))`div`(width+1)] ]
+            [ [CVec j (l + margin + (width + 1) * i)
+                | i <- [0 .. (r - l - (2 * margin)) `div` (width + 1)]]
             | j <- [t..b]
-            , let margin = if (j-starty)`mod`2 == 0 then half else width ]
+            , let margin = if even (j-starty) then half else width ]
         dist v = sqlen $ v -^ gravCentre
         sqlen (CVec y x) = (y*(width+1))^2+x^2
     selDraws <- do
             offset <- gets listOffset
             let na = length locs
                 nd = length draws
-            return $ drop (max 0 $ min (nd - na) (na*offset)) $ draws
+            return $ drop (max 0 $ min (nd - na) (na*offset)) draws
     let zipped = zip locs selDraws
-    sequence_ $ map (uncurry ($)) $ zip selDraws locs
-    return $ (if grav==GravDown then (minimum.(b:)) else (maximum.(t:))) [ y | (CVec y x,_) <- zipped ]
+    mapM_ (uncurry ($)) (zip selDraws locs)
+    return $ (if grav==GravDown then minimum.(b:) else maximum.(t:)) [ y | (CVec y x,_) <- zipped ]
 
 drawLockInfo al@(ActiveLock name i) lockinfo = do
     (h,w) <- liftIO Curses.scrSize
     let [left,vcentre,right] = [ (k+2*i)*w`div`6 + (1-k) | k <- [0,1,2] ]
     let [top,bottom] = [6, h-1]
     let hcentre = (top+bottom)`div`2 - 1
-    ourName <- (authUser <$>) <$> gets curAuth
+    ourName <- gets ((authUser <$>) . curAuth)
 
     (lockTop, lockBottom) <- (fromJust<$>)$ runMaybeT $ msum
         [ do
@@ -133,7 +132,7 @@ drawLockInfo al@(ActiveLock name i) lockinfo = do
         ]
 
     startOn <-
-        if (public lockinfo)
+        if public lockinfo
         then lift $ drawStrCentred bold white (CVec (lockTop-1) vcentre) "Everyone!"
             >> return (lockTop-1)
         else if null $ accessedBy lockinfo
@@ -141,7 +140,7 @@ drawLockInfo al@(ActiveLock name i) lockinfo = do
                 >> return (lockTop-1)
             else
                 fillBox (CVec (top+1) (left+1)) (CVec (lockTop-1) (right-1)) 5 GravDown $
-        [ \pos -> drawNote pos note | note <- lockSolutions lockinfo ] ++
+        [ (`drawNote` note) | note <- lockSolutions lockinfo ] ++
         [ \pos -> drawName False pos name
                     | name <- accessedBy lockinfo \\ map noteAuthor (lockSolutions lockinfo) ]
     lift $ drawStrCentred a0 white (CVec (startOn-1) vcentre) "Accessed by:"
@@ -237,9 +236,9 @@ drawBasicHelpPage from (title,titleCol) (body,bodyCol) = do
                             else '\n' : wrap' max max (w:ws)
                         else let prepend = if left == max then w else ' ':w
                             in prepend ++ wrap' max (left - length prepend) ws
-                in lines . wrap w . words $ intercalate " " body
+                in lines . wrap w . words $ unwords body
     let draws = [drawStrCentred a0 bodyCol (CVec y $ w`div`2) str |
-                (y,str) <- zip [2..h-2] $ strs ]
+                (y,str) <- zip [2..h-2] strs ]
     sequence_ draws
     return $ if length draws < length strs
         then HelpContinue $ from + length draws
@@ -279,26 +278,26 @@ instance UIMonad (StateT UIState IO) where
         drawMainState' s
         lift refresh
         where
-        drawMainState' (PlayState { psCurrentState=st, psLastAlerts=alerts,
-                wrenchSelected=wsel, psFrame=frame }) = lift $ do
+        drawMainState' PlayState { psCurrentState=st, psLastAlerts=alerts,
+                wrenchSelected=wsel, psFrame=frame } = lift $ do
             drawState [] False alerts st
             drawBindingsTables IMPlay frame
             drawCursorAt $ listToMaybe [ pos |
                 (_, PlacedPiece pos p) <- enumVec $ placedPieces st
-                , or [wsel && isWrench p, not wsel && isHook p] ]
-        drawMainState' (ReplayState {}) = do
+                , (wsel && isWrench p) || (not wsel && isHook p) ]
+        drawMainState' ReplayState {} = do
             lift . drawState [] False [] =<< gets rsCurrentState
             lift $ drawCursorAt Nothing
-        drawMainState' (EditState { esGameState=st, selectedPiece=selPiece,
-                selectedPos=selPos, esFrame=frame }) = lift $ do
+        drawMainState' EditState { esGameState=st, selectedPiece=selPiece,
+                selectedPos=selPos, esFrame=frame } = lift $ do
             drawState (maybeToList selPiece) True [] st
             drawBindingsTables IMEdit frame
             drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
-        drawMainState' (MetaState {curServer=saddr, undeclareds=undecls,
+        drawMainState' MetaState {curServer=saddr, undeclareds=undecls,
                 cacheOnly=cOnly, curAuth=auth, codenameStack=names,
                 randomCodenames=rnamestvar, retiredLocks=mretired, curLockPath=path,
-                curLock=lock}) = do
-            let ourName = liftM authUser auth
+                curLock=lock} = do
+            let ourName = fmap authUser auth
             let selName = listToMaybe names
             let home = isJust ourName && ourName == selName
             (h,w) <- liftIO Curses.scrSize
@@ -309,14 +308,14 @@ instance UIMonad (StateT UIState IO) where
                 let serverBdgsDraw = bindingsDraw bdgs
                         [CmdSetServer, CmdToggleCacheOnly]
                     lockBdgsDraw = bindingsDraw bdgs $
-                        [CmdEdit] ++ if path == "" then [] else [CmdPlaceLock Nothing]
+                        CmdEdit : [CmdPlaceLock Nothing | path /= ""]
                     leftBdgsWidth = (+3) . maximum $ map drawWidth [serverBdgsDraw, lockBdgsDraw]
                     helpDraw = bindingsDraw bdgs [CmdTutorials] <> greyDraw " tutorial  " <>
                         bindingsDraw bdgs [CmdHelp] <> greyDraw " help"
                     serverTextDraw = greyDraw . take (w - leftBdgsWidth - drawWidth helpDraw - 1) $
                         " Server: " ++ saddrStr saddr ++ (if cOnly then "  (offline mode) " else "")
                     lockBdgsDraw' = bindingsDraw bdgs $
-                        [CmdSelectLock] ++ if path == "" then [] else [CmdNextLock, CmdPrevLock]
+                        CmdSelectLock : if path == "" then [] else [CmdNextLock, CmdPrevLock]
                     lockTextDraw = greyDraw . take (w - leftBdgsWidth - drawWidth lockBdgsDraw' - 1) $
                         " Lock: " ++ path ++ replicate 5 ' '
                 doDrawAt (CVec 0 0) $ alignDraw GravLeft leftBdgsWidth serverBdgsDraw <> serverTextDraw
@@ -342,16 +341,15 @@ instance UIMonad (StateT UIState IO) where
                             void $ fillBox (CVec 6 2) (CVec (h-1) (w-2)) 5 GravCentre
                                 [ \pos -> lift $ drawStrGrey pos $ show ls | ls <- retired ]
                             lift $ doDrawAt (CVec 5 (w`div`3)) $ bindingsDraw bdgs $
-                                [CmdShowRetired] ++ if null retired
-                                then [] else [CmdPlayLockSpec Nothing]
+                                CmdShowRetired : [CmdPlayLockSpec Nothing | not (null retired)]
                         Nothing -> do
                             sequence_ [ drawLockInfo (ActiveLock (codename uinfo) i) lockinfo |
                                 (i,Just lockinfo) <- assocs $ userLocks uinfo ]
                             unless (null $ elems $ userLocks uinfo) $ lift $
                                 doDrawAt (CVec 5 (w`div`3)) $ bindingsDraw bdgs $
-                                [CmdSolve Nothing] ++ if isJust ourName then [CmdViewSolution Nothing] else []
+                                CmdSolve Nothing : [CmdViewSolution Nothing | isJust ourName]
             when (isJust ourName && ourName == selName) $ do
-                rnames <- liftIO $ atomically $ readTVar rnamestvar
+                rnames <- liftIO $ readTVarIO rnamestvar
                 unless (null rnames) $
                     void $ fillBox (CVec 2 0) (CVec 5 (w`div`3)) 3 GravCentre
                         [ \pos -> drawName False pos name | name <- rnames ]
@@ -384,7 +382,7 @@ instance UIMonad (StateT UIState IO) where
                         , public lock || selName `elem` map Just (accessedBy lock) ]
                 guard $ not $ null accessed
                 let str = "has accessed:"
-                let s = (w-(4 + length str + 6*(length accessed)))`div`2
+                let s = (w-(4 + length str + 6*length accessed))`div`2
                 let y = 4
                 lift $ do
                     drawName False (CVec y (s+1)) sel
@@ -403,8 +401,8 @@ instance UIMonad (StateT UIState IO) where
             cGlyph = Glyph '!' 0 a0
 
     drawMessage = say
-    drawPrompt full s = say s >> (liftIO $ void $ Curses.cursSet Curses.CursorVisible)
-    endPrompt = say "" >> (liftIO $ void $ Curses.cursSet Curses.CursorInvisible)
+    drawPrompt full s = say s >> liftIO (void $ Curses.cursSet Curses.CursorVisible)
+    endPrompt = say "" >> liftIO (void $ Curses.cursSet Curses.CursorInvisible)
     drawError = sayError
 
     showHelp = showHelpPaged 0
@@ -412,7 +410,7 @@ instance UIMonad (StateT UIState IO) where
     getChRaw = (charify<$>) $ liftIO $ CursesH.getKey (return ()) >>= handleEsc
     setUIBinding mode cmd ch =
         modify $ \s -> s { uiKeyBindings =
-                Map.insertWith (\[bdg] -> \bdgs -> if bdg `elem` bdgs then delete bdg bdgs else bdg:bdgs)
+                Map.insertWith (\ [bdg] bdgs -> if bdg `elem` bdgs then delete bdg bdgs else bdg:bdgs)
                     mode [(ch,cmd)] $ uiKeyBindings s }
     getUIBinding mode cmd = do
         bdgs <- getBindings mode
@@ -468,5 +466,5 @@ instance UIMonad (StateT UIState IO) where
                     unblockBinding = (toEnum 0, CmdRefresh) -- c.f. unblockInput above
                 flip (maybe $ return []) mch $ \ch ->
                     if mode == IMTextInput
-                    then return $ [ CmdInputChar ch `fromMaybe` lookup ch [unblockBinding] ]
-                    else (maybeToList . lookup ch . (unblockBinding:)) <$> getBindings mode
+                    then return [ CmdInputChar ch `fromMaybe` lookup ch [unblockBinding] ]
+                    else maybeToList . lookup ch . (unblockBinding:) <$> getBindings mode

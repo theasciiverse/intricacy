@@ -34,7 +34,7 @@ port = 27001 -- 27001 == ('i'<<8) + 'y'
 main = withStream (IP "localhost" port) handler
 
 readAL :: String -> ActiveLock
-readAL s = ActiveLock (take 3 s) ((ord $ s!!4) - ord 'A')
+readAL s = ActiveLock (take 3 s) (ord (s!!4) - ord 'A')
 
 handler :: Handle -> IO ()
 handler handle = do
@@ -47,11 +47,11 @@ handler handle = do
         "getuinfo" -> return $ GetUserInfo (head args)
         "getsolution" -> return $ GetSolution (read $ head args)
         "gethint" -> return $ GetHint (read $ head args)
-        "setlock" -> liftM3 SetLock (fromJust `liftM` readReadFile (args!!0)) (return $ read (args!!1)) (fromJust `liftM` readReadFile (args!!2))
-        "declare" -> liftM4 DeclareSolution (fromJust `liftM` readReadFile (args!!0)) (return $ read (args!!1)) (return $ readAL (args!!2)) (return $ read (args!!3))
+        "setlock" -> liftM3 SetLock (fromJust <$> readReadFile (head args)) (return $ read (args!!1)) (fromJust <$> readReadFile (args!!2))
+        "declare" -> liftM4 DeclareSolution (fromJust <$> readReadFile (head args)) (return $ read (args!!1)) (return $ readAL (args!!2)) (return $ read (args!!3))
     let request = ClientRequest protocolVersion (Just (Auth name passwd)) action
     L.hPut handle $ encode request
     hFlush handle
-    response <- decode `liftM` L.hGetContents handle
+    response <- decode <$> L.hGetContents handle
     putStrLn $ ppShow (response :: ServerResponse)
 

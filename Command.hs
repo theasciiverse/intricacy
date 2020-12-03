@@ -86,9 +86,9 @@ describeCommand (CmdSolve mli) = "solve lock"
 describeCommand (CmdPlayLockSpec mls) = "find lock by number"
         ++ maybe "" ((' ':).show) mls
 describeCommand (CmdDeclare mundecl) = "declare solution"
-        ++ maybe "" (\_->" [specified solution]") mundecl
+        ++ maybe "" (const " [specified solution]") mundecl
 describeCommand (CmdViewSolution mnote) = "view lock solution"
-        ++ maybe "" (\_->" [specified solution]") mnote
+        ++ maybe "" (const " [specified solution]") mnote
 describeCommand CmdSelectLock = "choose lock by name"
 describeCommand CmdNextLock = "next lock"
 describeCommand CmdPrevLock = "previous lock"

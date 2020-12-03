@@ -33,7 +33,7 @@ boltWidth (BasicFrame size) = size`div`4+1
 baseState :: Frame -> GameState
 baseState f =
     GameState
-        (Vector.fromList $ [ framePiece f, bolt ] ++ (initTools f))
+        (Vector.fromList $ [ framePiece f, bolt ] ++ initTools f)
         []
     where
         bolt = PlacedPiece (bolthole f +^ origin) $ Block $
@@ -45,10 +45,10 @@ framePiece f@(BasicFrame size) =
         map (bolthole f +^) (
             [ bw*^hu +^ n*^hv | n <- [0..bw] ]
             ++ [ bw*^hu +^ i*^hw +^ n*^hv | i <- [1..bw-1], n <- [0,bw+i] ])
-        ++ (map (entrance f +^) [neg hu +^ hv, 2 *^ neg hu, neg hu +^ hw,
-                2 *^ hw, neg hv +^ hw])
+        ++ map (entrance f +^) [neg hu +^ hv, 2 *^ neg hu, neg hu +^ hw,
+                2 *^ hw, neg hv +^ hw]
         ++ (concat [
-                map (rotate r) [ (n*^hu) +^ (size*^hw) | n <- [0..size-1] ] | r <- [0..5] ] \\
+                [rotate r ((n *^ hu) +^ (size *^ hw)) | n <- [0 .. size - 1]] | r <- [0..5] ] \\
             [bolthole f, entrance f])
     where bw = boltWidth f
 
@@ -62,8 +62,8 @@ clearToolArea f st = foldr delPieceIn st $ toolsArea f
 
 
 boltArea,toolsArea :: Frame -> [HexPos]
-boltArea f = map PHS
-        [ bolthole f +^ bw*^hu +^ i*^hw +^ n*^hv | i <- [1..bw-1], n <- [1..bw+i-1] ]
+boltArea f = [PHS (bolthole f +^ bw *^ hu +^ i *^ hw +^ n *^ hv) |
+   i <- [1 .. bw - 1], n <- [1 .. bw + i - 1]]
     where bw = boltWidth f
 toolsArea f = [entrance f +^ v +^ origin | v <- [ neg hu, hw, zero ] ]
 

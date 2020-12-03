@@ -59,7 +59,7 @@ modTile tile pos lastPos painting st =
         nextOfAdjacents adjs loop = listToMaybe $ fromMaybe adjs $ do
                 owner <- mowner
                 i <- elemIndex owner adjs
-                return $ (dropWhile (== owner) $ drop i adjs) ++
+                return $ dropWhile (== owner) (drop i adjs) ++
                     if loop && i > 0 then adjs else []
     in case mowner of
          Just o | protectedPiece o -> st
@@ -93,7 +93,7 @@ modTile tile pos lastPos painting st =
                        , Just (eidx, BlockTile _) <- [Map.lookup epos board']
                        , not $ protectedPiece eidx
                        , (ridx, rpos) <- maybeToList $ castRay (neg sdir +^ pos) (neg sdir) board'
-                       , Just True == (validSpringRootTile `liftM` Map.lookup rpos board')
+                       , Just True == (validSpringRootTile <$> Map.lookup rpos board')
                        , let natLen = hexLen (rpos -^ epos) - 1
                        , natLen > 0
                        {-
@@ -103,16 +103,14 @@ modTile tile pos lastPos painting st =
                            , not $ sdir' `elem` [sdir,neg sdir] ]
                        -}
                        , not $ connGraphPathExists st' eidx ridx
-                       , let end = (eidx, epos -^ (placedPos $ getpp st' eidx))
-                       , let root = (ridx, rpos -^ (placedPos $ getpp st' ridx))
+                       , let end = (eidx, epos -^ placedPos (getpp st' eidx))
+                       , let root = (ridx, rpos -^ placedPos (getpp st' ridx))
                        ]
                    nextSpring = listToMaybe $ fromMaybe possibleSprings $ do
                        (_,SpringTile _ _) <- curOwnedTile -- XXX: therefore the indices of st are still valid
                        i <- findIndex (`elem` connections st) possibleSprings
                        return $ drop (i+1) possibleSprings
-               in case nextSpring of
-                      Nothing -> id
-                      Just conn -> addConn conn
+               in maybe id addConn nextSpring
            Just (PivotTile _) -> addPiece $ Pivot []
            Just (WrenchTile _) -> addPiece $ Wrench zero
            Just HookTile -> let arm = listToMaybe [ dir |
@@ -120,7 +118,7 @@ modTile tile pos lastPos painting st =
                                     , isNothing $ Map.lookup (dir +^ pos) board' ]
                             in case arm of Just armdir -> addPiece $ Hook armdir NullHF
                                            _ -> id
-           Just (BallTile) -> addPiece Ball
+           Just BallTile -> addPiece Ball
            _ -> id
            ) st'
 
@@ -133,7 +131,7 @@ mergeTiles pos dir mergePiece st = fromMaybe st $ do
     (idx,tile) <- Map.lookup pos board
     (idx',tile') <- Map.lookup (dir+^pos) board
     guard $ idx /= idx'
-    guard $ all (not . protectedPiece) [idx,idx']
+    guard $ not (any protectedPiece [idx,idx'])
     case tile of
         BlockTile _ -> do
             BlockTile _ <- Just tile'
