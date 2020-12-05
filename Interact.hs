@@ -456,6 +456,7 @@ processCommand' IMMeta CmdEdit = void.runMaybeT $ do
     newPath <- MaybeT $ (esPath <$>) $ execSubMainState $
         newEditState (reframe lock) msoln (if null path then Nothing else Just path)
     lift $ setLockPath newPath
+{-
 processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
     tutdir <- liftIO $ getDataPath "tutorial"
     tuts <- liftIO . ignoreIOErr $
@@ -497,6 +498,7 @@ processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
 
     (onLevel,msps) <- lift $ gets tutProgress
     dotut onLevel msps
+-}
 processCommand' IMMeta CmdShowRetired = void.runMaybeT $ do
     name <- mgetCurName
     newRL <- lift (gets retiredLocks) >>= \case
@@ -799,6 +801,6 @@ solveLockSaving ls msps isTut lock title = do
             unless isTut . lift . modify $ \ms -> ms { partialSolutions = Map.delete ls $ partialSolutions ms }
             return . reverse $ snd <$> psGameStateMoveStack ps
         else do
-            lift $ modify $ \ms -> if isTut then ms { tutProgress = (ls,Just $ savePlayState ps) }
+            lift $ modify $ \ms -> if isTut then ms { tutProgress = TutProgress False ls . Just $ savePlayState ps }
                 else ms { partialSolutions = Map.insert ls (savePlayState ps) $ partialSolutions ms }
             mzero

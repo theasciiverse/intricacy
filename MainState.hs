@@ -115,8 +115,8 @@ data MainState
         , esMarks          :: Map Char GameState
         }
     | InitState
-        { tutProgress      :: TutProgress
-        , initLocks        :: InitLocks
+        { tutProgress :: TutProgress
+        , initLocks   :: InitLocks
         }
     | MetaState
         { curServer        :: ServerAddr
@@ -176,16 +176,30 @@ type PartialSolutions = Map LockSpec SavedPlayState
 data SavedPlayState = SavedPlayState [PlayerMove] (Map Char [PlayerMove])
     deriving (Eq, Ord, Show, Read)
 
-type TutProgress = (Int,Maybe SavedPlayState)
+data TutProgress = TutProgress
+    { tutSolved  :: Bool
+    , tutLevel   :: Int
+    , tutPartial :: Maybe SavedPlayState
+    } deriving (Eq, Ord, Show, Read)
+initTutProgress = TutProgress False 1 Nothing
 data InitLock = InitLock
-    { initLockName :: String
-    , initLockDesc :: String
-    , initLockLock :: Lock
-    , initLockSolved :: Bool
+    { initLockName    :: String
+    , initLockDesc    :: String
+    , initLockLock    :: Lock
+    , initLockSolved  :: Bool
     , initLockPartial :: Maybe SavedPlayState
-    }
+    } deriving (Eq, Ord, Show, Read)
 type InitLocks = [[InitLock]]
 
+initLockAccessible :: Bool -> InitLocks -> Int -> Int -> Bool
+initLockAccessible tutSolved initLocks j i = or
+    [ ((i+di < 0 && tutSolved) ||) . fromMaybe False $ do
+        ls <- atMay initLocks $ j + dj
+        initLockSolved <$> atMay ls (i + di)
+    | (di,dj) <- case j of
+        0 -> [(-1,0),(-1,1)]
+        1 -> [(-1,0),(0,-1),(0,1)]
+        2 -> [(-1,0),(-1,-1)] ]
 savePlayState :: MainState -> SavedPlayState
 savePlayState ps = SavedPlayState (getMoves ps) $ Map.map getMoves $ psMarks ps
     where getMoves = reverse . map snd . psGameStateMoveStack
@@ -212,11 +226,11 @@ readInitProgress :: IO (TutProgress,InitLocks)
 readInitProgress = do
     initConfDir <- confFilePath "initiation"
     initDataDir <- getDataPath "initiation"
-    tut <- fromMaybe (1,Nothing) <$> readReadFile (initConfDir </> "tutProgress")
+    tut <- fromMaybe initTutProgress <$> readReadFile (initConfDir </> "tutProgress")
     locknames <- fromMaybe [] <$> readReadFile (initDataDir </> "initiation.map")
     let readInitLock :: String -> IO (Maybe InitLock)
         readInitLock name = runMaybeT $ do
-            desc <- MaybeT $ listToMaybe <$> readStrings (initDataDir </> name ++ ".desc")
+            desc <- MaybeT $ listToMaybe <$> readStrings (initDataDir </> name ++ ".text")
             lock <- (fst <$>) . MaybeT $ readLock (initDataDir </> name ++ ".lock")
             solved <- lift . (fromMaybe False <$>) . readReadFile $ initConfDir </> name ++ ".solved"
             partial <- lift . readReadFile $ initConfDir </> name ++ ".partial"
@@ -249,11 +263,13 @@ writeInitState InitState { tutProgress = tut, initLocks = initLocks } = do
             writeReadFile (initConfDir </> name ++ ".solved") solved
             writeReadFile (initConfDir </> name ++ ".partial") partial
     mapM_ (mapM_ writeInitLockInfo) initLocks
+writeInitState _ = return ()
 
 writeMetaState :: MainState -> IO ()
 writeMetaState ms@MetaState { curServer=saddr, curAuth=auth, curLockPath=path } = do
     confFilePath "metagame.conf" >>= flip writeReadFile (saddr, auth, path)
     writeServerSolns saddr ms
+writeMetaState _ = return ()
 
 getTitle :: UIMonad uiM => MainStateT uiM (Maybe String)
 getTitle = get >>= title . ms2im

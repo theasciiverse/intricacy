@@ -25,6 +25,9 @@ data-files:
     VeraMoBd.ttf
     tutorial/*.lock
     tutorial/*.text
+    initiation/initiation.map
+    initiation/*.lock
+    initiation/*.text
     sounds/*.ogg
 
 extra-source-files:

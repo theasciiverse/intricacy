@@ -31,6 +31,7 @@ import           Data.Word
 import           Graphics.UI.SDL            hiding (flip, name)
 import qualified Graphics.UI.SDL            as SDL
 import qualified Graphics.UI.SDL.TTF        as TTF
+import           Safe                       (maximumBound)
 import           System.Timeout
 --import Debug.Trace (traceShow)
 
@@ -478,8 +479,28 @@ drawMainState' EditState { esGameState=st, esGameStateStack=sts, esUndoneStack=u
             (isWrench, "wrench", CmdTile $ WrenchTile zero, (-4)*^hv +^ hw),
             (isHook, "hook", CmdTile HookTile, (-3)*^hv +^ hw) ] ]
     drawPaintButtons
-drawMainState' InitState {initLocks=initLocks} = do
-    lift . renderToMain . renderStrColAt white "I N T R I C A C Y" $ titlePos
+drawMainState' InitState {initLocks=initLocks, tutProgress=TutProgress{tutSolved=tutSolved}} = lift $ do
+    renderToMain . renderStrColAt white "I N T R I C A C Y" $ titlePos
+    drawInitLock 1 (-1) "TUT" tutSolved True True
+    mapM_ (\(j,ls) -> mapM_ (\(i,l) ->
+        when (initLockAccessible tutSolved initLocks j i) $
+            drawInitLock j i (initLockName l) (initLockSolved l) False) $
+        zip [0..] ls) $ zip [0..] initLocks
+    where
+    startPos = (maximumBound 0 $ length <$> initLocks) *^ neg hu
+    lpos j i = startPos +^ (2*i *^ hu) +^
+        2 *^ rotate (-j) (neg hw)
+    drawInitLock j i name solved isTut = do
+        let pos = lpos j i
+        drawNameCol name pos $ if solved then bright green else brightish blue
+        when solved . renderToMain $ sequence_
+            [ drawAtRel (LineGlyph h $ bright green) $ pos +^ h
+            | d <- [-1..1]
+            , let j' = j + d
+            , j' >= 0 && j' <= 2
+            , let h = rotate (-d) hu
+            ]
+        registerSelectable pos 0 $ if isTut then SelTut else SelInitLock name
 drawMainState' MetaState {curServer=saddr, undeclareds=undecls,
         cacheOnly=cOnly, curAuth=auth, codenameStack=names,
         randomCodenames=rnamestvar, retiredLocks=mretired, curLockPath=path,
@@ -721,12 +742,14 @@ drawOldLock ls pos = void.runMaybeT $ msum [ do
     ]
 
 
-drawName name pos = nameCol name >>= drawNameCol name pos
-drawNullName name pos = drawNameCol name pos $ invisible white
-drawNameCol name pos col = do
-    lift.renderToMain $ do
-        drawAtRel (playerGlyph col) pos
-        renderStrColAt buttonTextCol name pos
+drawName,drawNullName :: Codename -> HexVec -> MainStateT UIM ()
+drawName name pos = nameCol name >>= lift . drawNameCol name pos
+drawNullName name pos = lift . drawNameCol name pos $ invisible white
+
+drawNameCol name pos col = renderToMain $ do
+    drawAtRel (playerGlyph col) pos
+    renderStrColAt buttonTextCol name pos
+
 drawRelScore name pos = do
     col <- nameCol name
     relScore <- getRelScore name

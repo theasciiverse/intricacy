@@ -210,6 +210,8 @@ getButtons mode = do
 data AccessedInfo = AccessedSolved | AccessedPublic | AccessedReadNotes | AccessedUndeclared
     deriving (Eq, Ord, Show)
 data Selectable = SelOurLock
+    | SelTut
+    | SelInitLock Codename
     | SelLock ActiveLock
     | SelLockUnset Bool ActiveLock
     | SelSelectedCodeName Codename
@@ -250,6 +252,8 @@ registerUndoButtons noUndo noRedo = do
     unless noUndo $ registerButton (periphery 2+^hu) CmdUndo 0 [("undo",hu+^neg hw)]
     unless noRedo $ registerButton (periphery 2+^hu+^neg hv) CmdRedo 2 [("redo",hu+^neg hw)]
 
+commandOfSelectable IMInit SelTut _ = Just $ CmdTutorials
+commandOfSelectable IMInit (SelInitLock name) _ = Just $ CmdSolveInit name
 commandOfSelectable IMMeta SelOurLock _ = Just CmdEdit
 commandOfSelectable IMMeta (SelLock (ActiveLock _ i)) False = Just $ CmdSolve (Just i)
 commandOfSelectable IMMeta (SelLock (ActiveLock _ i)) True = Just $ CmdPlaceLock (Just i)
@@ -280,6 +284,8 @@ commandOfSelectable IMTextInput (SelRandom name) _ = Just $ CmdInputCodename nam
 commandOfSelectable IMTextInput (SelUndeclared undecl) _ = Just $ CmdInputSelUndecl undecl
 commandOfSelectable _ _ _ = Nothing
 
+helpOfSelectable SelTut = Just $ "Enter tutorials"
+helpOfSelectable (SelInitLock _) = Just $ "Solve lock"
 helpOfSelectable SelOurLock = Just
     "Design a lock."
 helpOfSelectable (SelSelectedCodeName name) = Just $

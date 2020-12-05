@@ -36,6 +36,7 @@ data Command
     | CmdShowRetired | CmdPlayLockSpec (Maybe LockSpec)
     | CmdSetServer | CmdToggleCacheOnly
     | CmdSelCodename (Maybe Codename) | CmdBackCodename | CmdHome
+    | CmdSolveInit Codename
     | CmdSolve (Maybe LockIndex) | CmdDeclare (Maybe Undeclared)
     | CmdViewSolution (Maybe NoteInfo)
     | CmdSelectLock | CmdNextLock | CmdPrevLock
@@ -81,6 +82,7 @@ describeCommand (CmdSelCodename mname) = "select player"
         ++ maybe "" (' ':) mname
 describeCommand CmdBackCodename = "select last player"
 describeCommand CmdHome = "select self"
+describeCommand (CmdSolveInit name) = "solve lock " ++ name
 describeCommand (CmdSolve mli) = "solve lock"
         ++ maybe "" ((' ':).(:"").lockIndexChar) mli
 describeCommand (CmdPlayLockSpec mls) = "find lock by number"
