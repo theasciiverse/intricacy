@@ -478,6 +478,8 @@ drawMainState' EditState { esGameState=st, esGameStateStack=sts, esUndoneStack=u
             (isWrench, "wrench", CmdTile $ WrenchTile zero, (-4)*^hv +^ hw),
             (isHook, "hook", CmdTile HookTile, (-3)*^hv +^ hw) ] ]
     drawPaintButtons
+drawMainState' InitState {initLocks=initLocks} = do
+    lift . renderToMain . renderStrColAt white "I N T R I C A C Y" $ titlePos
 drawMainState' MetaState {curServer=saddr, undeclareds=undecls,
         cacheOnly=cOnly, curAuth=auth, codenameStack=names,
         randomCodenames=rnamestvar, retiredLocks=mretired, curLockPath=path,

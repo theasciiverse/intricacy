@@ -115,8 +115,8 @@ data MainState
         , esMarks          :: Map Char GameState
         }
     | InitState
-        { partialSolutions :: PartialSolutions
-        , tutProgress      :: TutProgress
+        { tutProgress      :: TutProgress
+        , initLocks        :: InitLocks
         }
     | MetaState
         { curServer        :: ServerAddr
@@ -156,8 +156,8 @@ newReplayState st soln title = ReplayState st [] soln [] title Map.empty
 newEditState (frame,st) msoln mpath = EditState st [] [] frame mpath
     ((st,)<$>msoln) (Just (st, isJust msoln)) Nothing (PHS zero) (PHS zero) Map.empty
 initInitState = do
-    (partials,tut) <- readInitProgress
-    return $ InitState partials tut
+    (tut,initLocks) <- readInitProgress
+    return $ InitState tut initLocks
 initMetaState = do
     flag <- newTVarIO False
     errtvar <- newTVarIO Nothing
@@ -173,9 +173,18 @@ initMetaState = do
     return $ MetaState saddr undecls partials False auth names flag counttvar errtvar invaltvar rnamestvar Map.empty Map.empty Nothing path mlock 0
 
 type PartialSolutions = Map LockSpec SavedPlayState
-type TutProgress = (Int,Maybe SavedPlayState)
 data SavedPlayState = SavedPlayState [PlayerMove] (Map Char [PlayerMove])
     deriving (Eq, Ord, Show, Read)
+
+type TutProgress = (Int,Maybe SavedPlayState)
+data InitLock = InitLock
+    { initLockName :: String
+    , initLockDesc :: String
+    , initLockLock :: Lock
+    , initLockSolved :: Bool
+    , initLockPartial :: Maybe SavedPlayState
+    }
+type InitLocks = [[InitLock]]
 
 savePlayState :: MainState -> SavedPlayState
 savePlayState ps = SavedPlayState (getMoves ps) $ Map.map getMoves $ psMarks ps
@@ -199,13 +208,21 @@ readServerSolns saddr = if nullSaddr saddr then return ([],Map.empty) else do
         fmap (fromMaybe Map.empty) . readReadFile
     return (undecls,partials)
 
-readInitProgress :: IO (PartialSolutions,TutProgress)
+readInitProgress :: IO (TutProgress,InitLocks)
 readInitProgress = do
-    partials <- confFilePath ("initiation" </> "partialSolutions") >>=
-        (fromMaybe Map.empty <$>) . readReadFile
-    tut <- confFilePath ("initiation" </> "tutProgress") >>=
-        (fromMaybe (1,Nothing) <$>) . readReadFile
-    return (partials,tut)
+    initConfDir <- confFilePath "initiation"
+    initDataDir <- getDataPath "initiation"
+    tut <- fromMaybe (1,Nothing) <$> readReadFile (initConfDir </> "tutProgress")
+    locknames <- fromMaybe [] <$> readReadFile (initDataDir </> "initiation.map")
+    let readInitLock :: String -> IO (Maybe InitLock)
+        readInitLock name = runMaybeT $ do
+            desc <- MaybeT $ listToMaybe <$> readStrings (initDataDir </> name ++ ".desc")
+            lock <- (fst <$>) . MaybeT $ readLock (initDataDir </> name ++ ".lock")
+            solved <- lift . (fromMaybe False <$>) . readReadFile $ initConfDir </> name ++ ".solved"
+            partial <- lift . readReadFile $ initConfDir </> name ++ ".partial"
+            return $ InitLock name desc lock solved partial
+    initLocks <- mapM ((catMaybes <$>) . mapM readInitLock) locknames
+    return (tut,initLocks)
 
 writeServerSolns :: ServerAddr -> MainState -> IO ()
 writeServerSolns saddr MetaState { undeclareds=undecls,
@@ -224,9 +241,14 @@ readLock path = runMaybeT $ msum
 -- writeLock path lock = fullLockPath path >>= flip writeReadFile lock
 
 writeInitState :: MainState -> IO ()
-writeInitState InitState { partialSolutions=partials, tutProgress = tut } = do
-    confFilePath ("initiation" </> "partialSolutions") >>= flip writeReadFile partials
-    confFilePath ("initiation" </> "tutProgress") >>= flip writeReadFile tut
+writeInitState InitState { tutProgress = tut, initLocks = initLocks } = do
+    initConfDir <- confFilePath "initiation"
+    writeReadFile (initConfDir </> "tutProgress") tut
+    let writeInitLockInfo :: InitLock -> IO ()
+        writeInitLockInfo (InitLock name _ _ solved partial) = do
+            writeReadFile (initConfDir </> name ++ ".solved") solved
+            writeReadFile (initConfDir </> name ++ ".partial") partial
+    mapM_ (mapM_ writeInitLockInfo) initLocks
 
 writeMetaState :: MainState -> IO ()
 writeMetaState ms@MetaState { curServer=saddr, curAuth=auth, curLockPath=path } = do
