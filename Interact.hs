@@ -221,7 +221,7 @@ processCommand' IMMeta CmdSetServer = void.runMaybeT $ do
     lift $ do
         modify $ \ms -> ms {curAuth = Nothing}
         get >>= liftIO . writeServerSolns saddr
-        (undecls,partials,_) <- liftIO (readServerSolns newSaddr)
+        (undecls,partials) <- liftIO (readServerSolns newSaddr)
         modify $ \ms -> ms { undeclareds=undecls, partialSolutions=partials }
         rnamestvar <- gets randomCodenames
         liftIO $ atomically $ writeTVar rnamestvar []

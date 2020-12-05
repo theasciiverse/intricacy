@@ -26,6 +26,7 @@ import           System.FilePath
 import           Interact
 import           Lock
 import           MainState
+import           Mundanities
 import           Util
 import           Version
 
@@ -71,8 +72,10 @@ main' :: (UIMonad s, UIMonad c) =>
 main' msdlUI mcursesUI = do
     (mlock,opts,mpath) <- setup
     initMState <- case mlock of
-            Nothing   -> initMetaState
             Just lock -> return $ newEditState lock Nothing mpath
+            Nothing   -> do
+                initiated <- fileExists =<< confFilePath "initiationComplete"
+                if initiated then initMetaState else initInitState
     void $ runMaybeT $ msum [ do
             finalState <- msum
                 [ do
