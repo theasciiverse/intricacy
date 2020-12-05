@@ -13,8 +13,8 @@ module Cache where
 import           Control.Applicative
 import           Control.Concurrent
 import           Control.Concurrent.STM
-import           Control.Exception
 import           Control.Monad
+import           Control.Monad.Catch
 import           Control.Monad.Trans.Reader
 import           Data.Binary
 import qualified Data.ByteString            as BS
@@ -88,7 +88,7 @@ makeRequest saddr@(ServerAddr host port) request =
             decode . BL.fromStrict <$> BS.hGetContents hdl
 
 knownServers :: IO [ServerAddr]
-knownServers = flip catchIO (const $ return []) $ do
+knownServers = ignoreIOErr $ do
     cachedir <- confFilePath "cache"
     saddrstrs <- getDirectoryContents cachedir >>= filterM (\dir ->
         doesFileExist $ cachedir++[pathSeparator]++dir++[pathSeparator]++"serverInfo")

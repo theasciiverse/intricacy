@@ -10,35 +10,43 @@
 
 module Mundanities where
 import           Control.Applicative
+import           Control.Applicative    (Alternative, empty)
 import           Control.Arrow
-import qualified Control.Exception     as E
 import           Control.Monad
-import qualified Data.ByteString       as BS
-import qualified Data.ByteString.Char8 as BSC
+import           Control.Monad.Catch    (MonadMask, catch, handle)
+import           Control.Monad.IO.Class (MonadIO)
+import qualified Data.ByteString        as BS
+import qualified Data.ByteString.Char8  as BSC
 import           Data.List
 import           Data.Maybe
 import           Paths_intricacy
 import           System.Directory
-import           System.Environment    (getEnv)
+import           System.Environment     (getEnv)
 import           System.FilePath
 
--- | This is "catchIOError" in >=base-4.4, but we reimplement it to support
--- older bases.
 catchIO :: IO a -> (IOError -> IO a) -> IO a
-catchIO = E.catch
+catchIO = catch
 
-catchAll :: IO a -> (E.SomeException -> IO a) -> IO a
-catchAll = E.catch
+ignoreIOErr :: (MonadIO m, MonadMask m, Monoid a) => m a -> m a
+ignoreIOErr = handle ((\_ -> return mempty) :: (Monad m, Monoid a) => IOError -> m a)
+
+ignoreIOErrAlt :: (MonadIO m, MonadMask m, Alternative f) => m (f a) -> m (f a)
+ignoreIOErrAlt = handle ((\_ -> return empty) :: (Monad m, Alternative f) => IOError -> m (f a))
+
+unlessIOErr :: (MonadIO m, MonadMask m) => m Bool -> m Bool
+unlessIOErr = (fromMaybe False <$>) . ignoreIOErrAlt . (Just <$>)
 
 readReadFile :: (Read a) => FilePath -> IO (Maybe a)
-readReadFile file =
-    (tryRead . BSC.unpack <$> BS.readFile file)
-        `catchIO` const (return Nothing)
+readReadFile file = ignoreIOErrAlt $ tryRead . BSC.unpack <$> BS.readFile file
+
 tryRead :: (Read a) => String -> Maybe a
 tryRead = (fst <$>) . listToMaybe . reads
 
+fileExists :: FilePath -> IO Bool
+fileExists = unlessIOErr . doesFileExist
+
 readStrings :: FilePath -> IO [String]
-readStrings file = lines . BSC.unpack <$> BS.readFile file
+readStrings file = ignoreIOErr $ lines . BSC.unpack <$> BS.readFile file
 
 writeReadFile :: (Show a) => FilePath -> a -> IO ()
 writeReadFile file x = do
@@ -70,7 +78,7 @@ mkdirhier path = do
     unless exists $ mkdirhierto path >> createDirectory path
 
 getDirContentsRec :: FilePath -> IO [FilePath]
-getDirContentsRec path = flip catchIO (const $ return []) $ do
+getDirContentsRec path = ignoreIOErr $ do
     contents <- map ((path++[pathSeparator])++) . filter ((/='.').head) <$> getDirectoryContents path
     annotated <- (\p -> (,) p <$> doesDirectoryExist p) `mapM` contents
     let (dirs,files) = join (***) (map fst) $ partition snd annotated

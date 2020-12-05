@@ -233,9 +233,8 @@ minmax :: Ord a => [a] -> (a,a)
 minmax = minimum &&& maximum
 
 readAsciiLockFile :: FilePath -> IO (Maybe Lock, Maybe Solution)
-readAsciiLockFile path = flip catchIO (const $ return (Nothing,Nothing)) $ do
-    lines <- readStrings path
-    return $ fromMaybe (lockOfAscii lines, Nothing) $ do
+readAsciiLockFile path = fromLines <$> readStrings path
+    where fromLines lines = fromMaybe (lockOfAscii lines, Nothing) $ do
             guard $ length lines > 2
             let (locklines, [header,solnLine]) = splitAt (length lines - 2) lines
             guard $ isPrefixOf "Solution:" header

@@ -102,7 +102,7 @@ recordExists rec = recordPath rec >>= liftIO . doesFileExist
 getRecord :: Record -> DBM (Maybe RecordContents)
 getRecord rec = do
     path <- recordPath rec
-    liftIO $ flip catchIO (const $ return Nothing) $ do
+    liftIO . ignoreIOErrAlt $ do
         h <- openFile path ReadMode
         getRecordh rec h <* hClose h
 getRecordh (RecPasswordLegacy _) h = (RCPasswordLegacy <$>) . tryRead <$> hGetStrict h

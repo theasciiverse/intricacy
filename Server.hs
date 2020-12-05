@@ -16,8 +16,9 @@ import           Network.Fancy
 
 import           Control.Applicative
 import           Control.Concurrent         (forkIO, threadDelay)
-import           Control.Exception
+import           Control.Exception.Base     (evaluate)
 import           Control.Monad
+import           Control.Monad.Catch
 import           Control.Monad.IO.Class
 import           Control.Monad.Trans
 import           Control.Monad.Trans.Except

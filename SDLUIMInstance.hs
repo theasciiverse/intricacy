@@ -296,7 +296,7 @@ instance UIMonad (StateT UIState IO) where
             initAudio
             readBindings
         where
-            catchIOErrorMT m = MaybeT $ liftIO $ catchIO (m >> return (Just ())) (\_ -> return Nothing)
+            catchIOErrorMT m = MaybeT . liftIO . ignoreIOErrAlt $ m >> return (Just ())
 
     endUI = do
         writeUIConfigFile

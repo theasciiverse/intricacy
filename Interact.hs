@@ -16,7 +16,7 @@ module Interact (interactUI) where
 import           Control.Applicative
 import           Control.Concurrent
 import           Control.Concurrent.STM
-import           Control.Exception
+import           Control.Monad.Catch
 import           Control.Monad.State
 import           Control.Monad.Trans.Except
 import           Control.Monad.Trans.Maybe
@@ -458,8 +458,9 @@ processCommand' IMMeta CmdEdit = void.runMaybeT $ do
     lift $ setLockPath newPath
 processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
     tutdir <- liftIO $ getDataPath "tutorial"
-    tuts <- liftIO $ sort . map (takeWhile (/='.')) . filter (isSuffixOf ".lock") <$>
-        getDirectoryContents tutdir `catchIO` const (return [])
+    tuts <- liftIO . ignoreIOErr $
+        sort . map (takeWhile (/='.')) . filter (isSuffixOf ".lock") <$>
+            getDirectoryContents tutdir
     when (null tuts) $ do
         lift.lift $ drawError "No tutorial levels found"
         mzero
@@ -471,7 +472,7 @@ processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
             let name = tuts !! (i-1)
             let pref = tutdir ++ [pathSeparator] ++ name
             (lock,_) <- MaybeT $ liftIO $ readLock (pref ++ ".lock")
-            text <- liftIO $ fromMaybe "" . listToMaybe <$> (readStrings (pref ++ ".text") `catchIO` const (return []))
+            text <- liftIO $ fromMaybe "" . listToMaybe <$> readStrings (pref ++ ".text")
             solveLockSaving i msps True lock $ Just $ "Tutorial " ++ show i ++ ": " ++ text
             if i+1 <= length tuts then do
                     -- confirmOrBail $ "Tutorial level completed! Play next tutorial level (" ++ show (i+1) ++ ")?"
@@ -723,7 +724,7 @@ processCommand' IMEdit CmdWriteState = void.runMaybeT $ do
     newPath <- MaybeT $ lift $ textInput "Save lock as:" 1024 False False Nothing path
     guard $ not $ null newPath
     fullPath <- liftIO $ fullLockPath newPath
-    liftIO (doesFileExist fullPath `catchIO` const (return True)) >>?
+    liftIO (fileExists fullPath) >>?
         confirmOrBail $ "Really overwrite '"++fullPath++"'?"
     lift $ do
         st <- gets esGameState
