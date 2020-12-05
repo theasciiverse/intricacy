@@ -211,7 +211,7 @@ data AccessedInfo = AccessedSolved | AccessedPublic | AccessedReadNotes | Access
     deriving (Eq, Ord, Show)
 data Selectable = SelOurLock
     | SelTut
-    | SelInitLock Codename
+    | SelInitLock HexVec
     | SelLock ActiveLock
     | SelLockUnset Bool ActiveLock
     | SelSelectedCodeName Codename
@@ -253,7 +253,7 @@ registerUndoButtons noUndo noRedo = do
     unless noRedo $ registerButton (periphery 2+^hu+^neg hv) CmdRedo 2 [("redo",hu+^neg hw)]
 
 commandOfSelectable IMInit SelTut _ = Just $ CmdTutorials
-commandOfSelectable IMInit (SelInitLock name) _ = Just $ CmdSolveInit name
+commandOfSelectable IMInit (SelInitLock v) _ = Just . CmdSolveInit $ Just v
 commandOfSelectable IMMeta SelOurLock _ = Just CmdEdit
 commandOfSelectable IMMeta (SelLock (ActiveLock _ i)) False = Just $ CmdSolve (Just i)
 commandOfSelectable IMMeta (SelLock (ActiveLock _ i)) True = Just $ CmdPlaceLock (Just i)

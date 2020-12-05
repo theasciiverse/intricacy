@@ -455,7 +455,7 @@ drawMainState' PlayState { psCurrentState=st, psLastAlerts=alerts,
                 , isTool p]
         registerUndoButtons canUndo canRedo
         registerButton (periphery 0) CmdOpen (if solved then 2 else 0) $
-            ("open", hu+^neg hw) : [("Click-->",9*^neg hu) | solved && isTut]
+            ("open", hu+^neg hw) : [("Press-->",9*^neg hu) | solved && isTut]
 drawMainState' ReplayState { rsCurrentState=st, rsLastAlerts=alerts } = do
     canUndo <- gets (null . rsGameStateMoveStack)
     canRedo <- gets (null . rsMoveStack)
@@ -480,7 +480,8 @@ drawMainState' EditState { esGameState=st, esGameStateStack=sts, esUndoneStack=u
             (isHook, "hook", CmdTile HookTile, (-3)*^hv +^ hw) ] ]
     drawPaintButtons
 drawMainState' InitState {initLocks=initLocks, tutProgress=TutProgress{tutSolved=tutSolved}} = lift $ do
-    renderToMain . renderStrColAt white "I N T R I C A C Y" $ titlePos
+    renderToMain (erase >> drawCursorAt Nothing)
+    renderToMain . renderStrColAt white "I N T R I C A C Y" $ 2 *^ (hv +^ neg hw)
     drawInitLock zero "TUT" tutSolved True
     mapM_ (\(v,l) -> drawInitLock v (initLockName l) (initLockSolved l) False) $
         Map.toList accessible
@@ -495,7 +496,7 @@ drawMainState' InitState {initLocks=initLocks, tutProgress=TutProgress{tutSolved
             | h <- (`rotate` hu) <$> [-1..1]
             , abs (hy $ pos +^ h) <= 2
             ]
-        registerSelectable pos 0 $ if isTut then SelTut else SelInitLock name
+        registerSelectable pos 0 $ if isTut then SelTut else SelInitLock v
 drawMainState' MetaState {curServer=saddr, undeclareds=undecls,
         cacheOnly=cOnly, curAuth=auth, codenameStack=names,
         randomCodenames=rnamestvar, retiredLocks=mretired, curLockPath=path,

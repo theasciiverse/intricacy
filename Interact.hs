@@ -183,6 +183,54 @@ processCommand' im CmdJumpMark = void.runMaybeT $ do
     ch <- liftMaybe $ listToMaybe str
     lift $ jumpMark ch
 processCommand' im CmdReset = jumpMark startMark
+processCommand' IMInit CmdTutorials = void.runMaybeT $ do
+    tutdir <- liftIO $ getDataPath "tutorial"
+    tuts <- liftIO . ignoreIOErr $
+        sort . map (takeWhile (/='.')) . filter (isSuffixOf ".lock") <$>
+            getDirectoryContents tutdir
+    when (null tuts) $ do
+        lift.lift $ drawError "No tutorial levels found"
+        mzero
+    let dotut i msps = do
+            let name = tuts !! (i-1)
+            let pref = tutdir ++ [pathSeparator] ++ name
+            (lock,_) <- MaybeT $ liftIO $ readLock (pref ++ ".lock")
+            text <- liftIO $ fromMaybe "" . listToMaybe <$> readStrings (pref ++ ".text")
+            solveLockSaving i msps True lock $ Just $ "Tutorial " ++ show i ++ ": " ++ text
+            if i+1 <= length tuts
+                then dotut (i+1) Nothing
+                else lift $ do
+                    modify $ \is -> is {tutProgress = TutProgress True 1 Nothing}
+                    lift $ drawMessage "Tutorial complete!"
+                    {-
+                    mauth <- gets curAuth
+                    cbdg <- lift $ getUIBinding IMMeta $ CmdSelCodename Nothing
+                    rbdg <- lift $ getUIBinding IMMeta (CmdRegister False)
+                    if isNothing mauth
+                        then do
+                            let showPage p prompt = lift $ withNoBG $ showHelp IMMeta p >>? do
+                                    void $ textInput prompt 1 False True Nothing Nothing
+                            showPage (HelpPageInitiated 1) "[Tutorial complete! Press a key or RMB to continue]"
+                            showPage (HelpPageInitiated 2) "[Press a key or RMB to continue]"
+                            showPage (HelpPageInitiated 3) "[Press a key or RMB to continue]"
+                            --showPage HelpPageGame "[Press a key or RMB to continue; you can review this information later with '?']"
+                            lift $ drawMessage $
+                                "To join the game: pick a codename ('"++cbdg++
+                                "') and register it ('"++rbdg++"')."
+                        else lift $ drawMessage "Tutorial completed!"
+                    -}
+    TutProgress _ onLevel msps <- lift $ gets tutProgress
+    dotut onLevel msps
+processCommand' IMInit (CmdSolveInit Nothing) = void.runMaybeT $ do
+    return () -- TODO
+processCommand' IMInit (CmdSolveInit (Just v)) = void.runMaybeT $ do
+    InitLock { initLockDesc=desc, initLockLock=lock, initLockPartial=partial } <-
+        MaybeT $ Map.lookup v <$> gets initLocks
+    lift $  do
+        (InteractSuccess solved, partial') <- runSubMainState $
+            maybe newPlayState restorePlayState partial (reframe lock) (Just desc) False False True
+        let updateLock initLock = initLock { initLockSolved = solved, initLockPartial = partial' }
+        modify $ \is -> is { initLocks = Map.adjust updateLock v $ initLocks is }
 processCommand' IMMeta (CmdSelCodename mname) = void.runMaybeT $ do
     mauth <- gets curAuth
     name <- msum [ liftMaybe mname
@@ -456,49 +504,6 @@ processCommand' IMMeta CmdEdit = void.runMaybeT $ do
     newPath <- MaybeT $ (esPath <$>) $ execSubMainState $
         newEditState (reframe lock) msoln (if null path then Nothing else Just path)
     lift $ setLockPath newPath
-{-
-processCommand' IMMeta CmdTutorials = void.runMaybeT $ do
-    tutdir <- liftIO $ getDataPath "tutorial"
-    tuts <- liftIO . ignoreIOErr $
-        sort . map (takeWhile (/='.')) . filter (isSuffixOf ".lock") <$>
-            getDirectoryContents tutdir
-    when (null tuts) $ do
-        lift.lift $ drawError "No tutorial levels found"
-        mzero
-    -- s <- MaybeT $ lift $ textInput ("Play which tutorial level? [1-"++show (length tuts)++"]")
-            -- (length (show (length tuts))) False True Nothing Nothing
-    -- i <- liftMaybe $ readMay s
-    -- guard $ 1 <= i && i <= length tuts
-    let dotut i msps = do
-            let name = tuts !! (i-1)
-            let pref = tutdir ++ [pathSeparator] ++ name
-            (lock,_) <- MaybeT $ liftIO $ readLock (pref ++ ".lock")
-            text <- liftIO $ fromMaybe "" . listToMaybe <$> readStrings (pref ++ ".text")
-            solveLockSaving i msps True lock $ Just $ "Tutorial " ++ show i ++ ": " ++ text
-            if i+1 <= length tuts then do
-                    -- confirmOrBail $ "Tutorial level completed! Play next tutorial level (" ++ show (i+1) ++ ")?"
-                    dotut (i+1) Nothing
-                else lift $ do
-                    modify $ \ms -> ms {tutProgress = (1,Nothing)}
-                    mauth <- gets curAuth
-                    cbdg <- lift $ getUIBinding IMMeta $ CmdSelCodename Nothing
-                    rbdg <- lift $ getUIBinding IMMeta (CmdRegister False)
-                    if isNothing mauth
-                        then do
-                            let showPage p prompt = lift $ withNoBG $ showHelp IMMeta p >>? do
-                                    void $ textInput prompt 1 False True Nothing Nothing
-                            showPage (HelpPageInitiated 1) "[Tutorial complete! Press a key or RMB to continue]"
-                            showPage (HelpPageInitiated 2) "[Press a key or RMB to continue]"
-                            showPage (HelpPageInitiated 3) "[Press a key or RMB to continue]"
-                            --showPage HelpPageGame "[Press a key or RMB to continue; you can review this information later with '?']"
-                            lift $ drawMessage $
-                                "To join the game: pick a codename ('"++cbdg++
-                                "') and register it ('"++rbdg++"')."
-                        else lift $ drawMessage "Tutorial completed!"
-
-    (onLevel,msps) <- lift $ gets tutProgress
-    dotut onLevel msps
--}
 processCommand' IMMeta CmdShowRetired = void.runMaybeT $ do
     name <- mgetCurName
     newRL <- lift (gets retiredLocks) >>= \case
@@ -801,6 +806,8 @@ solveLockSaving ls msps isTut lock title = do
             unless isTut . lift . modify $ \ms -> ms { partialSolutions = Map.delete ls $ partialSolutions ms }
             return . reverse $ snd <$> psGameStateMoveStack ps
         else do
-            lift $ modify $ \ms -> if isTut then ms { tutProgress = TutProgress False ls . Just $ savePlayState ps }
+            lift $ modify $ \ms -> if isTut
+                then ms { tutProgress = (tutProgress ms)
+                    { tutLevel = ls, tutPartial = Just $ savePlayState ps } }
                 else ms { partialSolutions = Map.insert ls (savePlayState ps) $ partialSolutions ms }
             mzero
