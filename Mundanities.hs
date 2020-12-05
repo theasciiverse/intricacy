@@ -42,9 +42,6 @@ readReadFile file = ignoreIOErrAlt $ tryRead . BSC.unpack <$> BS.readFile file
 tryRead :: (Read a) => String -> Maybe a
 tryRead = (fst <$>) . listToMaybe . reads
 
-fileExists :: FilePath -> IO Bool
-fileExists = unlessIOErr . doesFileExist
-
 readStrings :: FilePath -> IO [String]
 readStrings file = ignoreIOErr $ lines . BSC.unpack <$> BS.readFile file
 
@@ -69,13 +66,14 @@ getDataPath = getDataFileName
 makeConfDir :: IO ()
 makeConfDir = confFilePath "" >>= createDirectoryIfMissing False
 
+fileExists :: FilePath -> IO Bool
+fileExists = unlessIOErr . doesFileExist
+
 mkdirhierto :: FilePath -> IO ()
 mkdirhierto = mkdirhier . takeDirectory
 
 mkdirhier :: FilePath -> IO ()
-mkdirhier path = do
-    exists <- doesDirectoryExist path
-    unless exists $ mkdirhierto path >> createDirectory path
+mkdirhier = createDirectoryIfMissing True
 
 getDirContentsRec :: FilePath -> IO [FilePath]
 getDirContentsRec path = ignoreIOErr $ do
