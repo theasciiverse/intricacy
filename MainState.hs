@@ -224,7 +224,7 @@ readInitProgress = do
     initDataDir <- getDataPath "initiation"
     tut <- fromMaybe initTutProgress <$> readReadFile (initConfDir </> "tutProgress")
     locknames <- fromMaybe [] <$> readReadFile (initDataDir </> "initiation.map")
-    let namesMap :: Map HexVec Codename 
+    let namesMap :: Map HexVec Codename
         namesMap = Map.fromList $
             [ (rotate (-j) (neg hw) +^ i *^ hu, name)
             | (j,line) <- zip [0..] locknames
