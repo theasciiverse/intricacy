@@ -58,6 +58,7 @@ import qualified Crypto.Argon2              as A2
 import           Crypto.Random              (SystemRandom, newGenIO)
 import           Crypto.Types.PubKey.RSA    (PrivateKey, PublicKey)
 
+import           Network.Mail.Mime          (plainPart)
 import qualified Network.Mail.SMTP          as SMTP
 import qualified Text.Email.Validate
 
@@ -548,7 +549,7 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
             lift.lift $ SMTP.sendMail "localhost" $ SMTP.simpleMail (makeAddr serverAddr)
                 [makeAddr playerAddr] [] []
                 (TS.pack $ "[Intricacy] " ++ alockStr target ++" solved by " ++ solverName)
-                [SMTP.plainTextPart $ TL.pack $ "A solution to your lock " ++ alockStr target ++ " has been declared by " ++ solverName ++
+                [plainPart $ TL.pack $ "A solution to your lock " ++ alockStr target ++ " has been declared by " ++ solverName ++
                     " and secured behind " ++ alockStr behind ++ "." ++
                     "\n\n-----\n\nYou received this email from the game Intricacy" ++
                     "\n\thttp://sdf.org/~mbays/intricacy ." ++
