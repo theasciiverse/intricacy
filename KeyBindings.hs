@@ -167,6 +167,8 @@ editOnly = tilesPaintRow ++ editMisc ++ tilesAscii
 playBindings = playOnly ++ lockGlobal
 replayBindings = replayOnly ++ lockGlobal
 editBindings = editOnly ++ lockGlobal
+initBindings = lowerToo
+    [ ('S', CmdSolveInit Nothing) ] ++ miscGlobal
 metaBindings = lowerToo
     [ ('C', CmdSelCodename Nothing)
     , ('H', CmdHome)
@@ -198,6 +200,7 @@ impatienceBindings = lowerToo
 bindings :: InputMode -> KeyBindings
 bindings IMEdit       = editBindings
 bindings IMPlay       = playBindings
+bindings IMInit       = initBindings
 bindings IMMeta       = metaBindings
 bindings IMReplay     = replayBindings
 bindings IMImpatience = impatienceBindings

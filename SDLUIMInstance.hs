@@ -413,11 +413,14 @@ instance UIMonad (StateT UIState IO) where
                 | ((str,firstLine),y) <- intercalate [("",False)] (map (`zip` (True:repeat False)) extraHelpStrs) `zip` [(keybindingsHeight+1)..] ]
         refresh
         return True
+    showHelp IMInit HelpPageGame = do
+        renderToMain $ drawBasicHelpPage ("INTRICACY",red) (initiationHelpText,purple)
+        return True
     showHelp IMMeta HelpPageGame = do
         renderToMain $ drawBasicHelpPage ("INTRICACY",red) (metagameHelpText,purple)
         return True
     showHelp IMMeta (HelpPageInitiated n) = do
-        renderToMain $ drawBasicHelpPage ("Initiation complete",purple) (initiationHelpText n,red)
+        renderToMain $ drawBasicHelpPage ("Initiation complete",purple) (initiationCompleteText n,red)
         return True
     showHelp IMEdit HelpPageFirstEdit = do
         renderToMain $ drawBasicHelpPage ("Your first lock:",purple) (firstEditHelpText,green)
@@ -481,18 +484,20 @@ drawMainState' EditState { esGameState=st, esGameStateStack=sts, esUndoneStack=u
     drawPaintButtons
 drawMainState' InitState {initLocks=initLocks, tutProgress=TutProgress{tutSolved=tutSolved}} = lift $ do
     renderToMain (erase >> drawCursorAt Nothing)
-    renderToMain . renderStrColAt white "I N T R I C A C Y" $ 2 *^ (hv +^ neg hw)
+    renderToMain . renderStrColAt white "I N T R I C A C Y" $ 3 *^ (hv +^ neg hw)
     drawInitLock zero "TUT" tutSolved True
     mapM_ (\(v,l) -> drawInitLock v (initLockName l) (initLockSolved l) False) $
         Map.toList accessible
+    registerButton (tutPos +^ 2 *^ neg hu +^ hv) (CmdSolveInit Nothing) 2
+        [("solve",hu+^neg hw),("lock",hu+^neg hv)]
     where
-    accessible = Map.filterWithKey (\v _ -> initLockAccessible tutSolved initLocks v) initLocks
+    accessible = accessibleInitLocks tutSolved initLocks
     tutPos = ((`div`2) . maximumBound 0 $ hx <$> Map.keys accessible) *^ neg hu
     drawInitLock v name solved isTut = do
         let pos = tutPos +^ 2 *^ v
-        drawNameCol name pos $ if solved then bright green else brightish blue
+        drawNameCol name pos $ if solved then brightish green else brightish yellow
         when solved . renderToMain $ sequence_
-            [ drawAtRel (LineGlyph h $ bright green) $ pos +^ h
+            [ drawAtRel (LineGlyph h $ brightish green) $ pos +^ h
             | h <- (`rotate` hu) <$> [-1..1]
             , abs (hy $ pos +^ h) <= 2
             ]

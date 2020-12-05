@@ -191,11 +191,16 @@ data InitLock = InitLock
     } deriving (Eq, Ord, Show, Read)
 type InitLocks = Map HexVec InitLock
 
-initLockAccessible :: Bool -> InitLocks -> HexVec -> Bool
-initLockAccessible tutSolved initLocks v = or
-    [ ((v' == zero && tutSolved) ||) . fromMaybe False $
-        initLockSolved <$> Map.lookup v' initLocks
-    | v' <- (v +^) . (`rotate` neg hu) <$> [-1..1] ]
+accessibleInitLocks :: Bool -> InitLocks -> InitLocks
+accessibleInitLocks tutSolved initLocks =
+    Map.filterWithKey (\v _ -> initLockAccessible v) initLocks
+    where
+    initLockAccessible :: HexVec -> Bool
+    initLockAccessible v = or
+        [ (v' == zero && tutSolved) ||
+            (Just True == (initLockSolved <$> Map.lookup v' initLocks))
+        | v' <- (v +^) . (`rotate` neg hu) <$> [-1..1] ]
+
 savePlayState :: MainState -> SavedPlayState
 savePlayState ps = SavedPlayState (getMoves ps) $ Map.map getMoves $ psMarks ps
     where getMoves = reverse . map snd . psGameStateMoveStack
@@ -516,6 +521,20 @@ testAuth = isJust <$> gets curAuth >>? do
             modify $ \ms -> ms {curAuth = Nothing}
         _ -> return ()
 
+initiationHelpText :: [String]
+initiationHelpText =
+    [ ""
+    , ""
+    , "\"Prove yourself\"."
+    , ""
+    , "That's all they said before leaving you in this maze of cells,"
+    , "each bare but for a locked mechanism to open gates leading further into the gloom."
+    , ""
+    , "Lucky, then, that they neglected to strip you of your lockpicks."
+    , ""
+    , "It remains to see if you can use them to find your way out to freedom."
+    , "Wouldn't be the first time..."
+    ]
 metagameHelpText :: [String]
 metagameHelpText =
     [ "By ruthlessly guarded secret arrangement, the council's agents can pick any lock in the city."
@@ -543,12 +562,12 @@ metagameHelpText =
     , "However: once replaced, a lock is \"retired\", and the notes it secured are read by everyone."
     ]
 
-initiationHelpText :: Int -> [String]
-initiationHelpText 1 =
+initiationCompleteText :: Int -> [String]
+initiationCompleteText 1 =
     [ ""
     , "So."
     , ""
-    , "This confirms that you have sufficient manual and mental dexterity to pick simple locks."
+    , "This confirms that you have the manual and mental dexterity to pick simple locks."
     , "But have you the supple cunning required to improve on their designs? That remains to be seen."
     , ""
     , "Nonetheless, we welcome you to our number. As for what it is exactly that you are joining..."
@@ -558,7 +577,7 @@ initiationHelpText 1 =
     , "our members are known exclusively by pseudonyms - by tradition, a triplet of letters or symbols."
     , "I am eager to hear what codename you will choose for yourself; do be thinking about it."
     ]
-initiationHelpText 2 =
+initiationCompleteText 2 =
     [ ""
     , "Now."
     , ""
@@ -572,7 +591,7 @@ initiationHelpText 2 =
     , "To push the designs to ever new extremes of intricacy, we run a ritual game."
     , "You are to be its newest player."
     ]
-initiationHelpText 3 =
+initiationCompleteText 3 =
     [ ""
     , "We each design locks, and we each attempt to solve the locks designed by the others."
     , ""
@@ -589,7 +608,7 @@ initiationHelpText 3 =
     , "Go now; choose a codename, explore the locks we have set,"
     , "and begin your own experiments in the subtle art of lock design."
     ]
-initiationHelpText _ = []
+initiationCompleteText _ = []
 
 
 firstEditHelpText :: [String]

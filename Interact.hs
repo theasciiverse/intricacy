@@ -142,6 +142,7 @@ processCommand im cmd = lift $ processCommand' im cmd
 processCommand' :: UIMonad uiM => InputMode -> Command -> MainStateT uiM ()
 processCommand' im CmdHelp = lift $ do
     helpPages <- case im of
+        IMInit -> return [HelpPageGame]
         IMMeta -> return [HelpPageInput, HelpPageGame]
         IMEdit -> do
             first <- not <$> liftIO hasLocks
@@ -183,7 +184,21 @@ processCommand' im CmdJumpMark = void.runMaybeT $ do
     ch <- liftMaybe $ listToMaybe str
     lift $ jumpMark ch
 processCommand' im CmdReset = jumpMark startMark
-processCommand' IMInit CmdTutorials = void.runMaybeT $ do
+processCommand' IMInit (CmdSolveInit Nothing) = void.runMaybeT $ do
+    tutSolved <- lift . gets $ tutSolved . tutProgress
+    accessible <- lift . gets $ accessibleInitLocks tutSolved . initLocks
+    v <- if Map.null accessible then return zero else do
+        let nameMap = Map.fromList $ ("TUT",zero) :
+                [(initLockName l, v) | (v,l) <- Map.toList accessible]
+            names = Map.keys nameMap
+        name <- (map toUpper <$>) $ MaybeT $ lift $
+            textInput ("Solve which? ["
+                ++ intercalate "," (take 3 names)
+                ++ if length names > 3 then ",...]" else "]")
+            3 False True (Just names) Nothing
+        MaybeT . return $ Map.lookup name nameMap
+    lift . processCommand' IMInit . CmdSolveInit $ Just v
+processCommand' IMInit (CmdSolveInit (Just v)) | v == zero = void.runMaybeT $ do
     tutdir <- liftIO $ getDataPath "tutorial"
     tuts <- liftIO . ignoreIOErr $
         sort . map (takeWhile (/='.')) . filter (isSuffixOf ".lock") <$>
@@ -221,15 +236,14 @@ processCommand' IMInit CmdTutorials = void.runMaybeT $ do
                     -}
     TutProgress _ onLevel msps <- lift $ gets tutProgress
     dotut onLevel msps
-processCommand' IMInit (CmdSolveInit Nothing) = void.runMaybeT $ do
-    return () -- TODO
 processCommand' IMInit (CmdSolveInit (Just v)) = void.runMaybeT $ do
     InitLock { initLockDesc=desc, initLockLock=lock, initLockPartial=partial } <-
-        MaybeT $ Map.lookup v <$> gets initLocks
+        MaybeT $ gets (Map.lookup v . initLocks)
     lift $  do
-        (InteractSuccess solved, partial') <- runSubMainState $
+        (InteractSuccess solved, ps) <- runSubMainState $
             maybe newPlayState restorePlayState partial (reframe lock) (Just desc) False False True
-        let updateLock initLock = initLock { initLockSolved = solved, initLockPartial = partial' }
+        let updateLock initLock = initLock { initLockSolved = solved
+                , initLockPartial = Just $ savePlayState ps }
         modify $ \is -> is { initLocks = Map.adjust updateLock v $ initLocks is }
 processCommand' IMMeta (CmdSelCodename mname) = void.runMaybeT $ do
     mauth <- gets curAuth

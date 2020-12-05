@@ -10,7 +10,6 @@
 
 module Mundanities where
 import           Control.Applicative
-import           Control.Applicative    (Alternative, empty)
 import           Control.Arrow
 import           Control.Monad
 import           Control.Monad.Catch    (MonadMask, catch, handle)

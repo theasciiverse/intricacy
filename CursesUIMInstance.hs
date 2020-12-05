@@ -211,10 +211,12 @@ showHelpPaged' from mode HelpPageInput = do
     return $ if length draws < length groups
         then HelpContinue $ from + length draws
         else HelpDone
+showHelpPaged' from IMInit HelpPageGame =
+    drawBasicHelpPage from ("INTRICACY",magenta) (initiationHelpText,magenta)
 showHelpPaged' from IMMeta HelpPageGame =
     drawBasicHelpPage from ("INTRICACY",magenta) (metagameHelpText,magenta)
 showHelpPaged' from IMMeta (HelpPageInitiated n) =
-    drawBasicHelpPage from ("Initiation complete",magenta) (initiationHelpText n,magenta)
+    drawBasicHelpPage from ("Initiation complete",magenta) (initiationCompleteText n,magenta)
 showHelpPaged' from IMEdit HelpPageFirstEdit =
     drawBasicHelpPage from ("Your first lock:",magenta) (firstEditHelpText,green)
 showHelpPaged' _ _ _ = return HelpNone
