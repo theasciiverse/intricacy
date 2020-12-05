@@ -481,24 +481,19 @@ drawMainState' EditState { esGameState=st, esGameStateStack=sts, esUndoneStack=u
     drawPaintButtons
 drawMainState' InitState {initLocks=initLocks, tutProgress=TutProgress{tutSolved=tutSolved}} = lift $ do
     renderToMain . renderStrColAt white "I N T R I C A C Y" $ titlePos
-    drawInitLock 1 (-1) "TUT" tutSolved True True
-    mapM_ (\(j,ls) -> mapM_ (\(i,l) ->
-        when (initLockAccessible tutSolved initLocks j i) $
-            drawInitLock j i (initLockName l) (initLockSolved l) False) $
-        zip [0..] ls) $ zip [0..] initLocks
+    drawInitLock zero "TUT" tutSolved True
+    mapM_ (\(v,l) -> drawInitLock v (initLockName l) (initLockSolved l) False) $
+        Map.toList accessible
     where
-    startPos = (maximumBound 0 $ length <$> initLocks) *^ neg hu
-    lpos j i = startPos +^ (2*i *^ hu) +^
-        2 *^ rotate (-j) (neg hw)
-    drawInitLock j i name solved isTut = do
-        let pos = lpos j i
+    accessible = Map.filterWithKey (\v _ -> initLockAccessible tutSolved initLocks v) initLocks
+    tutPos = ((`div`2) . maximumBound 0 $ hx <$> Map.keys accessible) *^ neg hu
+    drawInitLock v name solved isTut = do
+        let pos = tutPos +^ 2 *^ v
         drawNameCol name pos $ if solved then bright green else brightish blue
         when solved . renderToMain $ sequence_
             [ drawAtRel (LineGlyph h $ bright green) $ pos +^ h
-            | d <- [-1..1]
-            , let j' = j + d
-            , j' >= 0 && j' <= 2
-            , let h = rotate (-d) hu
+            | h <- (`rotate` hu) <$> [-1..1]
+            , abs (hy $ pos +^ h) <= 2
             ]
         registerSelectable pos 0 $ if isTut then SelTut else SelInitLock name
 drawMainState' MetaState {curServer=saddr, undeclareds=undecls,

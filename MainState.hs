@@ -189,17 +189,13 @@ data InitLock = InitLock
     , initLockSolved  :: Bool
     , initLockPartial :: Maybe SavedPlayState
     } deriving (Eq, Ord, Show, Read)
-type InitLocks = [[InitLock]]
+type InitLocks = Map HexVec InitLock
 
-initLockAccessible :: Bool -> InitLocks -> Int -> Int -> Bool
-initLockAccessible tutSolved initLocks j i = or
-    [ ((i+di < 0 && tutSolved) ||) . fromMaybe False $ do
-        ls <- atMay initLocks $ j + dj
-        initLockSolved <$> atMay ls (i + di)
-    | (di,dj) <- case j of
-        0 -> [(-1,0),(-1,1)]
-        1 -> [(-1,0),(0,-1),(0,1)]
-        2 -> [(-1,0),(-1,-1)] ]
+initLockAccessible :: Bool -> InitLocks -> HexVec -> Bool
+initLockAccessible tutSolved initLocks v = or
+    [ ((v' == zero && tutSolved) ||) . fromMaybe False $
+        initLockSolved <$> Map.lookup v' initLocks
+    | v' <- (v +^) . (`rotate` neg hu) <$> [-1..1] ]
 savePlayState :: MainState -> SavedPlayState
 savePlayState ps = SavedPlayState (getMoves ps) $ Map.map getMoves $ psMarks ps
     where getMoves = reverse . map snd . psGameStateMoveStack
@@ -228,14 +224,19 @@ readInitProgress = do
     initDataDir <- getDataPath "initiation"
     tut <- fromMaybe initTutProgress <$> readReadFile (initConfDir </> "tutProgress")
     locknames <- fromMaybe [] <$> readReadFile (initDataDir </> "initiation.map")
-    let readInitLock :: String -> IO (Maybe InitLock)
+    let namesMap :: Map HexVec Codename 
+        namesMap = Map.fromList $
+            [ (rotate (-j) (neg hw) +^ i *^ hu, name)
+            | (j,line) <- zip [0..] locknames
+            , (i,name) <- zip [0..] line ]
+        readInitLock :: String -> IO (Maybe InitLock)
         readInitLock name = runMaybeT $ do
             desc <- MaybeT $ listToMaybe <$> readStrings (initDataDir </> name ++ ".text")
             lock <- (fst <$>) . MaybeT $ readLock (initDataDir </> name ++ ".lock")
             solved <- lift . (fromMaybe False <$>) . readReadFile $ initConfDir </> name ++ ".solved"
             partial <- lift . readReadFile $ initConfDir </> name ++ ".partial"
             return $ InitLock name desc lock solved partial
-    initLocks <- mapM ((catMaybes <$>) . mapM readInitLock) locknames
+    initLocks <- Map.mapMaybe id <$> mapM readInitLock namesMap
     return (tut,initLocks)
 
 writeServerSolns :: ServerAddr -> MainState -> IO ()
@@ -262,7 +263,7 @@ writeInitState InitState { tutProgress = tut, initLocks = initLocks } = do
         writeInitLockInfo (InitLock name _ _ solved partial) = do
             writeReadFile (initConfDir </> name ++ ".solved") solved
             writeReadFile (initConfDir </> name ++ ".partial") partial
-    mapM_ (mapM_ writeInitLockInfo) initLocks
+    mapM_ writeInitLockInfo initLocks
 writeInitState _ = return ()
 
 writeMetaState :: MainState -> IO ()
