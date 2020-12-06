@@ -382,7 +382,7 @@ data UIOptButton a = UIOptButton { getUIOpt :: UIOptions->a, setUIOpt :: a->UIOp
 
 -- non-uniform type, so can't use a list...
 uiOB1 = UIOptButton useFiveColouring (\v o -> o {useFiveColouring=v}) [True,False]
-        (periphery 0 +^ 2 *^ hu) UseFiveColourButton
+        (periphery 0 +^ 3 *^ hu +^ neg hv) UseFiveColourButton
         (\v -> if v then "Adjacent pieces get different colours" else
         "Pieces are coloured according to type")
         [IMPlay, IMReplay, IMEdit] Nothing
@@ -403,17 +403,17 @@ uiOB3 = UIOptButton whsButtons (\v o -> o {whsButtons=v}) [Nothing, Just WHSSele
                 WHSHook     -> "hook; right-click to rebind")
         [IMPlay, IMEdit] Nothing
 uiOB4 = UIOptButton showButtonText (\v o -> o {showButtonText=v}) [True,False]
-        (periphery 0 +^ 2 *^ hu +^ 2 *^ hv) ShowButtonTextButton
+        (periphery 0 +^ 2 *^ hu +^ 3 *^ hv) ShowButtonTextButton
         (\v -> if v then "Help text enabled" else
         "Help text disabled")
-        [IMPlay, IMEdit, IMReplay, IMMeta] Nothing
+        [IMPlay, IMEdit, IMReplay, IMMeta, IMInit] Nothing
 uiOB5 = UIOptButton fullscreen (\v o -> o {fullscreen=v}) [True,False]
         (periphery 0 +^ 4 *^ hu +^ 2 *^ hv) FullscreenButton
         (\v -> if v then "Currently in fullscreen mode; click to toggle" else
         "Currently in windowed mode; click to toggle")
-        [IMPlay, IMEdit, IMReplay, IMMeta] (Just $ const $ initVideo 0 0)
+        [IMPlay, IMEdit, IMReplay, IMMeta, IMInit] (Just $ const $ initVideo 0 0)
 uiOB6 = UIOptButton useSounds (\v o -> o {useSounds=v}) [True,False]
-        (periphery 0 +^ 3 *^ hu +^ hv) UseSoundsButton
+        (periphery 0 +^ 4 *^ hu +^ hv) UseSoundsButton
         (\v -> if v then "Sound effects enabled" else
         "Sound effects disabled")
         [IMPlay, IMEdit, IMReplay] Nothing
