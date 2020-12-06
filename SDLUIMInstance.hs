@@ -488,23 +488,30 @@ drawMainState' EditState { esGameState=st, esGameStateStack=sts, esUndoneStack=u
 drawMainState' InitState {initLocks=initLocks, tutProgress=TutProgress{tutSolved=tutSolved}} = lift $ do
     renderToMain (erase >> drawCursorAt Nothing)
     renderToMain . renderStrColAt white "I N T R I C A C Y" $ 3 *^ (hv +^ neg hw)
-    drawInitLock zero "TUT" tutSolved True
-    mapM_ (\(v,l) -> drawInitLock v (initLockName l) (initLockSolved l) False) $
-        Map.toList accessible
-    registerButton (tutPos +^ 2 *^ neg hu +^ hv) (CmdSolveInit Nothing) 2
+    drawInitLock zero
+    mapM_ drawInitLock $ Map.keys accessible
+    registerButton (tutPos +^ 3 *^ neg hu +^ hv) (CmdSolveInit Nothing) 2
         [("solve",hu+^neg hw),("lock",hu+^neg hv)]
     where
     accessible = accessibleInitLocks tutSolved initLocks
     tutPos = ((`div`2) . maximumBound 0 $ hx <$> Map.keys accessible) *^ neg hu
-    drawInitLock v name solved isTut = do
+    name v | v == zero = "TUT"
+        | otherwise = fromMaybe "???" $ initLockName <$> Map.lookup v accessible
+    solved v | v == zero = tutSolved
+        | otherwise = fromMaybe False $ initLockSolved <$> Map.lookup v accessible
+    drawInitLock v = do
         let pos = tutPos +^ 2 *^ v
-        drawNameCol name pos $ if solved then brightish green else brightish yellow
-        when solved . renderToMain $ sequence_
-            [ drawAtRel (LineGlyph h $ brightish green) $ pos +^ h
-            | h <- (`rotate` hu) <$> [-1..1]
-            , abs (hy $ pos +^ h) <= 2
-            ]
-        registerSelectable pos 0 $ if isTut then SelTut else SelInitLock v
+        drawNameCol (name v) pos $ if solved v then brightish green else brightish yellow
+        renderToMain $ sequence_
+            [ (if open then PathGlyph h $ brightish white
+                else GateGlyph h $ (if inbounds then dim else bright) white)
+                `drawAtRel` (pos +^ h)
+            | h <- hexDirs
+            , let v' = v +^ h
+            , let inbounds = abs (hy v') < 2 && hx v' >= 0 && hz v' <= 0
+            , not inbounds || h `elem` [hu, neg hw, neg hv]
+            , let open = inbounds && (solved v || solved v') ]
+        registerSelectable pos 0 $ if v == zero then SelTut else SelInitLock v
 drawMainState' MetaState {curServer=saddr, undeclareds=undecls,
         cacheOnly=cOnly, curAuth=auth, codenameStack=names,
         randomCodenames=rnamestvar, retiredLocks=mretired, curLockPath=path,

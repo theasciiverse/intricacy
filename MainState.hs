@@ -204,7 +204,7 @@ accessibleInitLocks tutSolved initLocks =
     initLockAccessible v = or
         [ (v' == zero && tutSolved) ||
             (Just True == (initLockSolved <$> Map.lookup v' initLocks))
-        | v' <- (v +^) . (`rotate` neg hu) <$> [-1..1] ]
+        | v' <- (v +^) <$> hexDirs ]
 
 savePlayState :: MainState -> SavedPlayState
 savePlayState ps = SavedPlayState (getMoves ps) $ Map.map getMoves $ psMarks ps

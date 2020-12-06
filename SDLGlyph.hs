@@ -50,7 +50,8 @@ data Glyph
     | HollowInnerGlyph Pixel
     | FilledHexGlyph Pixel
     | ButtonGlyph Pixel
-    | LineGlyph HexDir Pixel
+    | PathGlyph HexDir Pixel
+    | GateGlyph HexDir Pixel
     | UseFiveColourButton Bool
     | ShowBlocksButton ShowBlocks
     | ShowButtonTextButton Bool
@@ -278,12 +279,17 @@ renderGlyph (FilledHexGlyph col) =
 renderGlyph (ButtonGlyph col) =
     renderGlyph (TileGlyph (BlockTile []) col)
 
-renderGlyph (LineGlyph dir col) = do
-    thickLineR from to 1 col
-        where
-            dir' = if dir == zero then hu else dir
-            from = edge $ neg dir'
-            to = innerCorner dir'
+renderGlyph (PathGlyph dir col) = do
+    aaLineR from to col
+    where
+    from = edge $ neg dir
+    to = edge dir
+
+renderGlyph (GateGlyph dir col) = do
+    aaLineR from to col
+    where
+    from = corner $ 1 + hextant dir
+    to = corner $ 4 + hextant dir
 
 renderGlyph (UseFiveColourButton using) =
     rescaleRender (1/2) $ sequence_ [
