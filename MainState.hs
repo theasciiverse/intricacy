@@ -185,7 +185,7 @@ initTutProgress = TutProgress False 1 Nothing
 
 wrenchOnlyTutLevel, noUndoTutLevel :: Maybe Int -> Bool
 wrenchOnlyTutLevel = (`elem` (Just <$> [1..3]))
-noUndoTutLevel = (`elem` (Just <$> [1..8]))
+noUndoTutLevel = (`elem` (Just <$> [1..6]))
 
 data InitLock = InitLock
     { initLockName    :: String
