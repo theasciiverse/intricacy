@@ -161,8 +161,7 @@ instance UIMonad (StateT UIState IO) where
 
     setYNButtons = do
         clearButtons
-        registerButton (periphery 5 +^ hw) (CmdInputChar 'Y') 2 []
-        registerButton (periphery 5 +^ neg hv) (CmdInputChar 'N') 0 []
+        registerButton (periphery 5 +^ hw +^ neg hv) (CmdInputChar 'Y') 2 []
         drawButtons IMTextInput
         refresh
 
