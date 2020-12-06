@@ -23,6 +23,7 @@ import qualified Data.Map            as Map
 import           Data.Maybe
 import           Data.Traversable    as T
 import qualified Data.Vector         as Vector
+import           Safe                (maximumBound)
 
 import           BoardColouring
 import           CVec
@@ -48,8 +49,9 @@ stateToAscii st =
 lockOfAscii :: AsciiLock -> Maybe Lock
 lockOfAscii lines = do
     board <- asciiToBoard lines
-    let size = maximum $ hx . (-^origin) <$> Map.keys board
+    let size = maximumBound 0 $ hx . (-^origin) <$> Map.keys board
         frame = BasicFrame size
+    guard $ size > 0
     st <- asciiBoardState frame board
     return (frame, st)
 
