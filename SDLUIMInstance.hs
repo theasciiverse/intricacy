@@ -67,7 +67,7 @@ instance UIMonad (StateT UIState IO) where
             drawUIOptionButtons mode
             updateHoverStr mode
             drawMsgLine
-            drawShortMouseHelp mode
+            drawShortMouseHelp mode s
             refresh
     drawMessage = say
     drawPrompt full s = say $ s ++ (if full then "" else "_")
@@ -438,9 +438,10 @@ instance UIMonad (StateT UIState IO) where
 
 drawMainState' :: MainState -> MainStateT UIM ()
 drawMainState' PlayState { psCurrentState=st, psLastAlerts=alerts,
-        wrenchSelected=wsel, psIsTut=isTut, psSolved=solved } = do
+        wrenchSelected=wsel, psTutLevel=tutLevel, psSolved=solved } = do
     canUndo <- gets (null . psGameStateMoveStack)
     canRedo <- gets (null . psUndoneStack)
+    let isTut = isJust tutLevel
     lift $ do
         let selTools = [ idx |
                 (idx, PlacedPiece pos p) <- enumVec $ placedPieces st
@@ -456,7 +457,9 @@ drawMainState' PlayState { psCurrentState=st, psLastAlerts=alerts,
                 | not $ lb || rb
                 , PlacedPiece pos p <- Vector.toList $ placedPieces st
                 , isTool p]
-        registerUndoButtons canUndo canRedo
+        unless (noUndoTutLevel tutLevel) $ do
+            registerUndoButtons canUndo canRedo
+            registerButtonGroup markButtonGroup
         registerButton (periphery 0) CmdOpen (if solved then 2 else 0) $
             ("open", hu+^neg hw) : [("Press-->",9*^neg hu) | solved && isTut]
 drawMainState' ReplayState { rsCurrentState=st, rsLastAlerts=alerts } = do
@@ -637,34 +640,36 @@ drawMainState' MetaState {curServer=saddr, undeclareds=undecls,
                 , ('+',posScore,posRight+^neg hv+^hw) ] ]
 
 
-drawShortMouseHelp mode = do
+drawShortMouseHelp mode s = do
     mwhs <- gets $ whsButtons.uiOptions
     showBT <- gets (showButtonText . uiOptions)
     when (showBT && isNothing mwhs) $ do
-        let helps = shortMouseHelp mode
+        let helps = shortMouseHelp mode s
         smallFont <- gets dispFontSmall
         renderToMain $ withFont smallFont $ sequence_
             [ renderStrColAtLeft (dim cyan) help
                 (periphery 3 +^ neg hu +^ (2-n)*^hv )
             | (n,help) <- zip [0..] helps ]
     where
-        shortMouseHelp IMPlay =
+        shortMouseHelp IMPlay PlayState { psTutLevel = tutLevel } =
             [ "LMB: select/move tool"
-            , "LMB+drag: move tool"
-            , "Wheel: turn hook"
-            , "RMB: wait a turn"
-            , "RMB+Wheel: undo/redo"
-            ]
-        shortMouseHelp IMEdit =
+            , "LMB+drag: move tool" ] ++
+            [ "Wheel: turn hook"
+            | not $ wrenchOnlyTutLevel tutLevel ] ++
+            [ "RMB+Wheel: undo/redo"
+            | not $ noUndoTutLevel tutLevel ] ++
+            [ "RMB: wait a turn"
+            | isNothing tutLevel ]
+        shortMouseHelp IMEdit _ =
             [ "LMB: paint; Ctrl+LMB: delete"
             , "Wheel: set paint type"
             , "RMB: select piece; drag to move"
             , "RMB+LMB: wait; RMB+MMB: delete piece"
             , "MMB+Wheel: undo/redo"
             ]
-        shortMouseHelp IMReplay =
+        shortMouseHelp IMReplay _ =
             [ "Wheel: advance/regress time" ]
-        shortMouseHelp _ = []
+        shortMouseHelp _ _ = []
 
 -- waitEvent' : copy of SDL.Events.waitEvent, with the timeout increased
 -- drastically to reduce CPU load when idling.

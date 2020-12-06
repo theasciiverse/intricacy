@@ -160,14 +160,13 @@ getButtons mode = do
         IMEdit -> [
             singleButton (tl+^hv+^neg hw) CmdTest 1 [("test", hu+^neg hw)]
             , singleButton (tl+^neg hw) CmdPlay 2 [("play", hu+^neg hw)]
-            , markGroup
+            , markButtonGroup
             , singleButton (br+^2*^hu) CmdWriteState 2 [("save", hu+^neg hw)] ]
             ++ whsBGs mwhs mode
             ++ [ ([Button (paintButtonStart +^ hu +^ i*^hv) (paintTileCmds!!i) []
                 | i <- take (length paintTiles) [0..] ],(5,0)) ]
-        IMPlay ->
-            markGroup : whsBGs mwhs mode
-        IMReplay -> [ markGroup ]
+        IMPlay -> whsBGs mwhs mode
+        IMReplay -> [ markButtonGroup ]
         IMMeta ->
             [ singleButton serverPos CmdSetServer 0 [("server",7*^neg hu)]
             , singleButton (serverPos+^hw) CmdToggleCacheOnly 0 [("offline",hv+^7*^neg hu),("mode",hw+^5*^neg hu)]
@@ -177,9 +176,6 @@ getButtons mode = do
 
         _ -> []
         where
-            markGroup = ([Button (tl+^hw) CmdMark [("set",hu+^neg hw),("mark",hu+^neg hv)]
-                , Button (tl+^hw+^hv) CmdJumpMark [("jump",hu+^neg hw),("mark",hu+^neg hv)]
-                , Button (tl+^hw+^2*^hv) CmdReset [("jump",hu+^neg hw),("start",hu+^neg hv)]],(0,1))
             global = if mode `elem` [IMTextInput,IMImpatience] then [] else
                 [ singleButton br CmdQuit 0 [("quit",hu+^neg hw)]
                 , singleButton (tr +^ 3*^hv +^ 3*^hu) CmdHelp 3 [("help",hu+^neg hw)] ]
@@ -206,6 +202,12 @@ getButtons mode = do
             tl = periphery 2
             bl = periphery 3
             br = periphery 5
+
+markButtonGroup = ([Button (tl+^hw) CmdMark [("set",hu+^neg hw),("mark",hu+^neg hv)]
+    , Button (tl+^hw+^hv) CmdJumpMark [("jump",hu+^neg hw),("mark",hu+^neg hv)]
+    , Button (tl+^hw+^2*^hv) CmdReset [("jump",hu+^neg hw),("start",hu+^neg hv)]],(0,1))
+    where
+    tl = periphery 2
 
 data AccessedInfo = AccessedSolved | AccessedPublic | AccessedReadNotes | AccessedUndeclared
     deriving (Eq, Ord, Show)
