@@ -526,19 +526,19 @@ titlePos = (maxlocksize+1)*^hv +^ ((maxlocksize+1)`div`2)*^hu
 
 screenWidthHexes,screenHeightHexes :: Int
 screenWidthHexes = 32
-screenHeightHexes = 25
+screenHeightHexes = 26
 getGeom :: UIM (SVec, Int)
 getGeom = do
     h <- gets scrHeight
     w <- gets scrWidth
     let scrCentre = SVec (w`div`2) (h`div`2)
     -- |size is the greatest integer such that
-    -- and [2*size*screenWidthHexes <= width
-    --        , 3*ysize size*screenHeightHexes <= height]
+    -- and [2*size*screenWidthHexes < width
+    --        , 3*ysize size*screenHeightHexes < height]
     --        where ysize size = round $ fi size / sqrt 3
     -- Minimum allowed size is 2 (get segfaults on SDL_FreeSurface with 1).
-    let size = max 2 $ minimum [ w`div`(2*screenWidthHexes)
-            , floor $ sqrt 3 * (0.5 + fi (h`div`(3*screenHeightHexes)))]
+    let size = max 2 $ minimum [ (w-1)`div`(2*screenWidthHexes)
+            , floor $ sqrt 3 * (0.5 + fi ((h-1)`div`(3*screenHeightHexes)))]
     return (scrCentre, size)
 
 data DrawArgs = DrawArgs [PieceIdx] Bool [Alert] GameState UIOptions
