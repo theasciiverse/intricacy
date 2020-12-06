@@ -180,6 +180,7 @@ instance UIMonad (StateT UIState IO) where
             return (cmds,uistatesMayVisiblyDiffer oldUIState newUIState)
         now <- liftIO getTicks
         animFrameReady <- gets (maybe False (<now) . nextAnimFrameAt)
+        unless (null cmds) clearMsg
         return $ cmds ++ [CmdRefresh | uiChanged || animFrameReady]
         where
             nubMouseMotions evs =
