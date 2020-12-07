@@ -136,6 +136,7 @@ data MainState
         , curLockPath      :: FilePath
         , curLock          :: Maybe (Lock,Maybe Solution)
         , listOffset       :: Int
+        , initiated        :: Bool
         }
 
 type MainStateT = StateT MainState
@@ -164,13 +165,13 @@ initMetaState = do
     invaltvar <- newTVarIO Nothing
     rnamestvar <- newTVarIO []
     counttvar <- newTVarIO 0
-    (saddr', auth, path) <- confFilePath "metagame.conf" >>=
-        fmap (fromMaybe (defaultServerAddr, Nothing, "")) . readReadFile
+    (initiated, saddr', auth, path) <- confFilePath "metagame.conf" >>=
+        fmap (fromMaybe (False, defaultServerAddr, Nothing, "")) . readReadFile
     let saddr = updateDefaultSAddr saddr'
     let names = maybeToList $ authUser <$> auth
     (undecls,partials) <- readServerSolns saddr
     mlock <- fullLockPath path >>= readLock
-    return $ MetaState saddr undecls partials False auth names flag counttvar errtvar invaltvar rnamestvar Map.empty Map.empty Nothing path mlock 0
+    return $ MetaState saddr undecls partials False auth names flag counttvar errtvar invaltvar rnamestvar Map.empty Map.empty Nothing path mlock 0 initiated
 
 type PartialSolutions = Map LockSpec SavedPlayState
 data SavedPlayState = SavedPlayState [PlayerMove] (Map Char [PlayerMove])
@@ -205,6 +206,9 @@ accessibleInitLocks tutSolved initLocks =
         [ (v' == zero && tutSolved) ||
             (Just True == (initLockSolved <$> Map.lookup v' initLocks))
         | v' <- (v +^) <$> hexDirs ]
+
+isLastInitLock :: InitLock -> Bool
+isLastInitLock = (== "END") . initLockName
 
 savePlayState :: MainState -> SavedPlayState
 savePlayState ps = SavedPlayState (getMoves ps) $ Map.map getMoves $ psMarks ps
@@ -277,8 +281,8 @@ writeInitState InitState { tutProgress = tut, initLocks = initLocks } = do
 writeInitState _ = return ()
 
 writeMetaState :: MainState -> IO ()
-writeMetaState ms@MetaState { curServer=saddr, curAuth=auth, curLockPath=path } = do
-    confFilePath "metagame.conf" >>= flip writeReadFile (saddr, auth, path)
+writeMetaState ms@MetaState { curServer=saddr, curAuth=auth, curLockPath=path, initiated=initiated } = do
+    confFilePath "metagame.conf" >>= flip writeReadFile (initiated, saddr, auth, path)
     writeServerSolns saddr ms
 writeMetaState _ = return ()
 

@@ -71,12 +71,9 @@ main' :: (UIMonad s, UIMonad c) =>
         Maybe (c MainState -> IO (Maybe MainState)) -> IO ()
 main' msdlUI mcursesUI = do
     (mlock,opts,mpath) <- setup
-    -- TODO: redo architecture to allow for switching of top level state...
     initMState <- case mlock of
             Just lock -> return $ newEditState lock Nothing mpath
-            Nothing   -> do
-                initiated <- fileExists =<< confFilePath "initiationComplete"
-                if initiated then initMetaState else initInitState
+            Nothing   -> initMetaState
     void $ runMaybeT $ msum [ do
             finalState <- msum
                 [ do
@@ -88,6 +85,5 @@ main' msdlUI mcursesUI = do
                     MaybeT $ cursesUI $ interactUI `execStateT` initMState
                 ]
             lift $ writeMetaState finalState
-            lift $ writeInitState finalState
             lift exitSuccess
         , lift exitFailure ]

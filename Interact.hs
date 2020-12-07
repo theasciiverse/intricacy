@@ -63,28 +63,28 @@ import           Util
 newtype InteractSuccess = InteractSuccess Bool
 
 interactUI :: UIMonad uiM => MainStateT uiM InteractSuccess
-interactUI = do
-    im <- gets ms2im
-    lift $ onNewMode im
-    when (im == IMEdit) setSelectedPosFromMouse
-    when (im == IMMeta) $ do
-        spawnUnblockerThread
+interactUI = endEarly >>= \e -> if e then return $ InteractSuccess False else do
+        im <- gets ms2im
+        lift $ onNewMode im
+        when (im == IMEdit) setSelectedPosFromMouse
+        when (im == IMMeta) $ do
+            spawnUnblockerThread
 
-        -- draw before testing auth, lest a timeout mean a blank screen
-        drawMainState
+            -- draw before testing auth, lest a timeout mean a blank screen
+            drawMainState
 
-        testAuth
-        refreshUInfoUI
-        tbdg <- lift $ getUIBinding IMMeta CmdTutorials
-        isNothing <$> gets curAuth >>?
-            lift $ drawMessage $ "Welcome. To play the tutorial levels, press '"++tbdg++"'."
-    setMark False startMark
-    interactLoop
+            testAuth
+            refreshUInfoUI
+        setMark False startMark
+        interactLoop
 
     where
+        endEarly = do
+            gets initiationRequired >>? doInitiation
+            gets initiationRequired
+            where initiationRequired s = ms2im s == IMMeta && not (initiated s)
         interactLoop = do
-            mainSt <- get
-            let im = ms2im mainSt
+            im <- gets ms2im
             when (im == IMPlay) checkWon
             when (im == IMMeta) $ (checkAsync >>) $ void.runMaybeT $
                 mourNameSelected >>? lift purgeInvalidUndecls
@@ -113,6 +113,25 @@ runSubMainState mSt = lift (runStateT interactUI mSt) <* cleanOnPop
 execSubMainState :: UIMonad uiM => MainState -> MainStateT uiM MainState
 execSubMainState = (snd <$>) . runSubMainState
 
+doInitiation :: UIMonad uiM => MainStateT uiM ()
+doInitiation = do
+    (InteractSuccess complete, s) <- runSubMainState =<< liftIO initInitState
+    liftIO $ writeInitState s
+    when complete $ do
+        modify $ \s -> s {initiated = True}
+        mauth <- gets curAuth
+        when (isNothing mauth) $ do
+            cbdg <- lift $ getUIBinding IMMeta $ CmdSelCodename Nothing
+            rbdg <- lift $ getUIBinding IMMeta (CmdRegister False)
+            let showPage p prompt = lift $ withNoBG $ showHelp IMMeta p >>? do
+                    void $ textInput prompt 1 False True Nothing Nothing
+            showPage (HelpPageInitiated 1) "[Initiation complete! Press a key or RMB to continue]"
+            showPage (HelpPageInitiated 2) "[Press a key or RMB to continue]"
+            showPage (HelpPageInitiated 3) "[Press a key or RMB to continue]"
+            lift $ drawMessage $
+                "To join the game: pick a codename ('"++cbdg++
+                "') and register it ('"++rbdg++"')."
+
 getSomeInput im = do
     cmds <- getInput im
     if null cmds then getSomeInput im else return cmds
@@ -137,6 +156,53 @@ processCommand IMPlay CmdOpen = do
     if checkSolved (frame,st)
         then throwE $ InteractSuccess True
         else lift.lift $ drawError "Locked!"
+
+processCommand IMInit (CmdSolveInit Nothing) = void.runMaybeT $ do
+    tutSolved <- lift . gets $ tutSolved . tutProgress
+    accessible <- lift . gets $ accessibleInitLocks tutSolved . initLocks
+    v <- if Map.null accessible then return zero else do
+        let nameMap = Map.fromList $ ("TUT",zero) :
+                [(initLockName l, v) | (v,l) <- Map.toList accessible]
+            names = Map.keys nameMap
+        name <- (map toUpper <$>) . MaybeT . lift . lift $
+            textInput ("Solve which? ["
+                ++ intercalate "," (take 3 names)
+                ++ if length names > 3 then ",...]" else "]")
+            3 False True (Just names) Nothing
+        MaybeT . return $ Map.lookup name nameMap
+    lift . processCommand IMInit . CmdSolveInit $ Just v
+processCommand IMInit (CmdSolveInit (Just v)) | v == zero = lift.void.runMaybeT $ do
+    tutdir <- liftIO $ getDataPath "tutorial"
+    tuts <- liftIO . ignoreIOErr $
+        sort . map (takeWhile (/='.')) . filter (isSuffixOf ".lock") <$>
+            getDirectoryContents tutdir
+    when (null tuts) $ do
+        lift.lift $ drawError "No tutorial levels found"
+        mzero
+    let dotut i msps = do
+            let name = tuts !! (i-1)
+            let pref = tutdir ++ [pathSeparator] ++ name
+            (lock,_) <- MaybeT $ liftIO $ readLock (pref ++ ".lock")
+            text <- liftIO $ fromMaybe "" . listToMaybe <$> readStrings (pref ++ ".text")
+            solveLockSaving i msps (Just i) lock $ Just $ "Tutorial " ++ show i ++ ": " ++ text
+            if i+1 <= length tuts
+                then dotut (i+1) Nothing
+                else lift $ do
+                    modify $ \is -> is {tutProgress = TutProgress True 1 Nothing}
+                    lift $ drawMessage "Tutorial complete!"
+    TutProgress _ onLevel msps <- lift $ gets tutProgress
+    dotut onLevel msps
+processCommand IMInit (CmdSolveInit (Just v)) = void.runMaybeT $ do
+    l@InitLock { initLockDesc=desc, initLockLock=lock, initLockPartial=partial } <-
+        MaybeT . lift $ gets (Map.lookup v . initLocks)
+    lift $ do
+        (InteractSuccess solved, ps) <- lift . runSubMainState $
+            maybe newPlayState restorePlayState partial (reframe lock) (Just desc) Nothing False True
+        let updateLock initLock = initLock { initLockSolved = solved
+                , initLockPartial = Just $ savePlayState ps }
+        lift . modify $ \is -> is { initLocks = Map.adjust updateLock v $ initLocks is }
+        when (solved && isLastInitLock l) . throwE $ InteractSuccess True
+
 processCommand im cmd = lift $ processCommand' im cmd
 
 processCommand' :: UIMonad uiM => InputMode -> Command -> MainStateT uiM ()
@@ -184,67 +250,7 @@ processCommand' im CmdJumpMark = void.runMaybeT $ do
     ch <- liftMaybe $ listToMaybe str
     lift $ jumpMark ch
 processCommand' im CmdReset = jumpMark startMark
-processCommand' IMInit (CmdSolveInit Nothing) = void.runMaybeT $ do
-    tutSolved <- lift . gets $ tutSolved . tutProgress
-    accessible <- lift . gets $ accessibleInitLocks tutSolved . initLocks
-    v <- if Map.null accessible then return zero else do
-        let nameMap = Map.fromList $ ("TUT",zero) :
-                [(initLockName l, v) | (v,l) <- Map.toList accessible]
-            names = Map.keys nameMap
-        name <- (map toUpper <$>) $ MaybeT $ lift $
-            textInput ("Solve which? ["
-                ++ intercalate "," (take 3 names)
-                ++ if length names > 3 then ",...]" else "]")
-            3 False True (Just names) Nothing
-        MaybeT . return $ Map.lookup name nameMap
-    lift . processCommand' IMInit . CmdSolveInit $ Just v
-processCommand' IMInit (CmdSolveInit (Just v)) | v == zero = void.runMaybeT $ do
-    tutdir <- liftIO $ getDataPath "tutorial"
-    tuts <- liftIO . ignoreIOErr $
-        sort . map (takeWhile (/='.')) . filter (isSuffixOf ".lock") <$>
-            getDirectoryContents tutdir
-    when (null tuts) $ do
-        lift.lift $ drawError "No tutorial levels found"
-        mzero
-    let dotut i msps = do
-            let name = tuts !! (i-1)
-            let pref = tutdir ++ [pathSeparator] ++ name
-            (lock,_) <- MaybeT $ liftIO $ readLock (pref ++ ".lock")
-            text <- liftIO $ fromMaybe "" . listToMaybe <$> readStrings (pref ++ ".text")
-            solveLockSaving i msps (Just i) lock $ Just $ "Tutorial " ++ show i ++ ": " ++ text
-            if i+1 <= length tuts
-                then dotut (i+1) Nothing
-                else lift $ do
-                    modify $ \is -> is {tutProgress = TutProgress True 1 Nothing}
-                    lift $ drawMessage "Tutorial complete!"
-                    {-
-                    mauth <- gets curAuth
-                    cbdg <- lift $ getUIBinding IMMeta $ CmdSelCodename Nothing
-                    rbdg <- lift $ getUIBinding IMMeta (CmdRegister False)
-                    if isNothing mauth
-                        then do
-                            let showPage p prompt = lift $ withNoBG $ showHelp IMMeta p >>? do
-                                    void $ textInput prompt 1 False True Nothing Nothing
-                            showPage (HelpPageInitiated 1) "[Tutorial complete! Press a key or RMB to continue]"
-                            showPage (HelpPageInitiated 2) "[Press a key or RMB to continue]"
-                            showPage (HelpPageInitiated 3) "[Press a key or RMB to continue]"
-                            --showPage HelpPageGame "[Press a key or RMB to continue; you can review this information later with '?']"
-                            lift $ drawMessage $
-                                "To join the game: pick a codename ('"++cbdg++
-                                "') and register it ('"++rbdg++"')."
-                        else lift $ drawMessage "Tutorial completed!"
-                    -}
-    TutProgress _ onLevel msps <- lift $ gets tutProgress
-    dotut onLevel msps
-processCommand' IMInit (CmdSolveInit (Just v)) = void.runMaybeT $ do
-    InitLock { initLockDesc=desc, initLockLock=lock, initLockPartial=partial } <-
-        MaybeT $ gets (Map.lookup v . initLocks)
-    lift $  do
-        (InteractSuccess solved, ps) <- runSubMainState $
-            maybe newPlayState restorePlayState partial (reframe lock) (Just desc) Nothing False True
-        let updateLock initLock = initLock { initLockSolved = solved
-                , initLockPartial = Just $ savePlayState ps }
-        modify $ \is -> is { initLocks = Map.adjust updateLock v $ initLocks is }
+
 processCommand' IMMeta (CmdSelCodename mname) = void.runMaybeT $ do
     mauth <- gets curAuth
     name <- msum [ liftMaybe mname
