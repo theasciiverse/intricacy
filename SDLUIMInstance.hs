@@ -501,7 +501,7 @@ drawMainState' InitState {initLocks=initLocks, tutProgress=TutProgress{tutSolved
         | otherwise = fromMaybe False $ initLockSolved <$> Map.lookup v accessible
     drawInitLock v = do
         let pos = tutPos +^ 2 *^ v
-        drawNameCol (name v) pos $ if solved v then brightish green else brightish yellow
+        drawNameCol (name v) pos $ if solved v then brightish purple else brightish green
         renderToMain $ sequence_
             [ (if open then PathGlyph h $ brightish white
                 else GateGlyph h $ (if inbounds then dim else bright) white)
@@ -654,7 +654,7 @@ drawShortMouseHelp mode s = do
         let helps = shortMouseHelp mode s
         smallFont <- gets dispFontSmall
         renderToMain $ withFont smallFont $ sequence_
-            [ renderStrColAtLeft (dim cyan) help
+            [ renderStrColAtLeft (dim white) help
                 (periphery 3 +^ neg hu +^ (2-n)*^hv )
             | (n,help) <- zip [0..] helps ]
     where

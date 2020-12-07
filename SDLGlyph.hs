@@ -323,7 +323,7 @@ renderGlyph (WhsButtonsButton Nothing) = rescaleRender (1/3) $ do
     sequence_ [ displaceRender ((3/2) **^ edge dir) $
             renderGlyph (ButtonGlyph (dim purple))
         | dir <- hexDirs ]
-renderGlyph (WhsButtonsButton (Just whs)) = rescaleRender (1/2) $ do
+renderGlyph (WhsButtonsButton (Just whs)) = rescaleRender (1/3) $ do
     when (whs /= WHSHook) $
         displaceRender (corner 0) $ renderGlyph (TileGlyph (WrenchTile zero) col)
     when (whs /= WHSWrench) $ do
