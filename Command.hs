@@ -32,7 +32,7 @@ data Command
     | CmdInputCodename Codename
     | CmdInputSelUndecl Undeclared
     | CmdWriteState
-    | CmdTutorials
+    | CmdInitiation
     | CmdShowRetired | CmdPlayLockSpec (Maybe LockSpec)
     | CmdSetServer | CmdToggleCacheOnly
     | CmdSelCodename (Maybe Codename) | CmdBackCodename | CmdHome
@@ -74,7 +74,7 @@ describeCommand CmdRedo = "redo"
 describeCommand (CmdReplayForward _) = "advance replay"
 describeCommand (CmdReplayBack _) = "rewind replay"
 describeCommand CmdWriteState = "write lock"
-describeCommand CmdTutorials = "play tutorial levels"
+describeCommand CmdInitiation = "revisit initiation"
 describeCommand CmdShowRetired = "toggle showing retired locks"
 describeCommand CmdSetServer = "set server"
 describeCommand CmdToggleCacheOnly = "toggle offline mode"

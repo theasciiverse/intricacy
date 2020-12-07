@@ -313,7 +313,7 @@ instance UIMonad (StateT UIState IO) where
                     lockBdgsDraw = bindingsDraw bdgs $
                         CmdEdit : [CmdPlaceLock Nothing | path /= ""]
                     leftBdgsWidth = (+3) . maximum $ drawWidth <$> [serverBdgsDraw, lockBdgsDraw]
-                    helpDraw = bindingsDraw bdgs [CmdTutorials] <> greyDraw " tutorial  " <>
+                    helpDraw = bindingsDraw bdgs [CmdInitiation] <> greyDraw " initiation  " <>
                         bindingsDraw bdgs [CmdHelp] <> greyDraw " help"
                     serverTextDraw = greyDraw . take (w - leftBdgsWidth - drawWidth helpDraw - 1) $
                         " Server: " ++ saddrStr saddr ++ (if cOnly then "  (offline mode) " else "")

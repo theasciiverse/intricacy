@@ -251,6 +251,7 @@ processCommand' im CmdJumpMark = void.runMaybeT $ do
     lift $ jumpMark ch
 processCommand' im CmdReset = jumpMark startMark
 
+processCommand' IMMeta CmdInitiation = doInitiation
 processCommand' IMMeta (CmdSelCodename mname) = void.runMaybeT $ do
     mauth <- gets curAuth
     name <- msum [ liftMaybe mname
