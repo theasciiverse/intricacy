@@ -125,7 +125,7 @@ doInitiation = do
             rbdg <- lift $ getUIBinding IMMeta (CmdRegister False)
             let showPage p prompt = lift $ withNoBG $ showHelp IMMeta p >>? do
                     void $ textInput prompt 1 False True Nothing Nothing
-            showPage (HelpPageInitiated 1) "[Initiation complete! Press a key or RMB to continue]"
+            showPage (HelpPageInitiated 1) "[Initiation complete. Press a key or RMB to continue]"
             showPage (HelpPageInitiated 2) "[Press a key or RMB to continue]"
             showPage (HelpPageInitiated 3) "[Press a key or RMB to continue]"
             lift $ drawMessage $
