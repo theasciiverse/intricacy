@@ -305,7 +305,7 @@ instance UIMonad (StateT UIState IO) where
                         _      -> return [ CmdClear, CmdSelect ] ]
             processEvent (MouseButtonUp _ _ ButtonRight) = do
                 modify $ \s -> s { rightButtonDown = Nothing }
-                return [ CmdUnselect ]
+                return [ CmdUnselect | mode == IMEdit ]
             processEvent (MouseButtonDown _ _ ButtonWheelUp) = doWheel 1
             processEvent (MouseButtonDown _ _ ButtonWheelDown) = doWheel $ -1
             processEvent (MouseButtonDown _ _ ButtonMiddle) = do
