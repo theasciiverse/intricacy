@@ -532,9 +532,7 @@ testAuth = isJust <$> gets curAuth >>? do
 
 initiationHelpText :: [String]
 initiationHelpText =
-    [ ""
-    , ""
-    , "\"Prove yourself\"."
+    [ "\"Prove yourself\"."
     , ""
     , "That's all they said before leaving you in this maze of cells,"
     , "each bare but for a locked mechanism to open gates leading further into the gloom."
@@ -573,8 +571,7 @@ metagameHelpText =
 
 initiationCompleteText :: Int -> [String]
 initiationCompleteText 1 =
-    [ ""
-    , "So."
+    [ "So."
     , ""
     , "This confirms that you have the manual and mental dexterity to pick simple locks."
     , "But have you the supple cunning required to improve on their designs? That remains to be seen."
@@ -587,8 +584,7 @@ initiationCompleteText 1 =
     , "I am eager to hear what codename you will choose for yourself; do be thinking about it."
     ]
 initiationCompleteText 2 =
-    [ ""
-    , "Now."
+    [ "Now."
     , ""
     , "As you fatefully determined, every lock permitted in the city has a fatal hidden flaw."
     , "Those whose duties require it are entrusted with the secrets required to pick these locks."
@@ -601,8 +597,7 @@ initiationCompleteText 2 =
     , "You are to be its newest player."
     ]
 initiationCompleteText 3 =
-    [ ""
-    , "We each design locks, and we each attempt to solve the locks designed by the others."
+    [ "We each design locks, and we each attempt to solve the locks designed by the others."
     , ""
     , "You may put forward up to three prototype locks."
     , "They will guard the secrets you discover: when you pick a colleague's lock,"

@@ -900,12 +900,12 @@ drawLockInfo al@(ActiveLock name idx) (Just lockinfo) = do
 drawBasicHelpPage :: (String,Pixel) -> ([String],Pixel) -> RenderM ()
 drawBasicHelpPage (title,titleCol) (body,bodyCol) = do
     erase
-    let headPos = (screenHeightHexes`div`4)*^(hv+^neg hw)
-    renderStrColAt titleCol title headPos
+    let startPos = hv +^ (length body `div` 4)*^(hv+^neg hw)
+    renderStrColAt titleCol title $ startPos +^ hv +^neg hw
     sequence_
         [ renderStrColAt bodyCol str $
-            headPos
+            startPos
               +^ (y`div`2)*^(hw+^neg hv)
               +^ (y`mod`2)*^hw
-        | (y,str) <- zip [1..] body
+        | (y,str) <- zip [0..] body
         ]
