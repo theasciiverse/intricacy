@@ -496,9 +496,9 @@ drawMainState' InitState {initLocks=initLocks, tutProgress=TutProgress{tutSolved
     accessible = accessibleInitLocks tutSolved initLocks
     tutPos = ((`div`2) . maximumBound 0 $ hx <$> Map.keys accessible) *^ neg hu
     name v | v == zero = "TUT"
-        | otherwise = fromMaybe "???" $ initLockName <$> Map.lookup v accessible
+        | otherwise = maybe "???" initLockName $ Map.lookup v accessible
     solved v | v == zero = tutSolved
-        | otherwise = fromMaybe False $ initLockSolved <$> Map.lookup v accessible
+        | otherwise = Just True == (initLockSolved <$> Map.lookup v accessible)
     drawInitLock v = do
         let pos = tutPos +^ 2 *^ v
         drawNameCol (name v) pos $ if solved v then brightish purple else brightish green
