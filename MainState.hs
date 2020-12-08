@@ -539,7 +539,7 @@ initiationHelpText =
     , ""
     , "Lucky, then, that they neglected to strip you of your lockpicks."
     , ""
-    , "It remains to see if you can use them to find your way out to freedom."
+    , "Now to see if you can use them to slip your way out to freedom."
     , "Wouldn't be the first time..."
     ]
 metagameHelpText :: [String]
@@ -588,7 +588,7 @@ initiationCompleteText 2 =
     , "As for those who unauthorisedly discover, and even try to profit from, said secrets..."
     , "you come to us."
     , ""
-    , "\"Our task you see is to produce the superficially secure locks necessary for this system:"
+    , "\"Our task, you see, is to produce the superficially secure locks necessary for this system:"
     , "locks pickable with minimal tools, but with this fact obscured by their mechanical complexity."
     , ""
     , "\"To push the designs to ever new extremes of intricacy, we run a ritual game."
