@@ -384,7 +384,7 @@ instance UIMonad (StateT UIState IO) where
                             , "Make other players green by solving their locks and not letting them solve yours."]]
                         _ -> []
             when False $ do
-                renderStrColAt cyan "Keybindings:" $ (screenHeightHexes`div`4)*^(hv+^neg hw)
+                renderStrColAtCentre cyan "Keybindings:" $ (screenHeightHexes`div`4)*^(hv+^neg hw)
                 let keybindingsHeight = screenHeightHexes - (3 + length extraHelpStrs + sum (map length extraHelpStrs))
                     bdgWidth = (screenWidthHexes-6) `div` 3
                     showKeys chs = intercalate "/" (map showKeyFriendly chs)
@@ -406,7 +406,7 @@ instance UIMonad (StateT UIState IO) where
                             ]
                         (map (`divMod` keybindingsHeight) [0..])
                     , (x+1)*bdgWidth < screenWidthHexes]
-            sequence_ [ renderStrColAt (if firstLine then cyan else messageCol) str
+            sequence_ [ renderStrColAtCentre (if firstLine then cyan else messageCol) str
                         $ (screenHeightHexes`div`4 - y`div`2)*^(hv+^neg hw)
                           +^ hw
                           +^ (y`mod`2)*^hw
@@ -491,7 +491,7 @@ drawMainState' EditState { esGameState=st, esGameStateStack=sts, esUndoneStack=u
     drawPaintButtons
 drawMainState' InitState {initLocks=initLocks, tutProgress=TutProgress{tutSolved=tutSolved}} = lift $ do
     renderToMain (erase >> drawCursorAt Nothing)
-    renderToMain . renderStrColAt white "I N T R I C A C Y" $ 3 *^ (hv +^ neg hw)
+    renderToMain . renderStrColAtCentre white "I N T R I C A C Y" $ 3 *^ (hv +^ neg hw)
     drawInitLock zero
     mapM_ drawInitLock $ Map.keys accessible
     registerButton (tutPos +^ 3 *^ neg hu +^ hv) (CmdSolveInit Nothing) 2
@@ -905,9 +905,9 @@ drawBasicHelpPage :: (String,Pixel) -> ([String],Pixel) -> RenderM ()
 drawBasicHelpPage (title,titleCol) (body,bodyCol) = do
     erase
     let startPos = hv +^ (length body `div` 4)*^(hv+^neg hw)
-    renderStrColAt titleCol title $ startPos +^ hv +^neg hw
+    renderStrColAtCentre titleCol title $ startPos +^ hv +^neg hw
     sequence_
-        [ renderStrColAt bodyCol str $
+        [ renderStrColAtCentre bodyCol str $
             startPos
               +^ (y`div`2)*^(hw+^neg hv)
               +^ (y`mod`2)*^hw

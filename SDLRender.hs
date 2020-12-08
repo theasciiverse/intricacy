@@ -315,20 +315,26 @@ pixelToColor p =
     let (r,g,b,_) = pixelToRGBA p
     in Color (fi r) (fi g) (fi b)
 
-renderStrColAt,renderStrColAtLeft :: (Functor m, MonadIO m) => Pixel -> String -> HexVec -> RenderT m ()
-renderStrColAt = renderStrColAt' True
-renderStrColAtLeft = renderStrColAt' False
-renderStrColAt' :: (Functor m, MonadIO m) => Bool -> Pixel -> String -> HexVec -> RenderT m ()
-renderStrColAt' centred c str v = void $ runMaybeT $ do
+data Alignment = Centred | LeftAligned | ScreenCentred
+renderStrColAt,renderStrColAtLeft,renderStrColAtCentre ::
+    (Functor m, MonadIO m) => Pixel -> String -> HexVec -> RenderT m ()
+renderStrColAt = renderStrColAt' Centred
+renderStrColAtLeft = renderStrColAt' LeftAligned
+renderStrColAtCentre = renderStrColAt' ScreenCentred
+renderStrColAt' :: (Functor m, MonadIO m) => Alignment -> Pixel -> String -> HexVec -> RenderT m ()
+renderStrColAt' align c str v = void $ runMaybeT $ do
     font <- MaybeT $ asks renderFont
     fsurf <- MaybeT $ liftIO $ TTF.tryRenderTextBlended font str $ pixelToColor c
     (surf, scrCentre, off, size) <- lift $ asks $ liftM4 (,,,) renderSurf renderSCentre renderOffset renderSize
     let SVec x y = scrCentre +^ fVec2SVec size (off +^ hexVec2FVec v)
             +^ neg (SVec 0 ((surfaceGetHeight fsurf-1)`div`2) +^
-                if centred
-                    then SVec (surfaceGetWidth fsurf`div`2) 0
-                    else SVec 0 0)
-    void $ liftIO $ blitSurface fsurf Nothing surf (Just $ Rect x y 0 0)
+                case align of
+                    Centred -> SVec (surfaceGetWidth fsurf`div`2) 0
+                    _ -> SVec 0 0)
+        x' = case align of
+            ScreenCentred -> cx scrCentre - (surfaceGetWidth fsurf `div` 2)
+            _ -> x
+    void $ liftIO $ blitSurface fsurf Nothing surf (Just $ Rect x' y 0 0)
 
 renderStrColAbove,renderStrColBelow :: (Functor m, MonadIO m) => Pixel -> String -> HexVec -> RenderT m ()
 renderStrColAbove = renderStrColVShifted True

@@ -885,7 +885,7 @@ drawMsgLine = void.runMaybeT $ do
         smallFont <- gets dispFontSmall
         renderToMain $
             (if length str > screenWidthHexes * 3 then withFont smallFont else id) $
-                renderStrColAt col str messageLineCentre
+                renderStrColAtCentre col str messageLineCentre
 
 setMsgLineNoRefresh col str = do
     modify $ \s -> s { message = Just (col,str) }
@@ -895,7 +895,7 @@ setMsgLine col str = setMsgLineNoRefresh col str >> refresh
 clearMsg :: UIM ()
 clearMsg = modify $ \s -> s { message = Nothing }
 
-drawTitle (Just title) = renderToMain $ renderStrColAt messageCol title titlePos
+drawTitle (Just title) = renderToMain $ renderStrColAtCentre messageCol title titlePos
 drawTitle Nothing      = return ()
 
 say = setMsgLine messageCol
