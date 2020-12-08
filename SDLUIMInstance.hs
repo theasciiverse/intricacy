@@ -362,10 +362,7 @@ instance UIMonad (StateT UIState IO) where
         smallFont <- gets dispFontSmall
         renderToMain $ do
             erase
-            let bdgWidth = (screenWidthHexes-6) `div` 3
-                showKeys chs = intercalate "/" (map showKeyFriendly chs)
-                maxkeyslen = maximum . (0:) $ map (length.showKeys.map fst) $ groupBy ((==) `on` snd) bdgs
-                extraHelpStrs = (["Mouse commands:", "Right-click on a button to set a keybinding;"]
+            let extraHelpStrs = (["Mouse commands:", "Hover over a button to see keys, right-click to rebind;"]
                         ++ case mode of
                             IMPlay -> ["Click on tool to select, drag to move;",
                                 "Click by tool to move; right-click to wait;", "Scroll wheel to rotate hook;",
@@ -386,31 +383,38 @@ instance UIMonad (StateT UIState IO) where
                             , "you can then [D]eclare your solutions."
                             , "Make other players green by solving their locks and not letting them solve yours."]]
                         _ -> []
-            renderStrColAt cyan "Keybindings:" $ (screenHeightHexes`div`4)*^(hv+^neg hw)
-            let keybindingsHeight = screenHeightHexes - (3 + length extraHelpStrs + sum (map length extraHelpStrs))
-            sequence_ [ with $ renderStrColAtLeft messageCol
-                        ( keysStr ++ ": " ++ desc )
-                        $ (x*bdgWidth-(screenWidthHexes-6)`div`2)*^hu +^ neg hv +^
-                          (screenHeightHexes`div`4 - y`div`2)*^(hv+^neg hw) +^
-                          (y`mod`2)*^hw
-                | ((keysStr,with,desc),(x,y)) <- zip [(keysStr,with,desc)
-                        | group <- groupBy ((==) `on` snd) $ sortBy (compare `on` snd) bdgs
-                        , let cmd = snd $ head group
-                        , let desc = describeCommand cmd
-                        , not $ null desc
-                        , let chs = map fst group
-                        , let keysStr = showKeys chs
-                        , let with = if True -- 3*(bdgWidth-1) < length desc + length keysStr + 1
-                                then withFont smallFont
-                                else id
-                        ]
-                    (map (`divMod` keybindingsHeight) [0..])
-                , (x+1)*bdgWidth < screenWidthHexes]
+            when False $ do
+                renderStrColAt cyan "Keybindings:" $ (screenHeightHexes`div`4)*^(hv+^neg hw)
+                let keybindingsHeight = screenHeightHexes - (3 + length extraHelpStrs + sum (map length extraHelpStrs))
+                    bdgWidth = (screenWidthHexes-6) `div` 3
+                    showKeys chs = intercalate "/" (map showKeyFriendly chs)
+                sequence_ [ with $ renderStrColAtLeft messageCol
+                            ( keysStr ++ ": " ++ desc )
+                            $ (x*bdgWidth-(screenWidthHexes-6)`div`2)*^hu +^ neg hv +^
+                              (screenHeightHexes`div`4 - y`div`2)*^(hv+^neg hw) +^
+                              (y`mod`2)*^hw
+                    | ((keysStr,with,desc),(x,y)) <- zip [(keysStr,with,desc)
+                            | group <- groupBy ((==) `on` snd) $ sortBy (compare `on` snd) bdgs
+                            , let cmd = snd $ head group
+                            , let desc = describeCommand cmd
+                            , not $ null desc
+                            , let chs = map fst group
+                            , let keysStr = showKeys chs
+                            , let with = if True -- 3*(bdgWidth-1) < length desc + length keysStr + 1
+                                    then withFont smallFont
+                                    else id
+                            ]
+                        (map (`divMod` keybindingsHeight) [0..])
+                    , (x+1)*bdgWidth < screenWidthHexes]
             sequence_ [ renderStrColAt (if firstLine then cyan else messageCol) str
                         $ (screenHeightHexes`div`4 - y`div`2)*^(hv+^neg hw)
                           +^ hw
                           +^ (y`mod`2)*^hw
-                | ((str,firstLine),y) <- intercalate [("",False)] (map (`zip` (True:repeat False)) extraHelpStrs) `zip` [(keybindingsHeight+1)..] ]
+                | ((str,firstLine),y) <- intercalate [("",False)] (map (`zip` 
+                (True:repeat False)) extraHelpStrs) `zip` 
+                --[(keybindingsHeight+1)..]
+                [((screenHeightHexes - sum (length <$> extraHelpStrs)) `div` 2)..]
+                ]
         refresh
         return True
     showHelp IMInit HelpPageGame = do
@@ -907,5 +911,4 @@ drawBasicHelpPage (title,titleCol) (body,bodyCol) = do
             startPos
               +^ (y`div`2)*^(hw+^neg hv)
               +^ (y`mod`2)*^hw
-        | (y,str) <- zip [0..] body
-        ]
+        | (y,str) <- zip [0..] body ]
