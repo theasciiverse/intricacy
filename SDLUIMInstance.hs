@@ -71,7 +71,7 @@ instance UIMonad (StateT UIState IO) where
             refresh
     drawMessage = say
     drawPrompt full s = say $ s ++ (if full then "" else "_")
-    endPrompt = say ""
+    endPrompt = clearMsg
     drawError = sayError
 
     reportAlerts = playAlertSounds
@@ -427,7 +427,7 @@ instance UIMonad (StateT UIState IO) where
         return True
     showHelp _ _ = return False
 
-    onNewMode mode = say ""
+    onNewMode mode = clearMsg
 
     withNoBG m = do
         bg <- gets bgSurface
