@@ -85,9 +85,9 @@ alignDraw gravity w (Draw w' d) = Draw (max w w') $ \(CVec y x) ->
     d $ CVec y $ x + shift
     where
         shift = case gravity of
-            GravLeft  -> 0
-            GravRight -> max 0 $ w - w'
-            _         -> max 0 . (`div` 2) $ w - w'
+            GravLeft   -> 0
+            GravRight  -> max 0 $ w - w'
+            GravCentre -> w - w' `div` 2
 
 instance Sem.Semigroup Draw where
     (Draw w d) <> (Draw w' d') =

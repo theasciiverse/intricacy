@@ -498,7 +498,7 @@ drawMainState' InitState {initLocks=initLocks, tutProgress=TutProgress{tutSolved
         [("solve",hu+^neg hw),("lock",hu+^neg hv)]
     where
     accessible = accessibleInitLocks tutSolved initLocks
-    tutPos = ((`div`2) . maximumBound 0 $ hx <$> Map.keys accessible) *^ neg hu
+    tutPos = (maximumBound 0 $ hx <$> Map.keys accessible) *^ neg hu
     name v | v == zero = "TUT"
         | otherwise = maybe "???" initLockName $ Map.lookup v accessible
     solved v | v == zero = tutSolved

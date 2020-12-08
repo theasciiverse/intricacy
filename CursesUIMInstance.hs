@@ -27,6 +27,7 @@ import           Data.Map                  (Map)
 import qualified Data.Map                  as Map
 import           Data.Maybe
 import           Data.Monoid
+import           Safe                       (maximumBound)
 import qualified UI.HSCurses.Curses        as Curses
 import qualified UI.HSCurses.CursesHelper  as CursesH
 
@@ -296,6 +297,33 @@ instance UIMonad (StateT UIState IO) where
             drawState (maybeToList selPiece) True [] st
             drawBindingsTables IMEdit frame
             drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
+        drawMainState' InitState {initLocks=initLocks, tutProgress=TutProgress{tutSolved=tutSolved}} = lift $ do
+            drawCursorAt Nothing
+            (h,w) <- liftIO Curses.scrSize
+            let centre = CVec (h`div`2) (w`div`2)
+            drawStrCentred bold white (centre +^ CVec (-5) 0) "I N T R I C A C Y"
+            bdgs <- getBindings IMInit
+            doDrawAt (centre +^ CVec 5 0) . alignDraw GravCentre 0 $ bindingsDraw bdgs [CmdSolveInit Nothing] <> greyDraw " solve lock" 
+            let cvec v = centre +^ CVec y (3*x-1) where CVec y x = hexVec2CVec v
+                    -- FIXME: check bounds!
+                drawInitLock v = do
+                    let pos = tutPos +^ 2 *^ v
+                    drawStr bold (if solved v then green else red) (cvec pos) (name v)
+                    sequence_
+                        [ drawStr a0 green (cvec $ pos +^ h) str
+                        | (h,str) <- [(hu,"---"), (neg hv," \\ "), (neg hw," / ")]
+                        , let v' = v +^ h
+                        , abs (hy v') < 2 && hx v' >= 0 && hz v' <= 0
+                        , solved v || solved v' ]
+            drawInitLock zero
+            mapM_ drawInitLock $ Map.keys accessible
+            where
+            accessible = accessibleInitLocks tutSolved initLocks
+            tutPos = (maximumBound 0 $ hx <$> Map.keys accessible) *^ neg hu
+            name v | v == zero = "TUT"
+                | otherwise = maybe "???" initLockName $ Map.lookup v accessible
+            solved v | v == zero = tutSolved
+                | otherwise = Just True == (initLockSolved <$> Map.lookup v accessible)
         drawMainState' MetaState {curServer=saddr, undeclareds=undecls,
                 cacheOnly=cOnly, curAuth=auth, codenameStack=names,
                 randomCodenames=rnamestvar, retiredLocks=mretired, curLockPath=path,
