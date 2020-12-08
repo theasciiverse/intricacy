@@ -63,7 +63,10 @@ import           Util
 newtype InteractSuccess = InteractSuccess Bool
 
 interactUI :: UIMonad uiM => MainStateT uiM InteractSuccess
-interactUI = endEarly >>= \e -> if e then return $ InteractSuccess False else do
+interactUI = (fromMaybe (InteractSuccess False) <$>) . runMaybeT $ do
+    gets initiationRequired >>? lift doInitiation
+    gets initiationRequired >>? mzero
+    lift $ do
         im <- gets ms2im
         lift $ onNewMode im
         when (im == IMEdit) setSelectedPosFromMouse
@@ -79,10 +82,7 @@ interactUI = endEarly >>= \e -> if e then return $ InteractSuccess False else do
         interactLoop
 
     where
-        endEarly = do
-            gets initiationRequired >>? doInitiation
-            gets initiationRequired
-            where initiationRequired s = ms2im s == IMMeta && not (initiated s)
+        initiationRequired s = ms2im s == IMMeta && not (initiated s)
         interactLoop = do
             im <- gets ms2im
             when (im == IMPlay) checkWon
