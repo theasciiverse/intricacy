@@ -226,7 +226,6 @@ drawBasicHelpPage :: Int -> (String,ColPair) -> ([String],ColPair) -> UIM HelpRe
 drawBasicHelpPage from (title,titleCol) (body,bodyCol) = do
     erase
     (h,w) <- liftIO Curses.scrSize
-    drawStrCentred a0 titleCol (CVec 0 $ w`div`2) title
     let strs = drop from $
             if w >= maximum (length <$> metagameHelpText)
             then body
@@ -241,8 +240,10 @@ drawBasicHelpPage from (title,titleCol) (body,bodyCol) = do
                         else let prepend = if left == max then w else ' ':w
                             in prepend ++ wrap' max (left - length prepend) ws
                 in lines . wrap w . words $ unwords body
+        top = max 0 $ (h - length strs) `div` 2 
+    drawStrCentred a0 titleCol (CVec top $ w`div`2) title
     let draws = [drawStrCentred a0 bodyCol (CVec y $ w`div`2) str |
-                (y,str) <- zip [2..h-2] strs ]
+                (y,str) <- zip [top+2..h-2] strs ]
     sequence_ draws
     return $ if length draws < length strs
         then HelpContinue $ from + length draws
@@ -300,12 +301,14 @@ instance UIMonad (StateT UIState IO) where
         drawMainState' InitState {initLocks=initLocks, tutProgress=TutProgress{tutSolved=tutSolved}} = lift $ do
             drawCursorAt Nothing
             (h,w) <- liftIO Curses.scrSize
+            when (h<15 || w<30) $ liftIO CursesH.end >> error "Terminal too small!"
             let centre = CVec (h`div`2) (w`div`2)
             drawStrCentred bold white (centre +^ CVec (-5) 0) "I N T R I C A C Y"
             bdgs <- getBindings IMInit
             doDrawAt (centre +^ CVec 5 0) . alignDraw GravCentre 0 $ bindingsDraw bdgs [CmdSolveInit Nothing] <> greyDraw " solve lock" 
-            let cvec v = centre +^ CVec y (3*x-1) where CVec y x = hexVec2CVec v
-                    -- FIXME: check bounds!
+            let cvec v = clampHoriz $ centre +^ CVec y (3*x-1) where
+                    CVec y x = hexVec2CVec v
+                    clampHoriz (CVec y x) = CVec y . max 0 $ min (w-4) x
                 drawInitLock v = do
                     let pos = tutPos +^ 2 *^ v
                     drawStr bold (if solved v then green else red) (cvec pos) (name v)
