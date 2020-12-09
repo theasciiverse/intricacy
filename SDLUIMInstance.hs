@@ -489,7 +489,7 @@ drawMainState' EditState { esGameState=st, esGameStateStack=sts, esUndoneStack=u
             (isWrench, "wrench", CmdTile $ WrenchTile zero, (-4)*^hv +^ hw),
             (isHook, "hook", CmdTile HookTile, (-3)*^hv +^ hw) ] ]
     drawPaintButtons
-drawMainState' InitState {initLocks=initLocks, tutProgress=tutProgress} = lift $ do
+drawMainState' InitState {initLocks=initLocks, tutProgress=TutProgress{tutSolved=tutSolved}} = lift $ do
     renderToMain (erase >> drawCursorAt Nothing)
     renderToMain . renderStrColAtCentre white "I N T R I C A C Y" $ 3 *^ (hv +^ neg hw)
     drawInitLock zero
@@ -497,18 +497,15 @@ drawMainState' InitState {initLocks=initLocks, tutProgress=tutProgress} = lift $
     registerButton (tutPos +^ 3 *^ neg hu +^ hv) (CmdSolveInit Nothing) 2
         [("solve",hu+^neg hw),("lock",hu+^neg hv)]
     where
-    accessible = accessibleInitLocks (tutSolved tutProgress) initLocks
+    accessible = accessibleInitLocks tutSolved initLocks
     tutPos = (maximumBound 0 $ hx <$> Map.keys accessible) *^ neg hu
     name v | v == zero = "TUT"
         | otherwise = maybe "???" initLockName $ Map.lookup v accessible
-    partial v = isJust $ if v == zero then tutPartial tutProgress
-        else join $ initLockPartial <$> Map.lookup v accessible
-    solved v | v == zero = tutSolved tutProgress
+    solved v | v == zero = tutSolved
         | otherwise = Just True == (initLockSolved <$> Map.lookup v accessible)
     drawInitLock v = do
         let pos = tutPos +^ 2 *^ v
-        drawNameCol (name v) pos . brightish $ if solved v then green else
-            if partial v then yellow else red
+        drawNameCol (name v) pos $ if solved v then brightish purple else brightish green
         renderToMain $ sequence_
             [ (if open then PathGlyph h $ brightish white
                 else GateGlyph h $ (if inbounds then dim else bright) white)

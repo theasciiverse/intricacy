@@ -298,7 +298,7 @@ instance UIMonad (StateT UIState IO) where
             drawState (maybeToList selPiece) True [] st
             drawBindingsTables IMEdit frame
             drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
-        drawMainState' InitState {initLocks=initLocks, tutProgress=tutProgress} = lift $ do
+        drawMainState' InitState {initLocks=initLocks, tutProgress=TutProgress{tutSolved=tutSolved}} = lift $ do
             drawCursorAt Nothing
             (h,w) <- liftIO Curses.scrSize
             when (h<15 || w<30) $ liftIO CursesH.end >> error "Terminal too small!"
@@ -312,8 +312,7 @@ instance UIMonad (StateT UIState IO) where
                     clampHoriz (CVec y x) = CVec y . max 0 $ min (w-4) x
                 drawInitLock v = do
                     let pos = tutPos +^ 2 *^ v
-                    drawStr bold (if solved v then green else if partial v then yellow else red)
-                        (cvec pos) (name v)
+                    drawStr bold (if solved v then green else red) (cvec pos) (name v)
                     sequence_
                         [ drawStr a0 green (cvec $ pos +^ h) str
                         | (h,str) <- [(hu,"---"), (neg hv," \\ "), (neg hw," / ")]
@@ -323,13 +322,11 @@ instance UIMonad (StateT UIState IO) where
             drawInitLock zero
             mapM_ drawInitLock $ Map.keys accessible
             where
-            accessible = accessibleInitLocks (tutSolved tutProgress) initLocks
+            accessible = accessibleInitLocks tutSolved initLocks
             tutPos = (maximumBound 0 $ hx <$> Map.keys accessible) *^ neg hu
             name v | v == zero = "TUT"
                 | otherwise = maybe "???" initLockName $ Map.lookup v accessible
-            partial v = isJust $ if v == zero then tutPartial tutProgress
-                else join $ initLockPartial <$> Map.lookup v accessible
-            solved v | v == zero = tutSolved tutProgress
+            solved v | v == zero = tutSolved
                 | otherwise = Just True == (initLockSolved <$> Map.lookup v accessible)
         drawMainState' MetaState {curServer=saddr, undeclareds=undecls,
                 cacheOnly=cOnly, curAuth=auth, codenameStack=names,
