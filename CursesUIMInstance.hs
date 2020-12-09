@@ -306,6 +306,7 @@ instance UIMonad (StateT UIState IO) where
             drawStrCentred bold white (centre +^ CVec (-5) 0) "I N T R I C A C Y"
             bdgs <- getBindings IMInit
             doDrawAt (centre +^ CVec 5 0) . alignDraw GravCentre 0 $ bindingsDraw bdgs [CmdSolveInit Nothing] <> greyDraw " solve lock" 
+            doDrawAt (centre +^ CVec 6 0) . alignDraw GravCentre 0 $ bindingsDraw bdgs [CmdQuit] <> greyDraw " quit"
             let cvec v = clampHoriz $ centre +^ CVec y (3*x-1) where
                     CVec y x = hexVec2CVec v
                     clampHoriz (CVec y x) = CVec y . max 0 $ min (w-4) x
