@@ -113,6 +113,22 @@ bindingsDrawColour col bdgs cmds =
     where
         keyDraw = stringDraw bold col . showKeyFriendlyShort
 
+bindingDrawChar :: KeyBindings -> Curses.Attr -> Command -> Draw
+bindingDrawChar bdgs a cmd = mconcat . maybeToList $
+    stringDraw a white . (:[]) . showKeyChar <$> findBinding bdgs cmd
+
+drawDirBindings :: KeyBindings -> WrHoSel -> Draw
+drawDirBindings bdgs whs = Draw 5 $ \cpos -> do
+    let c = case whs of
+            WHSHook -> '@'
+            WHSWrench -> '*'
+            WHSSelected -> '_'
+        gl = Glyph c white a0
+    drawAtCVec gl cpos
+    sequence_ [ doDrawAt (cpos +^ hexVec2CVec dir) .
+            bindingDrawChar bdgs bold $ CmdDir whs dir
+        | dir <- hexDirs ]
+
 data BindingsEntry = BindingsEntry String [Command]
 
 drawBindingsTables :: InputMode -> Frame -> UIM ()
@@ -123,7 +139,7 @@ drawBindingsTables mode frame | mode `elem` [ IMEdit, IMPlay ] = do
     let maxWidth = (w `div` 2) - startRight - 1
     let entryDraws (BindingsEntry desc cmds) =
             (greyDraw desc, bindingsDraw bdgs cmds)
-    forM_ [GravLeft, GravRight] $ \grav ->
+    forM_ [GravLeft, GravRight] $ \grav -> do
         let table = bindingsTable mode grav
             drawsTable = second entryDraws <$> table
             maxDesc = maximum $ drawWidth . fst . snd <$> drawsTable
@@ -136,7 +152,7 @@ drawBindingsTables mode frame | mode `elem` [ IMEdit, IMPlay ] = do
                 else -(startRight + maxBdgs)
             oppGrav = if grav == GravRight then GravLeft else GravRight
             useDescs = maxDesc + 1 + maxBdgs <= maxWidth
-        in sequence_
+        sequence_
             [ do
                 when (maxBdgs <= maxWidth) $
                     doDrawAt (CVec y bdgsX) $ alignDraw
@@ -147,16 +163,19 @@ drawBindingsTables mode frame | mode `elem` [ IMEdit, IMPlay ] = do
             | (yoff, (descDraw, bdgsDraw)) <- drawsTable
             , let y = (h `div` 2) + yoff
             ]
+        when (mode == IMPlay && grav == GravLeft && maxWidth >= 5) $
+            let (halfw,poss)
+                    | maxWidth < 15 = (3,[CVec (-5) 0])
+                    | maxWidth < 19 = (7,[CVec (-4) 0, CVec (-6) 5, CVec (-6) (-5)])
+                    | otherwise = (9,[CVec (-5) 0, CVec (-5) 7, CVec (-5) (-7)])
+            in sequence_ [ doDrawAt pos $ drawDirBindings bdgs whs
+                | (whs,pos) <- zip [WHSSelected, WHSHook, WHSWrench] $
+                    (CVec (h `div` 2) ((w `div` 2) - startRight -
+                        (min (maxWidth - halfw) $ max (maxBdgs+1) halfw)) +^) <$> poss ]
     where
         bindingsTable IMPlay GravLeft =
-            [ (-5, BindingsEntry "move tool" $
-                CmdDir WHSSelected <$> hexDirs)
-            , (-4, BindingsEntry "select tool"
+            [ (-2, BindingsEntry "select tool"
                 [CmdToggle, CmdTile $ WrenchTile zero, CmdTile HookTile])
-            , (-3, BindingsEntry "move hook" $
-                CmdDir WHSHook <$> hexDirs)
-            , (-2, BindingsEntry "move wrench" $
-                CmdDir WHSWrench <$> hexDirs)
             , (-1, BindingsEntry "rotate hook"
                 [CmdRotate whs dir | whs <- [WHSSelected, WHSHook], dir <- [-1,1]])
             , ( 0, BindingsEntry "wait" [CmdWait])

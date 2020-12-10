@@ -9,7 +9,7 @@
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
 module KeyBindings (KeyBindings, bindings, findBindings, findBinding, showKey,
-    showKeyFriendly, showKeyFriendlyShort) where
+    showKeyChar, showKeyFriendly, showKeyFriendlyShort) where
 
 import           Data.Bits      (xor)
 import           Data.Char
@@ -214,6 +214,7 @@ findBindings bdgs cmd = nub
 findBinding :: KeyBindings -> Command -> Maybe Char
 findBinding = (listToMaybe.) . findBindings
 
+showKey :: Char -> String
 showKey ch
     | isAscii (unmeta ch) = 'M':'-':showKey (unmeta ch)
     | isPrint ch = [ch]
@@ -231,3 +232,10 @@ showKeyFriendlyShort '\r' = "ret"
 showKeyFriendlyShort '\t' = "tab"
 showKeyFriendlyShort '\b' = "bksp"
 showKeyFriendlyShort ch   = showKey ch
+
+showKeyChar :: Char -> Char
+showKeyChar ch
+    | isAscii (unmeta ch) = '['
+    | isPrint ch = ch
+    | isPrint (unctrl ch) = '^'
+    | otherwise = '?'
