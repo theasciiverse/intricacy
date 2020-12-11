@@ -84,6 +84,7 @@ ownedTileGlyph mono@False colouring reversed (owner,t) =
     let (ch,attr) = tileChar t
         pair = case Map.lookup owner colouring of
                     Nothing -> 0
+                    Just 3  -> cyan  -- replace blue with cyan for visibility
                     Just n  -> n+1
         rev = owner `elem` reversed
     in Glyph ch pair (Curses.setReverse attr rev)
