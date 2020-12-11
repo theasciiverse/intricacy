@@ -534,13 +534,13 @@ initiationHelpText :: [String]
 initiationHelpText =
     [ "\"Prove yourself\"."
     , ""
-    , "That's all they said before leaving you in this maze of cells,"
-    , "each bare but for a locked mechanism to open gates leading further into the gloom."
+    , "And with that, they left you in this maze of cells."
+    , "Each is bare, but for a locked mechanism opening gates leading further into the gloom."
     , ""
     , "Lucky, then, that they neglected to strip you of your lockpicks."
-    , ""
     , "Now to see if you can use them to slip your way out to freedom."
     , "Wouldn't be the first time..."
+    , "FIXME: rewrite!"
     ]
 metagameHelpText :: [String]
 metagameHelpText =

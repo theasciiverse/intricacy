@@ -117,12 +117,13 @@ bindingDrawChar :: KeyBindings -> Curses.Attr -> Command -> Draw
 bindingDrawChar bdgs a cmd = mconcat . maybeToList $
     stringDraw a white . (:[]) . showKeyChar <$> findBinding bdgs cmd
 
-drawDirBindings :: KeyBindings -> WrHoSel -> Draw
-drawDirBindings bdgs whs = Draw 5 $ \cpos -> do
-    let c = case whs of
-            WHSHook -> '@'
-            WHSWrench -> '*'
-            WHSSelected -> '_'
+drawDirBindings :: InputMode -> KeyBindings -> WrHoSel -> Draw
+drawDirBindings mode bdgs whs = Draw 5 $ \cpos -> do
+    let c | mode == IMEdit = '_'
+            | otherwise = case whs of
+                WHSHook -> '@'
+                WHSWrench -> '*'
+                WHSSelected -> '_'
         gl = Glyph c white a0
     drawAtCVec gl cpos
     sequence_ [ doDrawAt (cpos +^ hexVec2CVec dir) .
@@ -163,13 +164,13 @@ drawBindingsTables mode frame | mode `elem` [ IMEdit, IMPlay ] = do
             | (yoff, (descDraw, bdgsDraw)) <- drawsTable
             , let y = (h `div` 2) + yoff
             ]
-        when (mode == IMPlay && grav == GravLeft && maxWidth >= 5) $
+        when (mode `elem` [IMPlay,IMEdit] && grav == GravLeft && maxWidth >= 5) $
             let (halfw,poss)
                     | maxWidth < 15 = (3,[CVec (-5) 0])
                     | maxWidth < 19 = (7,[CVec (-4) 0, CVec (-6) 5, CVec (-6) (-5)])
                     | otherwise = (9,[CVec (-5) 0, CVec (-5) 7, CVec (-5) (-7)])
-            in sequence_ [ doDrawAt pos $ drawDirBindings bdgs whs
-                | (whs,pos) <- zip [WHSSelected, WHSHook, WHSWrench] $
+            in sequence_ [ doDrawAt pos $ drawDirBindings mode bdgs whs
+                | (whs,pos) <- zip [WHSSelected, WHSWrench, WHSHook] $
                     (CVec (h `div` 2) ((w `div` 2) - startRight -
                         (min (maxWidth - halfw) $ max (maxBdgs+1) halfw)) +^) <$> poss ]
     where
@@ -199,8 +200,7 @@ drawBindingsTables mode frame | mode `elem` [ IMEdit, IMPlay ] = do
             , (7, BindingsEntry "quit" [CmdQuit])
             ]
         bindingsTable IMEdit GravLeft =
-            [ (-4, BindingsEntry "move" $ CmdDir WHSSelected <$> hexDirs)
-            , (-3, BindingsEntry "rotate"
+            [ (-3, BindingsEntry "rotate"
                 [CmdRotate whs dir | whs <- [WHSSelected], dir <- [-1,1]])
             , (-1, BindingsEntry "select" [CmdSelect])
             , ( 0, BindingsEntry "delete" [CmdDelete])
