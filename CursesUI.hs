@@ -132,8 +132,8 @@ drawDirBindings mode bdgs whs = Draw 5 $ \cpos -> do
 
 data BindingsEntry = BindingsEntry String [Command]
 
-drawBindingsTables :: InputMode -> Frame -> UIM ()
-drawBindingsTables mode frame | mode `elem` [ IMEdit, IMPlay ] = do
+drawBindingsTables :: InputMode -> (Command -> Bool) -> Frame -> UIM ()
+drawBindingsTables mode censor frame | mode `elem` [ IMEdit, IMPlay ] = do
     bdgs <- getBindings mode
     (h,w) <- liftIO Curses.scrSize
     let startRight = frameWidth frame + 3
@@ -141,7 +141,9 @@ drawBindingsTables mode frame | mode `elem` [ IMEdit, IMPlay ] = do
     let entryDraws (BindingsEntry desc cmds) =
             (greyDraw desc, bindingsDraw bdgs cmds)
     forM_ [GravLeft, GravRight] $ \grav -> do
-        let table = bindingsTable mode grav
+        let table = filter (\(_,BindingsEntry _ cs) -> not $ null cs) $
+                second (\(BindingsEntry s cs) -> BindingsEntry s $ filter censor cs) <$>
+                bindingsTable mode grav
             drawsTable = second entryDraws <$> table
             maxDesc = maximum $ drawWidth . fst . snd <$> drawsTable
             maxBdgs = maximum $ drawWidth . snd . snd <$> drawsTable
@@ -226,7 +228,7 @@ drawBindingsTables mode frame | mode `elem` [ IMEdit, IMPlay ] = do
             ]
         bindingsTable _ _ = []
 
-drawBindingsTables _ _ = return ()
+drawBindingsTables _ _ _ = return ()
 
 -- |frameWidth = maximum . map (abs . cx . hexVec2CVec) .
 --      blockPattern . placedPiece . framePiece

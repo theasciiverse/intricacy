@@ -284,19 +284,27 @@ instance UIMonad (StateT UIState IO) where
         lift refresh
         where
         drawMainState' PlayState { psCurrentState=st, psLastAlerts=alerts,
-                wrenchSelected=wsel, psFrame=frame } = lift $ do
+                wrenchSelected=wsel, psFrame=frame, psTutLevel=tutLevel } = lift $ do
             drawState [] False alerts st
-            drawBindingsTables IMPlay frame
+            drawBindingsTables IMPlay filterBindings frame
             drawCursorAt $ listToMaybe [ pos |
                 (_, PlacedPiece pos p) <- enumVec $ placedPieces st
                 , (wsel && isWrench p) || (not wsel && isHook p) ]
+            where
+            filterBindings (CmdRotate _ _) = not $ wrenchOnlyTutLevel tutLevel
+            filterBindings CmdUndo = not $ noUndoTutLevel tutLevel
+            filterBindings CmdRedo = not $ noUndoTutLevel tutLevel
+            filterBindings CmdMark = not $ noUndoTutLevel tutLevel
+            filterBindings CmdJumpMark = not $ noUndoTutLevel tutLevel
+            filterBindings CmdReset = not $ noUndoTutLevel tutLevel
+            filterBindings _ = True
         drawMainState' ReplayState {} = do
             lift . drawState [] False [] =<< gets rsCurrentState
             lift $ drawCursorAt Nothing
         drawMainState' EditState { esGameState=st, selectedPiece=selPiece,
                 selectedPos=selPos, esFrame=frame } = lift $ do
             drawState (maybeToList selPiece) True [] st
-            drawBindingsTables IMEdit frame
+            drawBindingsTables IMEdit (const True) frame
             drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
         drawMainState' InitState {initLocks=initLocks, tutProgress=TutProgress{tutSolved=tutSolved}} = lift $ do
             drawCursorAt Nothing
