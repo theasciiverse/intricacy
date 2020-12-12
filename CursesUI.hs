@@ -174,13 +174,27 @@ drawBindingsTables mode censor frame | mode `elem` [ IMEdit, IMPlay ] = do
             in sequence_ [ doDrawAt pos $ drawDirBindings mode bdgs whs
                 | (whs,pos) <- zip [WHSSelected, WHSWrench, WHSHook] $
                     (CVec (h `div` 2) ((w `div` 2) - startRight -
-                        (min (maxWidth - halfw) $ max (maxBdgs+1) halfw)) +^) <$> poss ]
+                        min (maxWidth - halfw) (max (maxBdgs+1) halfw)) +^) <$> poss ]
+        when (mode == IMEdit && grav == GravRight && maxWidth >= 9) $
+            let c = CVec ((h`div`2) - 4) ((w`div`2) + startRight +
+                        min (maxWidth - 5) (max (maxBdgs+1) 5))
+            in sequence_ [ do
+                    drawAtCVec gl (c +^ CVec 0 x)
+                    doDrawAt (c +^ CVec 1 x) . bindingDrawChar bdgs bold $ CmdTile tile
+                | (x,tile) <- zip [-4,-2,0,2,4]
+                        [ BlockTile []
+                        , SpringTile Relaxed zero
+                        , PivotTile zero
+                        , ArmTile zero False
+                        , BallTile ]
+                , let gl = Glyph (fst $ tileChar tile) white a0 ]
+
     where
         bindingsTable IMPlay GravLeft =
             [ (-2, BindingsEntry "select tool"
                 [CmdToggle, CmdTile $ WrenchTile zero, CmdTile HookTile])
-            , (-1, BindingsEntry "rotate hook"
-                [CmdRotate whs dir | whs <- [WHSSelected, WHSHook], dir <- [-1,1]])
+            , (-1, BindingsEntry "rotate hook" $
+                nub [CmdRotate whs dir | whs <- [WHSSelected, WHSHook], dir <- [-1,1]])
             , ( 0, BindingsEntry "wait" [CmdWait])
             , ( 2, BindingsEntry "open lock" [CmdOpen])
             , ( 4, BindingsEntry "undo, redo" [CmdUndo, CmdRedo])
@@ -202,24 +216,17 @@ drawBindingsTables mode censor frame | mode `elem` [ IMEdit, IMPlay ] = do
             , (7, BindingsEntry "quit" [CmdQuit])
             ]
         bindingsTable IMEdit GravLeft =
-            [ (-3, BindingsEntry "rotate"
-                [CmdRotate whs dir | whs <- [WHSSelected], dir <- [-1,1]])
-            , (-1, BindingsEntry "select" [CmdSelect])
-            , ( 0, BindingsEntry "delete" [CmdDelete])
-            , ( 1, BindingsEntry "merge" [CmdMerge])
+            [ (-1, BindingsEntry "rotate" $
+                nub [CmdRotate whs dir | whs <- [WHSSelected, WHSHook], dir <- [-1,1]])
+            , ( 0, BindingsEntry "select" [CmdSelect])
+            , ( 1, BindingsEntry "delete" [CmdDelete])
+            , ( 2, BindingsEntry "merge" [CmdMerge])
             , ( 4, BindingsEntry "undo, redo" [CmdUndo, CmdRedo])
             , ( 5, BindingsEntry "marks" [CmdMark, CmdJumpMark, CmdReset])
             ]
         bindingsTable IMEdit GravRight =
             [ (-7, BindingsEntry "help" [CmdHelp])
             , (-6, BindingsEntry "bind" [CmdBind Nothing])
-            , (-4, BindingsEntry "place" $ CmdTile <$>
-                [ BlockTile []
-                , SpringTile Relaxed zero
-                , PivotTile zero
-                , ArmTile zero False
-                , BallTile
-                ])
             , (-1, BindingsEntry "test" [CmdTest])
             , ( 0, BindingsEntry "play" [CmdPlay])
             , ( 1, BindingsEntry "step" [CmdWait])

@@ -240,7 +240,7 @@ drawBasicHelpPage from (title,titleCol) (body,bodyCol) = do
                         else let prepend = if left == max then w else ' ':w
                             in prepend ++ wrap' max (left - length prepend) ws
                 in lines . wrap w . words $ unwords body
-        top = max 0 $ (h - length strs) `div` 2 
+        top = max 0 $ (h - length strs) `div` 2
     drawStrCentred a0 titleCol (CVec top $ w`div`2) title
     let draws = [drawStrCentred a0 bodyCol (CVec y $ w`div`2) str |
                 (y,str) <- zip [top+2..h-2] strs ]
@@ -313,7 +313,7 @@ instance UIMonad (StateT UIState IO) where
             let centre = CVec (h`div`2) (w`div`2)
             drawStrCentred bold white (centre +^ CVec (-5) 0) "I N T R I C A C Y"
             bdgs <- getBindings IMInit
-            doDrawAt (centre +^ CVec 5 0) . alignDraw GravCentre 0 $ bindingsDraw bdgs [CmdSolveInit Nothing] <> greyDraw " solve lock" 
+            doDrawAt (centre +^ CVec 5 0) . alignDraw GravCentre 0 $ bindingsDraw bdgs [CmdSolveInit Nothing] <> greyDraw " solve lock"
             doDrawAt (centre +^ CVec 6 0) . alignDraw GravCentre 0 $ bindingsDraw bdgs [CmdHelp] <> greyDraw " help"
             doDrawAt (centre +^ CVec 7 0) . alignDraw GravCentre 0 $ bindingsDraw bdgs [CmdQuit] <> greyDraw " quit"
             let cvec v = clampHoriz $ centre +^ CVec y (3*x-1) where
@@ -332,7 +332,7 @@ instance UIMonad (StateT UIState IO) where
             mapM_ drawInitLock $ Map.keys accessible
             where
             accessible = accessibleInitLocks tutSolved initLocks
-            tutPos = (maximumBound 0 $ hx <$> Map.keys accessible) *^ neg hu
+            tutPos = maximumBound 0 (hx <$> Map.keys accessible) *^ neg hu
             name v | v == zero = "TUT"
                 | otherwise = maybe "???" initLockName $ Map.lookup v accessible
             solved v | v == zero = tutSolved

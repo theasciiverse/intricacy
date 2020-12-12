@@ -66,7 +66,7 @@ tileChar (ArmTile dir principal) =
         c | cdir == hu = '-'
           | cdir == hv = '\\'
           | cdir == hw = '/'
-          | otherwise = '?'
+          | otherwise = '-'
         a = if principal then bold else a0
     in (c,a)
 tileChar HookTile = ('@',bold)
