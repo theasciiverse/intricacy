@@ -83,4 +83,9 @@ getDirContentsRec path = ignoreIOErr $ do
 
 fullLockPath path = if isAbsolute path
     then return path
-    else (++(pathSeparator:path)) <$> confFilePath "locks"
+    else do
+        homePath <- getHomeDirectory
+        locksPath <- confFilePath "locks"
+        return $ if take 2 path == "~/"
+            then homePath </> drop 2 path
+            else locksPath </> path
