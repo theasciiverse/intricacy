@@ -139,11 +139,10 @@ getSomeInput im = do
 processCommand :: UIMonad uiM => InputMode -> Command -> ExceptT InteractSuccess (MainStateT uiM) ()
 processCommand im CmdQuit = do
     case im of
-        IMReplay -> throwE $ InteractSuccess False
         IMPlay -> lift (or <$> sequence [gets psIsSub, gets psSaved, gets (null . psGameStateMoveStack)])
             >>? throwE $ InteractSuccess False
         IMEdit -> lift editStateUnsaved >>! throwE $ InteractSuccess True
-        _ -> return ()
+        _ -> throwE $ InteractSuccess False
     title <- lift getTitle
     (lift . lift . confirm) ("Really quit"
             ++ (if im == IMEdit then " without saving" else "")
