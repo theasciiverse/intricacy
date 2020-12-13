@@ -683,9 +683,11 @@ playAlertSounds st alerts = do
         alertSound (AlertDivertedWrench _) = Just "wrenchscrape"
         alertSound (AlertAppliedForce (Torque idx _))
             | isPivot.placedPiece.getpp st $ idx = Just "pivot"
+            | isTool.placedPiece.getpp st $ idx = Just "toolmove"
         alertSound (AlertAppliedForce (Push idx dir))
             | isBall.placedPiece.getpp st $ idx = Just "ballmove"
-        alertSound (AlertAppliedForce (Push idx dir)) = do
+            | isTool.placedPiece.getpp st $ idx = Just "toolmove"
+            | otherwise = do
             (align,newLen) <- listToMaybe [(align,newLen)
                 | c@(Connection (startIdx,_) (endIdx,_) (Spring outDir natLen)) <- connections st
                 , let align = (if outDir == dir then 1 else if outDir == neg dir then -1 else 0)
@@ -860,10 +862,11 @@ initAudio = do
                 , let vol = case sound of
                         "pivot"        -> 64
                         "wrenchscrape" -> 64
+                        "toolmove"     -> 64
                         _              -> 128
                 ]
             return (sound,chunks)
-        | sound <- ["hookblocked","hookarmblocked","wrenchblocked","wrenchscrape","pivot","unlocked","ballmove"]
+        | sound <- ["hookblocked","hookarmblocked","wrenchblocked","wrenchscrape","pivot","unlocked","ballmove","toolmove"]
                 ++ ["spring" ++ d ++ show l | d <- ["extend","contract"], l <- [1..12]] ]
     -- liftIO $ print sounds
     modify $ \s -> s { sounds = Map.fromList sounds }
