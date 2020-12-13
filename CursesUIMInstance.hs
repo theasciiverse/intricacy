@@ -118,7 +118,7 @@ fillBox (CVec t l) (CVec b r) width grav draws = do
 drawLockInfo al@(ActiveLock name i) lockinfo = do
     (h,w) <- liftIO Curses.scrSize
     let [left,vcentre,right] = [ (k+2*i)*w`div`6 + (1-k) | k <- [0,1,2] ]
-    let [top,bottom] = [6, h-1]
+    let [top,bottom] = [6, h-2]
     let hcentre = (top+bottom)`div`2 - 1
     ourName <- gets ((authUser <$>) . curAuth)
 
