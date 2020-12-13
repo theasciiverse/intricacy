@@ -497,7 +497,8 @@ processCommand' IMMeta CmdNextLock =
 processCommand' IMMeta CmdPrevLock =
     gets curLockPath >>= liftIO . nextLock False >>= setLockPath
 processCommand' IMMeta CmdNextPage =
-    modify $ \ms -> ms { listOffset = listOffset ms + 1 }
+    gets listOffsetMax >>!
+        modify $ \ms -> ms { listOffset = listOffset ms + 1 }
 processCommand' IMMeta CmdPrevPage =
     modify $ \ms -> ms { listOffset = max 0 $ listOffset ms - 1 }
 processCommand' IMMeta CmdEdit = void.runMaybeT $ do

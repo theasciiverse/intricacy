@@ -89,6 +89,7 @@ drawNote pos note = case noteBehind note of
 
 fillBox :: CVec -> CVec -> Int -> Gravity -> [CVec -> MainStateT UIM ()] -> MainStateT UIM Int
 fillBox (CVec t l) (CVec b r) width grav draws = do
+    offset <- gets listOffset
     let half = width`div`2
         starty = (if grav == GravDown then b else t)
         cv = (b+t)`div`2
@@ -106,12 +107,18 @@ fillBox (CVec t l) (CVec b r) width grav draws = do
             , let margin = if even (j-starty) then half else width ]
         dist v = sqlen $ v -^ gravCentre
         sqlen (CVec y x) = (y*(width+1))^2+x^2
-    selDraws <- do
-            offset <- gets listOffset
-            let na = length locs
-                nd = length draws
-            return $ drop (max 0 $ min (nd - na) (na*offset)) draws
-    let zipped = zip locs selDraws
+        na = length locs
+        nd = length draws
+        drawChar c = \cvec -> lift . drawStr bold white cvec $ ' ':c:" "
+        draws' = if offset > 0 && length draws > na
+            then drop (max 0 $ min (length draws - (na-1)) (na-1 + (na-2)*(offset-1))) draws
+                ++ [drawChar '<']
+            else draws
+        (selDraws,allDrawn) = if length draws' > na
+            then (take (na-1) draws' ++ [drawChar '>'], False)
+            else (take na draws', True)
+        zipped = zip locs selDraws
+    unless allDrawn . modify $ \ms -> ms { listOffsetMax = False }
     mapM_ (uncurry ($)) (zip selDraws locs)
     return $ (if grav==GravDown then minimum.(b:) else maximum.(t:)) [ y | (CVec y x,_) <- zipped ]
 
@@ -344,6 +351,7 @@ instance UIMonad (StateT UIState IO) where
                 cacheOnly=cOnly, curAuth=auth, codenameStack=names,
                 randomCodenames=rnamestvar, retiredLocks=mretired, curLockPath=path,
                 curLock=lock} = do
+            modify $ \ms -> ms { listOffsetMax = True }
             let ourName = authUser <$> auth
             let selName = listToMaybe names
             let home = isJust ourName && ourName == selName

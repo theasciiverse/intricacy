@@ -522,7 +522,8 @@ drawMainState' InitState {initLocks=initLocks, tutProgress=TutProgress{tutSolved
 drawMainState' MetaState {curServer=saddr, undeclareds=undecls,
         cacheOnly=cOnly, curAuth=auth, codenameStack=names,
         randomCodenames=rnamestvar, retiredLocks=mretired, curLockPath=path,
-        curLock=mlock, listOffset=offset, asyncCount=count} = do
+        curLock=mlock, asyncCount=count} = do
+    modify $ \ms -> ms { listOffsetMax = True }
     let ourName = authUser <$> auth
     let selName = listToMaybe names
     let home = isJust ourName && ourName == selName
@@ -745,9 +746,10 @@ fillArea centre area draws = do
             then listButton CmdPrevPage :
                 drop (max 0 $ min (length draws - (na-1)) (na-1 + (na-2)*(offset-1))) draws
             else draws
-        selDraws = if length draws' > na
-            then take (na-1) draws' ++ [listButton CmdNextPage]
-            else take na draws'
+        (selDraws,allDrawn) = if length draws' > na
+            then (take (na-1) draws' ++ [listButton CmdNextPage], False)
+            else (take na draws', True)
+    unless allDrawn . modify $ \ms -> ms { listOffsetMax = False }
     mapM_ (uncurry ($)) (
         zip selDraws $ sortBy (compare `on` hexVec2SVec 37) $
             take (length selDraws) $ sortBy

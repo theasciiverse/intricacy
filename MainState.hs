@@ -137,6 +137,7 @@ data MainState
         , curLockPath      :: FilePath
         , curLock          :: Maybe (Lock,Maybe Solution)
         , listOffset       :: Int
+        , listOffsetMax    :: Bool
         , initiated        :: Bool
         }
 
@@ -172,7 +173,7 @@ initMetaState = do
     let names = maybeToList $ authUser <$> auth
     (undecls,partials) <- readServerSolns saddr
     mlock <- fullLockPath path >>= readLock
-    return $ MetaState saddr undecls partials False auth names flag counttvar errtvar invaltvar rnamestvar Map.empty Map.empty Nothing path mlock 0 initiated
+    return $ MetaState saddr undecls partials False auth names flag counttvar errtvar invaltvar rnamestvar Map.empty Map.empty Nothing path mlock 0 True initiated
 
 type PartialSolutions = Map LockSpec SavedPlayState
 data SavedPlayState = SavedPlayState [PlayerMove] (Map Char [PlayerMove])
