@@ -513,7 +513,7 @@ drawMainState' InitState {initLocks=initLocks, tutProgress=TutProgress{tutSolved
             | h <- hexDirs
             , let v' = v +^ h
             , let inbounds = abs (hy v') < 2 && hx v' >= 0 && hz v' <= 0
-            , not inbounds || h `elem` [hu, neg hw, neg hv]
+            , (v' `notElem` Map.keys accessible) || h `elem` [hu, neg hw, neg hv]
             , let open = inbounds && (solved v || solved v') ]
         registerSelectable pos 0 $ if v == zero then SelTut else SelInitLock v
 drawMainState' MetaState {curServer=saddr, undeclareds=undecls,
