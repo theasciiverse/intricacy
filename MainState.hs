@@ -533,16 +533,16 @@ testAuth = isJust <$> gets curAuth >>? do
 
 initiationHelpText :: [String]
 initiationHelpText =
-    [ "\"Prove yourself\"."
+    [ "Suddenly surrounded by hooded figures in your locked room."
+    , "Gently abducted, now wordlessly released into this dingy hole."
     , ""
-    , "And with that, they left you in this maze of cells."
-    , "Each is bare, but for a locked mechanism opening gates leading further into the gloom."
-    , ""
-    , "Lucky, then, that they neglected to strip you of your lockpicks."
-    , "Now to see if you can use them to slip your way out to freedom."
-    , "Wouldn't be the first time..."
-    , "FIXME: rewrite!"
-    ]
+    , "Some disused dungeon, a honeycomb of cells separated by sturdy gates."
+    , "From the far end, light filters through the sequential barriers."
+    , "Freedom?"
+    , "The gate mechanisms are foolishly accessible, merely locked."
+    , "Lucky that they neglected to strip you of your lockpicks."
+    , "Lucky, and odd..." ]
+
 metagameHelpText :: [String]
 metagameHelpText =
     [ "By ruthlessly guarded secret arrangement, the council's agents can pick any lock in the city."
