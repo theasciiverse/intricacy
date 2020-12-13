@@ -411,8 +411,7 @@ uiOB4 = UIOptButton showButtonText (\v o -> o {showButtonText=v}) [True,False]
         [IMPlay, IMEdit, IMReplay, IMMeta, IMInit] Nothing
 uiOB5 = UIOptButton fullscreen (\v o -> o {fullscreen=v}) [True,False]
         (periphery 0 +^ 4 *^ hu +^ 2 *^ hv) FullscreenButton
-        (\v -> if v then "Currently in fullscreen mode; click to toggle" else
-        "Currently in windowed mode; click to toggle")
+        (\v -> if v then "Fullscreen mode active" else "Windowed mode active")
         [IMPlay, IMEdit, IMReplay, IMMeta, IMInit] (Just $ const $ initVideo 0 0)
 uiOB6 = UIOptButton useSounds (\v o -> o {useSounds=v}) [True,False]
         (periphery 0 +^ 4 *^ hu +^ hv) UseSoundsButton
