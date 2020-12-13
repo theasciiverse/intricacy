@@ -220,7 +220,7 @@ renderGlyph (PivotGlyph rot dir col) = do
             th = - fi rot * pi / 12
 
 renderGlyph (ArmGlyph rot dir col) =
-    thickLineR from to 1 col
+    thickLineR from to 1 $ bright col
         where
             dir' = if dir == zero then hu else dir
             from = rotFVec th c $ edge $ neg dir'
