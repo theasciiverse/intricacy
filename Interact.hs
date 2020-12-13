@@ -197,7 +197,7 @@ processCommand IMInit (CmdSolveInit (Just v)) = void.runMaybeT $ do
     lift $ do
         (InteractSuccess solved, ps) <- lift . runSubMainState $
             maybe newPlayState restorePlayState partial (reframe lock) (Just desc) Nothing False True
-        let updateLock initLock = initLock { initLockSolved = solved
+        let updateLock initLock = initLock { initLockSolved = initLockSolved initLock || solved
                 , initLockPartial = Just $ savePlayState ps }
         lift . modify $ \is -> is { initLocks = Map.adjust updateLock v $ initLocks is }
         when (solved && isLastInitLock l) . throwE $ InteractSuccess True
