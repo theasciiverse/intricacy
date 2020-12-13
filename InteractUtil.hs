@@ -49,7 +49,7 @@ checkWon = do
         lift $ if solved then do
                 drawMessage $ "Unlocked! '"++obdg++"' to open."
                 reportAlerts st [AlertUnlocked]
-            else drawMessage ""
+            else clearMessage
 
 doForce force = do
     st <- gets esGameState

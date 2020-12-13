@@ -69,6 +69,7 @@ instance UIMonad (StateT UIState IO) where
             drawMsgLine
             drawShortMouseHelp mode s
             refresh
+    clearMessage = clearMsg
     drawMessage = say
     drawPrompt full s = say $ s ++ (if full then "" else "_")
     endPrompt = clearMsg

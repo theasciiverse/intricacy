@@ -53,6 +53,7 @@ class (Applicative m, MonadIO m) => UIMonad m where
     endUI :: m ()
     drawMainState :: MainStateT m ()
     reportAlerts :: GameState -> [Alert] -> m ()
+    clearMessage :: m ()
     drawMessage :: String -> m ()
     drawPrompt :: Bool -> String -> m ()
     endPrompt :: m ()

@@ -444,6 +444,7 @@ instance UIMonad (StateT UIState IO) where
             drawAlert _                    = return ()
             cGlyph = Glyph '!' 0 a0
 
+    clearMessage = say ""
     drawMessage = say
     drawPrompt full s = say s >> liftIO (void $ Curses.cursSet Curses.CursorVisible)
     endPrompt = say "" >> liftIO (void $ Curses.cursSet Curses.CursorInvisible)

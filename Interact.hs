@@ -92,7 +92,7 @@ interactUI = (fromMaybe (InteractSuccess False) <$>) . runMaybeT $ do
             cmds <- lift $ getSomeInput im
             runExceptT (mapM_ (processCommand im) cmds) >>=
                 either
-                    ((lift (drawMessage "") >>) . return)
+                    ((lift clearMessage >>) . return)
                     (const interactLoop)
 
         -- | unblock input whenever the newAsync TVar is set to True
@@ -231,7 +231,7 @@ processCommand' _ CmdToggleColourMode = lift toggleColourMode
 processCommand' _ CmdSuspend = lift suspend
 processCommand' _ CmdRedraw = lift redraw
 processCommand' im CmdClear = do
-    lift $ drawMessage ""
+    lift clearMessage
     when (im == IMMeta) $ modify $ \ms -> ms { retiredLocks = Nothing }
 processCommand' im CmdMark = void.runMaybeT $ do
     guard $ im `elem` [IMEdit, IMPlay, IMReplay]
@@ -732,7 +732,7 @@ processCommand' IMEdit CmdMerge = do
         _             -> return ()
     -- XXX: merging might invalidate selectedPiece
     modify $ \es -> es {selectedPiece = Nothing}
-    lift $ drawMessage ""
+    lift clearMessage
 processCommand' IMEdit CmdWait = do
     st <- gets esGameState
     (st',_) <- lift $ doPhysicsTick NullPM st
