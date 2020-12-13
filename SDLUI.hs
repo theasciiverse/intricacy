@@ -784,14 +784,19 @@ initVideo w h = do
 
     fs <- gets (fullscreen . uiOptions)
     liftIO $ do
-        (w',h') <- if fs || (w,h)/=(0,0) then return (w,h) else do
+        (w',h') <- if fs || (w,h)/=(0,0) then return (w,h) else
+#ifdef APPLE
             -- use smaller dimensions than the screen's, to work around a bug
             -- seen on mac, whereby a resizable window created with
             -- (w,h)=(0,0), or even with the (w,h) given by getDimensions
             -- after creating such a window, is reported to be larger than it
             -- is.
-            (w',h') <- getDimensions
-            return (4*w'`div`5,4*h'`div`5)
+            do
+                (w',h') <- getDimensions
+                return (4*w'`div`5,4*h'`div`5)
+#else
+            getDimensions
+#endif
         setVideoMode w' h' 0 $ if fs then [Fullscreen] else [Resizable]
 
     (w',h') <- liftIO getDimensions
