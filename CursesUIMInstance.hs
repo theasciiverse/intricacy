@@ -325,6 +325,7 @@ instance UIMonad (StateT UIState IO) where
                     sequence_
                         [ drawStr a0 green (cvec $ pos +^ h) str
                         | (h,str) <- [(hu,"---"), (neg hv," \\ "), (neg hw," / ")]
+                        , not (isLast v) || h == hu
                         , let v' = v +^ h
                         , abs (hy v') < 2 && hx v' >= 0 && hz v' <= 0
                         , solved v || solved v' ]
@@ -337,6 +338,8 @@ instance UIMonad (StateT UIState IO) where
                 | otherwise = maybe "???" initLockName $ Map.lookup v accessible
             solved v | v == zero = tutSolved
                 | otherwise = Just True == (initLockSolved <$> Map.lookup v accessible)
+            isLast v | v == zero = False
+                | otherwise = Just True == (isLastInitLock <$> Map.lookup v accessible)
         drawMainState' MetaState {curServer=saddr, undeclareds=undecls,
                 cacheOnly=cOnly, curAuth=auth, codenameStack=names,
                 randomCodenames=rnamestvar, retiredLocks=mretired, curLockPath=path,

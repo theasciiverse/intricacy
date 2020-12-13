@@ -504,6 +504,8 @@ drawMainState' InitState {initLocks=initLocks, tutProgress=TutProgress{tutSolved
         | otherwise = maybe "???" initLockName $ Map.lookup v accessible
     solved v | v == zero = tutSolved
         | otherwise = Just True == (initLockSolved <$> Map.lookup v accessible)
+    isLast v | v == zero = False
+        | otherwise = Just True == (isLastInitLock <$> Map.lookup v accessible)
     drawInitLock v = do
         let pos = tutPos +^ 2 *^ v
         drawNameCol (name v) pos $ if solved v then brightish green else brightish yellow
@@ -515,7 +517,7 @@ drawMainState' InitState {initLocks=initLocks, tutProgress=TutProgress{tutSolved
             , let v' = v +^ h
             , let inbounds = abs (hy v') < 2 && hx v' >= 0 && hz v' <= 0
             , (v' `notElem` Map.keys accessible) || h `elem` [hu, neg hw, neg hv]
-            , let open = inbounds && (solved v || solved v') ]
+            , let open = inbounds && (solved v || solved v') && (not (isLast v) || h == hu) ]
         registerSelectable pos 0 $ if v == zero then SelTut (solved v) else SelInitLock v (solved v)
 drawMainState' MetaState {curServer=saddr, undeclareds=undecls,
         cacheOnly=cOnly, curAuth=auth, codenameStack=names,
