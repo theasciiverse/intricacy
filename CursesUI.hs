@@ -121,8 +121,8 @@ drawDirBindings :: InputMode -> KeyBindings -> WrHoSel -> Draw
 drawDirBindings mode bdgs whs = Draw 5 $ \cpos -> do
     let c | mode == IMEdit = '_'
             | otherwise = case whs of
-                WHSHook -> '@'
-                WHSWrench -> '*'
+                WHSHook     -> '@'
+                WHSWrench   -> '*'
                 WHSSelected -> '_'
         gl = Glyph c white a0
     drawAtCVec gl cpos

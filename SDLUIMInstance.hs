@@ -411,8 +411,8 @@ instance UIMonad (StateT UIState IO) where
                         $ (screenHeightHexes`div`4 - y`div`2)*^(hv+^neg hw)
                           +^ hw
                           +^ (y`mod`2)*^hw
-                | ((str,firstLine),y) <- intercalate [("",False)] (map (`zip` 
-                (True:repeat False)) extraHelpStrs) `zip` 
+                | ((str,firstLine),y) <- intercalate [("",False)] (map (`zip`
+                (True:repeat False)) extraHelpStrs) `zip`
                 --[(keybindingsHeight+1)..]
                 [((screenHeightHexes - sum (length <$> extraHelpStrs)) `div` 2)..]
                 ]

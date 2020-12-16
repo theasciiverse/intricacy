@@ -330,10 +330,10 @@ renderStrColAt' align c str v = void $ runMaybeT $ do
             +^ neg (SVec 0 ((surfaceGetHeight fsurf-1)`div`2) +^
                 case align of
                     Centred -> SVec (surfaceGetWidth fsurf`div`2) 0
-                    _ -> SVec 0 0)
+                    _       -> SVec 0 0)
         x' = case align of
             ScreenCentred -> cx scrCentre - (surfaceGetWidth fsurf `div` 2)
-            _ -> x
+            _             -> x
     void $ liftIO $ blitSurface fsurf Nothing surf (Just $ Rect x' y 0 0)
 
 renderStrColAbove,renderStrColBelow :: (Functor m, MonadIO m) => Pixel -> String -> HexVec -> RenderT m ()

@@ -27,7 +27,7 @@ import           Data.Map                  (Map)
 import qualified Data.Map                  as Map
 import           Data.Maybe
 import           Data.Monoid
-import           Safe                       (maximumBound)
+import           Safe                      (maximumBound)
 import qualified UI.HSCurses.Curses        as Curses
 import qualified UI.HSCurses.CursesHelper  as CursesH
 
@@ -299,12 +299,12 @@ instance UIMonad (StateT UIState IO) where
                 , (wsel && isWrench p) || (not wsel && isHook p) ]
             where
             filterBindings (CmdRotate _ _) = not $ wrenchOnlyTutLevel tutLevel
-            filterBindings CmdUndo = not $ noUndoTutLevel tutLevel
-            filterBindings CmdRedo = not $ noUndoTutLevel tutLevel
-            filterBindings CmdMark = not $ noUndoTutLevel tutLevel
-            filterBindings CmdJumpMark = not $ noUndoTutLevel tutLevel
-            filterBindings CmdReset = not $ noUndoTutLevel tutLevel
-            filterBindings _ = True
+            filterBindings CmdUndo         = not $ noUndoTutLevel tutLevel
+            filterBindings CmdRedo         = not $ noUndoTutLevel tutLevel
+            filterBindings CmdMark         = not $ noUndoTutLevel tutLevel
+            filterBindings CmdJumpMark     = not $ noUndoTutLevel tutLevel
+            filterBindings CmdReset        = not $ noUndoTutLevel tutLevel
+            filterBindings _               = True
         drawMainState' ReplayState {} = do
             lift . drawState [] False [] =<< gets rsCurrentState
             lift $ drawCursorAt Nothing
