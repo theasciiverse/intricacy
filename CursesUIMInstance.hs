@@ -455,7 +455,7 @@ instance UIMonad (StateT UIState IO) where
 
     clearMessage = say ""
     drawMessage = say
-    drawPrompt full s = say s >> liftIO (void $ Curses.cursSet Curses.CursorVisible)
+    drawPrompt full s = liftIO (void $ Curses.cursSet Curses.CursorVisible) >> say s
     endPrompt = say "" >> liftIO (void $ Curses.cursSet Curses.CursorInvisible)
     drawError = sayError
 
