@@ -143,17 +143,15 @@ drawLockInfo al@(ActiveLock name i) lockinfo = do
 
     startOn <-
         if public lockinfo
-        then lift $ drawStrCentred bold white (CVec (lockTop-1) vcentre) "Everyone!"
+        then lift $ drawStrCentred bold magenta (CVec (lockTop-1) vcentre) "Public"
             >> return (lockTop-1)
         else if null $ accessedBy lockinfo
-            then lift $ drawStrCentred a0 white (CVec (lockTop-1) vcentre) "No-one"
+            then lift $ drawStrCentred a0 white (CVec (lockTop-1) vcentre) "None"
                 >> return (lockTop-1)
             else
                 fillBox (CVec (top+1) (left+1)) (CVec (lockTop-1) (right-1)) 5 GravDown $
-        [ (`drawNote` note) | note <- lockSolutions lockinfo ] ++
-        [ \pos -> drawName False pos name
-                    | name <- accessedBy lockinfo \\ (noteAuthor <$> lockSolutions lockinfo) ]
-    lift $ drawStrCentred a0 white (CVec (startOn-1) vcentre) "Accessed by:"
+        [ (`drawNote` note) | note <- lockSolutions lockinfo ]
+    lift $ drawStrCentred a0 white (CVec (startOn-1) vcentre) "Solutions:"
 
     undecls <- gets undeclareds
     if isJust $ guard . (|| public lockinfo) . (`elem` accessedBy lockinfo) =<< ourName

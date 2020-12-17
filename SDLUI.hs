@@ -357,7 +357,7 @@ helpOfSelectable (SelOldLock ls) = Just $
 helpOfSelectable SelLockPath = Just
     "Select a lock by its name. The names you give your locks are not revealed to others."
 helpOfSelectable SelPrivyHeader = Just
-    "Fellow guild members able to unlock this lock, hence able to read its secured notes."
+    "Notes on solutions to this lock declared by fellow guild members."
 helpOfSelectable SelNotesHeader = Just
     "Secured notes. Notes are obfuscated sketches of method, proving success but revealing little."
 helpOfSelectable SelToolWrench = Just "The wrench, one of your lockpicking tools. Click and drag to move."

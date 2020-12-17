@@ -851,23 +851,21 @@ drawLockInfo al@(ActiveLock name idx) (Just lockinfo) = do
 
     size <- snd <$> lift getGeom
     lift $ do
-        renderToMain $ displaceRender (FVec 1 0) $ renderStrColAt (brightish white) "UNLOCKED BY" $ accessedByPos +^ hv
+        renderToMain $ displaceRender (FVec 1 0) $ renderStrColAt (brightish white) "SOLUTIONS" $ accessedByPos +^ hv
         registerSelectable (accessedByPos +^ hv) 0 SelPrivyHeader
         registerSelectable (accessedByPos +^ hv +^ hu) 0 SelPrivyHeader
     if public lockinfo
     then lift $ do
-        renderToMain $ renderStrColAt pubColour "All" accessedByPos
+        renderToMain $ renderStrColAt pubColour "Public" accessedByPos
         registerSelectable accessedByPos 1 SelPublicLock
     else if null $ accessedBy lockinfo
-        then lift.renderToMain $ renderStrColAt dimWhiteCol "No-one" accessedByPos
+        then lift.renderToMain $ renderStrColAt dimWhiteCol "None" accessedByPos
         else fillArea accessedByPos
                 [ accessedByPos +^ d | j <- [0..2], i <- [-2..3]
                     , i-j > -4, i-j < 3
                     , let d = j*^hw +^ i*^hu ]
                 $ [ \pos -> lift (registerSelectable pos 0 (SelSolution note)) >> drawNote note pos
-                    | note <- lockSolutions lockinfo ] ++
-                [ \pos -> lift (registerSelectable pos 0 (SelAccessed name)) >> drawName name pos
-                    | name <- accessedBy lockinfo \\ map noteAuthor (lockSolutions lockinfo) ]
+                    | note <- lockSolutions lockinfo ]
 
     undecls <- gets undeclareds
     case if isJust $ guard . (|| public lockinfo) . (`elem` map noteAuthor (lockSolutions lockinfo)) =<< ourName
