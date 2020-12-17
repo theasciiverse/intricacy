@@ -293,9 +293,9 @@ helpOfSelectable (SelInitLock _ True) = Just "Revisit solved lock"
 helpOfSelectable SelOurLock = Just
     "Design a lock."
 helpOfSelectable (SelSelectedCodeName name) = Just $
-    "Currently viewing "++name++"."
+    "Currently viewing player "++name++"."
 helpOfSelectable SelRelScore = Just
-    "The extent to which you are held in higher esteem than this fellow guild member."
+    "The extent to which you are held in higher esteem than this player."
 helpOfSelectable SelRelScoreComponent = Just
     "Contribution to total relative esteem."
 helpOfSelectable (SelLock (ActiveLock name i)) = Just $
@@ -305,33 +305,33 @@ helpOfSelectable (SelLockUnset True _) = Just
 helpOfSelectable (SelLockUnset False _) = Just
     "An empty lock slot."
 helpOfSelectable (SelUndeclared _) = Just
-    "Declare yourself able to unlock a lock by securing a note on it behind a lock of your own."
+    "Declare your solution to a lock by securing a note on it behind a lock of your own."
 helpOfSelectable (SelRandom _) = Just
-    "Random set of guild members. Colours show relative esteem, bright red (-3) to bright green (+3)."
+    "Random set of players. Colours show relative esteem, bright red (-3) to bright green (+3)."
 helpOfSelectable (SelScoreLock (Just name) Nothing _) = Just $
-    "Your lock, which "++name++" can not unlock."
+    "Your lock. "++name++" can not not unlock it."
 helpOfSelectable (SelScoreLock (Just name) (Just AccessedPrivyRead) _) = Just $
-    "Your lock, on which "++name++" has read three notes: -1 to relative esteem."
+    "Your lock. "++name++" has read three notes on it: -1 to relative esteem."
 helpOfSelectable (SelScoreLock (Just name) (Just (AccessedPrivySolved False)) _) = Just $
-    "Your lock, on which "++name++" has declared a note which you have not read: -1 to relative esteem."
+    "Your lock. "++name++" has declared a note on it which you have not read: -1 to relative esteem."
 helpOfSelectable (SelScoreLock (Just name) (Just (AccessedPrivySolved True)) _) = Just $
-    "Your lock, on which "++name++" has declared a note which you have, however, read."
+    "Your lock. "++name++" has declared a note on it, but you have read that note."
 helpOfSelectable (SelScoreLock (Just name) (Just AccessedPub) _) = Just
-    "Your lock, the secrets of which have been publically revealed: -1 to relative esteem."
+    "Your lock. Its secrets have been publically revealed: -1 to relative esteem."
 helpOfSelectable (SelScoreLock (Just name) (Just AccessedEmpty) _) = Just $
-    "Your empty lock slot; "++name++" can unlock all your locks: -1 to relative esteem."
+    "Your empty lock slot. "++name++" can unlock all your locks: -1 to relative esteem."
 helpOfSelectable (SelScoreLock Nothing Nothing (ActiveLock name _)) = Just $
-    name++"'s lock, which you can not unlock."
+    name++"'s lock. You can not unlock it."
 helpOfSelectable (SelScoreLock Nothing (Just AccessedPrivyRead) (ActiveLock name _)) = Just $
-    name++"'s lock, on which you have read three notes: +1 to relative esteem."
+    name++"'s lock. You have read three notes on it: +1 to relative esteem."
 helpOfSelectable (SelScoreLock Nothing (Just (AccessedPrivySolved False)) (ActiveLock name _)) = Just $
-    name++"'s lock, on which you have declared a note which "++name++" has not read: +1 to relative esteem."
+    name++"'s lock. You have declared a note on it which "++name++" has not read: +1 to relative esteem."
 helpOfSelectable (SelScoreLock Nothing (Just (AccessedPrivySolved True)) (ActiveLock name _)) = Just $
-    name++"'s lock, on which you have declared a note which "++name++" has, however, read."
+    name++"'s lock. You have declared a note on it, but "++name++" has read your note."
 helpOfSelectable (SelScoreLock Nothing (Just AccessedPub) (ActiveLock name _)) = Just $
-    name++"'s lock, the secrets of which have been publically revealed: +1 to relative esteem."
+    name++"'s lock. Its secrets have been publically revealed: +1 to relative esteem."
 helpOfSelectable (SelScoreLock Nothing (Just AccessedEmpty) (ActiveLock name _)) = Just $
-    name++"'s empty lock slot; you can unlock all "++name++"'s locks: +1 to relative esteem."
+    name++"'s empty lock slot. You can unlock all "++name++"'s locks: +1 to relative esteem."
 helpOfSelectable (SelReadNote note) = Just $
     "You have read "++noteAuthor note++"'s note on this lock."
 helpOfSelectable SelReadNoteSlot = Just
@@ -345,7 +345,7 @@ helpOfSelectable (SelSolution note) = Just $ case noteBehind note of
 helpOfSelectable (SelAccessed name) = Just $
     name ++ " did not pick this lock, but learnt how to unlock it by reading three notes on it."
 helpOfSelectable SelPublicLock = Just
-    "Notes behind retired or public locks are public; locks with three public notes are public."
+    "Notes behind retired or public locks are public; a lock with three public notes on it is public."
 helpOfSelectable (SelAccessedInfo meth) = Just $ case meth of
     AccessedSolved -> "You picked this lock and declared your solution, so may read any notes it secures."
     AccessedPublic -> "The secrets of this lock have been publically revealed."
@@ -353,13 +353,13 @@ helpOfSelectable (SelAccessedInfo meth) = Just $ case meth of
     AccessedReadNotes ->
         "Having read three notes on others' solutions to this lock, you have unravelled its secrets."
 helpOfSelectable (SelOldLock ls) = Just $
-    "Retired lock, #"++show ls++". Any notes which were secured by the lock are now public knowledge."
+    "Retired lock #"++show ls++". Any notes which were secured by the lock are now public knowledge."
 helpOfSelectable SelLockPath = Just
     "Select a lock by its name. The names you give your locks are not revealed to others."
 helpOfSelectable SelPrivyHeader = Just
-    "Notes on solutions to this lock declared by fellow guild members."
+    "Notes on this lock declared by players who picked the lock."
 helpOfSelectable SelNotesHeader = Just
-    "Secured notes. Notes are obfuscated sketches of method, proving success but revealing little."
+    "Notes secured by this lock. These notes are read by everyone who can unlock the lock."
 helpOfSelectable SelToolWrench = Just "The wrench, one of your lockpicking tools. Click and drag to move."
 helpOfSelectable SelToolHook = Just "The hook, one of your lockpicking tools. Click and drag to move, use mousewheel to turn."
 
