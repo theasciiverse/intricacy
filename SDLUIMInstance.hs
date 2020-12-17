@@ -744,7 +744,7 @@ fillArea centre area draws = do
         listButton cmd = \pos -> lift $ registerButton pos cmd 3 []
         draws' = if offset > 0 && length draws > na
             then listButton CmdPrevPage :
-                drop (max 0 $ min (length draws - (na-1)) (na-1 + (na-2)*(offset-1))) draws
+                drop (max 0 $ na-1 + (na-2)*(offset-1)) draws
             else draws
         (selDraws,allDrawn) = if length draws' > na
             then (take (na-1) draws' ++ [listButton CmdNextPage], False)

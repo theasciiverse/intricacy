@@ -111,7 +111,7 @@ fillBox (CVec t l) (CVec b r) width grav draws = do
         nd = length draws
         drawChar c = \cvec -> lift . drawStr bold white cvec $ ' ':c:" "
         draws' = if offset > 0 && length draws > na
-            then drop (max 0 $ min (length draws - (na-1)) (na-1 + (na-2)*(offset-1))) draws
+            then drop (max 0 $ na-1 + (na-2)*(offset-1)) draws
                 ++ [drawChar '<']
             else draws
         (selDraws,allDrawn) = if length draws' > na
