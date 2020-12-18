@@ -14,8 +14,7 @@ To compile the game on *nix with SDL graphics:
     Install ghc, cabal, and development packages for the SDL dependencies
     above, then run
 	cabal update && cabal install
-    which should result in various haskell packages being compiled and
-    installed, probably in ~/.cabal/ . The game can then be run as
+    the intricacy binary should then be installed, possibly to
 	~/.cabal/bin/intricacy 
     Running cabal install as root should install it somewhere global.
 
@@ -25,7 +24,7 @@ To compile a curses-only (ascii graphics) build:
 To compile the server:
 	cabal install -f Server -f -Game
 
-    The server will be installed in
+    The server will be installed as e.g.
 	~/.cabal/bin/intricacy-server
     The server runs on port 27001 by default. It writes the game database to
     a directory 'intricacydb' under the directory from which it is run.

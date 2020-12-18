@@ -1,48 +1,23 @@
-Intricacy
-=========
+# Intricacy
 A game of competitive puzzle-design.
 
-http://mbays.freeshell.org/intricacy/
+https://mbays.sdf.org/intricacy/
 
-
-Playing
-=======
-Press 'T' on the starting screen to play the tutorials, which should lead you
-to discover the main game mechanics. When you've finished or had enough of the
-tutorials, select a codename with 'C' and register it with 'R'. The rest you
-can hopefully figure out, but see below if you'd rather read about it.
-
-
-Configuration
-=============
+## Configuration
 You can change keybindings in SDL mode by right-clicking on the corresponding
 button and pressing a key.
 
-The buttons in the top right when solving/editing locks in SDL mode are as
-follows:
-    * The three hexes toggles between two modes for colouring pieces; in one
-	mode (three yellow hexes), the colours are determined by the nature of
-	the pieces; in the other mode, adjacent pieces always get different
-	colours.
-    * The lone hex with optional arrow toggles "blockage annotations". These
-	are there to help you figure out what's going on when you can't
-	understand why a piece refuses to move. An orange arrow indicates a
-	blocked force, a purple arrow indicates a force which blocked another
-	force.
-    * The soundwave icon toggles sound.
-    * The narrow hex enscribed within a wide hex toggles between fullscreen
-	and windowed mode. The resolution used when switching to fullscreen 
-	is that of the window prior to fullscreening.
-
-Config files are saved in ~/.intricacy/ on unixoids, or something like
-"...\Application Data\intricacy\" on windows. In particular, the locks you
+Config files are saved in `~/.intricacy/` on unixoids, or something like
+`...\Application Data\intricacy\` on windows. In particular, the locks you
 create in the lock editor are saved in there (and you can organise them into
 directories by including (back)slashs in the lock name). You can edit them in
 a text editor if you want - see AsciiLock.hs for what the characters mean.
 
+If you want to cheat your way past initiation, change "False" to "True" in
+`metagame.conf`.
 
-Rough description of the game mechanics
-=======================================
+
+## Rough description of the game mechanics
 * Locks consist of blocks, pivots and balls. Blocks can be connected to other
     blocks by springs. Pivots have arms. When picking a lock, you control two
     tools - a hook, which acts as a mobile one-armed pivot, and a wrench,
@@ -62,11 +37,10 @@ Rough description of the game mechanics
     against a fixed piece such as a tool, it won't block the other force.
 
 
-Full details of the metagame mechanics
-======================================
+## Full details of the metagame mechanics
 (Where by the 'game' I mean the lock-picking bit, and by the 'metagame' I mean
 the bit with the 3-letter codenames and the three lock slots and notes and so
-on.)
+on. If you haven't seen anything of the kind... keep solving those locks!)
 
 A player accesses a lock slot when one of the following holds
     (i) the player has read three notes on the lock in the slot;
@@ -92,8 +66,7 @@ To declare a solution, you must secure a note on it behind a non-public lock
 in one of your three lock slots. Once the note is placed, it can't be moved.
 
 
-Full details of the game mechanics
-==================================
+## Full details of the game mechanics
 Springs are directed; one of the blocks it is connected to is the 'root', the
 other the 'end'. A block is stationary if it is not the end of any spring. The
 directed graph whose nodes are the blocks and whose edges are the springs is
