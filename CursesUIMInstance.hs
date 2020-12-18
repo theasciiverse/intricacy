@@ -330,9 +330,9 @@ instance UIMonad (StateT UIState IO) where
                     sequence_
                         [ drawStr a0 green (cvec $ pos +^ h) str
                         | (h,str) <- [(hu,"---"), (neg hv," \\ "), (neg hw," / ")]
-                        , not (isLast v) || h == hu
                         , let v' = v +^ h
                         , abs (hy v') < 2 && hx v' >= 0 && hz v' <= 0
+                        , v' `Map.member` accessible || (isLast v && h == hu)
                         , solved v || solved v' ]
             drawInitLock zero
             mapM_ drawInitLock $ Map.keys accessible
