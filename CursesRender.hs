@@ -79,7 +79,19 @@ tileChar _ = ('?',bold)
 
 ownedTileGlyph :: Bool -> PieceColouring -> [PieceIdx] -> OwnedTile -> Glyph
 ownedTileGlyph mono@True colouring reversed ot =
-    Glyph (monochromeOTileChar colouring ot) white a0
+    Glyph (monochromeOTileChar' colouring ot) white a0
+    where
+    -- |add fifth colour, to differentiate from lock frame;
+    -- adding this to the asciilock format would break back-compatibility.
+    monochromeOTileChar' colouring (idx,BlockTile _) =
+        case Map.lookup idx colouring of
+            Just 0 -> ';'
+            Just 1 -> '%'
+            Just 2 -> '"'
+            Just 3 -> '&'
+            Just 4 -> '~'
+            _      -> '#'
+    monochromeOTileChar' colouring ot = monochromeOTileChar colouring ot
 ownedTileGlyph mono@False colouring reversed (owner,t) =
     let (ch,attr) = tileChar t
         pair = case Map.lookup owner colouring of
