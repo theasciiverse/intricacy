@@ -1,5 +1,8 @@
 This is an abbreviated summary; see the git log for gory details.
 
+0.8:
+    Add single-player introductory subgame ("initiation").
+    Improve UI variously.
 0.7.2.3:
     Hopefully work around curses build failures
 0.7.2.1:
