@@ -221,6 +221,7 @@ executable intricacy-server
             binary >=0.5 && <0.9,
             network-fancy >=0.1.5 && <0.3,
             cryptohash >=0.8 && <0.12,
+            safe >=0.2 && <0.4,
             RSA >=2.0 && <2.5,
             crypto-pubkey-types >=0.2 && <0.5,
             crypto-api >=0.10 && <0.14,
