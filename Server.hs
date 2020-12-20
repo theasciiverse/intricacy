@@ -139,7 +139,7 @@ setKeyPair = do
         putRecord RecPublicKey $ RCPublicKey publicKey
         putRecord RecSecretKey $ RCSecretKey secretKey
 
--- Note: switching to cryptonite's argon2 implementation would not be 
+-- Note: switching to cryptonite's argon2 implementation would not be
 -- straightforwardsly backwards-compatible, the output format is different.
 argon2 :: String -> ExceptT String IO String
 argon2 s = either (throwE . show) return $
