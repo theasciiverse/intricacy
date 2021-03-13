@@ -42,8 +42,16 @@ ssh, and are happy with a text-only interface, try:
 * ssh intricacy@thegonz.net
 * password: intricacy
 
+##RSS Feed
+Subscribe to this for updates on locks being set and solved:
+[Feed for events on main 
+server](https://intricacy.thegonz.net/mainServerFeed/rss).
+
 ##Discuss
+<!--
 * [Web forum](http://intricacy.thegonz.net/forum/)
+(Broken due to PHP updates...)
+-->
 * Mailing list: mail mbays+intricacy@sdf.org with subject line '[intricacy-discuss] subscribe'.
 * IRC channel: #intricacy on irc.freenode.org
 
