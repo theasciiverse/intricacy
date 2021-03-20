@@ -20,7 +20,7 @@ import           Data.Binary
 import qualified Data.ByteString            as BS
 import qualified Data.ByteString.Lazy       as BL
 import           Data.Maybe
-import           Network.Fancy
+import           Network.Simple.TCP         (connect, recv, send)
 import           System.Directory
 import           System.FilePath
 import           System.IO
@@ -78,14 +78,18 @@ makeRequest :: ServerAddr -> ClientRequest -> IO ServerResponse
 makeRequest saddr _ | nullSaddr saddr =
     return $ ServerError "No server set."
 makeRequest saddr@(ServerAddr host port) request =
-    handle (return . ServerError . (show::SomeException -> String)) $
-        withStream (IP host port) makeRequest'
+    handle (return . ServerError . (show::SomeException -> String)) $ do
+        connect host (show port) makeRequest'
             `catchIO` const (return $ ServerError $ "Cannot connect to "++saddrStr saddr++"!")
     where
-        makeRequest' hdl = do
-            BS.hPut hdl $ BL.toStrict $ encode request
-            hFlush hdl
-            decode . BL.fromStrict <$> BS.hGetContents hdl
+        makeRequest' (sock,_) = do
+            send sock . BL.toStrict $ encode request
+            decode . BL.fromStrict <$> recvAll sock
+        recvAll sock =
+            recv sock 4096 >>= \r -> case r of
+                Nothing -> return BS.empty
+                Just b -> BS.append b <$> recvAll sock
+
 
 knownServers :: IO [ServerAddr]
 knownServers = ignoreIOErr $ do
