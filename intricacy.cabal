@@ -104,21 +104,21 @@ executable intricacy
         build-depends:
             base >=4.3 && <5,
             mtl >=2.1.3.1 && <2.3,
-            transformers >=0.3.0.0 && <0.6,
+            transformers >=0.3.0.0 && <0.7,
             stm >=2.1 && <2.6,
             directory >=1.0 && <1.4,
             exceptions >=0.8.3 && <0.11,
             filepath >=1.0 && <1.5,
-            time >=1.2 && <1.10,
-            bytestring ==0.10.*,
+            time >=1.2 && <1.13,
+            bytestring >=0.10 && <0.12,
             array >=0.3 && <0.6,
             containers >=0.4 && <0.7,
             vector >=0.9 && <0.13,
-            binary >=0.5 && <0.9,
+            binary >=0.5 && <0.11,
             network-simple >=0.3 && <0.5,
             safe >=0.3.18 && <0.4,
-            memory >= 0.11 && <0.16,
-            cryptonite >= 0.16 && <0.28
+            memory >=0.11 && <0.17,
+            cryptonite >=0.16 && <0.30
 
         if !impl(ghc >=8.0)
             build-depends: semigroups ==0.18.*
@@ -133,7 +133,7 @@ executable intricacy
                 cpp-options:   -DSOUND
                 build-depends:
                     SDL-mixer ==0.6.*,
-                    random >=1.0 && <1.2
+                    random >=1.0 && <1.3
 
             if os(windows)
                 extra-libraries:
@@ -148,20 +148,20 @@ executable intricacy
                     extra-libraries: SDL_mixer
 
             if os(osx)
-                cpp-options:   -DAPPLE
-                c-sources:     c_main.c
-                include-dirs:  /usr/include/SDL /usr/local/include/SDL
-                ghc-options:   -no-hs-main
+                cpp-options:  -DAPPLE
+                c-sources:    c_main.c
+                include-dirs: /usr/include/SDL /usr/local/include/SDL
+                ghc-options:  -no-hs-main
 
         if flag(curses)
-            cpp-options:   -DMAIN_CURSES
+            cpp-options:       -DMAIN_CURSES
+            pkgconfig-depends: ncursesw -any
             other-modules:
                 CursesRender
                 CursesUI
                 CursesUIMInstance
 
-            build-depends: hscurses ==1.4.*
-            pkgconfig-depends: ncursesw
+            build-depends:     hscurses ==1.4.*
 
         if flag(sdl)
             cpp-options:   -DMAIN_SDL
@@ -205,30 +205,30 @@ executable intricacy-server
         build-depends:
             base >=4.3 && <5,
             mtl >=2.2 && <2.3,
-            transformers >=0.4 && <0.6,
+            transformers >=0.4 && <0.7,
             stm >=2.1 && <2.6,
             directory >=1.0 && <1.4,
             exceptions >=0.8.3 && <0.11,
             filepath >=1.0 && <1.5,
-            time >=1.5 && <1.10,
-            bytestring ==0.10.*,
+            time >=1.5 && <1.13,
+            bytestring >=0.10 && <0.12,
             array >=0.3 && <0.6,
             containers >=0.4 && <0.7,
             vector >=0.9 && <0.13,
-            binary >=0.5 && <0.9,
+            binary >=0.5 && <0.11,
             network-fancy >=0.1.5 && <0.3,
             safe >=0.3.18 && <0.4,
             random >=1.0 && <1.3,
             pipes >=4 && <4.4,
             feed >=1.1 && <1.4,
-            xml-conduit >=1.0 && < 1.10,
+            xml-conduit >=1.0 && <1.10,
             email-validate >=1.0 && <2.4,
-            text >=0.1 && < 1.3,
+            text >=0.1 && <1.3,
             text-short ==0.1.*,
-            mime-mail >=0.4.4 && < 0.6,
-            smtp-mail >=0.1.4.1 && < 0.4,
-            memory >= 0.11 && <0.16,
-            cryptonite >= 0.16 && <0.28,
+            mime-mail >=0.4.4 && <0.6,
+            smtp-mail >=0.1.4.1 && <0.4,
+            memory >=0.11 && <0.17,
+            cryptonite >=0.16 && <0.30,
             argon2 ==1.3.*
 
         if !impl(ghc >=8.0)
