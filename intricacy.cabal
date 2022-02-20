@@ -210,7 +210,7 @@ executable intricacy-server
             directory >=1.0 && <1.4,
             exceptions >=0.8.3 && <0.11,
             filepath >=1.0 && <1.5,
-            time >=1.5 && <1.13,
+            time >=1.5 && <1.14,
             bytestring >=0.10 && <0.12,
             array >=0.3 && <0.6,
             containers >=0.4 && <0.7,
