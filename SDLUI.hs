@@ -211,7 +211,8 @@ markButtonGroup = ([Button (tl+^hw) CmdMark [("set",hu+^neg hw),("mark",hu+^neg 
 
 data AccessedInfo = AccessedSolved | AccessedPublic | AccessedReadNotes | AccessedUndeclared
     deriving (Eq, Ord, Show)
-data Selectable = SelOurLock
+data Selectable
+    = SelOurLock
     | SelTut Bool
     | SelInitLock HexVec Bool
     | SelLock ActiveLock
@@ -234,7 +235,7 @@ data Selectable = SelOurLock
     | SelPrivyHeader
     | SelNotesHeader
     | SelToolHook
-    | SelToolWrench
+    | SelToolWrench Bool
     deriving (Eq, Ord, Show)
 
 registerSelectable :: HexVec -> Int -> Selectable -> UIM ()
@@ -360,7 +361,8 @@ helpOfSelectable SelPrivyHeader = Just
     "Notes on this lock declared by players who picked the lock."
 helpOfSelectable SelNotesHeader = Just
     "Notes secured by this lock. These notes are read by everyone who can unlock the lock."
-helpOfSelectable SelToolWrench = Just "The wrench, one of your lockpicking tools. Click and drag to move."
+helpOfSelectable (SelToolWrench False) = Just "The wrench, one of your lockpicking tools. Click and drag to move."
+helpOfSelectable (SelToolWrench True) = Just "The wrench, currently in motion. It will keep moving until it is blocked."
 helpOfSelectable SelToolHook = Just "The hook, one of your lockpicking tools. Click and drag to move, use mousewheel to turn."
 
 cmdAtMousePos pos@(mPos,central) im selMode = do
