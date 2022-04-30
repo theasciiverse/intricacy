@@ -250,7 +250,7 @@ readInitProgress = do
             desc <- MaybeT $ listToMaybe <$> readStrings (initDataDir </> name ++ ".text")
             lock <- (fst <$>) . MaybeT $ readLock (initDataDir </> name ++ ".lock")
             solved <- lift . (fromMaybe False <$>) . readReadFile $ initConfDir </> name ++ ".solved"
-            partial <- lift . readReadFile $ initConfDir </> name ++ ".partial"
+            partial <- lift . (fromMaybe Nothing <$>) . readReadFile $ initConfDir </> name ++ ".partial"
             return $ InitLock name desc lock solved partial
     initLocks <- Map.mapMaybe id <$> mapM readInitLock namesMap
     return (tut,initLocks)
