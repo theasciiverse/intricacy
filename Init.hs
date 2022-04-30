@@ -30,10 +30,17 @@ import           Mundanities
 import           Util
 import           Version
 
-data Opt = LockSize Int | ForceCurses | Help | Version
+data Opt
+    = DataDir FilePath
+    | LockSize Int
+    | ForceCurses
+    | Help
+    | Version
     deriving (Eq, Ord, Show)
+
 options =
-    [ Option ['c'] ["curses"] (NoArg ForceCurses) "force curses UI"
+    [ Option ['d'] ["datadir"] (ReqArg DataDir "PATH") "user data and conf directory (default: ~/.intricacy)"
+    , Option ['c'] ["curses"] (NoArg ForceCurses) "force curses UI"
     , Option ['s'] ["locksize"] (ReqArg (LockSize . read) "SIZE") "locksize"
     , Option ['h'] ["help"] (NoArg Help) "show usage information"
     , Option ['v'] ["version"] (NoArg Version) "show version information"
@@ -56,6 +63,8 @@ setup = do
     when (Help `elem` opts) $ putStr usage >> exitSuccess
     when (Version `elem` opts) $ putStrLn version >> exitSuccess
     let size = fromMaybe 8 $ listToMaybe [ size | LockSize size <- opts ]
+    mapM_ (setEnv "INTRICACY_PATH") [ dir | DataDir dir <- opts ]
+
     curDir <- getCurrentDirectory
     (fromJust <$>) $ runMaybeT $ msum
         [ do
