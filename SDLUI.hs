@@ -525,7 +525,7 @@ periphery n = rotate n $ periphery 0
 -- ^ XXX only peripheries 0,2,3,5 are guaranteed to be on-screen!
 --messageLineStart = (maxlocksize+1)*^hw
 messageLineCentre = ((maxlocksize+1)`div`2)*^hw +^ ((maxlocksize+1+1)`div`2)*^neg hv
-titlePos = (maxlocksize+1)*^hv +^ ((maxlocksize+1)`div`2)*^hu
+titlePos n = n*^hv +^ (n`div`2)*^hu
 
 screenWidthHexes,screenHeightHexes :: Int
 screenWidthHexes = 32
@@ -906,7 +906,7 @@ setMsgLine col str = setMsgLineNoRefresh col str >> refresh
 clearMsg :: UIM ()
 clearMsg = modify $ \s -> s { message = Nothing }
 
-drawTitle (Just title) = renderToMain $ renderStrColAtCentre messageCol title titlePos
+drawTitle (Just (title,n)) = renderToMain $ renderStrColAtCentre messageCol title (titlePos n)
 drawTitle Nothing      = return ()
 
 say = setMsgLine messageCol

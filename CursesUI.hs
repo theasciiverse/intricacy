@@ -314,7 +314,7 @@ setMsgLine attr col str = do
     drawMsgLine
     refresh
 
-drawTitle (Just title) = do
+drawTitle (Just (title,n)) = do
     (h,w) <- liftIO Curses.scrSize
     drawStrCentred a0 white (CVec 0 (w`div`2)) title
 drawTitle Nothing = return ()

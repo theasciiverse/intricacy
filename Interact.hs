@@ -146,7 +146,7 @@ processCommand im CmdQuit = do
     title <- lift getTitle
     (lift . lift . confirm) ("Really quit"
             ++ (if im == IMEdit then " without saving" else "")
-            ++ maybe "" (" from "++) title ++ "?")
+            ++ maybe "" ((" from "++) . fst) title ++ "?")
         >>? throwE $ InteractSuccess False
 processCommand im CmdForceQuit = throwE $ InteractSuccess False
 processCommand IMPlay CmdOpen = do

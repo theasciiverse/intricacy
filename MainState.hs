@@ -40,6 +40,7 @@ import           GameStateTypes
 import           Hex
 import           InputMode
 import           Lock
+import           Maxlocksize
 import           Metagame
 import           Mundanities
 import           Physics
@@ -288,19 +289,26 @@ writeMetaState ms@MetaState { curServer=saddr, curAuth=auth, curLockPath=path, i
     writeServerSolns saddr ms
 writeMetaState _ = return ()
 
-getTitle :: UIMonad uiM => MainStateT uiM (Maybe String)
+getTitle :: UIMonad uiM => MainStateT uiM (Maybe (String, Int))
 getTitle = get >>= title . ms2im
     where
     title IMEdit = do
         mpath <- gets esPath
         unsaved <- editStateUnsaved
         isTested <- isJust <$> getCurTestSoln
-        return $ Just $ "editing " ++ fromMaybe "[unnamed lock]" mpath ++
-            (if isTested then " (Tested)" else "") ++
-            (if unsaved then " [+]" else "    ")
-    title IMPlay = gets psTitle
-    title IMReplay = gets rsTitle
+        height <- gets $ aboveFrame . esFrame
+        return $ Just ("editing " ++ fromMaybe "[unnamed lock]" mpath ++
+                (if isTested then " (Tested)" else "") ++
+                (if unsaved then " [+]" else "    "),
+            height
+            )
+    title IMPlay = do
+        height <- gets $ aboveFrame . psFrame
+        gets $ ((, height) <$>) . psTitle
+    title IMReplay = gets $ ((, maxHeight) <$>) . rsTitle
     title _ = return Nothing
+    aboveFrame frame = min maxHeight $ 2 + frameSize frame
+    maxHeight = maxlocksize + 1
 
 editStateUnsaved :: UIMonad uiM => MainStateT uiM Bool
 editStateUnsaved = (isNothing <$>) $ runMaybeT $ do
