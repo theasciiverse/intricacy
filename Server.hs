@@ -417,12 +417,13 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
         decryptPassword :: String -> ExceptT String IO String
         decryptPassword pw = do
             RCSecretKey secretKey <- getRecordErrored RecSecretKey
-            -- FIXME: for some reason decryption is failing; get 
-            -- MessageNotRecognised
             blinder <- liftIO . generateBlinder $ private_n secretKey
-            ExceptT . return . bimap show CS.unpack .
+            ExceptT . return . bimap
+                    (\err -> show err ++ "; try deleting ~/.intricacy/cache ?")
+                    CS.unpack .
                 decrypt (Just blinder) (defaultOAEPParams SHA256) secretKey . CS.pack $ pw
-                -- <=intricacy-0.6.2 sends the hashed password unencrypted
+            -- XXX: <=intricacy-0.6.2 sends the hashed password unencrypted, 
+            -- but we don't support that anymore
         convertLegacyPW :: Codename -> IO ()
         convertLegacyPW name = void . runExceptT $ do
             RCPasswordLegacy legacyPw <- getRecordErrored (RecPasswordLegacy name)
