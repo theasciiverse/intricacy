@@ -196,7 +196,7 @@ processCommand IMInit (CmdSolveInit (Just v)) = void.runMaybeT $ do
         MaybeT . lift $ gets (Map.lookup v . initLocks)
     lift $ do
         (InteractSuccess solved, ps) <- lift . runSubMainState $
-            maybe newPlayState restorePlayState partial (reframe lock) (Just desc) Nothing False True
+            maybe newPlayState restorePlayState partial (reframe lock) [] (Just desc) Nothing False True
         let updateLock initLock = initLock { initLockSolved = initLockSolved initLock || solved
                 , initLockPartial = Just $ savePlayState ps }
         lift . modify $ \is -> is { initLocks = Map.adjust updateLock v $ initLocks is }
@@ -411,7 +411,7 @@ processCommand' IMMeta (CmdPlayLockSpec mls) = void.runMaybeT $ do
             liftMaybe $ readMay tls
         ]
     RCLock lock <- MaybeT $ getFreshRecBlocking $ RecLock ls
-    solveLock lock $ Just $ "solving " ++ show ls
+    solveLock lock Nothing $ Just $ "solving " ++ show ls
 
 processCommand' IMMeta (CmdDeclare mundecl) = void.runMaybeT $ do
     guard =<< mourNameSelected
@@ -482,7 +482,7 @@ processCommand' IMMeta (CmdPlaceLock midx) = void.runMaybeT $ do
         askLockIndex ("Place " ++ show lockpath ++ " in which slot?") "bug" $ const True
     when (isJust $ userLocks ourUInfo ! idx) $
         confirmOrBail "Really retire existing lock?"
-    soln <- (liftMaybe msoln `mplus`) $ solveLock lock $ Just "testing lock"
+    soln <- (liftMaybe msoln `mplus`) $ solveLock lock Nothing $ Just "testing lock"
     lift $ curServerActionAsyncThenInvalidate
         (SetLock lock idx soln)
         (Just (SomeCodenames [ourName]))
@@ -545,12 +545,12 @@ processCommand' IMPlay CmdUndo = do
     unless (null stack) $ do
         let (st',pm) = head stack
         modify $ \ps -> ps {psCurrentState=st', psGameStateMoveStack = tail stack,
-            psLastAlerts = [], psUndoneStack = (st,pm):ustms}
+            psLastAlerts = [], psUndoneStack = pm:ustms}
 processCommand' IMPlay CmdRedo = do
     ustms <- gets psUndoneStack
     case ustms of
         [] -> return ()
-        ustm@(_,pm):ustms' -> do
+        pm:ustms' -> do
             st <- gets psCurrentState
             (st',alerts) <- lift $ doPhysicsTick pm st
             pushPState (st',pm)
@@ -654,8 +654,12 @@ processCommand' IMEdit CmdTest = do
     modify $ \es -> es {selectedPiece = Nothing}
     mpath <- gets esPath
     st <- gets esGameState
+    curSoln <- runMaybeT $ do
+        (st', soln) <- MaybeT $ gets esTested
+        guard $ st' == st
+        return soln
     void.runMaybeT $ do
-        soln <- solveLock (frame,st) $ Just $ "testing " ++ fromMaybe "[unnamed lock]" mpath
+        soln <- solveLock (frame,st) curSoln $ Just $ "testing " ++ fromMaybe "[unnamed lock]" mpath
         lift $ modify $ \es -> es { esTested = Just (st, soln) }
 processCommand' IMEdit CmdUndo = do
     st <- gets esGameState
@@ -807,12 +811,13 @@ setSelectedPos pos = do
 
 subPlay :: UIMonad uiM => Lock -> MainStateT uiM ()
 subPlay lock =
-    pushEState . psCurrentState =<< execSubMainState (newPlayState lock Nothing Nothing True False)
+    pushEState . psCurrentState =<< execSubMainState (newPlayState lock [] Nothing Nothing True False)
 
-solveLock :: UIMonad uiM => Lock -> Maybe String -> MaybeT (MainStateT uiM) Solution
+solveLock :: UIMonad uiM => Lock -> Maybe Solution -> Maybe String -> MaybeT (MainStateT uiM) Solution
 solveLock = solveLock' Nothing
-solveLock' tutLevel lock title = do
-    (InteractSuccess solved, ps) <- lift $ runSubMainState $ newPlayState (reframe lock) title tutLevel False False
+solveLock' tutLevel lock mSoln title = do
+    (InteractSuccess solved, ps) <- lift $ runSubMainState $
+        newPlayState (reframe lock) (fromMaybe [] mSoln) title tutLevel False False
     guard solved
     return . reverse $ snd <$> psGameStateMoveStack ps
 
@@ -820,7 +825,7 @@ solveLockSaving :: UIMonad uiM => LockSpec -> Maybe SavedPlayState -> Maybe Int 
 solveLockSaving ls msps tutLevel lock title = do
     let isTut = isJust tutLevel
     (InteractSuccess solved, ps) <- lift $ runSubMainState $
-        maybe newPlayState restorePlayState msps (reframe lock) title tutLevel False True
+        maybe newPlayState restorePlayState msps (reframe lock) [] title tutLevel False True
     if solved
         then do
             unless isTut . lift . modify $ \ms -> ms { partialSolutions = Map.delete ls $ partialSolutions ms }

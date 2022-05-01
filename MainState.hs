@@ -88,7 +88,7 @@ data MainState
         , wrenchSelected       :: Bool
         , psSolved             :: Bool
         , psGameStateMoveStack :: [(GameState, PlayerMove)]
-        , psUndoneStack        :: [(GameState, PlayerMove)]
+        , psUndoneStack        :: [PlayerMove]
         , psTitle              :: Maybe String
         , psTutLevel           :: Maybe Int
         , psIsSub              :: Bool
@@ -155,7 +155,7 @@ ms2im mainSt = case mainSt of
     InitState {}   -> IMInit
     MetaState {}   -> IMMeta
 
-newPlayState (frame,st) title tutLevel sub saved = PlayState st frame [] False False [] [] title tutLevel sub saved Map.empty
+newPlayState (frame,st) pms title tutLevel sub saved = PlayState st frame [] False False [] pms title tutLevel sub saved Map.empty
 newReplayState st soln title = ReplayState st [] soln [] title Map.empty
 newEditState (frame,st) msoln mpath = EditState st [] [] frame mpath
     ((st,)<$>msoln) (Just (st, isJust msoln)) Nothing (PHS zero) (PHS zero) Map.empty
@@ -217,12 +217,12 @@ savePlayState :: MainState -> SavedPlayState
 savePlayState ps = SavedPlayState (getMoves ps) $ Map.map getMoves $ psMarks ps
     where getMoves = reverse . map snd . psGameStateMoveStack
 
-restorePlayState :: SavedPlayState -> Lock -> Maybe String -> Maybe Int -> Bool -> Bool -> MainState
-restorePlayState (SavedPlayState pms markPMs) (frame,st) title tutLevel sub saved =
+restorePlayState :: SavedPlayState -> Lock -> [PlayerMove] -> Maybe String -> Maybe Int -> Bool -> Bool -> MainState
+restorePlayState (SavedPlayState pms markPMs) (frame,st) redoPms title tutLevel sub saved =
     (stateAfterMoves pms) { psMarks = Map.map stateAfterMoves markPMs }
     where
         stateAfterMoves pms = let (stack,st') = applyMoves st pms
-            in (newPlayState (frame, st') title tutLevel sub saved) { psGameStateMoveStack = stack }
+            in (newPlayState (frame, st') redoPms title tutLevel sub saved) { psGameStateMoveStack = stack }
         applyMoves st pms = foldl tick ([],st) pms
         tick :: ([(GameState,PlayerMove)],GameState) -> PlayerMove -> ([(GameState,PlayerMove)],GameState)
         tick (stack,st) pm = ((st,pm):stack,fst . runWriter $ physicsTick pm st)
