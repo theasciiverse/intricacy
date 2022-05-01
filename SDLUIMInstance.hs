@@ -459,7 +459,7 @@ drawMainState' PlayState { psCurrentState=st, psLastAlerts=alerts,
                 [ registerSelectable (pos -^ centre) 0 $
                     case p of
                         Wrench v -> SelToolWrench $ v /= zero
-                        _ -> SelToolHook
+                        _        -> SelToolHook
                 | not $ lb || rb
                 , PlacedPiece pos p <- Vector.toList $ placedPieces st
                 , isTool p]

@@ -8,7 +8,7 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
-{-# LANGUAGE LambdaCase    #-}
+{-# LANGUAGE LambdaCase #-}
 
 module Cache where
 
@@ -90,7 +90,7 @@ makeRequest saddr@(ServerAddr host port) request =
         recvAll sock =
             recv sock 4096 >>= \case
                 Nothing -> return BS.empty
-                Just b -> BS.append b <$> recvAll sock
+                Just b  -> BS.append b <$> recvAll sock
 
 
 knownServers :: IO [ServerAddr]

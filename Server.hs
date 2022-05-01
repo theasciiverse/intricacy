@@ -57,8 +57,8 @@ import qualified Text.XML                   as XML
 import qualified Crypto.Argon2              as A2
 import           Crypto.Hash.Algorithms     (SHA256 (..))
 import           Crypto.PubKey.RSA          (generate, generateBlinder)
-import           Crypto.PubKey.RSA.Types    (private_n)
 import           Crypto.PubKey.RSA.OAEP     (decrypt, defaultOAEPParams)
+import           Crypto.PubKey.RSA.Types    (private_n)
 
 import           Network.Mail.Mime          (plainPart)
 import qualified Network.Mail.SMTP          as SMTP
@@ -226,8 +226,8 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
             _                -> ReadWriteMode
 
     -- Check solutions prior to write-locking database.
-    -- Slightly awkward, because we have to drop the read lock before 
-    -- acquiring the write lock, so need to check preconditions again once we 
+    -- Slightly awkward, because we have to drop the read lock before
+    -- acquiring the write lock, so need to check preconditions again once we
     -- have the write lock.
     withDBLock dbpath ReadMode (runExceptT $ checkRequest Nothing) >>=
         either (return . ServerError) (\mCheckedLock ->
@@ -422,7 +422,7 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
                     (\err -> show err ++ "; try deleting ~/.intricacy/cache ?")
                     CS.unpack .
                 decrypt (Just blinder) (defaultOAEPParams SHA256) secretKey . CS.pack $ pw
-            -- XXX: <=intricacy-0.6.2 sends the hashed password unencrypted, 
+            -- XXX: <=intricacy-0.6.2 sends the hashed password unencrypted,
             -- but we don't support that anymore
         convertLegacyPW :: Codename -> IO ()
         convertLegacyPW name = void . runExceptT $ do
