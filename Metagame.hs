@@ -39,42 +39,20 @@ data LockInfo = LockInfo {lockSpec::LockSpec, public::Bool, notesSecured::[NoteI
 
 initLockInfo ls = LockInfo ls False [] [] []
 
-data NoteInfo = NoteInfo {noteAuthor::Codename, noteBehind::Maybe ActiveLock, noteOn::ActiveLock}
+data AccessedReason = AccessedPrivy | AccessedEmpty | AccessedPub
     deriving (Eq, Ord, Show, Read)
 
-data ActiveLock = ActiveLock {lockOwner::Codename, lockIndex :: LockIndex}
-    deriving (Eq, Ord, Show, Read)
-
-data AccessedReason = AccessedPrivyRead | AccessedPrivySolved {noteReadByOwner::Bool} | AccessedEmpty | AccessedPub
-    deriving (Eq, Ord, Show, Read)
-winsPoint :: AccessedReason -> Bool
-winsPoint (AccessedPrivySolved True) = False
-winsPoint _                          = True
-
-getAccessInfo :: UserInfo -> UserInfo -> [Maybe AccessedReason]
-getAccessInfo accessedUInfo accessorUInfo =
-    let accessor = codename accessorUInfo
-        mlinfos = elems $ userLocks accessedUInfo
+getAccessInfo :: UserInfo -> Codename -> [Maybe AccessedReason]
+getAccessInfo ui name =
+    let mlinfos = elems $ userLocks ui
         accessedSlot = maybe accessedAllExisting accessedLock
         accessedAllExisting = all (maybe True accessedLock) mlinfos
-        accessedLock linfo = public linfo || accessor `elem` accessedBy linfo
+        accessedLock linfo = public linfo || name `elem` accessedBy linfo
     in map (maybe
             (if accessedAllExisting then Just AccessedEmpty else Nothing)
-            (\linfo -> if public linfo then Just AccessedPub else
-                if not $ accessedLock linfo then Nothing else Just $
-                    if countRead accessorUInfo linfo >= notesNeeded then AccessedPrivyRead
-                        else AccessedPrivySolved $ not.null $
-                            [ n
-                            | n <- lockSolutions linfo
-                            , noteAuthor n == accessor
-                            , isNothing (noteBehind n) || n `elem` notesRead accessedUInfo ]))
+            (\linfo -> if public linfo then Just AccessedPub
+                else if accessedLock linfo then Just AccessedPrivy else Nothing))
         mlinfos
-
-countRead :: UserInfo -> LockInfo -> Int
-countRead reader tlock = fromIntegral $ length
-        $ filter (\n -> (isNothing (noteBehind n) || n `elem` notesRead reader)
-            && noteAuthor n /= codename reader)
-        $ lockSolutions tlock
 
 data UserInfoDelta
     = AddRead NoteInfo
@@ -89,6 +67,12 @@ data LockDelta
     | AddSolution NoteInfo
     | AddAccessed Codename
     | SetPublic
+    deriving (Eq, Ord, Show, Read)
+
+data NoteInfo = NoteInfo {noteAuthor::Codename, noteBehind::Maybe ActiveLock, noteOn::ActiveLock}
+    deriving (Eq, Ord, Show, Read)
+
+data ActiveLock = ActiveLock {lockOwner::Codename, lockIndex :: LockIndex}
     deriving (Eq, Ord, Show, Read)
 
 data Undeclared = Undeclared Solution LockSpec ActiveLock

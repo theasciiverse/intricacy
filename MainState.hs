@@ -510,18 +510,17 @@ getRelScoreDetails name = runMaybeT $ do
     guard $ ourName /= name
     uinfo <- mgetUInfo name
     ourUInfo <- mgetUInfo ourName
-    let (neg,pos) = (countPoints ourUInfo uinfo, countPoints uinfo ourUInfo)
+    let (pos,neg) = (countUnaccessedBy ourUInfo name, countUnaccessedBy uinfo ourName)
     return (pos-neg,(pos,neg))
     where
-        countPoints mugu masta = length $ filter (maybe False winsPoint) $ getAccessInfo mugu masta
+        countUnaccessedBy ui name = length $ filter isNothing $ getAccessInfo ui name
 
 accessedAL :: (UIMonad uiM) => ActiveLock -> MainStateT uiM Bool
 accessedAL (ActiveLock name idx) = (isJust <$>) $ runMaybeT $ do
     ourName <- mgetOurName
     guard $ ourName /= name
     uinfo <- mgetUInfo name
-    ourUInfo <- mgetUInfo ourName
-    guard $ isJust $ getAccessInfo uinfo ourUInfo !! idx
+    guard $ isJust $ getAccessInfo uinfo ourName !! idx
 
 getNotesReadOn :: UIMonad uiM => LockInfo -> MainStateT uiM [NoteInfo]
 getNotesReadOn lockinfo = (fromMaybe [] <$>) $ runMaybeT $ do
@@ -569,8 +568,7 @@ metagameHelpText =
     , ""
     , "The game judges players relative to each of their peers. There are no absolute rankings."
     , "You win a point of esteem against another player for one of their locks"
-    , "if you have solved the lock and declared a note which remains unread by the lock's owner,"
-    , "or if you have read three notes by other players on the lock."
+    , "if you have declared a solution to it, or if you have read three notes on it."
     , "You also win a point for each empty lock slot if you can unlock all full slots."
     , "Relative esteem is the points you win minus the points they win; +3 is best, -3 is worst."
     , ""

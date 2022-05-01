@@ -523,7 +523,9 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
             info <- getCurrUserInfo name
             tlock <- getCurrALock target
             unless (name `elem` accessedBy tlock || public tlock || name == lockOwner target) $ do
-                when (countRead info tlock == notesNeeded) $
+                let countRead = fromIntegral $ length $
+                        filter (\n -> isNothing (noteBehind n) || n `elem` notesRead info) $ lockSolutions tlock
+                when (countRead == notesNeeded) $
                     accessLock name target tlock
         checkSuffPubNotes al@(ActiveLock name idx) = do
             lock <- getCurrALock al

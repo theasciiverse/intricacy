@@ -620,7 +620,7 @@ drawMainState' MetaState {curServer=saddr, undeclareds=undecls,
         us <- liftMaybe ourName
         ourUInfo <- mgetUInfo us
         selUInfo <- mgetUInfo sel
-        let accesses = map (uncurry getAccessInfo) [(ourUInfo,selUInfo),(selUInfo,ourUInfo)]
+        let accesses = map (uncurry getAccessInfo) [(ourUInfo,sel),(selUInfo,us)]
         let posLeft = scoresPos +^ hw +^ neg hu
         let posRight = posLeft +^ 3*^hu
         size <- snd <$> (lift.lift) getGeom
@@ -635,7 +635,7 @@ drawMainState' MetaState {curServer=saddr, undeclareds=undecls,
                 , let accessed = head accesses !! i
                 , let col
                         | accessed == Just AccessedPub = dim pubColour
-                        | maybe False winsPoint accessed = dim $ scoreColour $ -3
+                        | isJust accessed = dim $ scoreColour $ -3
                         | otherwise = obscure $ scoreColour 3 ]
             fillArea (posRight+^hw) (map (posRight+^) [zero,hw,neg hv])
                 [ \pos -> lift (registerSelectable pos 0 (SelScoreLock Nothing accessed $ ActiveLock sel i)) >>
@@ -644,7 +644,7 @@ drawMainState' MetaState {curServer=saddr, undeclareds=undecls,
                 , let accessed = accesses !! 1 !! i
                 , let col
                         | accessed == Just AccessedPub = obscure pubColour
-                        | maybe False winsPoint accessed = dim $ scoreColour 3
+                        | isJust accessed = dim $ scoreColour 3
                         | otherwise = obscure $ scoreColour $ -3 ]
         (posScore,negScore) <- MaybeT $ (snd<$>) <$> getRelScoreDetails sel
         lift.lift $ sequence_

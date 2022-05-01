@@ -311,24 +311,16 @@ helpOfSelectable (SelRandom _) = Just
     "Random set of players. Colours show relative esteem, bright red (-3) to bright green (+3)."
 helpOfSelectable (SelScoreLock (Just name) Nothing _) = Just $
     "Your lock. "++name++" can not not unlock it."
-helpOfSelectable (SelScoreLock (Just name) (Just AccessedPrivyRead) _) = Just $
-    "Your lock. "++name++" has read three notes on it: -1 to relative esteem."
-helpOfSelectable (SelScoreLock (Just name) (Just (AccessedPrivySolved False)) _) = Just $
-    "Your lock. "++name++" has declared a note on it which you have not read: -1 to relative esteem."
-helpOfSelectable (SelScoreLock (Just name) (Just (AccessedPrivySolved True)) _) = Just $
-    "Your lock. "++name++" has declared a note on it, but you have read that note."
+helpOfSelectable (SelScoreLock (Just name) (Just AccessedPrivy) _) = Just $
+    "Your lock. "++name++" can unlock it: -1 to relative esteem."
 helpOfSelectable (SelScoreLock (Just name) (Just AccessedPub) _) = Just
     "Your lock. Its secrets have been publically revealed: -1 to relative esteem."
 helpOfSelectable (SelScoreLock (Just name) (Just AccessedEmpty) _) = Just $
     "Your empty lock slot. "++name++" can unlock all your locks: -1 to relative esteem."
 helpOfSelectable (SelScoreLock Nothing Nothing (ActiveLock name _)) = Just $
     name++"'s lock. You can not unlock it."
-helpOfSelectable (SelScoreLock Nothing (Just AccessedPrivyRead) (ActiveLock name _)) = Just $
-    name++"'s lock. You have read three notes on it: +1 to relative esteem."
-helpOfSelectable (SelScoreLock Nothing (Just (AccessedPrivySolved False)) (ActiveLock name _)) = Just $
-    name++"'s lock. You have declared a note on it which "++name++" has not read: +1 to relative esteem."
-helpOfSelectable (SelScoreLock Nothing (Just (AccessedPrivySolved True)) (ActiveLock name _)) = Just $
-    name++"'s lock. You have declared a note on it, but "++name++" has read your note."
+helpOfSelectable (SelScoreLock Nothing (Just AccessedPrivy) (ActiveLock name _)) = Just $
+    name++"'s lock. You can unlock it: +1 to relative esteem."
 helpOfSelectable (SelScoreLock Nothing (Just AccessedPub) (ActiveLock name _)) = Just $
     name++"'s lock. Its secrets have been publically revealed: +1 to relative esteem."
 helpOfSelectable (SelScoreLock Nothing (Just AccessedEmpty) (ActiveLock name _)) = Just $
