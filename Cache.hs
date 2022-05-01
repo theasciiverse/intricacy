@@ -8,6 +8,8 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
+{-# LANGUAGE LambdaCase    #-}
+
 module Cache where
 
 import           Control.Applicative
@@ -86,7 +88,7 @@ makeRequest saddr@(ServerAddr host port) request =
             send sock . BL.toStrict $ encode request
             decode . BL.fromStrict <$> recvAll sock
         recvAll sock =
-            recv sock 4096 >>= \r -> case r of
+            recv sock 4096 >>= \case
                 Nothing -> return BS.empty
                 Just b -> BS.append b <$> recvAll sock
 
