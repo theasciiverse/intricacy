@@ -224,13 +224,17 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
             GetRandomNames _ -> ReadMode
             _                -> ReadWriteMode
 
-    -- check solutions prior to write-locking database:
-    withDBLock dbpath ReadMode (runExceptT checkRequest) >>=
-        either (return . ServerError) (const $
-        withDBLock dbpath lockMode $ runExceptT handleRequest' >>=
-            either (return . ServerError) return)
+    -- Check solutions prior to write-locking database.
+    -- Slightly awkward, because we have to drop the read lock before 
+    -- acquiring the write lock, so need to check preconditions again once we 
+    -- have the write lock.
+    withDBLock dbpath ReadMode (runExceptT $ checkRequest Nothing) >>=
+        either (return . ServerError) (\mCheckedLock ->
+            withDBLock dbpath lockMode $
+                runExceptT (checkRequest mCheckedLock >> handleRequest') >>=
+                    either (return . ServerError) return)
     where
-        checkRequest = do
+        checkRequest mCheckedLock = do
             when (pv /= protocolVersion) $ throwE "Bad protocol version"
             case action of
                 DeclareSolution soln ls target idx -> do
@@ -247,7 +251,10 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
                         throwE "That's your lock!"
                     behindLock <- getALock behind
                     when (public behindLock) $ throwE "Your lock is cracked!"
-                    unless (checkSolution lock soln) $ throwE "Bad solution"
+                    case mCheckedLock of
+                        Nothing -> unless (checkSolution lock soln) $ throwE "Bad solution"
+                        Just lock' -> unless (lock == lock') $ throwE "Lock changed!"
+                    return $ Just lock
                 SetLock lock@(frame,_) idx soln -> do
                     ServerInfo serverSize _ <- getServerInfo
                     when (frame /= BasicFrame serverSize) $ throwE $
@@ -258,8 +265,11 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
                             `catchE` const (return (RCLockHashes []))
                     let hashed = hash $ show lock
                     when (hashed `elem` hashes) $ throwE "Lock has already been used"
-                    unless (checkSolution lock soln) $ throwE "Bad solution"
-                _ -> return ()
+                    case mCheckedLock of
+                        Nothing -> unless (checkSolution lock soln) $ throwE "Bad solution"
+                        Just lock' -> unless (lock == lock') $ throwE "Lock changed!"
+                    return $ Just lock
+                _ -> return Nothing
         handleRequest' =
             case action of
                 UndefinedAction -> throwE "Request not recognised by this server"
@@ -406,6 +416,8 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
         decryptPassword :: String -> ExceptT String IO String
         decryptPassword pw = do
             RCSecretKey secretKey <- getRecordErrored RecSecretKey
+            -- FIXME: for some reason decryption is failing; get 
+            -- MessageNotRecognised
             ExceptT . return . bimap show CS.unpack .
                 decrypt Nothing (defaultOAEPParams SHA256) secretKey . CS.pack $ pw
                 -- <=intricacy-0.6.2 sends the hashed password unencrypted
