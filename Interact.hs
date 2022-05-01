@@ -790,15 +790,10 @@ inputPassword name confirm prompt = do
 -- replay it to authenticate as the user.
 encryptPassword :: UIMonad uiM =>
     PublicKey -> String -> String -> MaybeT (MainStateT uiM) String
-encryptPassword publicKey name password = msum
-    [ MaybeT . liftIO .
-        handle (\(e :: SomeException) -> return Nothing) $ do
+encryptPassword publicKey name password = MaybeT . liftIO .
+            handle (\(e :: SomeException) -> return Nothing) $ do
         Right c <- encrypt (defaultOAEPParams SHA256) publicKey . CS.pack $ hashed
         return . Just . CS.unpack $ c
-    , confirmOrBail
-        "Failed to encrypt password - send unencrypted?"
-        >> return hashed
-    ]
     where hashed = hash $ "IY" ++ name ++ password
 
 setSelectedPosFromMouse :: UIMonad uiM => MainStateT uiM ()
