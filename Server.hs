@@ -56,7 +56,8 @@ import qualified Text.XML                   as XML
 
 import qualified Crypto.Argon2              as A2
 import           Crypto.Hash.Algorithms     (SHA256 (..))
-import           Crypto.PubKey.RSA          (generate)
+import           Crypto.PubKey.RSA          (generate, generateBlinder)
+import           Crypto.PubKey.RSA.Types    (private_n)
 import           Crypto.PubKey.RSA.OAEP     (decrypt, defaultOAEPParams)
 
 import           Network.Mail.Mime          (plainPart)
@@ -418,8 +419,9 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
             RCSecretKey secretKey <- getRecordErrored RecSecretKey
             -- FIXME: for some reason decryption is failing; get 
             -- MessageNotRecognised
+            blinder <- liftIO . generateBlinder $ private_n secretKey
             ExceptT . return . bimap show CS.unpack .
-                decrypt Nothing (defaultOAEPParams SHA256) secretKey . CS.pack $ pw
+                decrypt (Just blinder) (defaultOAEPParams SHA256) secretKey . CS.pack $ pw
                 -- <=intricacy-0.6.2 sends the hashed password unencrypted
         convertLegacyPW :: Codename -> IO ()
         convertLegacyPW name = void . runExceptT $ do
