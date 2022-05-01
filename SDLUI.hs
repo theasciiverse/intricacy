@@ -250,9 +250,9 @@ clearSelectables,clearButtons :: UIM ()
 clearSelectables = modify $ \ds -> ds {registeredSelectables = Map.empty}
 clearButtons = modify $ \ds -> ds {contextButtons = []}
 
-registerUndoButtons :: Bool -> Bool -> UIM ()
-registerUndoButtons noUndo noRedo = do
-    unless noUndo $ registerButton (periphery 2+^hu) CmdUndo 0 [("undo",hu+^neg hw)]
+registerUndoButtons :: Bool -> UIM ()
+registerUndoButtons noRedo = do
+    registerButton (periphery 2+^hu) CmdUndo 0 [("undo",hu+^neg hw)]
     unless noRedo $ registerButton (periphery 2+^hu+^neg hv) CmdRedo 2 [("redo",hu+^neg hw)]
 
 commandOfSelectable IMInit (SelTut _) _ = Just . CmdSolveInit $ Just zero

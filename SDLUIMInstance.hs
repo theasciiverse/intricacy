@@ -444,7 +444,6 @@ instance UIMonad (StateT UIState IO) where
 drawMainState' :: MainState -> MainStateT UIM ()
 drawMainState' PlayState { psCurrentState=st, psLastAlerts=alerts,
         wrenchSelected=wsel, psTutLevel=tutLevel, psSolved=solved } = do
-    canUndo <- gets (null . psGameStateMoveStack)
     canRedo <- gets (null . psUndoneStack)
     let isTut = isJust tutLevel
     lift $ do
@@ -465,22 +464,21 @@ drawMainState' PlayState { psCurrentState=st, psLastAlerts=alerts,
                 , PlacedPiece pos p <- Vector.toList $ placedPieces st
                 , isTool p]
         unless (noUndoTutLevel tutLevel) $ do
-            registerUndoButtons canUndo canRedo
+            registerUndoButtons canRedo
             registerButtonGroup markButtonGroup
         registerButton (periphery 0) CmdOpen (if solved then 2 else 0) $
             ("open", hu+^neg hw) : [("Press-->",9*^neg hu) | solved && isTut]
 drawMainState' ReplayState { rsCurrentState=st, rsLastAlerts=alerts } = do
-    canUndo <- gets (null . rsGameStateMoveStack)
     canRedo <- gets (null . rsMoveStack)
     lift $ do
         drawMainGameState [] False alerts st
-        registerUndoButtons canUndo canRedo
+        registerUndoButtons canRedo
         renderToMain $ drawCursorAt Nothing
 drawMainState' EditState { esGameState=st, esGameStateStack=sts, esUndoneStack=undostack,
         selectedPiece=selPiece, selectedPos=selPos } = lift $ do
     drawMainGameState (maybeToList selPiece) True [] st
     renderToMain $ drawCursorAt $ if isNothing selPiece then Just selPos else Nothing
-    registerUndoButtons (null sts) (null undostack)
+    registerUndoButtons (null undostack)
     when (isJust selPiece) $ mapM_ registerButtonGroup
         [ singleButton (periphery 2 +^ 3*^hw+^hv) CmdDelete 0 [("delete",hu+^neg hw)]
         , singleButton (periphery 2 +^ 3*^hw) CmdMerge 1 [("merge",hu+^neg hw)]
