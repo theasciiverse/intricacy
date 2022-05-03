@@ -56,7 +56,7 @@ parseArgs argv =
         (o,n,[])   -> return (o,n)
         (_,_,errs) -> ioError (userError (concat errs ++ usage))
 
-setup :: IO (Maybe Lock,[Opt],Maybe String)
+setup :: IO (Maybe (Lock, Maybe Solution), [Opt], Maybe String)
 setup = do
     argv <- getArgs
     (opts,args) <- parseArgs argv
@@ -70,10 +70,10 @@ setup = do
         [ do
             path <- liftMaybe ((curDir </>) <$> listToMaybe args)
             msum [ do
-                    lock <- reframe.fst <$> MaybeT (readLock path)
-                    return (Just lock,opts,Just path)
-                , return (Just $ baseLock size, opts, Just path) ]
-        , return (Nothing,opts,Nothing) ]
+                    (lock, msoln) <- MaybeT (readLock path)
+                    return (Just (reframe lock, msoln), opts, Just path)
+                , return (Just (baseLock size, Nothing), opts, Just path) ]
+        , return (Nothing, opts, Nothing) ]
 
 main' :: (UIMonad s, UIMonad c) =>
         Maybe (s MainState -> IO (Maybe MainState)) ->
@@ -81,8 +81,8 @@ main' :: (UIMonad s, UIMonad c) =>
 main' msdlUI mcursesUI = do
     (mlock,opts,mpath) <- setup
     initMState <- case mlock of
-            Just lock -> return $ newEditState lock Nothing mpath
-            Nothing   -> initMetaState
+            Just (lock, msoln) -> return $ newEditState lock msoln mpath
+            Nothing            -> initMetaState
     void $ runMaybeT $ msum [ do
             finalState <- msum
                 [ do
