@@ -135,10 +135,15 @@ resolveForces plForces eForces eDominates st =
                             then (f /= f',[])
                             else let cols = collisions st' (forceIdx f) (forceIdx f')
                                 in (not $ null cols, cols) ]]
+                badConns = [ c | c <- connections st'
+                    , not $ springExtensionValid st' c ]
             in do
                 tell $ map AlertBlockingForce $ concat inconsistencies
                 tell $ map AlertCollision cols
-                return $ if null inconsistencies then []
+                tell $ map AlertCollision $ concat
+                    [ locusPos st' <$> [r, e]
+                    | Connection r e _ <- badConns]
+                return $ if null inconsistencies && null badConns then []
                     else if i==j then [i]
                     else if dominates i j then [j]
                     else if dominates j i then [i]

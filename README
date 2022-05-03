@@ -141,7 +141,8 @@ To _propagate an initial force to a force group_:
 
 Two forces are _inconsistent_ when
     * they act on the same piece in different directions, or
-    * applying both at once results in overlapping pieces.
+    * applying both at once results in overlapping pieces, or
+    * applying both at once results in an overextended/overcompressed spring.
 
 Two force groups are _inconsistent_ iff there is some force from the first
     which is inconsistent with some force from the second.
