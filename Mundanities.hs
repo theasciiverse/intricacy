@@ -13,7 +13,7 @@ import           Control.Applicative
 import           Control.Arrow
 import           Control.Monad
 import           Control.Monad.Catch    (MonadMask, catch, handle)
-import           Control.Monad.IO.Class (MonadIO)
+import           Control.Monad.IO.Class (MonadIO, liftIO)
 import qualified Data.ByteString        as BS
 import qualified Data.ByteString.Char8  as BSC
 import           Data.List
@@ -31,6 +31,9 @@ ignoreIOErr = handle ((\_ -> return mempty) :: (Monad m, Monoid a) => IOError ->
 
 ignoreIOErrAlt :: (MonadIO m, MonadMask m, Alternative f) => m (f a) -> m (f a)
 ignoreIOErrAlt = handle ((\_ -> return empty) :: (Monad m, Alternative f) => IOError -> m (f a))
+
+warnIOErrAlt :: (MonadIO m, MonadMask m, Alternative f) => m (f a) -> m (f a)
+warnIOErrAlt = handle ((\e -> liftIO (print e) >> return empty) :: (MonadIO m, Alternative f) => IOError -> m (f a))
 
 unlessIOErr :: (MonadIO m, MonadMask m) => m Bool -> m Bool
 unlessIOErr = (fromMaybe False <$>) . ignoreIOErrAlt . (Just <$>)

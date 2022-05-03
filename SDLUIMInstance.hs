@@ -100,12 +100,12 @@ instance UIMonad (StateT UIState IO) where
     getUIBinding mode cmd = ($cmd) <$> getBindingStr mode
 
     initUI = (isJust <$>) . runMaybeT $ do
-        catchIOErrorMT $ SDL.init
+        let toInit = [InitVideo]
 #ifdef SOUND
-            [InitVideo,InitAudio]
-#else
-            [InitVideo]
+                ++ [InitAudio]
 #endif
+        catchIOErrorMT $ SDL.init toInit
+        liftIO (SDL.wasInit [InitVideo]) >>= guard . (InitVideo `elem`)
         catchIOErrorMT TTF.init
         lift $ do
             readUIConfigFile
@@ -118,7 +118,7 @@ instance UIMonad (StateT UIState IO) where
             initAudio
             readBindings
         where
-            catchIOErrorMT m = MaybeT . liftIO . ignoreIOErrAlt $ m >> return (Just ())
+            catchIOErrorMT m = MaybeT . liftIO . warnIOErrAlt $ m >> return (Just ())
 
     endUI = do
         writeUIConfigFile

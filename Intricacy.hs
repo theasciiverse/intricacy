@@ -40,7 +40,6 @@ main = main'
 #else
     (Nothing :: (Maybe (CursesUI.UIM MainState -> IO (Maybe MainState))))
 #endif
-
 #ifdef MAIN_CURSES
     (Just (doUI::CursesUI.UIM MainState -> IO (Maybe MainState)))
 #else
