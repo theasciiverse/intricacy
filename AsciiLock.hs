@@ -16,6 +16,7 @@ module AsciiLock (lockToAscii, lockOfAscii, stateToAscii
 import           Control.Applicative
 import           Control.Arrow       ((&&&))
 import           Control.Monad
+import           Data.Char           (toUpper)
 import           Data.Function       (on)
 import           Data.List
 import           Data.Map            (Map)
@@ -33,6 +34,7 @@ import           GameStateTypes
 import           Hex
 import           Lock
 import           Mundanities
+import           Physics
 import           Util
 
 
@@ -234,16 +236,57 @@ monoToTile _    = Nothing
 minmax :: Ord a => [a] -> (a,a)
 minmax = minimum &&& maximum
 
+solutionToAscii :: Solution -> String
+solutionToAscii = map pmToAscii
+
+dirChar :: HexVec -> Char
+dirChar dir
+    | dir == hu = 'l'
+    | dir == neg hu = 'h'
+    | dir == hv = 'y'
+    | dir == neg hv = 'n'
+    | dir == hw = 'b'
+    | dir == neg hw = 'u'
+    | otherwise = '.'
+pmToAscii :: PlayerMove -> Char
+pmToAscii (HookPush dir)    = dirChar dir
+pmToAscii (WrenchPush dir)  = toUpper $ dirChar dir
+pmToAscii (HookTorque 1)    = '+'
+pmToAscii (HookTorque (-1)) = '-'
+pmToAscii _                 = '.'
+
+solutionOfAscii :: String -> Maybe Solution
+solutionOfAscii = mapM pmOfAscii
+
+pmOfAscii :: Char -> Maybe PlayerMove
+pmOfAscii 'l' = Just $ HookPush hu
+pmOfAscii 'y' = Just $ HookPush hv
+pmOfAscii 'b' = Just $ HookPush hw
+pmOfAscii 'h' = Just . HookPush $ neg hu
+pmOfAscii 'n' = Just . HookPush $ neg hv
+pmOfAscii 'u' = Just . HookPush $ neg hw
+pmOfAscii 'L' = Just $ WrenchPush hu
+pmOfAscii 'Y' = Just $ WrenchPush hv
+pmOfAscii 'B' = Just $ WrenchPush hw
+pmOfAscii 'H' = Just . WrenchPush $ neg hu
+pmOfAscii 'N' = Just . WrenchPush $ neg hv
+pmOfAscii 'U' = Just . WrenchPush $ neg hw
+pmOfAscii '+' = Just $ HookTorque 1
+pmOfAscii '-' = Just . HookTorque $ -1
+pmOfAscii '.' = Just NullPM
+pmOfAscii _   = Nothing
+
 readAsciiLockFile :: FilePath -> IO (Maybe Lock, Maybe Solution)
 readAsciiLockFile path = fromLines <$> readStrings path
     where fromLines lines = fromMaybe (lockOfAscii lines, Nothing) $ do
             guard $ length lines > 2
             let (locklines, [header,solnLine]) = splitAt (length lines - 2) lines
             guard $ isPrefixOf "Solution:" header
-            return (lockOfAscii locklines, tryRead solnLine)
+            return (lockOfAscii locklines,
+                solutionOfAscii solnLine `mplus` tryRead solnLine)
 
 writeAsciiLockFile :: FilePath -> Maybe Solution -> Lock -> IO ()
 writeAsciiLockFile path msoln lock = do
     writeStrings path $ lockToAscii lock ++ case msoln of
         Nothing   -> []
-        Just soln -> ["Solution:", show soln]
+        Just soln -> ["Solution:", solutionToAscii soln]
