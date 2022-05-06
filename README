@@ -122,8 +122,9 @@ To _propagate_ a force:
 	ball southeast will be tried instead.
     * A spring connecting two blocks transmits a push on one block to the
 	other unless the direction is such that the push is tending to
-	compress/extend the spring and the spring isn't already fully
-	compressed/extended.
+        compress resp. extend the spring and the spring is currently extended 
+        resp. compressed, or the force is a player force and the spring isn't 
+        already fully compressed resp. extended.
 
 A force is _resisted_ if it is a push on a pivot or on a block which isn't the
     end of a spring, or it's a torque on a block, or it's a force on a hook

@@ -245,8 +245,8 @@ propagateForce st@(GameState _ conns) isPlSource force =
     bumps ++ springTransmissions
     where
         idx = forceIdx force
-        bumps = [ ForceChoice $ map (transmittedForce st idx' cpos) dirs |
-            idx' <- ppidxs st
+        bumps = [ ForceChoice $ map (transmittedForce st idx' cpos) dirs
+            | idx' <- ppidxs st
             , idx' /= idx
             , cpos <- collisionsWithForce st force idx'
             , let dirs = case force of
@@ -257,8 +257,8 @@ propagateForce st@(GameState _ conns) isPlSource force =
                               arm = cpos -^ placedPos (getpp st idx) ]
         springTransmissions =
             case force of
-                 Push _ dir -> [ ForceChoice [Push idx' dir] |
-                        c@(Connection (ridx,_) (eidx,_) (Spring sdir _)) <- conns
+                 Push _ dir -> [ ForceChoice [Push idx' dir]
+                        | c@(Connection (ridx,_) (eidx,_) (Spring sdir _)) <- conns
                         , let root = idx == ridx
                         , let end = idx == eidx
                         , root || end
