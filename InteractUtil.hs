@@ -26,6 +26,7 @@ import           System.Directory
 import           Command
 import           EditGameState
 import           Frame
+import           GameState
 import           GameStateTypes
 import           Hex
 import           InputMode
@@ -66,6 +67,17 @@ paintTilePath frame tile from to = if from == to
         let from' = hexVec2HexDirOrZero (to-^from) +^ from
         when (inEditable frame from') $ drawTile from' tile True
         paintTilePath frame tile from' to
+
+adjustSpringTension :: UIMonad uiM => PieceIdx -> Int -> MainStateT uiM ()
+adjustSpringTension p dl = do
+    st <- gets esGameState
+    let updateConn c@(Connection r e@(p',_) (Spring d l))
+            | p' == p
+            , let c' = Connection r e (Spring d $ l + dl)
+            , springExtensionValid st c'
+            = c'
+            | otherwise = c
+    pushEState $ st { connections = updateConn <$> connections st }
 
 pushEState :: UIMonad uiM => GameState -> MainStateT uiM ()
 pushEState st = do

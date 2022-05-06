@@ -708,9 +708,18 @@ processCommand' IMEdit (CmdDrag pos dir) = do
             | pos' <- [dir+^pos, pos] ]
 processCommand' IMEdit (CmdRotate _ dir) = do
     selPiece <- gets selectedPiece
+    st <- gets esGameState
     case selPiece of
         Nothing -> return ()
-        Just p  -> doForce $ Torque p dir
+        Just p  ->
+            let PlacedPiece _ pc = getpp st p
+                torquable = case pc of
+                    Hook _ _ -> True
+                    Pivot _  -> True
+                    _        -> False
+            in if torquable
+                then doForce $ Torque p dir
+                else adjustSpringTension p dir
 processCommand' IMEdit (CmdTile tile) = do
     selPos <- gets selectedPos
     drawTile selPos (Just tile) False
