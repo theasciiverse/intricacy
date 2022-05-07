@@ -103,7 +103,7 @@ executable intricacy
         default-extensions: DoAndIfThenElse
         build-depends:
             base >=4.3 && <5,
-            mtl >=2.1.3.1 && <2.3,
+            mtl >=2.1.3.1 && <2.4,
             transformers >=0.3.0.0 && <0.8,
             stm >=2.1 && <2.6,
             directory >=1.0 && <1.4,
@@ -204,7 +204,7 @@ executable intricacy-server
         default-extensions: DoAndIfThenElse
         build-depends:
             base >=4.3 && <5,
-            mtl >=2.2 && <2.3,
+            mtl >=2.2 && <2.4,
             transformers >=0.4 && <0.8,
             stm >=2.1 && <2.6,
             directory >=1.0 && <1.4,
