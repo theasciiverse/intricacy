@@ -1,5 +1,15 @@
 This is an abbreviated summary; see the git log for gory details.
 
+0.8.1:
+    Revise tutorial and initiation levels REP and GAP
+    Disallow overextended/compressed springs
+    Allow editing spring tension by turning
+    Add compact solution format
+    Revert scoring change introduced in 0.6
+    Add --datadir option
+    Fix loading partial initiation solutions
+    Fix server locking
+
 0.8:
     Add single-player introductory subgame ("initiation").
     Improve UI variously.
