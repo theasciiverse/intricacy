@@ -517,7 +517,10 @@ periphery n = rotate n $ periphery 0
 -- ^ XXX only peripheries 0,2,3,5 are guaranteed to be on-screen!
 --messageLineStart = (maxlocksize+1)*^hw
 messageLineCentre = ((maxlocksize+1)`div`2)*^hw +^ ((maxlocksize+1+1)`div`2)*^neg hv
-titlePos n = n*^hv +^ (n`div`2)*^hu
+
+-- XXX HACK: the n=8 line is crowded
+titlePos n = titlePos' $ if n == 8 then 9 else n
+    where titlePos' n = n*^hv +^ (n`div`2)*^hu
 
 screenWidthHexes,screenHeightHexes :: Int
 screenWidthHexes = 32
