@@ -401,7 +401,7 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
         getALock (ActiveLock name idx) = do
             info <- getUserInfo name
             checkValidLockIndex idx
-            case ((!idx).userLocks) info of
+            case ((! idx).userLocks) info of
                 Nothing       -> throwE "Lock not set"
                 Just lockinfo -> return lockinfo
         checkValidLockIndex idx =
@@ -540,7 +540,7 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
             info <- lift $ getUserInfo name
             applyDeltas info . map snd . filter ((==name).fst) <$> get
         getCurrALock al@(ActiveLock name idx) =
-             fromJust.(!idx).userLocks <$> getCurrUserInfo name
+             fromJust.(! idx).userLocks <$> getCurrUserInfo name
         doNews :: String -> ExceptT String IO ()
         doNews news = case mfeedPath of
             Nothing -> return ()

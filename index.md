@@ -25,12 +25,12 @@ Latest version is 0.8.1 ([NEWS](NEWS)).
 
 * Source: download the [source tarball](intricacy-0.8.1.tar.gz), or
      <tt>git clone git://repo.or.cz/intricacy.git</tt>
+* Cabal: <tt>cabal update && cabal install intricacy</tt>
+    <small>(requires the haskell package manager 'cabal', and SDL dependencies).</small>
 * [Windows binary](intricacy-0.7.1.1-win32.zip)
     (intricacy version 0.7.1.1)
 * [Mac OS X binary](intricacy-0.5.7-mac32.zip)
     (intricacy version 0.5.7) - thanks to Kevin Eaves for providing this package.
-* Cabal: <tt>cabal update && cabal install intricacy</tt>
-    <small>(requires the haskell package manager 'cabal', and SDL dependencies).</small>
 * Gentoo: <tt>layman -a haskell && emerge intricacy</tt>
 * Arch Linux [AUR package](https://aur.archlinux.org/packages/intricacy/)
 * [Old versions](old)

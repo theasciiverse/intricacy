@@ -121,7 +121,7 @@ resolveForces plForces eForces eDominates st =
                 (propagate st False <$> eForces)
         blockInconsistent :: Int -> Int -> StateT (Vector (Writer Any [Force])) (Writer [Alert]) ()
         blockInconsistent i j = do
-            grps <- mapM gets [(!i),(!j)]
+            grps <- mapM gets [(! i),(! j)]
             blocks <- lift $ checkInconsistent i j $ map (fst.runWriter) grps
             modify $ Vector.imap (\k -> if k `elem` blocks then (tell (Any True) >>) else id)
         checkInconsistent :: Int -> Int -> [[Force]] -> Writer [Alert] [Int]
