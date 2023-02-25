@@ -2,8 +2,9 @@ VERSION=0.8.1.1
 
 LINTARGET=linux-i686-glibc-2.16
 sources=$(filter-out Paths_intricacy.hs,$(wildcard *.hs *.lhs))
-all: $(sources)
-	cabal install -O0 -f Server --bindir .
+all: intricacy
+install:
+	cabal install -O2 -f Server --bindir . --overwrite-policy=always
 intricacy: $(sources)
 	#cabal install -O0 --bindir .
 	ghc -o intricacy -DMAIN_SDL -DMAIN_CURSES --make Intricacy.hs
