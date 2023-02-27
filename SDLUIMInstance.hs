@@ -97,7 +97,7 @@ instance UIMonad (StateT UIState IO) where
                 Map.insertWith (\ [bdg] bdgs -> if bdg `elem` bdgs then delete bdg bdgs else bdg:bdgs)
                     mode [(ch,cmd)] $ uiKeyBindings s }
 
-    getUIBinding mode cmd = ($cmd) <$> getBindingStr mode
+    getUIBinding mode cmd = ($ cmd) <$> getBindingStr mode
 
     initUI = (isJust <$>) . runMaybeT $ do
         let toInit = [InitVideo]
@@ -587,9 +587,9 @@ drawMainState' MetaState {curServer=saddr, undeclareds=undecls,
                 [ \pos -> lift (registerSelectable pos 0 (SelUndeclared undecl)) >> drawActiveLock al pos
                 | undecl@(Undeclared _ _ al) <- undecls ]
         lift $ do
-            maybe (drawEmptyMiniLock miniLockPos)
-                (`drawMiniLock` miniLockPos)
-                (fst<$>mlock)
+            maybe
+                (drawEmptyMiniLock miniLockPos)
+                ((`drawMiniLock` miniLockPos) <$> fst) mlock
             registerSelectable miniLockPos 1 SelOurLock
             registerButton (miniLockPos+^3*^neg hw+^2*^hu) CmdEdit 2
                 [("edit",hu+^neg hw),("lock",hu+^neg hv)]
@@ -742,7 +742,7 @@ fillArea :: HexVec -> [HexVec] -> [HexVec -> MainStateT UIM ()] -> MainStateT UI
 fillArea centre area draws = do
     offset <- gets listOffset
     let na = length area
-        listButton cmd = \pos -> lift $ registerButton pos cmd 3 []
+        listButton cmd pos = lift $ registerButton pos cmd 3 []
         draws' = if offset > 0 && length draws > na
             then listButton CmdPrevPage :
                 drop (max 0 $ na-1 + (na-2)*(offset-1)) draws

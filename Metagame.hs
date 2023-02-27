@@ -8,6 +8,8 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
+{-# LANGUAGE TupleSections #-}
+
 module Metagame where
 
 import           Control.Applicative
@@ -32,7 +34,9 @@ validCodeName name = length name == 3 && all validChar name
 data UserInfo = UserInfo {codename::Codename, userLocks::Array LockIndex (Maybe LockInfo), notesRead::[NoteInfo]}
     deriving (Eq, Ord, Show, Read)
 
-initUserInfo name = UserInfo name (array (0,maxLocks-1) $ zip [0..maxLocks-1] (repeat Nothing)) []
+_emptylocks = array (0,maxLocks-1) $ map (,Nothing) [0..maxLocks-1]
+
+initUserInfo name = UserInfo name _emptylocks []
 
 data LockInfo = LockInfo {lockSpec::LockSpec, public::Bool, notesSecured::[NoteInfo], lockSolutions::[NoteInfo], accessedBy::[Codename]}
     deriving (Eq, Ord, Show, Read)

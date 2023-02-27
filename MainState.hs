@@ -223,7 +223,7 @@ restorePlayState (SavedPlayState pms markPMs) (frame,st) redoPms title tutLevel 
     where
         stateAfterMoves pms = let (stack,st') = applyMoves st pms
             in (newPlayState (frame, st') redoPms title tutLevel sub saved) { psGameStateMoveStack = stack }
-        applyMoves st pms = foldl tick ([],st) pms
+        applyMoves st = foldl tick ([],st)
         tick :: ([(GameState,PlayerMove)],GameState) -> PlayerMove -> ([(GameState,PlayerMove)],GameState)
         tick (stack,st) pm = ((st,pm):stack,fst . runWriter $ physicsTick pm st)
 
@@ -333,7 +333,7 @@ mgetCurName = MaybeT $ gets (listToMaybe . codenameStack)
 getUInfoFetched :: UIMonad uiM => Integer -> Codename -> MainStateT uiM FetchedRecord
 getUInfoFetched staleTime name = do
     uinfott <- gets (Map.lookup name . userInfoTVs)
-    ($uinfott) $ maybe set $ \(tvar,time) -> do
+    ($ uinfott) $ maybe set $ \(tvar,time) -> do
         now <- liftIO getCurrentTime
         if floor (diffUTCTime now time) > staleTime
             then set
