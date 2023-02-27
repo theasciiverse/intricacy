@@ -788,18 +788,18 @@ initVideo w h = do
 #ifdef APPLE
             -- use smaller dimensions than the screen's, to work around a bug
             -- seen on mac, whereby a resizable window created with
-            -- (w,h)=(0,0), or even with the (w,h) given by getDimensions
+            -- (w,h)=(0,0), or even with the (w,h) given by getHardwareDimensions
             -- after creating such a window, is reported to be larger than it
             -- is.
             do
-                (w',h') <- getDimensions
+                (w',h') <- getHardwareDimensions
                 return (4*w'`div`5,4*h'`div`5)
 #else
-            getDimensions
+            getHardwareDimensions
 #endif
         setVideoMode w' h' 0 $ if fs then [Fullscreen] else [Resizable]
 
-    (w',h') <- liftIO getDimensions
+    (w',h') <- liftIO getSurfaceDimensions
 
     modify $ \ds -> ds { scrWidth = w' }
     modify $ \ds -> ds { scrHeight = h' }
@@ -830,7 +830,8 @@ initVideo w h = do
         appendFile "intricacy-warnings.log" text
 
     where
-        getDimensions = (videoInfoWidth &&& videoInfoHeight) <$> getVideoInfo
+        getHardwareDimensions = (videoInfoWidth &&& videoInfoHeight) <$> getVideoInfo
+        getSurfaceDimensions = (surfaceGetWidth &&& surfaceGetHeight) <$> getVideoSurface
 
 
 initAudio :: UIM ()
