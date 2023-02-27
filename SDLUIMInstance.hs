@@ -680,6 +680,7 @@ drawShortMouseHelp mode s = do
             [ "LMB: paint; Ctrl+LMB: delete"
             , "Wheel: set paint type"
             , "RMB: select piece; drag to move"
+            , "RMB+Wheel: tighten/loosen spring, rotate piece"
             , "RMB+LMB: wait; RMB+MMB: delete piece"
             , "MMB+Wheel: undo/redo"
             ]
