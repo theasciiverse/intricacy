@@ -1,37 +1,17 @@
 VERSION=0.8.1.1
 
-LINTARGET=linux-i686-glibc-2.16
 sources=$(filter-out Paths_intricacy.hs,$(wildcard *.hs *.lhs))
-all: intricacy
-install:
-	cabal install -O2 -f Server --bindir . --overwrite-policy=always
+
 intricacy: $(sources)
-	#cabal install -O0 --bindir .
-	ghc -o intricacy -DMAIN_SDL -DMAIN_CURSES --make Intricacy.hs
-intricacy-O2: $(sources)
-	ghc -o intricacy-O2 -DMAIN_SDL -DMAIN_CURSES -O2 --make Intricacy.hs
+	cabal install -O2 -f -server --installdir . --overwrite-policy=always
+install: $(sources)
+	cabal install -O2 -f server
 intricacy-curses: $(sources)
-	cabal configure -f -SDL --bindir .
-	cabal build
-	mv dist/build/intricacy/intricacy intricacy-curses
-intricacy-checker: $(sources)
-	ghc -o intricacy-checker --make -O2 -rtsopts -prof -auto-all Checker.hs
+	cabal install -O2 -f -server -f -sdl -f curses --installdir . --overwrite-policy=always &&\
+	mv intricacy intricacy-curses
 intricacy-server: $(sources)
-	cabal configure -f Server -f -Game --bindir .
-	cabal build
-	mv dist/build/intricacy-server/intricacy-server .
-intricacy-server-O2: $(sources)
-	ghc -o intricacy-server-O2 --make Server.hs
-intricacy-prof: $(sources)
-	ghc -o intricacy-prof -DMAIN_SDL -DMAIN_CURSES --make -rtsopts -prof -auto-all Intricacy.hs
-intricacy-static: $(sources)
-	cabal configure --ghc-options="-static" --bindir=. --datadir=.
-	cabal build
-	mv dist/build/intricacy/intricacy ./intricacy-static
-intricacy-server-static: $(sources)
-	cabal configure -f Server -f -Game --ghc-options="-static" --bindir=. --datadir=.
-	cabal build
-	mv dist/build/intricacy-server/intricacy-server ./intricacy-server-static
+	cabal install -O2 -f server -f -game --installdir . --overwrite-policy=always
+
 modules.dot: $(sources)
 	graphmod *.lhs *.hs > modules.dot
 modules.png: modules.dot
