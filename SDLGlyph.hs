@@ -49,6 +49,7 @@ data Glyph
     | HollowGlyph Pixel
     | HollowInnerGlyph Pixel
     | FilledHexGlyph Pixel
+    | ScoreGlyph (Maybe Int)
     | ButtonGlyph Pixel
     | PathGlyph HexDir Pixel
     | GateGlyph HexDir Pixel
@@ -272,6 +273,22 @@ renderGlyph (HollowInnerGlyph col) =
 
 renderGlyph (FilledHexGlyph col) =
     rimmedPolygonR outerCorners col $ brightish col
+
+renderGlyph (ScoreGlyph relScore) =
+    sequence_ $ [ aaLineR from to $ bright white | (from,to) <- case relScore of
+            Just 1    -> plus 0
+            Just 2    -> plus (-1) <> plus 1
+            Just 3    -> plus (-2) <> plus 0 <> plus 2
+            Just (-1) -> [horiz 0]
+            Just (-2) -> [horiz $ -1, horiz 1]
+            Just (-3) -> [horiz $ -2, horiz 0, horiz 2]
+            _         -> []
+        ]
+    where
+        vert n = let x = n/5 in (FVec x $ -(4/3)*ylen, FVec x $ -ylen)
+        horiz n = let y = -(7/6)*ylen in (FVec (n/5 - 1/9) y, FVec (n/5 + 1/9) y)
+        plus n = [vert n, horiz n]
+
 
 renderGlyph (ButtonGlyph col) =
     renderGlyph (TileGlyph (BlockTile []) col)

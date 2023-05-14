@@ -629,23 +629,27 @@ drawMainState' MetaState {curServer=saddr, undeclareds=undecls,
             lift $ sequence_ [ registerSelectable (scoresPos+^v) 0 SelRelScore | v <- [hv, hv+^hu] ]
             drawRelScore sel scoresPos
             fillArea (posLeft+^hw) (map (posLeft+^) [zero,hw,neg hv])
-                [ \pos -> lift (registerSelectable pos 0 (SelScoreLock (Just sel) accessed $ ActiveLock us i)) >>
+                [ \pos -> do
+                    lift $ registerSelectable pos 0 (SelScoreLock (Just sel) accessed $ ActiveLock us i)
                     drawNameWithCharAndCol us white (lockIndexChar i) col pos
+                    lift $ drawRelScoreGlyph pos relScore
                 | i <- [0..2]
                 , let accessed = head accesses !! i
-                , let col
-                        | accessed == Just AccessedPub = dim pubColour
-                        | isJust accessed = dim $ scoreColour $ -3
-                        | otherwise = obscure $ scoreColour 3 ]
+                , let (col, relScore)
+                        | accessed == Just AccessedPub = (dim pubColour, Just $ -1)
+                        | isJust accessed = (dim $ scoreColour $ -3, Just $ -1)
+                        | otherwise = (obscure $ scoreColour 3, Nothing) ]
             fillArea (posRight+^hw) (map (posRight+^) [zero,hw,neg hv])
-                [ \pos -> lift (registerSelectable pos 0 (SelScoreLock Nothing accessed $ ActiveLock sel i)) >>
+                [ \pos -> do
+                    lift $ registerSelectable pos 0 (SelScoreLock Nothing accessed $ ActiveLock sel i)
                     drawNameWithCharAndCol sel white (lockIndexChar i) col pos
+                    lift $ drawRelScoreGlyph pos relScore
                 | i <- [0..2]
                 , let accessed = accesses !! 1 !! i
-                , let col
-                        | accessed == Just AccessedPub = obscure pubColour
-                        | isJust accessed = dim $ scoreColour 3
-                        | otherwise = obscure $ scoreColour $ -3 ]
+                , let (col, relScore)
+                        | accessed == Just AccessedPub = (obscure pubColour, Nothing)
+                        | isJust accessed = (dim $ scoreColour 3, Just 1)
+                        | otherwise = (obscure $ scoreColour $ -3, Nothing) ]
         (posScore,negScore) <- MaybeT $ (snd<$>) <$> getRelScoreDetails sel
         lift.lift $ sequence_
             [ do
@@ -767,12 +771,17 @@ drawOldLock ls pos = void.runMaybeT $ msum [ do
 
 
 drawName,drawNullName :: Codename -> HexVec -> MainStateT UIM ()
-drawName name pos = nameCol name >>= lift . drawNameCol name pos
+drawName name pos = do
+    lift . drawNameCol name pos =<< nameCol name
+    lift . drawRelScoreGlyph pos =<< getRelScore name
 drawNullName name pos = lift . drawNameCol name pos $ invisible white
 
 drawNameCol name pos col = renderToMain $ do
     drawAtRel (playerGlyph col) pos
     renderStrColAt buttonTextCol name pos
+
+drawRelScoreGlyph pos Nothing = return ()
+drawRelScoreGlyph pos relScore = renderToMain . (`drawAtRel` pos) $ ScoreGlyph relScore
 
 drawRelScore name pos = do
     col <- nameCol name
@@ -791,11 +800,11 @@ drawActiveLock al@(ActiveLock name i) pos = do
     drawNameWithChar name
         (if accessed then accColour else white)
         (lockIndexChar i) pos
-drawPublicNote name =
-    drawNameWithChar name pubColour 'P'
+drawPublicNote name = drawNameWithChar name pubColour 'P'
 drawNameWithChar name charcol char pos = do
     col <- nameCol name
     drawNameWithCharAndCol name charcol char col pos
+    lift . drawRelScoreGlyph pos =<< getRelScore name
 drawNameWithCharAndCol :: String -> Pixel -> Char -> Pixel -> HexVec -> MainStateT UIM ()
 drawNameWithCharAndCol name charcol char col pos = do
     size <- fi.snd <$> lift getGeom
