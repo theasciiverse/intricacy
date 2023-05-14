@@ -535,8 +535,8 @@ getGeom = do
     --        , 3*ysize size*screenHeightHexes < height]
     --        where ysize size = round $ fi size / sqrt 3
     -- Minimum allowed size is 2 (get segfaults on SDL_FreeSurface with 1).
-    let size = max 2 $ minimum [ (w-1)`div`(2*screenWidthHexes)
-            , floor $ sqrt 3 * (0.5 + fi ((h-1)`div`(3*screenHeightHexes)))]
+    let size = max 2 $ min ((w-1)`div`(2*screenWidthHexes))
+            (floor $ sqrt 3 * (0.5 + fi ((h-1)`div`(3*screenHeightHexes))))
     return (scrCentre, size)
 
 data DrawArgs = DrawArgs [PieceIdx] Bool [Alert] GameState UIOptions

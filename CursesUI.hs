@@ -109,7 +109,7 @@ bindingsDrawColour :: ColPair -> KeyBindings -> [Command] -> Draw
 bindingsDrawColour col bdgs cmds =
     mconcat . (stringDraw a0 col "[" :) . (++ [stringDraw a0 col "]"]) .
     intersperse (stringDraw a0 col ",") $
-        catMaybes $ (keyDraw <$>) . findBinding bdgs <$> cmds
+        mapMaybe ((keyDraw <$>) . findBinding bdgs) cmds
     where
         keyDraw = stringDraw bold col . showKeyFriendlyShort
 

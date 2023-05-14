@@ -109,7 +109,7 @@ fillBox (CVec t l) (CVec b r) width grav draws = do
         sqlen (CVec y x) = (y*(width+1))^2+x^2
         na = length locs
         nd = length draws
-        drawChar c = \cvec -> lift . drawStr bold white cvec $ ' ':c:" "
+        drawChar c cvec = lift . drawStr bold white cvec $ ' ':c:" "
         draws' = if offset > 0 && length draws > na
             then drop (max 0 $ na-1 + (na-2)*(offset-1)) draws
                 ++ [drawChar '<']
@@ -208,8 +208,8 @@ showHelpPaged' from mode HelpPageInput = do
                 , let desc = describeCommand cmd
                 , let chs = fst <$> group
                 , let keysStr = showKeys chs
-                , let pad = max 0 $ minimum [maxkeyslen + 1 - length keysStr,
-                        bdgWidth - length desc - length keysStr - 1 - 1]
+                , let pad = max 0 $ min (maxkeyslen + 1 - length keysStr) $
+                        bdgWidth - length desc - length keysStr - 1 - 1
                 ] $ (`divMod` (h-3)) <$> [0..]
             , (x+1)*bdgWidth < w]
     sequence_ draws
@@ -375,7 +375,7 @@ instance UIMonad (StateT UIState IO) where
                 doDrawAt (CVec 0 0) $ alignDraw GravRight w helpDraw
                 doDrawAt (CVec 1 0) $ alignDraw GravLeft leftBdgsWidth lockBdgsDraw <> lockTextDraw <> lockBdgsDraw'
 
-                doDrawAt (CVec 2 $ maximum [w`div`3+1, w`div`2 - 13]) $ bindingsDraw bdgs [CmdSelCodename Nothing]
+                doDrawAt (CVec 2 $ max (w`div`3+1) (w`div`2 - 13)) $ bindingsDraw bdgs [CmdSelCodename Nothing]
 
             maybe (return ()) (drawName True (CVec 2 (w`div`2))) selName
             void.runMaybeT $ MaybeT (return selName) >>= lift . getUInfoFetched 300 >>=
