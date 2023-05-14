@@ -647,17 +647,18 @@ drawMainState' MetaState {curServer=saddr, undeclareds=undecls,
                 | i <- [0..2]
                 , let accessed = accesses !! 1 !! i
                 , let (col, relScore)
-                        | accessed == Just AccessedPub = (obscure pubColour, Nothing)
+                        | accessed == Just AccessedPub = (dim pubColour, Just 1)
                         | isJust accessed = (dim $ scoreColour 3, Just 1)
                         | otherwise = (obscure $ scoreColour $ -3, Nothing) ]
         (posScore,negScore) <- MaybeT $ (snd<$>) <$> getRelScoreDetails sel
+        let (shownPosScore, shownNegScore) = (3 - negScore, 3 - posScore)
         lift.lift $ sequence_
             [ do
                 renderToMain $ renderStrColAt (scoreColour score) (sign:show (abs score)) pos
                 registerSelectable pos 0 SelRelScoreComponent
             | (sign,score,pos) <-
-                [ ('-',-negScore,posLeft+^neg hv+^hw)
-                , ('+',posScore,posRight+^neg hv+^hw) ] ]
+                [ ('-',-shownNegScore,posLeft+^neg hv+^hw)
+                , ('+',shownPosScore,posRight+^neg hv+^hw) ] ]
 
 
 drawShortMouseHelp mode s = do

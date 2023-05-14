@@ -510,6 +510,8 @@ getRelScoreDetails name = runMaybeT $ do
     guard $ ourName /= name
     uinfo <- mgetUInfo name
     ourUInfo <- mgetUInfo ourName
+    -- Note that this is inverted when communicated in the interface: we show
+    -- the number accessed rather than the number unaccessed.
     let (pos,neg) = (countUnaccessedBy ourUInfo name, countUnaccessedBy uinfo ourName)
     return (pos-neg,(pos,neg))
     where

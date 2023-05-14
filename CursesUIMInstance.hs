@@ -31,11 +31,11 @@ import           Safe                      (maximumBound)
 import qualified UI.HSCurses.Curses        as Curses
 import qualified UI.HSCurses.CursesHelper  as CursesH
 
-import           CVec
 import           Cache
 import           Command
 import           CursesRender
 import           CursesUI
+import           CVec
 import           Database
 import           Frame
 import           GameStateTypes

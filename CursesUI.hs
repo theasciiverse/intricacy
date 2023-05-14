@@ -26,9 +26,9 @@ import           Data.Semigroup            as Sem
 import qualified UI.HSCurses.Curses        as Curses
 
 import           BoardColouring
-import           CVec
 import           Command
 import           CursesRender
+import           CVec
 import           Frame
 import           GameState                 (stateBoard)
 import           GameStateTypes
