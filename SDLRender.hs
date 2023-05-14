@@ -230,6 +230,9 @@ corner hextant = FVec x y
             | n < 0 = f (6-n)
             | otherwise = f (n`mod`6)
 
+outerCorners :: [FVec]
+outerCorners = map corner [0..5]
+
 innerCorner :: HexDir -> FVec
 innerCorner dir = FVec x y
     where
@@ -241,6 +244,9 @@ innerCorner dir = FVec x y
             | dir == zero = [0,0]
             | not (isHexDir dir) = error "innerCorner: not a hexdir"
             | otherwise = map (\z -> -z) $ f $ neg dir
+
+innerCorners :: [FVec]
+innerCorners = map innerCorner hexDirs
 
 edge :: HexDir -> FVec
 edge dir = FVec x y

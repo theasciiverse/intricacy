@@ -266,15 +266,12 @@ renderGlyph CollisionMarker = do
         col = dim purple
 
 renderGlyph (HollowGlyph col) =
-    aaPolygonR corners $ opaquify col
-    where corners = map corner [0..5]
+    aaPolygonR outerCorners $ opaquify col
 renderGlyph (HollowInnerGlyph col) =
-    aaPolygonR corners $ opaquify col
-    where corners = map innerCorner hexDirs
+    aaPolygonR innerCorners $ opaquify col
 
 renderGlyph (FilledHexGlyph col) =
-    rimmedPolygonR corners col $ brightish col
-    where corners = map corner [0..5]
+    rimmedPolygonR outerCorners col $ brightish col
 
 renderGlyph (ButtonGlyph col) =
     renderGlyph (TileGlyph (BlockTile []) col)
