@@ -1,4 +1,4 @@
-#Intricacy
+# Intricacy
 
 <i>A game of competitive puzzle-design.</i>
 
@@ -19,7 +19,7 @@ Written in Haskell, with SDL and Curses user interfaces.
 [![Metagame](screenshots/metagame.small.png)](screenshots/metagame.png)
 [![Curses mode](screenshots/curses.small.png)](screenshots/curses.png)
 
-##Download
+## Download
 
 Latest version is 0.8.2 ([NEWS](NEWS)).
 
@@ -35,19 +35,19 @@ Latest version is 0.8.2 ([NEWS](NEWS)).
 * Arch Linux [AUR package](https://aur.archlinux.org/packages/intricacy/)
 * [Old versions](old)
 
-##Play by ssh
+## Play by ssh
 If you'd like to test out the game without installing anything, have access to
 ssh, and are happy with a text-only interface, try:
 
 * ssh intricacy@thegonz.net
 * password: intricacy
 
-##RSS Feed
+## RSS Feed
 Subscribe to this for updates on locks being set and solved:
 [Feed for events on main 
 server](https://intricacy.thegonz.net/mainServerFeed/rss).
 
-##Discuss
+## Discuss
 <!--
 * [Web forum](http://intricacy.thegonz.net/forum/)
 (Broken due to PHP updates...)
