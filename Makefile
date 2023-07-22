@@ -17,4 +17,4 @@ modules.dot: $(sources)
 modules.png: modules.dot
 	dot -Tpng -o modules.png modules.dot
 index.html: index.md
-	multimarkdown < index.md > index.html
+	pandoc -f markdown -t html < index.md > index.html
