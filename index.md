@@ -31,8 +31,11 @@ Latest version is 0.8.2 ([NEWS](NEWS)).
     (intricacy version 0.7.1.1)
 * [Mac OS X binary](intricacy-0.5.7-mac32.zip)
     (intricacy version 0.5.7) - thanks to Kevin Eaves for providing this package.
-* Gentoo: <tt>layman -a haskell && emerge intricacy</tt>
-* Arch Linux [AUR package](https://aur.archlinux.org/packages/intricacy/)
+* Gentoo: <tt>eselect repository enable haskell && emerge intricacy</tt>
+<!--
+No longer exists
+* Arch Linux [AUR package](https://aur.archlinux.org/packages/intricacy/) 
+-->
 * [Old versions](old)
 
 ## Play by ssh
