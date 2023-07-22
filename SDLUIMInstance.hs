@@ -184,12 +184,14 @@ instance UIMonad (StateT UIState IO) where
         return $ cmds ++ [CmdRefresh | uiChanged || animFrameReady]
         where
             nubMouseMotions evs =
-                -- drop all but last mouse motion event
-                let nubMouseMotions' False (mm@MouseMotion {}:evs) = mm:nubMouseMotions' True evs
-                    nubMouseMotions' True (mm@MouseMotion {}:evs) = nubMouseMotions' True evs
+                -- drop all but last mouse motion and resize events
+                let nubMouseMotions' (False,r) (mm@MouseMotion {}:evs) = mm:nubMouseMotions' (True,r) evs
+                    nubMouseMotions' (m,False) (vr@(VideoResize _ _):evs) = vr:nubMouseMotions' (m,True) evs
+                    nubMouseMotions' b (MouseMotion {}:evs) = nubMouseMotions' b evs
+                    nubMouseMotions' b (VideoResize _ _:evs) = nubMouseMotions' b evs
                     nubMouseMotions' b (ev:evs) = ev:nubMouseMotions' b evs
                     nubMouseMotions' _ [] = []
-                in reverse $ nubMouseMotions' False $ reverse evs
+                in reverse $ nubMouseMotions' (False,False) $ reverse evs
             setPaintFromCmds cmds = sequence_
                 [ modify $ \s -> s { paintTileIndex = pti }
                     | (pti,pt) <- zip [0..] paintTiles
