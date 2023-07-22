@@ -21,9 +21,9 @@ Written in Haskell, with SDL and Curses user interfaces.
 
 ##Download
 
-Latest version is 0.8.1.1 ([NEWS](NEWS)).
+Latest version is 0.8.2 ([NEWS](NEWS)).
 
-* Source: download the [source tarball](intricacy-0.8.1.1.tar.gz), or
+* Source: download the [source tarball](intricacy-0.8.2.tar.gz), or
      <tt>git clone git://repo.or.cz/intricacy.git</tt>
 * Cabal: <tt>cabal update && cabal install intricacy</tt>
     <small>(requires the haskell package manager 'cabal', and SDL dependencies).</small>

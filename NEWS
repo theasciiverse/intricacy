@@ -1,5 +1,8 @@
 This is an abbreviated summary; see the git log for gory details.
 
+0.8.2:
+    Show esteem with symbols as well as colour (thanks Locria Cyber)
+    Fix relative esteem calculation display
 0.8.1:
     Revise tutorial and initiation levels REP and GAP
     Disallow overextended/compressed springs
@@ -9,7 +12,6 @@ This is an abbreviated summary; see the git log for gory details.
     Add --datadir option
     Fix loading partial initiation solutions
     Fix server locking
-
 0.8:
     Add single-player introductory subgame ("initiation").
     Improve UI variously.

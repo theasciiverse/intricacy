@@ -4,7 +4,7 @@ _licensefile=COPYING
 
 # PKGBUILD options/directives
 pkgname=intricacy
-pkgver=0.8.1.1
+pkgver=0.8.2
 pkgrel=1
 pkgdesc="A game of competitive puzzle-design"
 url="http://mbays.freeshell.org/intricacy"
