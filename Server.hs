@@ -8,6 +8,7 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
+{-# LANGUAGE CPP                 #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
 module Main where
@@ -60,9 +61,11 @@ import           Crypto.PubKey.RSA          (generate, generateBlinder)
 import           Crypto.PubKey.RSA.OAEP     (decrypt, defaultOAEPParams)
 import           Crypto.PubKey.RSA.Types    (private_n)
 
+#ifdef SENDMAIL
 import           Network.Mail.Mime          (plainPart)
 import qualified Network.Mail.SMTP          as SMTP
 import qualified Text.Email.Validate
+#endif
 
 import           System.Console.GetOpt
 import           System.Environment
@@ -457,11 +460,15 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
         setEmail Nothing _ = throwE "Authentication required"
         setEmail auth@(Just (Auth name _)) addressStr = do
             checkAuth auth
+#ifdef SENDMAIL
             serverAddr <- erroredDB $ getRecord RecServerEmail
             when (isNothing serverAddr) $ throwE "This server is not configured to support email notifications."
             let addr = CS.pack addressStr
             unless (CS.null addr || Text.Email.Validate.isValid addr) $ throwE "Invalid email address"
             erroredDB $ putRecord (RecEmail name) (RCEmail addr)
+#else
+            throwE "This server is not compiled to support email notifications."
+#endif
         checkCodeName :: Codename -> ExceptT String IO Bool
         checkCodeName name = do
             unless (validCodeName name) $ throwE "Invalid codename"
@@ -556,6 +563,7 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
                 let Right element = XML.fromXMLElement $ xmlFeed $ withFeedLastUpdate timeText $ addItem item feed
                     document = XML.Document (XML.Prologue [] Nothing []) element []
                 writeFile feedPath $ TL.unpack $ XML.renderText XML.def document
+#ifdef SENDMAIL
         mailDeclaration target@(ActiveLock name _) behind@(ActiveLock solverName _) = runMaybeT $ do
             let makeAddr :: CS.ByteString -> SMTP.Address
                 makeAddr bs = SMTP.Address Nothing $ TS.pack $ CS.unpack bs
@@ -572,3 +580,6 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
                     "\nYou can disable notifications in-game by pressing 'R' on your home" ++
                     "\nscreen and setting an empty address." ++
                     "\nAlternatively, just reply to this email with the phrase \"stop bugging me\"." ]
+#else
+        mailDeclaration _ _ = pure ()
+#endif
