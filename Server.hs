@@ -562,7 +562,9 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
                 -- TODO: purge old entries
                 let Right element = XML.fromXMLElement $ xmlFeed $ withFeedLastUpdate timeText $ addItem item feed
                     document = XML.Document (XML.Prologue [] Nothing []) element []
-                writeFile feedPath $ TL.unpack $ XML.renderText XML.def document
+                -- | force the feed, so feedPath is closed (lazy IO)
+                feedString <- return $! TL.unpack $ XML.renderText XML.def document
+                writeFile feedPath feedString 
 #ifdef SENDMAIL
         mailDeclaration target@(ActiveLock name _) behind@(ActiveLock solverName _) = runMaybeT $ do
             let makeAddr :: CS.ByteString -> SMTP.Address
