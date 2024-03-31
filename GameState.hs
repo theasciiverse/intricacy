@@ -254,7 +254,7 @@ plPieceMap (PlacedPiece pos (Pivot arms)) =
     let overarmed = length arms > 2 in
     Map.fromList $ (pos, PivotTile $ if overarmed then head arms else zero ) :
         [ (rel +^ pos, ArmTile rel main)
-        | (rel,main) <- zip arms $ repeat False ]
+        | (rel,main) <- map (,False) arms ]
 plPieceMap (PlacedPiece pos (Hook arm _)) =
     Map.fromList $ (pos, HookTile) : [ (arm +^ pos, ArmTile arm True) ]
 plPieceMap (PlacedPiece pos (Wrench mom)) = Map.singleton pos $ WrenchTile mom

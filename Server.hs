@@ -146,8 +146,8 @@ setKeyPair = do
 -- Note: switching to cryptonite's argon2 implementation would not be
 -- straightforwardsly backwards-compatible, the output format is different.
 argon2 :: String -> ExceptT String IO String
-argon2 s = either (throwE . show) return $
-        TSh.unpack <$> A2.hashEncoded hashOptions (CS.pack s) (CS.pack salt)
+argon2 s = either (throwE . show) (return . TSh.unpack) $
+    A2.hashEncoded hashOptions (CS.pack s) (CS.pack salt)
     where
         salt = "intricacy salt"
         -- |default argon2 hash options
@@ -564,7 +564,7 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
                     document = XML.Document (XML.Prologue [] Nothing []) element []
                 -- | force the feed, so feedPath is closed (lazy IO)
                 feedString <- return $! TL.unpack $ XML.renderText XML.def document
-                writeFile feedPath feedString 
+                writeFile feedPath feedString
 #ifdef SENDMAIL
         mailDeclaration target@(ActiveLock name _) behind@(ActiveLock solverName _) = runMaybeT $ do
             let makeAddr :: CS.ByteString -> SMTP.Address
