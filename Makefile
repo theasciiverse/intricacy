@@ -1,4 +1,4 @@
-VERSION=0.8.2
+VERSION=0.8.2.1
 
 sources=$(filter-out Paths_intricacy.hs,$(wildcard *.hs *.lhs))
 
