@@ -8,16 +8,17 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
-{-# LANGUAGE CPP           #-}
-{-# LANGUAGE LambdaCase    #-}
-{-# LANGUAGE TupleSections #-}
+{-# LANGUAGE CPP              #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE LambdaCase       #-}
+{-# LANGUAGE TupleSections    #-}
 
 module SDLUI where
 
 import           Control.Applicative
 import           Control.Arrow
 import           Control.Concurrent.STM
-import           Control.Monad              ((<=<))
+import           Control.Monad
 import           Control.Monad.State
 import           Control.Monad.Trans.Maybe
 import           Control.Monad.Trans.Reader

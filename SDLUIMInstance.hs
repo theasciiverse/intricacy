@@ -16,6 +16,7 @@ module SDLUIMInstance () where
 import           Control.Applicative
 import           Control.Concurrent         (threadDelay)
 import           Control.Concurrent.STM
+import           Control.Monad
 import           Control.Monad.State
 import           Control.Monad.Trans.Maybe
 import           Control.Monad.Trans.Reader

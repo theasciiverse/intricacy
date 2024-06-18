@@ -14,6 +14,7 @@ import           Control.Monad.State
 import           Control.Monad.Writer
 import           Data.Foldable        (foldrM)
 import           Data.List
+import           Data.Monoid          (Any (Any, getAny))
 import           Data.Set             (Set)
 import qualified Data.Set             as Set
 import           Data.Vector          (Vector, (!), (//))
