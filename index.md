@@ -56,7 +56,7 @@ server](https://intricacy.thegonz.net/mainServerFeed/rss).
 (Broken due to PHP updates...)
 -->
 * Mailing list: mail mbays+intricacy@sdf.org with subject line '[intricacy-discuss] subscribe'.
-* IRC channel: #intricacy on irc.freenode.org
+* IRC channel: #intricacy on irc.libera.chat
 
 <!--
 ##Introductory video
