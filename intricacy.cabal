@@ -114,7 +114,7 @@ executable intricacy
             directory >=1.0 && <1.4,
             exceptions >=0.8.3 && <0.11,
             filepath >=1.0 && <1.6,
-            time >=1.2 && <1.14,
+            time >=1.2 && <1.15,
             bytestring >=0.10 && <0.13,
             array >=0.3 && <0.6,
             containers >=0.4 && <0.8,
@@ -166,7 +166,7 @@ executable intricacy
                 CursesUI
                 CursesUIMInstance
 
-            build-depends:     hscurses ==1.4.*
+            build-depends:     hscurses <=1.5
 
         if flag(sdl)
             cpp-options:   -DMAIN_SDL
@@ -218,7 +218,7 @@ executable intricacy-server
             time >=1.5 && <1.14,
             bytestring >=0.10 && <0.12,
             array >=0.3 && <0.6,
-            containers >=0.4 && <0.7,
+            containers >=0.4 && <0.9,
             vector >=0.9 && <0.13,
             binary >=0.5 && <0.11,
             network-fancy >=0.1.5 && <0.3,
