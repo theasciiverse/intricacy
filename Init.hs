@@ -1,5 +1,5 @@
 -- This file is part of Intricacy
--- Copyright (C) 2013 Martin Bays <mbays@sdf.org>
+-- Copyright (C) 2013-2025 Martin Bays <mbays@sdf.org>
 --
 -- This program is free software: you can redistribute it and/or modify
 -- it under the terms of version 3 of the GNU General Public License as
@@ -8,8 +8,9 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
-module Init where
+{-# LANGUAGE CPP #-}
 
+module Init where
 
 import           Control.Applicative
 import           Control.Monad
@@ -26,21 +27,24 @@ import           System.FilePath
 import           Interact
 import           Lock
 import           MainState
-import           Mundanities
 import           Util
 import           Version
 
 data Opt
     = DataDir FilePath
     | LockSize Int
+#ifdef CURSES
     | ForceCurses
+#endif
     | Help
     | Version
     deriving (Eq, Ord, Show)
 
 options =
     [ Option ['d'] ["datadir"] (ReqArg DataDir "PATH") "user data and conf directory (default: ~/.intricacy)"
+#ifdef CURSES
     , Option ['c'] ["curses"] (NoArg ForceCurses) "force curses UI"
+#endif
     , Option ['s'] ["locksize"] (ReqArg (LockSize . read) "SIZE") "locksize"
     , Option ['h'] ["help"] (NoArg Help) "show usage information"
     , Option ['v'] ["version"] (NoArg Version) "show version information"
@@ -62,7 +66,7 @@ setup = do
     (opts,args) <- parseArgs argv
     when (Help `elem` opts) $ putStr usage >> exitSuccess
     when (Version `elem` opts) $ putStrLn version >> exitSuccess
-    let size = fromMaybe 8 $ listToMaybe [ size | LockSize size <- opts ]
+    let size = fromMaybe 8 $ listToMaybe [ lsize | LockSize lsize <- opts ]
     mapM_ (setEnv "INTRICACY_PATH") [ dir | DataDir dir <- opts ]
 
     curDir <- getCurrentDirectory
@@ -79,14 +83,20 @@ main' :: (UIMonad s, UIMonad c) =>
         Maybe (s MainState -> IO (Maybe MainState)) ->
         Maybe (c MainState -> IO (Maybe MainState)) -> IO ()
 main' msdlUI mcursesUI = do
+#ifdef CURSES
     (mlock,opts,mpath) <- setup
+#else
+    (mlock,_,mpath) <- setup
+#endif
     initMState <- case mlock of
             Just (lock, msoln) -> return $ newEditState lock msoln mpath
             Nothing            -> initMetaState
     void $ runMaybeT $ msum [ do
             finalState <- msum
                 [ do
+#ifdef CURSES
                     guard $ ForceCurses `notElem` opts
+#endif
                     sdlUI <- liftMaybe msdlUI
                     MaybeT $ sdlUI $ interactUI `execStateT` initMState
                 , do

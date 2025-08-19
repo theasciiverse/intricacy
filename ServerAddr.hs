@@ -1,5 +1,5 @@
 -- This file is part of Intricacy
--- Copyright (C) 2013 Martin Bays <mbays@sdf.org>
+-- Copyright (C) 2013-2025 Martin Bays <mbays@sdf.org>
 --
 -- This program is free software: you can redistribute it and/or modify
 -- it under the terms of version 3 of the GNU General Public License as
@@ -36,5 +36,4 @@ strToSaddr str =
         Nothing -> Just $ ServerAddr str defaultPort
         Just idx -> do
             let (addr,portstr) = splitAt idx str
-            port <- fst <$> listToMaybe (reads (drop 1 portstr))
-            return $ ServerAddr addr port
+            ServerAddr addr . fst <$> listToMaybe (reads (drop 1 portstr))

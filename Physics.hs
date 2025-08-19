@@ -1,5 +1,5 @@
 -- This file is part of Intricacy
--- Copyright (C) 2013 Martin Bays <mbays@sdf.org>
+-- Copyright (C) 2013-2025 Martin Bays <mbays@sdf.org>
 --
 -- This program is free software: you can redistribute it and/or modify
 -- it under the terms of version 3 of the GNU General Public License as
@@ -15,7 +15,6 @@ import           Control.Monad.Writer
 import           Data.Foldable        (foldrM)
 import           Data.List
 import           Data.Monoid          (Any (Any, getAny))
-import           Data.Set             (Set)
 import qualified Data.Set             as Set
 import           Data.Vector          (Vector, (!), (//))
 import qualified Data.Vector          as Vector
@@ -109,13 +108,11 @@ stepPhysics :: GameState -> GameState
 stepPhysics = fst.runWriter.physicsTick NullPM
 
 type Source = Int
-data SourcedForce = SForce Source Force Bool Bool
-    deriving (Eq, Ord, Show)
 resolveForces :: ForceChoices -> ForceChoices -> Dominance -> GameState -> Writer [Alert] GameState
 resolveForces plForces eForces eDominates st =
     let pln = Vector.length plForces
         dominates i j = case map (< pln) [i,j] of
-                [True,False]  -> True
+                [True,False]  -> True -- Note: never happens with current physics
                 [False,False] -> eDominates (i-pln) (j-pln)
                 _             -> False
         initGrps = (propagate st True <$> plForces) Vector.++
@@ -129,13 +126,13 @@ resolveForces plForces eForces eDominates st =
         checkInconsistent i j fss =
             let st' = foldr applyForce st $ nub $ concat fss
                 (inconsistencies,cols) = runWriter $ sequence
-                    [ tell cols >> return [f,f']
+                    [ tell cols' >> return [f,f']
                     | [f,f'] <- sequence fss
-                    , (True,cols) <- [
+                    , (True,cols') <- [
                             if forceIdx f == forceIdx f'
                             then (f /= f',[])
-                            else let cols = collisions st' (forceIdx f) (forceIdx f')
-                                in (not $ null cols, cols) ]]
+                            else let cols' = collisions st' (forceIdx f) (forceIdx f')
+                                in (not $ null cols', cols') ]]
                 badConns = [ c | c <- connections st'
                     , not $ springExtensionValid st' c ]
             in do
@@ -168,12 +165,20 @@ resolveForces plForces eForces eDominates st =
                         , i <= j ]
                     `execStateT` initGrps
 
-        let [blocked, unblocked] = map (nub.concatMap (fst.runWriter) . Vector.toList) $
-                (\(x,y) -> [x,y]) $ Vector.partition (getAny.snd.runWriter) grps
+        let unresistedGrps = takeIfI (`elem` unresisted) grps
+            [blocked, unblocked] = map (nub.concatMap (fst.runWriter) . Vector.toList) $
+                (\(x,y) -> [x,y]) $ Vector.partition (getAny.snd.runWriter) unresistedGrps
+            resistedGrps = takeIfI (`notElem` unresisted) grps
+            resisted = nub . concatMap (fst.runWriter) $ Vector.toList resistedGrps
         tell $ map AlertBlockedForce blocked
+        tell $ map AlertResistedForce resisted
         tell $ map AlertAppliedForce unblocked
         tell $ map AlertDivertedWrench $ divertedWrenches unblocked
-        return $ stopBlockedWrenches blocked unblocked $ foldr applyForce st unblocked
+        return $ stopBlockedWrenches (blocked <> resisted) unblocked $ foldr applyForce st unblocked
+    where
+    takeIfI :: (Int -> Bool) -> Vector a -> Vector a
+    takeIfI p as = (`Vector.imapMaybe` as) $ \i -> if p i then Just else const Nothing
+
 
 resolveSinglePlForce :: Force -> GameState -> Writer [Alert] GameState
 resolveSinglePlForce force = resolveForces

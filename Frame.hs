@@ -1,5 +1,5 @@
 -- This file is part of Intricacy
--- Copyright (C) 2013 Martin Bays <mbays@sdf.org>
+-- Copyright (C) 2013-2025 Martin Bays <mbays@sdf.org>
 --
 -- This program is free software: you can redistribute it and/or modify
 -- it under the terms of version 3 of the GNU General Public License as
@@ -76,7 +76,7 @@ checkBounds f def pos = if inBounds f pos then pos else def
 checkEditable :: Frame -> HexPos -> HexPos -> HexPos
 checkEditable f def pos = if inEditable f pos then pos else def
 truncateToBounds,truncateToEditable :: Frame -> HexPos -> HexPos
-truncateToBounds f pos@(PHS v) = PHS $ truncateToLength (frameSize f - 1) v
+truncateToBounds f (PHS v) = PHS $ truncateToLength (frameSize f - 1) v
 truncateToEditable f pos@(PHS v) = if inBounds f pos
     then pos
     else head

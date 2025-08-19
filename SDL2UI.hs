@@ -1,5 +1,5 @@
 -- This file is part of Intricacy
--- Copyright (C) 2013 Martin Bays <mbays@sdf.org>
+-- Copyright (C) 2013-2025 Martin Bays <mbays@sdf.org>
 --
 -- This program is free software: you can redistribute it and/or modify
 -- it under the terms of version 3 of the GNU General Public License as
@@ -8,42 +8,45 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
-{-# LANGUAGE CPP              #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE LambdaCase       #-}
-{-# LANGUAGE TupleSections    #-}
+{-# LANGUAGE CPP               #-}
+{-# LANGUAGE FlexibleContexts  #-}
+{-# LANGUAGE LambdaCase        #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TupleSections     #-}
 
-module SDLUI where
+module SDL2UI where
 
 import           Control.Applicative
-import           Control.Arrow
-import           Control.Concurrent.STM
 import           Control.Monad
+import           Control.Monad.Catch       (handleAll)
 import           Control.Monad.State
 import           Control.Monad.Trans.Maybe
-import           Control.Monad.Trans.Reader
-import           Data.Array
-import           Data.Function              (on)
 import           Data.List
-import           Data.Map                   (Map)
-import qualified Data.Map                   as Map
+import           Data.Map                  (Map, (!?))
+import qualified Data.Map                  as Map
 import           Data.Maybe
 import           Data.Ratio
-import           Data.Time.Clock            (getCurrentTime)
+import           Data.Time.Clock           (getCurrentTime)
 import           Data.Word
-import           Graphics.UI.SDL            hiding (flip)
-import qualified Graphics.UI.SDL            as SDL
-import qualified Graphics.UI.SDL.TTF        as TTF
+import qualified SDL
+import           SDL                       hiding (get, rotate, zero, (*^))
+import qualified SDL.Font                  as TTF
+import           SDL.Primitive             (Color)
 import           System.FilePath
 --import Debug.Trace (traceShow)
+import           Foreign.C.Types           (CInt)
+import           Foreign.Ptr               (nullPtr)
 
 #ifdef SOUND
-import           Graphics.UI.SDL.Mixer
-import           System.Random              (randomRIO)
+import           SDL.Mixer
+import           System.Random             (randomRIO)
 #endif
+
+import qualified SimpleCache               as SC
 
 import           BoardColouring
 import           Command
+import           Font
 import           GameState
 import           GameStateTypes
 import           Hex
@@ -54,18 +57,21 @@ import           Maxlocksize
 import           Metagame
 import           Mundanities
 import           Physics
-import           SDLGlyph
-import           SDLRender
+import           SDL2Glyph
+import           SDL2Render
+import           SDL2RenderCache
 import           Util
 
 data UIState = UIState
-    { scrHeight             :: Int
-    , scrWidth              :: Int
-    , gsSurface             :: Maybe Surface
-    , bgSurface             :: Maybe Surface
-    , cachedGlyphs          :: CachedGlyphs
+    { scrDimen              :: V2 CInt
+    , sdlWindow             :: Maybe Window
+    , vidRenderer           :: Maybe Renderer
+    , backbuffer            :: Maybe Texture
+    , unblockEventType      :: Maybe (RegisteredEventType ())
+    , bgTexture             :: Maybe Texture
+    , rCache                :: RenderCache
     , lastDrawArgs          :: Maybe DrawArgs
-    , miniLocks             :: Map Lock Surface
+    , miniLocks             :: SC.SimpleCache Lock Texture
     , registeredSelectables :: Map HexVec Selectable
     , contextButtons        :: [ButtonGroup]
     , uiOptions             :: UIOptions
@@ -79,7 +85,7 @@ data UIState = UIState
     , middleButtonDown      :: Maybe HexVec
     , rightButtonDown       :: Maybe HexVec
     , mousePos              :: (HexVec,Bool)
-    , message               :: Maybe (Pixel, String)
+    , message               :: Maybe (Color, String)
     , hoverStr              :: Maybe String
     , dispCentre            :: HexPos
     , dispLastCol           :: PieceColouring
@@ -90,9 +96,12 @@ data UIState = UIState
     , sounds                :: Map String [Chunk]
 #endif
     }
-    deriving (Eq, Ord, Show)
+
+emptyMiniLocks :: SC.SimpleCache Lock Texture
+emptyMiniLocks = SC.empty 50 destroyTexture
+
 type UIM = StateT UIState IO
-nullUIState = UIState 0 0 Nothing Nothing emptyCachedGlyphs Nothing Map.empty Map.empty []
+nullUIState = UIState (V2 0 0) Nothing Nothing Nothing Nothing Nothing emptyRenderCache Nothing emptyMiniLocks Map.empty []
     defaultUIOptions Nothing Map.empty Nothing Nothing 0 0 Nothing Nothing Nothing
     (zero,False) Nothing Nothing (PHS zero) Map.empty 0 Nothing 50
 #ifdef SOUND
@@ -102,49 +111,63 @@ nullUIState = UIState 0 0 Nothing Nothing emptyCachedGlyphs Nothing Map.empty Ma
 data UIOptions = UIOptions
     { useFiveColouring :: Bool
     , showBlocks       :: ShowBlocks
-    , whsButtons       :: Maybe WrHoSel
+    , jiggleBlocked    :: Bool
+    , whsButtons       :: Map InputMode WrHoSel
     , useBackground    :: Bool
     , fullscreen       :: Bool
     , showButtonText   :: Bool
-    , useSounds        :: Bool
+    , soundVolume      :: Int
     , uiAnimTime       :: Word32
     , shortUiAnimTime  :: Word32
     }
     deriving (Eq, Ord, Show, Read)
-defaultUIOptions = UIOptions False ShowBlocksBlocking Nothing True False True True 100 20
+defaultUIOptions = UIOptions False ShowBlocksNone True Map.empty True False True 64 50 20
 
 modifyUIOptions :: (UIOptions -> UIOptions) -> UIM ()
 modifyUIOptions f = modify $ \s -> s { uiOptions = f $ uiOptions s }
 
 renderToMain :: RenderM a -> UIM a
 renderToMain m = do
-    surf <- liftIO getVideoSurface
-    renderToMainWithSurf surf m
-renderToMainWithSurf :: Surface -> RenderM a -> UIM a
-renderToMainWithSurf surf m = do
+    Just rend <- gets vidRenderer
+    cache <- gets rCache
+    (a,cache') <- renderToMainWithRenderer rend cache m
+    modify $ \s -> s { rCache = cache' }
+    pure a
+renderToMainWithRenderer :: Renderer -> RenderCache -> RenderM a -> UIM (a, RenderCache)
+renderToMainWithRenderer rend cache m = do
     (scrCentre, size) <- getGeom
     centre <- gets dispCentre
     mfont <- gets dispFont
-    bgsurf <- gets bgSurface
-    cgs <- gets cachedGlyphs
-    (a,cgs') <- liftIO $ runRenderM m cgs $ RenderContext surf bgsurf centre scrCentre zero size mfont
-    modify $ \s -> s { cachedGlyphs = cgs' }
-    return a
+    bgt <- gets bgTexture
+    V2 w _ <- gets scrDimen
+    liftIO $ runRenderM m cache $ RenderContext rend bgt centre scrCentre zero size mfont w
 
 refresh :: UIM ()
 refresh = do
-    surface <- liftIO getVideoSurface
-    liftIO $ SDL.flip surface
+    -- We use our own backbuffer, so we can update parts of the screen between
+    -- presentations without the rest of the screen being invalidated.
+    Just rend <- gets vidRenderer
+    Just bb <- gets backbuffer
+    rendererRenderTarget rend $= Nothing
+    copy rend bb Nothing Nothing
+    present rend
+    clear rend
+    rendererRenderTarget rend $= Just bb
+
+clearFrame :: UIM ()
+clearFrame = do
+    Just rend <- gets vidRenderer
+    rendererDrawColor rend $= black
+    SDL.clear rend
 
 waitFrame :: UIM ()
 waitFrame = do
-    last <- gets lastFrameTicks
-    let next = last + 1000 `div` 30
-    now <- liftIO getTicks
-    -- liftIO $ print now
+    next <- gets $ (+ 1000 `div` 30) . lastFrameTicks
+    now <- ticks
     when (now < next) $
         liftIO $ delay (next - now)
-    modify $ \ds -> ds { lastFrameTicks = now }
+    now' <- ticks
+    modify $ \ds -> ds { lastFrameTicks = now' }
 
 
 data Button = Button { buttonPos :: HexVec, buttonCmd :: Command, buttonHelp :: [ButtonHelp] }
@@ -155,7 +178,7 @@ singleButton :: HexVec -> Command -> Int -> [ButtonHelp] -> ButtonGroup
 singleButton pos cmd col helps = ([Button pos cmd helps], (col,0))
 getButtons :: InputMode -> UIM [ ButtonGroup ]
 getButtons mode = do
-    mwhs <- gets $ whsButtons . uiOptions
+    mwhs <- gets $ (!? mode) . whsButtons . uiOptions
     cntxtButtons <- gets contextButtons
     return $ cntxtButtons ++ global ++ case mode of
         IMEdit -> [
@@ -163,10 +186,10 @@ getButtons mode = do
             , singleButton (tl+^neg hw) CmdPlay 2 [("play", hu+^neg hw)]
             , markButtonGroup
             , singleButton (br+^2*^hu) CmdWriteState 2 [("save", hu+^neg hw)] ]
-            ++ whsBGs mwhs mode
+            ++ whsBGs mwhs
             ++ [ ([Button (paintButtonStart +^ hu +^ i*^hv) (paintTileCmds!!i) []
                 | i <- take (length paintTiles) [0..] ],(5,0)) ]
-        IMPlay -> whsBGs mwhs mode
+        IMPlay -> whsBGs mwhs
         IMReplay -> [ markButtonGroup ]
         IMMeta ->
             [ singleButton serverPos CmdSetServer 0 [("server",7*^neg hu)]
@@ -180,9 +203,9 @@ getButtons mode = do
             global = if mode `elem` [IMTextInput,IMImpatience] then [] else
                 [ singleButton br CmdQuit 0 [("quit",hu+^neg hw)]
                 , singleButton (tr +^ 3*^hv +^ 3*^hu) CmdHelp 3 [("help",hu+^neg hw)] ]
-            whsBGs :: Maybe WrHoSel -> InputMode -> [ ButtonGroup ]
-            whsBGs Nothing _ = []
-            whsBGs (Just whs) mode =
+            whsBGs :: Maybe WrHoSel -> [ ButtonGroup ]
+            whsBGs Nothing = []
+            whsBGs (Just whs) =
                 let edit = mode == IMEdit
                 in [ ( [ Button bl (if edit then CmdSelect else CmdWait) [] ], (0,0))
                     , ( [ Button (bl+^dir) (CmdDir whs dir)
@@ -196,8 +219,7 @@ getButtons mode = do
                            (CmdRotate whs 1)
                            [("turn",hu+^neg hw),("ccw",hu+^neg hv)]
                        ], (5,0) ) | whs /= WHSWrench]) ++
-                ([( [ Button (bl+^(2*^hv)+^hw+^neg hu) (CmdTile HookTile) [("select",hu+^neg hw),("hook",hu+^neg hv)]
-                       , Button (bl+^(2*^hv)+^neg hu) (CmdTile $ WrenchTile zero) [("select",hu+^neg hw),("wrench",hu+^neg hv)]
+                ([( [ Button (bl+^(2*^hv)+^hw+^neg hu) CmdToggle [("swap",hu+^neg hw),("tool",hu+^neg hv)]
                        ], (2,0) ) | whs == WHSSelected && mode /= IMEdit])
             tr = periphery 0
             tl = periphery 2
@@ -314,7 +336,7 @@ helpOfSelectable (SelScoreLock (Just name) Nothing _) = Just $
     "Your lock. "++name++" can not not unlock it."
 helpOfSelectable (SelScoreLock (Just name) (Just AccessedPrivy) _) = Just $
     "Your lock. "++name++" can unlock it: -1 to relative esteem."
-helpOfSelectable (SelScoreLock (Just name) (Just AccessedPub) _) = Just
+helpOfSelectable (SelScoreLock (Just _) (Just AccessedPub) _) = Just
     "Your lock. Its secrets have been publically revealed: -1 to relative esteem."
 helpOfSelectable (SelScoreLock (Just name) (Just AccessedEmpty) _) = Just $
     "Your empty lock slot. "++name++" can unlock all your locks: -1 to relative esteem."
@@ -358,7 +380,7 @@ helpOfSelectable (SelToolWrench False) = Just "The wrench, one of your lockpicki
 helpOfSelectable (SelToolWrench True) = Just "The wrench, currently in motion. It will keep moving until it is blocked."
 helpOfSelectable SelToolHook = Just "The hook, one of your lockpicking tools. Click and drag to move, use mousewheel to turn."
 
-cmdAtMousePos pos@(mPos,central) im selMode = do
+cmdAtMousePos (mPos,central) im selMode = do
     buttons <- concatMap fst <$> getButtons im
     sels <- gets registeredSelectables
     return $ listToMaybe $
@@ -371,8 +393,14 @@ cmdAtMousePos pos@(mPos,central) im selMode = do
             selMode
 
 helpAtMousePos :: (HexVec, Bool) -> InputMode -> UIM (Maybe [Char])
-helpAtMousePos (mPos,_) _ =
-    gets $ (helpOfSelectable <=< Map.lookup mPos) . registeredSelectables
+helpAtMousePos (mPos,_) _ = do
+    lb <- gets $ isJust . leftButtonDown
+    gets $ (helpOfSelectableFiltered lb <=< Map.lookup mPos) . registeredSelectables
+    where
+    -- Don't show tool help while dragging
+    helpOfSelectableFiltered True SelToolHook       = Nothing
+    helpOfSelectableFiltered True (SelToolWrench _) = Nothing
+    helpOfSelectableFiltered _ s                    = helpOfSelectable s
 
 
 data UIOptButton a = UIOptButton { getUIOpt :: UIOptions->a, setUIOpt :: a->UIOptions->UIOptions,
@@ -384,23 +412,32 @@ uiOB1 = UIOptButton useFiveColouring (\v o -> o {useFiveColouring=v}) [True,Fals
         (periphery 0 +^ 3 *^ hu +^ neg hv) UseFiveColourButton
         (\v -> if v then "Adjacent pieces get different colours" else
         "Pieces are coloured according to type")
-        [IMPlay, IMReplay, IMEdit] Nothing
+        [] -- disabled
+        Nothing
 uiOB2 = UIOptButton showBlocks (\v o -> o {showBlocks=v}) [ShowBlocksBlocking,ShowBlocksAll,ShowBlocksNone]
         (periphery 0 +^ 2 *^ hu +^ 2 *^ neg hv) ShowBlocksButton
         (\case
-            ShowBlocksBlocking -> "Blocking forces are annotated"
-            ShowBlocksAll      -> "Blocked and blocking forces are annotated"
-            ShowBlocksNone     -> "Blockage annotations disabled")
+            ShowBlocksBlocking -> "Showing conflicting forces"
+            ShowBlocksAll      -> "Showing conflicting forces and movements they prevent"
+            ShowBlocksNone     -> "Not showing conflicts")
         [IMPlay, IMReplay] Nothing
-uiOB3 = UIOptButton whsButtons (\v o -> o {whsButtons=v}) [Nothing, Just WHSSelected, Just WHSWrench, Just WHSHook]
+uiOB3P = UIOptButton ((!? IMPlay) . whsButtons) (\v o -> o { whsButtons = Map.alter (const v) IMPlay $ whsButtons o })
+        [Nothing, Just WHSSelected, Just WHSHook, Just WHSWrench]
         (periphery 3 +^ 3 *^ hv) WhsButtonsButton
         (\case
             Nothing -> "Click to show (and rebind) keyboard control buttons."
             Just whs -> "Showing buttons for controlling " ++ case whs of
-                WHSSelected -> "selected piece; right-click to rebind"
-                WHSWrench   -> "wrench; right-click to rebind"
-                WHSHook     -> "hook; right-click to rebind")
-        [IMPlay, IMEdit] Nothing
+                WHSSelected -> "selected piece; right-click on buttons to rebind"
+                WHSWrench   -> "wrench; right-click on buttons to rebind"
+                WHSHook     -> "hook; right-click on buttons to rebind")
+        [IMPlay] Nothing
+uiOB3E = UIOptButton ((!? IMEdit) . whsButtons) (\v o -> o { whsButtons = Map.alter (const v) IMEdit $ whsButtons o })
+        [Nothing, Just WHSSelected]
+        (periphery 3 +^ 3 *^ hv) WhsEditButtonsButton
+        (\case
+            Nothing -> "Click to show (and rebind) keyboard control buttons."
+            Just _ -> "Showing buttons for controlling cursor / selected piece; right-click on buttons to rebind")
+        [IMEdit] Nothing
 uiOB4 = UIOptButton showButtonText (\v o -> o {showButtonText=v}) [True,False]
         (periphery 0 +^ 2 *^ hu +^ 3 *^ hv) ShowButtonTextButton
         (\v -> if v then "Help text enabled" else
@@ -409,18 +446,22 @@ uiOB4 = UIOptButton showButtonText (\v o -> o {showButtonText=v}) [True,False]
 uiOB5 = UIOptButton fullscreen (\v o -> o {fullscreen=v}) [True,False]
         (periphery 0 +^ 4 *^ hu +^ 2 *^ hv) FullscreenButton
         (\v -> if v then "Fullscreen mode active" else "Windowed mode active")
-        [IMPlay, IMEdit, IMReplay, IMMeta, IMInit] (Just $ const $ initVideo 0 0)
-uiOB6 = UIOptButton useSounds (\v o -> o {useSounds=v}) [True,False]
-        (periphery 0 +^ 4 *^ hu +^ hv) UseSoundsButton
-        (\v -> if v then "Sound effects enabled" else
-        "Sound effects disabled")
-        [IMPlay, IMEdit, IMReplay] Nothing
+        [IMPlay, IMEdit, IMReplay, IMMeta, IMInit] (Just onFullScreenChange)
+uiOB6 = UIOptButton soundVolume (\v o -> o {soundVolume=v}) [64,0,16,32]
+        (periphery 0 +^ 4 *^ hu +^ hv) VolumeButton
+        (\case
+            v | v >= 64 -> "Sound effects at full volume"
+            v | v >= 32 -> "Sound effects at medium volume"
+            0 -> "Sound effects disabled"
+            _ -> "Sound effects at low volume")
+        [IMPlay, IMEdit, IMReplay] $ Just (`setVolume` AllChannels)
 
 drawUIOptionButtons :: InputMode -> UIM ()
 drawUIOptionButtons mode = do
     drawUIOptionButton mode uiOB1
     drawUIOptionButton mode uiOB2
-    drawUIOptionButton mode uiOB3
+    drawUIOptionButton mode uiOB3P
+    drawUIOptionButton mode uiOB3E
     drawUIOptionButton mode uiOB4
     drawUIOptionButton mode uiOB5
 #ifdef SOUND
@@ -439,9 +480,7 @@ toggleUIOption (UIOptButton getopt setopt vals _ _ _ _ monSet) = do
     value <- gets $ getopt . uiOptions
     let value' = cycle vals !! max 0 (1 + fromMaybe 0 (elemIndex value vals))
     modifyUIOptions $ setopt value'
-    case monSet of
-        Nothing    -> return ()
-        Just onSet -> onSet value'
+    maybe (pure ()) ($ value') monSet
 
 readUIConfigFile :: UIM ()
 readUIConfigFile = do
@@ -491,7 +530,7 @@ paintTileCmds = map (maybe CmdDelete CmdTile) paintTiles
 getEffPaintTileIndex :: UIM Int
 getEffPaintTileIndex = do
     mods <- liftIO getModState
-    if any (`elem` mods) [KeyModLeftCtrl, KeyModRightCtrl]
+    if keyModifierLeftCtrl mods || keyModifierRightCtrl mods
     then return $ length paintTiles - 1
     else gets paintTileIndex
 
@@ -521,15 +560,14 @@ messageLineCentre = ((maxlocksize+1)`div`2)*^hw +^ ((maxlocksize+1+1)`div`2)*^ne
 
 -- XXX HACK: the n=8 line is crowded
 titlePos n = titlePos' $ if n == 8 then 9 else n
-    where titlePos' n = n*^hv +^ (n`div`2)*^hu
+    where titlePos' l = l*^hv +^ (l`div`2)*^hu
 
-screenWidthHexes,screenHeightHexes :: Int
+screenWidthHexes,screenHeightHexes :: CInt
 screenWidthHexes = 32
 screenHeightHexes = 26
-getGeom :: UIM (SVec, Int)
+getGeom :: UIM (SVec, CInt)
 getGeom = do
-    h <- gets scrHeight
-    w <- gets scrWidth
+    V2 w h <- gets scrDimen
     let scrCentre = SVec (w`div`2) (h`div`2)
     -- |size is the greatest integer such that
     -- and [2*size*screenWidthHexes < width
@@ -540,6 +578,9 @@ getGeom = do
             (floor $ sqrt 3 * (0.5 + fi ((h-1)`div`(3*screenHeightHexes))))
     return (scrCentre, size)
 
+clearAnim :: UIM ()
+clearAnim = modify $ \ds -> ds { animFrame = 0, nextAnimFrameAt = Nothing }
+
 data DrawArgs = DrawArgs [PieceIdx] Bool [Alert] GameState UIOptions
     deriving (Eq, Ord, Show)
 
@@ -548,138 +589,147 @@ drawMainGameState highlight colourFixed alerts st = do
     uiopts <- gets uiOptions
     drawMainGameState' $ DrawArgs highlight colourFixed alerts st uiopts
 
+data AnimFrameInfo = AnimFrameInfo
+    { animFrameAlerts         :: [Alert]
+    , animFrameState          :: GameState
+    , animFrameIsIntermediate :: Bool
+    } deriving Eq
+
 drawMainGameState' :: DrawArgs -> UIM ()
 drawMainGameState' args@(DrawArgs highlight colourFixed alerts st uiopts) = do
     lastArgs <- gets lastDrawArgs
     when (case lastArgs of
             Nothing -> True
             Just (DrawArgs _ _ lastAlerts lastSt _) ->
-                lastAlerts /= alerts || lastSt /= st) $
-        modify $ \ds -> ds { animFrame = 0, nextAnimFrameAt = Nothing }
+                lastAlerts /= alerts || lastSt /= st)
+        clearAnim
+    modify $ \ds -> ds { lastDrawArgs = Just args }
 
     lastAnimFrame <- gets animFrame
-    now <- liftIO getTicks
+    now <- ticks
     anim <- gets (maybe False (<now) . nextAnimFrameAt)
     when anim $
         modify $ \ds -> ds { animFrame = lastAnimFrame+1, nextAnimFrameAt = Nothing }
     animFrameToDraw <- gets animFrame
-    void $ if lastArgs == Just args && lastAnimFrame == animFrameToDraw
-        then do
-            vidSurf <- liftIO getVideoSurface
-            gsSurf <- gets (fromJust . gsSurface)
-            liftIO $ blitSurface gsSurf Nothing vidSurf Nothing
-        else do
-            modify $ \ds -> ds { lastDrawArgs = Just args }
 
-            -- split the alerts at intermediate states, and associate alerts
-            -- to the right states:
-            let (globalAlerts,transitoryAlerts) = partition isGlobalAlert alerts
-                splitAlerts frameAs (AlertIntermediateState st' : as) =
-                    (frameAs,st',True) : splitAlerts [] as
-                splitAlerts frameAs (a:as) =
-                    splitAlerts (a:frameAs) as
-                splitAlerts frameAs [] = [(frameAs,st,False)]
-                isGlobalAlert (AlertAppliedForce _)      = False
-                isGlobalAlert (AlertIntermediateState _) = False
-                isGlobalAlert _                          = True
-            let animAlertedStates = nub $
-                    let ass = splitAlerts [] transitoryAlerts
-                    in if last ass == ([],st,False) then ass else ass ++ [([],st,False)]
-            let frames = length animAlertedStates
-            let (drawAlerts',drawSt,isIntermediate) = animAlertedStates !! animFrameToDraw
-            let drawAlerts = drawAlerts' ++ globalAlerts
-            -- let drawAlerts = takeWhile (/= AlertIntermediateState drawSt) alerts
-            nextIsSet <- gets (isJust . nextAnimFrameAt)
-            when (not nextIsSet && frames > animFrameToDraw+1) $ do
-                time <- gets ((if isIntermediate then uiAnimTime else shortUiAnimTime) . uiOptions)
-                modify $ \ds -> ds { nextAnimFrameAt = Just $ now + time }
+    noJiggle <- gets $ not . jiggleBlocked . uiOptions
 
-            let board = stateBoard drawSt
-            lastCol <- gets dispLastCol
-            let coloured = colouredPieces colourFixed drawSt
-            let colouring = if useFiveColouring uiopts
-                then boardColouring drawSt coloured lastCol
-                else pieceTypeColouring drawSt coloured
-            modify $ \ds -> ds { dispLastCol = colouring }
-            gsSurf <- gets (fromJust . gsSurface)
-            renderToMainWithSurf gsSurf $ do
-                let tileGlyphs = ownedTileGlyph colouring highlight <$> board
+    -- split the alerts at intermediate states, and associate alerts
+    -- to the right states:
+    let (globalAlerts,transitoryAlerts) = partition isGlobalAlert alerts
+        splitAlerts :: [Alert] -> [Alert] -> [AnimFrameInfo]
+        splitAlerts frameAs (AlertIntermediateState st' : as) =
+            AnimFrameInfo frameAs st' True : splitAlerts [] as
+        splitAlerts frameAs (a:as) =
+            splitAlerts (a:frameAs) as
+        splitAlerts frameAs [] = [AnimFrameInfo frameAs st False]
+        jiggleLast :: [AnimFrameInfo] -> [AnimFrameInfo]
+        jiggleLast afis | noJiggle = afis
+        jiggleLast [AnimFrameInfo as st' False]
+            | jiggles <- nub $ mapMaybe blockedToForce globalAlerts
+            , not (null jiggles)
+            = [ AnimFrameInfo jiggles st' True
+                , AnimFrameInfo as st' False]
+        jiggleLast (af:afs) = af : jiggleLast afs
+        jiggleLast [] = []
+        isGlobalAlert (AlertAppliedForce _)      = False
+        isGlobalAlert (AlertIntermediateState _) = False
+        isGlobalAlert _                          = True
+        blockedToForce (AlertBlockedForce (Push idx dir)) = Just $ AlertAppliedForce (Push idx $ neg dir)
+        blockedToForce (AlertBlockedForce (Torque idx tdir)) = Just $ AlertAppliedForce (Torque idx $ -tdir)
+        blockedToForce _ = Nothing
+    let animAlertedStates = jiggleLast $ nub $
+            let ass = splitAlerts [] transitoryAlerts
+            in if last ass == AnimFrameInfo [] st False then ass else ass ++ [AnimFrameInfo [] st False]
+    let frames = length animAlertedStates
+    let AnimFrameInfo drawAlerts' drawSt isIntermediate = animAlertedStates !! animFrameToDraw
+    let drawAlerts = nub $ drawAlerts' ++ globalAlerts
+    -- let drawAlerts = takeWhile (/= AlertIntermediateState drawSt) alerts
+    nextIsSet <- gets (isJust . nextAnimFrameAt)
+    when (not nextIsSet && frames > animFrameToDraw+1) $ do
+        t <- gets ((if isIntermediate then uiAnimTime else shortUiAnimTime) . uiOptions)
+        modify $ \ds -> ds { nextAnimFrameAt = Just $ now + t }
 
-                    applyAlert (AlertAppliedForce f@(Torque idx tdir)) =
-                        let poss = case getpp drawSt idx of
-                                PlacedPiece pos (Pivot arms) -> pos : map (+^pos) arms
-                                PlacedPiece pos (Hook arm _) -> [arm+^pos]
-                                _ -> []
-                            rotateGlyph (TileGlyph (ArmTile dir _) col) =
-                                ArmGlyph (-tdir) dir col
-                            rotateGlyph (TileGlyph (PivotTile dir) col) =
-                                PivotGlyph (-tdir) dir col
-                        in flip (foldr . Map.adjust $ rotateGlyph) poss
-                    applyAlert (AlertAppliedForce f@(Push idx dir)) =
-                        displaceFootprint . displaceSprings
-                        where
-                            displace = DisplacedGlyph $ neg dir
-                            displaceSpringGlyph isRoot (TileGlyph (SpringTile extn sdir) col) =
-                                displaceSpringGlyph isRoot $ SpringGlyph zero zero extn sdir col
-                            displaceSpringGlyph isRoot (SpringGlyph rdisp edisp extn sdir col)
-                                | isRoot = SpringGlyph (neg dir) edisp extn sdir col
-                                | otherwise = SpringGlyph rdisp (neg dir) extn sdir col
-                            displaceSpringGlyph _ glyph = glyph
-                            displaceFootprint =
-                                flip (foldr . Map.adjust $ displace) $
-                                    plPieceFootprint $ getpp drawSt idx
+    let board = stateBoard drawSt
+    lastCol <- gets dispLastCol
+    let coloured = colouredPieces colourFixed drawSt
+    let colouring = if useFiveColouring uiopts
+        then boardColouring drawSt coloured lastCol
+        else pieceTypeColouring drawSt coloured
+    modify $ \ds -> ds { dispLastCol = colouring }
+    renderToMain $ do
+        let tileGlyphs = ownedTileGlyph colouring highlight <$> board
 
-                            displaceSpring isRoot c@(Connection root end (Spring sdir _))
-                                | dir `elem` [sdir,neg sdir] =
-                                    Map.adjust (displaceSpringGlyph isRoot) $
-                                        if isRoot
-                                            then sdir +^ locusPos drawSt root
-                                            else neg sdir +^ locusPos drawSt end
-                                | isRoot =
-                                    flip (foldr . Map.adjust $ displace) $
-                                        connectionFootPrint drawSt c
-                                | otherwise = id
-                            displaceSpring _ _ = id
+            applyAlert (AlertAppliedForce (Torque idx tdir)) =
+                let poss = case getpp drawSt idx of
+                        PlacedPiece pos (Pivot arms) -> pos : map (+^pos) arms
+                        PlacedPiece pos (Hook arm _) -> [arm+^pos]
+                        _                            -> []
+                    rotateGlyph (TileGlyph (ArmTile dir _) col) =
+                        ArmGlyph (-tdir) dir col
+                    rotateGlyph (TileGlyph (PivotTile dir) col) =
+                        PivotGlyph (-tdir) dir col
+                    rotateGlyph gl = gl
+                in flip (foldr . Map.adjust $ rotateGlyph) poss
+            applyAlert (AlertAppliedForce (Push idx dir)) =
+                displaceFootprint . displaceSprings
+                where
+                    displace = DisplacedGlyph $ neg dir
+                    displaceSpringGlyph isRoot (TileGlyph (SpringTile extn sdir) col) =
+                        displaceSpringGlyph isRoot $ SpringGlyph zero zero extn sdir col
+                    displaceSpringGlyph isRoot (SpringGlyph rdisp edisp extn sdir col)
+                        | isRoot = SpringGlyph (neg dir) edisp extn sdir col
+                        | otherwise = SpringGlyph rdisp (neg dir) extn sdir col
+                    displaceSpringGlyph _ glyph = glyph
+                    displaceFootprint =
+                        flip (foldr . Map.adjust $ displace) $
+                            plPieceFootprint $ getpp drawSt idx
 
-                            displaceSprings =
-                                flip (foldr $ displaceSpring True) (springsRootAtIdx drawSt idx) .
-                                flip (foldr $ displaceSpring False) (springsEndAtIdx drawSt idx)
-                    applyAlert _ = id
+                    displaceSpring isRoot c@(Connection root end (Spring sdir _))
+                        | dir `elem` [sdir,neg sdir] =
+                            Map.adjust (displaceSpringGlyph isRoot) $
+                                if isRoot
+                                    then sdir +^ locusPos drawSt root
+                                    else neg sdir +^ locusPos drawSt end
+                        | isRoot =
+                            flip (foldr . Map.adjust $ displace) $
+                                connectionFootPrint drawSt c
+                        | otherwise = id
+                    displaceSpring _ _ = id
 
-                    applyAlerts = flip (foldr applyAlert) drawAlerts
+                    displaceSprings =
+                        flip (foldr $ displaceSpring True) (springsRootAtIdx drawSt idx) .
+                        flip (foldr $ displaceSpring False) (springsEndAtIdx drawSt idx)
+            applyAlert _ = id
 
-                erase
-                sequence_ [ drawAt glyph pos |
-                    (pos,glyph) <- Map.toList $ applyAlerts tileGlyphs
-                    ]
+            applyAlerts = flip (foldr applyAlert) drawAlerts
 
-                when (showBlocks uiopts /= ShowBlocksNone) $ sequence_
-                    $ [drawBlocked drawSt colouring False force |
-                   showBlocks uiopts == ShowBlocksAll,
-                   AlertBlockedForce force <- drawAlerts]
-                    ++ [ drawBlocked drawSt colouring True force
-                        | AlertBlockingForce force <- drawAlerts ]
-                    -- ++ [ drawBlocked drawSt colouring True force |
-                    -- AlertResistedForce force <- drawAlerts ]
-                    ++ [ drawAt CollisionMarker pos
-                        | AlertCollision pos <- drawAlerts ]
-                    -- ++ [ drawApplied drawSt colouring force
-                    --    | AlertAppliedForce force <- drawAlerts ]
-            vidSurf <- liftIO getVideoSurface
-            liftIO $ blitSurface gsSurf Nothing vidSurf Nothing
+        erase
+        sequence_ [ drawAt glyph pos |
+            (pos,glyph) <- Map.toList $ applyAlerts tileGlyphs
+            ]
+
+        when (showBlocks uiopts /= ShowBlocksNone) $ sequence_ $
+            [ drawBlocked drawSt colouring False force
+            | showBlocks uiopts == ShowBlocksAll
+            , AlertBlockedForce force <- drawAlerts] ++
+            [ drawBlocked drawSt colouring True force
+            | AlertBlockingForce force <- drawAlerts ] ++
+            -- [ drawBlocked drawSt colouring True force
+            -- | AlertResistedForce force <- drawAlerts ] ++
+            [ drawAt CollisionMarker pos
+            | AlertCollision pos <- drawAlerts ]
+            -- [ drawApplied drawSt colouring force
+            -- | AlertAppliedForce force <- drawAlerts ] ++
 
 playAlertSounds :: GameState -> [Alert] -> UIM ()
 #ifdef SOUND
 playAlertSounds st alerts = do
-    use <- useSounds <$> gets uiOptions
+    use <- gets $ (> 0) . soundVolume . uiOptions
     when use $ mapM_ (maybe (return ()) playSound . alertSound) alerts
     where
-        alertSound (AlertBlockedForce force) =
-            let PlacedPiece _ piece = getpp st $ forceIdx force
-            in case piece of
-                Wrench _ -> Just "wrenchblocked"
-                Hook _ _ -> if isPush force then Just "hookblocked" else Just "hookarmblocked"
-                _ -> Nothing
+        alertSound (AlertBlockedForce force) = alertPreventedForce force
+        alertSound (AlertResistedForce force) = alertPreventedForce force
         alertSound (AlertDivertedWrench _) = Just "wrenchscrape"
         alertSound (AlertAppliedForce (Torque idx _))
             | isPivot.placedPiece.getpp st $ idx = Just "pivot"
@@ -689,7 +739,7 @@ playAlertSounds st alerts = do
             | isTool.placedPiece.getpp st $ idx = Just "toolmove"
             | otherwise = do
             (align,newLen) <- listToMaybe [(align,newLen)
-                | c@(Connection (startIdx,_) (endIdx,_) (Spring outDir natLen)) <- connections st
+                | c@(Connection (startIdx,_) (endIdx,_) (Spring outDir _)) <- connections st
                 , let align = (if outDir == dir then 1 else if outDir == neg dir then -1 else 0)
                         * (if idx == startIdx then 1 else if idx == endIdx then -1 else 0)
                 , align /= 0
@@ -698,11 +748,17 @@ playAlertSounds st alerts = do
                 ++ show (min newLen 12)
         alertSound AlertUnlocked = Just "unlocked"
         alertSound _ = Nothing
+        alertPreventedForce force =
+            let PlacedPiece _ piece = getpp st $ forceIdx force
+            in case piece of
+                Wrench _ -> Just "wrenchblocked"
+                Hook _ _ -> if isPush force then Just "hookblocked" else Just "hookarmblocked"
+                _ -> Nothing
         playSound :: String -> UIM ()
         playSound sound = void.runMaybeT $ do
             ss <- MaybeT $ Map.lookup sound <$> gets sounds
             guard.not.null $ ss
-            liftIO $ randFromList ss >>= \(Just s) -> void $ tryPlayChannel (-1) s 0
+            liftIO $ randFromList ss >>= \(Just s) -> handleAll (const $ pure ()) $ play s
         randFromList :: [a] -> IO (Maybe a)
         randFromList [] = return Nothing
         randFromList as = (Just.(as!!)) <$> randomRIO (0,length as - 1)
@@ -713,17 +769,19 @@ playAlertSounds _ _ = return ()
 
 drawMiniLock :: Lock -> HexVec -> UIM ()
 drawMiniLock lock v = do
-    surface <- gets miniLocks >>= maybe new return . Map.lookup lock
-    renderToMain $ blitAt surface v
+    texture <- maybe new return =<< gets ((SC.!? lock) . miniLocks)
+    renderToMain $ blitAt texture v
     where
         miniLocksize = 3
         new = do
             (_, size) <- getGeom
             let minisize = size `div` ceiling (lockSize lock % miniLocksize)
-            let width = size*2*(miniLocksize*2+1)
-            let height = ceiling $ fi size * sqrt 3 * fi (miniLocksize*2+1+1)
-            surf <- liftIO $ createRGBSurface [] width height 16 0 0 0 0
-            liftIO $ setColorKey surf [SrcColorKey,RLEAccel] $ Pixel 0
+            let width, height :: CInt
+                width = size*2*(fi miniLocksize*2+1)
+                height = ceiling $ fi size * sqrt 3 * fi (miniLocksize*2+1+1)
+            surf <- createRGBSurface (V2 width height) =<< masksToPixelFormat 16 (V4 0 0 0 0)
+            surfaceColorKey surf $= Just (V4 0 0 0 0)
+            rend <- createSoftwareRenderer surf
             uiopts <- gets uiOptions
             let st = snd $ reframe lock
                 coloured = colouredPieces False st
@@ -732,16 +790,20 @@ drawMiniLock lock v = do
                     else pieceTypeColouring st coloured
                 draw = sequence_ [ drawAt glyph pos |
                     (pos,glyph) <- Map.toList $ ownedTileGlyph colouring [] <$> stateBoard st ]
-            liftIO $ runRenderM draw emptyCachedGlyphs $
-                RenderContext surf Nothing (PHS zero) (SVec (width`div`2) (height`div`2)) zero minisize Nothing
-            clearOldMiniLocks
-            modify $ \ds -> ds { miniLocks = Map.insert lock surf $ miniLocks ds }
-            return surf
+            liftIO $ do
+                (_,cache) <- runRenderM draw emptyRenderCache $
+                    RenderContext rend Nothing (PHS zero) (SVec (width`div`2) (height`div`2)) zero minisize Nothing width
+                deallocRenderCache cache
+            destroyRenderer rend
+            Just vidRend <- gets vidRenderer
+            texture <- createTextureFromSurface vidRend surf
+            minis <- liftIO . SC.insert lock texture =<< gets miniLocks
+            modify $ \ds -> ds { miniLocks = minis }
+            return texture
 
--- | TODO: do this more cleverly
-clearOldMiniLocks =
-    (>=50).Map.size <$> gets miniLocks >>? clearMiniLocks
-clearMiniLocks = modify $ \ds -> ds { miniLocks = Map.empty}
+clearMiniLocks = do
+    liftIO . SC.deallocAll =<< gets miniLocks
+    modify $ \ds -> ds { miniLocks = emptyMiniLocks }
 
 drawEmptyMiniLock v =
     renderToMain $ recentreAt v $ rescaleRender 6 $ drawAtRel (HollowInnerGlyph $ dim white) zero
@@ -752,7 +814,7 @@ getBindingStr mode = do
     uibdgs <- gets (Map.findWithDefault [] mode . uiKeyBindings)
     return (\cmd ->
         if Just cmd == setting then "??"
-        else maybe "" showKey $ findBinding (uibdgs ++ bindings mode) cmd)
+        else maybe "" showKeyFriendlyShort $ findBinding (uibdgs ++ bindings mode) cmd)
 
 drawButtons :: InputMode -> UIM ()
 drawButtons mode = do
@@ -762,8 +824,11 @@ drawButtons mode = do
     smallFont <- gets dispFontSmall
     renderToMain $ sequence_ $ concat [ [ do
                 drawAtRel (ButtonGlyph col) v
-                (if length bdg > 2 then withFont smallFont else id) $
-                    renderStrColAt buttonTextCol bdg v
+                let drawBdg = renderStrColAt buttonTextCol bdg v
+                case length bdg of
+                    0         -> drawAtRel UnboundButtonGlyph v
+                    l | l < 3 -> drawBdg
+                    _         -> withFont smallFont drawBdg
                 when showBT $
                     withFont smallFont $ recentreAt v $ rescaleRender (1/4) $
                     sequence_ [ renderStrColAtLeft white s dv | (s,dv) <- helps ]
@@ -773,115 +838,130 @@ drawButtons mode = do
         ]
     where enumerate = zip [0..]
 
-initMisc :: IO ()
-initMisc = void $ enableUnicode True >> enableKeyRepeat 250 30 >> setCaption "intricacy" "intricacy"
+initMisc :: UIM ()
+initMisc = do
+    mevType <- registerEvent (const . const . pure $ Just ()) (const . pure $ RegisteredEventData Nothing 0 nullPtr nullPtr)
+    modify $ \s -> s { unblockEventType = mevType }
 
-initVideo :: Int -> Int -> UIM ()
+onFullScreenChange :: Bool -> UIM ()
+onFullScreenChange fs = do
+    Just win <- gets sdlWindow
+    setWindowMode win $ wModeOfFS fs
+    initVideo 0 0
+wModeOfFS :: Bool -> WindowMode
+wModeOfFS True  = FullscreenDesktop
+wModeOfFS False = Windowed
+
+initVideo :: CInt -> CInt -> UIM ()
 initVideo w h = do
-    liftIO $ (((w,h)==(0,0) &&) . (InitVideo `elem`) <$> wasInit [InitVideo]) >>?
-        -- reset video so that passing (0,0) to setVideoMode sets to
-        -- current screen res rather than current window size
-        (quitSubSystem [InitVideo] >> initSubSystem [InitVideo] >> initMisc)
+    winUninitialised <- gets $ isNothing . sdlWindow
+    when winUninitialised $ do
+        wMode <- gets $ wModeOfFS . fullscreen . uiOptions
+        let winConf = defaultWindow
+                { windowMode = wMode
+                , windowResizable = True
+                , windowInitialSize = if (w,h) == (0,0) then V2 800 600 else V2 w h
+                }
+        win <- createWindow "Intricacy" winConf
+        rend <- createRenderer win (-1) defaultRenderer
+        modify $ \ds -> ds { sdlWindow = Just win, vidRenderer = Just rend }
 
-    fs <- gets (fullscreen . uiOptions)
-    liftIO $ do
-        (w',h') <- if fs || (w,h)/=(0,0) then return (w,h) else
-#ifdef APPLE
-            -- use smaller dimensions than the screen's, to work around a bug
-            -- seen on mac, whereby a resizable window created with
-            -- (w,h)=(0,0), or even with the (w,h) given by getHardwareDimensions
-            -- after creating such a window, is reported to be larger than it
-            -- is.
-            do
-                (w',h') <- getHardwareDimensions
-                return (4*w'`div`5,4*h'`div`5)
-#else
-            getHardwareDimensions
-#endif
-        setVideoMode w' h' 0 $ if fs then [Fullscreen] else [Resizable]
+    Just win <- gets sdlWindow
+    Just vidRend <- gets vidRenderer
 
-    (w',h') <- liftIO getSurfaceDimensions
+    dimen <- SDL.get (windowSize win)
+    modify $ \ds -> ds { scrDimen = dimen }
 
-    modify $ \ds -> ds { scrWidth = w' }
-    modify $ \ds -> ds { scrHeight = h' }
-    gssurf <- liftIO $ createRGBSurface [] w' h' 16 0 0 0 0
-    modify $ \ds -> ds { gsSurface = Just gssurf, lastDrawArgs = Nothing }
+    maybe (pure ()) destroyTexture =<< gets backbuffer
+    bb <- createTexture vidRend RGB888 TextureAccessTarget dimen
+    rendererRenderTarget vidRend $= Just bb
+    modify $ \ds -> ds { backbuffer = Just bb }
+
+    clearFrame >> refresh
 
     (_,size) <- getGeom
-    let fontfn = "VeraMoBd.ttf"
-    fontpath <- liftIO $ getDataPath fontfn
-    font <- liftIO $ TTF.tryOpenFont fontpath size
-    smallFont <- liftIO $ TTF.tryOpenFont fontpath (2*size`div`3)
+#ifdef EMBED
+    font <- warnIOErrAlt $ Just <$> TTF.decode veraMoBd (fi size)
+    smallFont <- warnIOErrAlt $ Just <$> TTF.decode veraMoBd (2 * fi size `div` 3)
+#else
+    fontpath <- liftIO $ getDataPath "VeraMoBd.ttf"
+    font <- warnIOErrAlt $ Just <$> TTF.load fontpath (fi size)
+    smallFont <- warnIOErrAlt $ Just <$> TTF.load fontpath (2 * fi size `div` 3)
+#endif
     modify $ \ds -> ds { dispFont = font, dispFontSmall = smallFont }
 
+    maybe (pure ()) destroyTexture =<< gets bgTexture
     useBG <- gets $ useBackground . uiOptions
     mbg <- if useBG then do
-            bgsurf <- liftIO $ createRGBSurface [] w' h' 16 0 0 0 0
-            renderToMainWithSurf bgsurf $ drawBasicBG $ 2*max screenWidthHexes screenHeightHexes`div`3
-            return $ Just bgsurf
+            bgsurf <- createRGBSurface dimen =<< masksToPixelFormat 16 (V4 0 0 0 0)
+            bgrend <- createSoftwareRenderer bgsurf
+            (_,cache) <- renderToMainWithRenderer bgrend emptyRenderCache . drawBasicBG . fi $ 2*max screenWidthHexes screenHeightHexes`div`3
+            liftIO $ deallocRenderCache cache -- XXX: have to destroy textures before renderer
+            destroyRenderer bgrend
+            bgtexture <- createTextureFromSurface vidRend bgsurf
+            freeSurface bgsurf
+            pure $ Just bgtexture
         else return Nothing
-    modify $ \ds -> ds { bgSurface = mbg }
+    modify $ \ds -> ds { bgTexture = mbg }
 
     clearMiniLocks
+    liftIO . deallocRenderCache =<< gets rCache
+    modify $ \s -> s { rCache = emptyRenderCache }
 
     when (isNothing font) $ liftIO $ do
         now <- getCurrentTime
+#ifdef EMBED
+        let text = show now ++ ": Warning: embedded font failed to load.\n"
+#else
         let text = show now ++ ": Warning: font file not found at "++fontpath++".\n"
+#endif
         putStr text
         appendFile "intricacy-warnings.log" text
-
-    where
-        getHardwareDimensions = (videoInfoWidth &&& videoInfoHeight) <$> getVideoInfo
-        getSurfaceDimensions = (surfaceGetWidth &&& surfaceGetHeight) <$> getVideoSurface
-
 
 initAudio :: UIM ()
 #ifdef SOUND
 initAudio = do
-    initialised <- liftIO $ tryOpenAudio defaultFrequency AudioS16Sys 1 1024
+    initialised <- (isJust <$>) . nothingOnIOErr $ openAudio (defaultAudio { audioOutput = SDL.Mixer.Mono }) 1024
     unless initialised $ liftIO $ do
         now <- getCurrentTime
         let text = show now ++ ": Warning: audio failed to initialise.\n"
         putStr text
         appendFile "intricacy-warnings.log" text
     -- liftIO $ querySpec >>= print
-    liftIO $ allocateChannels 16
+    setChannels 32
     let seqWhileJust (m:ms) = m >>= \ret -> case ret of
             Nothing -> return []
             Just a  -> (a:) <$> seqWhileJust ms
+        seqWhileJust [] = pure []
     soundsdir <- liftIO $ getDataPath "sounds"
-    sounds <- sequence [ do
-            chunks <- liftIO $ seqWhileJust
+    globalVolume <- gets $ soundVolume . uiOptions
+    snds <- sequence [ do
+            chunks <- seqWhileJust
                 [ runMaybeT $ do
-                    chunk <- msum $ map (MaybeT . tryLoadWAV) paths
-                    liftIO $ volumeChunk chunk vol
+                    chunk <- msum $ map (MaybeT . nothingOnIOErr . load) paths
+                    setVolume vol chunk
                     return chunk
                 | n <- [1..]
                 , let paths = [soundsdir ++ [pathSeparator] ++ sound ++
                         "-" ++ (if n < 10 then ('0':) else id) (show n) ++ ext
                         | ext <- [".ogg", ".wav"] ]
                 , let vol = case sound of
-                        "pivot"        -> 64
-                        "wrenchscrape" -> 64
-                        "toolmove"     -> 64
-                        _              -> 128
+                        "pivot"          -> 64
+                        "wrenchscrape"   -> 64
+                        "wrenchblocked"  -> 64
+                        "hookarmblocked" -> 64
+                        "hookblocked"    -> 64
+                        "toolmove"       -> 64
+                        _                -> 128
                 ]
+            setVolume globalVolume AllChannels
             return (sound,chunks)
         | sound <- ["hookblocked","hookarmblocked","wrenchblocked","wrenchscrape","pivot","unlocked","ballmove","toolmove"]
                 ++ ["spring" ++ d ++ show l | d <- ["extend","contract"], l <- [1..12]] ]
-    -- liftIO $ print sounds
-    modify $ \s -> s { sounds = Map.fromList sounds }
+    modify $ \s -> s { sounds = Map.fromList snds }
 #else
 initAudio = return ()
 #endif
-
-pollEvents = do
-    e <- pollEvent
-    case e of
-        NoEvent -> return []
-        _ -> do
-            es <- pollEvents
-            return $ e:es
 
 drawMsgLine = void.runMaybeT $ do
     (col,str) <- msum
@@ -892,7 +972,7 @@ drawMsgLine = void.runMaybeT $ do
         renderToMain $ blankRow messageLineCentre
         smallFont <- gets dispFontSmall
         renderToMain $
-            (if length str > screenWidthHexes * 3 then withFont smallFont else id) $
+            (if length str > fi screenWidthHexes * 3 then withFont smallFont else id) $
                 renderStrColAtCentre col str messageLineCentre
 
 setMsgLineNoRefresh col str = do
@@ -912,7 +992,7 @@ sayError = setMsgLine errorCol
 miniLockPos = (-9)*^hw +^ hu
 lockLinePos = 4*^hu +^ miniLockPos
 serverPos = 12*^hv +^ 7*^neg hu
-serverWaitPos = serverPos +^ hw +^ neg hu
+serverWaitPos = serverPos +^ hw +^ hu
 randomNamesPos = 9*^hv +^ 2*^ neg hu
 codenamePos = (-6)*^hw +^ 6*^hv
 undeclsPos = 13*^neg hu

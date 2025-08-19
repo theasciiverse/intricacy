@@ -1,5 +1,5 @@
 -- This file is part of Intricacy
--- Copyright (C) 2013 Martin Bays <mbays@sdf.org>
+-- Copyright (C) 2013-2025 Martin Bays <mbays@sdf.org>
 --
 -- This program is free software: you can redistribute it and/or modify
 -- it under the terms of version 3 of the GNU General Public License as
@@ -7,6 +7,8 @@
 --
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
+
+{-# LANGUAGE CPP #-}
 
 module KeyBindings (KeyBindings, bindings, findBindings, findBinding, showKey,
     showKeyChar, showKeyFriendly, showKeyFriendlyShort) where
@@ -33,6 +35,31 @@ lowerToo :: KeyBindings -> KeyBindings
 lowerToo = concatMap addLower
     where addLower b@(c, cmd) = [ b, (toLower c, cmd) ]
 
+qwertyWASDish =
+    [ ('e', CmdDir WHSSelected hu)
+    , ('a', CmdDir WHSSelected $ neg hu)
+    , ('s', CmdDir WHSSelected hw)
+    , ('w', CmdDir WHSSelected $ neg hw)
+    , ('q', CmdDir WHSSelected hv)
+    , ('d', CmdDir WHSSelected $ neg hv)
+    , ('c', CmdRotate WHSSelected 1)
+    , ('z', CmdRotate WHSSelected $ -1)
+    ]
+
+keypadHex =
+    [ ('5', CmdWait)
+    , ('6', CmdDir WHSSelected hu)
+    , ('4', CmdDir WHSSelected $ neg hu)
+    , ('1', CmdDir WHSSelected hw)
+    , ('9', CmdDir WHSSelected $ neg hw)
+    , ('7', CmdDir WHSSelected hv)
+    , ('3', CmdDir WHSSelected $ neg hv)
+    , ('8', CmdRotate WHSSelected 1)
+    , ('2', CmdRotate WHSSelected $ -1)
+    ]
+
+selectedMovement = qwertyWASDish ++ keypadHex
+
 qwertyViHex =
     [ ('l', CmdDir WHSHook hu)
     , ('h', CmdDir WHSHook $ neg hu)
@@ -49,6 +76,8 @@ qwertyViHex =
     , ('k', CmdRotate WHSHook 1)
     , ('j', CmdRotate WHSHook $ -1)
     ]
+
+{-
 qwertyLeftHex =
     [ ('d', CmdDir WHSHook hu)
     , ('a', CmdDir WHSHook $ neg hu)
@@ -75,49 +104,42 @@ dvorakMidHex =
     , ('p', CmdDir WHSWrench hv)
     , ('k', CmdDir WHSWrench $ neg hv)
     ]
-
-keypadHex =
-    [ ('5', CmdWait)
-    , ('6', CmdDir WHSSelected hu)
-    , ('4', CmdDir WHSSelected $ neg hu)
-    , ('1', CmdDir WHSSelected hw)
-    , ('9', CmdDir WHSSelected $ neg hw)
-    , ('7', CmdDir WHSSelected hv)
-    , ('3', CmdDir WHSSelected $ neg hv)
-    , ('8', CmdRotate WHSSelected 1)
-    , ('2', CmdRotate WHSSelected $ -1)
-    ]
+-}
 
 miscLockGlobal = lowerToo
-    [ ('X', CmdUndo)
-    , ('\b', CmdUndo)
+    [ ('\b', CmdUndo)
     , ('R', CmdRedo)
     , (ctrl 'R', CmdRedo)
-    , (ctrl 'U', CmdUndo)
+    , (ctrl 'Y', CmdRedo)
+#ifndef CURSES
+    , (ctrl 'Z', CmdUndo)
+#endif
     , ('^', CmdReset)
     , ('.', CmdWait)
-    , ('Z', CmdWait)
     , ('M', CmdMark)
     , ('\'', CmdJumpMark)
+    ] <>
+    [ ('X', CmdUndo)
     ]
 
-miscGlobal = lowerToo
-    [ ('Q', CmdQuit)
+miscGlobal =
+    [ ('\ESC', CmdQuit)
+    , ('Q', CmdQuit)
+    , (ctrl 'Q', CmdQuit)
     , (ctrl 'C', CmdQuit)
     , ('?', CmdHelp)
     , (ctrl 'B', CmdBind Nothing)
     , (ctrl 'L', CmdRedraw)
+#ifdef CURSES
     , (ctrl 'Z', CmdSuspend)
+#endif
     , ('%', CmdToggleColourMode)
     ]
-
-lockGlobal = keypadHex ++ qwertyViHex ++ miscGlobal ++ miscLockGlobal
 
 playOnly = lowerToo
     [ ('O', CmdOpen)
     , (' ', CmdWait)
-    , ('\r', CmdWait)
-    , ('\n', CmdWait)
+    , ('x', CmdToggle)
     , ('\t', CmdToggle)
     , ('*', CmdTile $ WrenchTile zero)
     , ('/', CmdTile HookTile)
@@ -128,30 +150,28 @@ replayOnly =
     ]
 editMisc = lowerToo
     [ ('P', CmdPlay)
+    , ('T', CmdTest)
+    ] <>
+    [ ('W', CmdWriteState)
+    , (ctrl 'S', CmdWriteState)
     , (' ', CmdSelect)
     , ('\r', CmdSelect)
-    , ('\n', CmdSelect)
-    , ('T', CmdTest)
-    , ('W', CmdWriteState)
-    , (ctrl 'S', CmdWriteState)
     , ('=', CmdMerge)
-    , ('+', CmdMerge)
-    , ('&', CmdMerge)
     , ('0', CmdDelete)
-    , ('E', CmdDelete)
     ]
 tilesPaintRow = lowerToo
-    [ ('G', CmdTile BallTile)
-    , ('F', CmdTile $ ArmTile zero False)
-    , ('D', CmdTile $ PivotTile zero)
-    , ('S', CmdTile $ SpringTile Relaxed zero)
-    , ('A', CmdTile $ BlockTile [])
-    , ('Z', CmdDelete)
+    [ ('H', CmdTile BallTile)
+    , ('B', CmdTile $ ArmTile zero False)
+    , ('G', CmdTile $ PivotTile zero)
+    , ('V', CmdTile $ SpringTile Relaxed zero)
+    , ('F', CmdTile $ BlockTile [])
+    , ('x', CmdDelete)
     ]
 tilesAscii =
     [ ('o', CmdTile $ PivotTile zero)
     , ('O', CmdTile BallTile)
     , ('S', CmdTile $ SpringTile Relaxed zero)
+    , ('$', CmdTile $ SpringTile Relaxed zero)
     --, ('s', CmdTile $ SpringTile Stretched zero)
     --, ('$', CmdTile $ SpringTile Compressed zero)
     , ('-', CmdTile $ ArmTile zero False)
@@ -164,11 +184,10 @@ tilesAscii =
     ]
 editOnly = tilesPaintRow ++ editMisc ++ tilesAscii
 
-playBindings = playOnly ++ lockGlobal
-replayBindings = replayOnly ++ lockGlobal
-editBindings = editOnly ++ lockGlobal
-initBindings = lowerToo
-    [ ('S', CmdSolveInit Nothing) ] ++ miscGlobal
+playBindings = playOnly ++ selectedMovement ++ qwertyViHex ++ miscGlobal ++ miscLockGlobal
+replayBindings = replayOnly ++ miscGlobal ++ miscLockGlobal
+editBindings = editOnly ++ selectedMovement ++ miscGlobal ++ miscLockGlobal
+initBindings = lowerToo [ ('S', CmdSolveInit Nothing) ] ++ miscGlobal
 metaBindings = lowerToo
     [ ('C', CmdSelCodename Nothing)
     , ('H', CmdHome)
@@ -176,8 +195,7 @@ metaBindings = lowerToo
     , ('S', CmdSolve Nothing)
     , ('D', CmdDeclare Nothing)
     , ('V', CmdViewSolution Nothing)
-    , ('R', CmdRegister True)
-    , ('R', CmdRegister False)
+    , ('R', CmdRegister)
     , ('P', CmdPlaceLock Nothing)
     , ('E', CmdEdit)
     , ('L', CmdSelectLock)
@@ -191,6 +209,7 @@ metaBindings = lowerToo
     , ('^', CmdToggleCacheOnly)
     , ('>', CmdNextPage)
     , ('<', CmdPrevPage)
+    , (ctrl 'D', CmdDeleteLock)
     ] ++ miscGlobal
 
 impatienceBindings = lowerToo
@@ -212,7 +231,8 @@ findBindings bdgs cmd = nub
     ++ [ ch | CmdInputChar ch <- [cmd] ]
 
 findBinding :: KeyBindings -> Command -> Maybe Char
-findBinding = (listToMaybe.) . findBindings
+findBinding _ (CmdInputChar ch) = Just ch
+findBinding bdgs cmd = find (\ch -> lookup ch bdgs == Just cmd) $ findBindings bdgs cmd
 
 showKey :: Char -> String
 showKey ch
@@ -221,17 +241,19 @@ showKey ch
     | isPrint (unctrl ch) = '^':[unctrl ch]
     | otherwise = "[?]"
 
-showKeyFriendly ' '  = "space"
-showKeyFriendly '\r' = "return"
-showKeyFriendly '\n' = "newline"
-showKeyFriendly '\t' = "tab"
-showKeyFriendly '\b' = "bksp"
-showKeyFriendly ch   = showKey ch
+showKeyFriendly ' '    = "space"
+showKeyFriendly '\r'   = "return"
+showKeyFriendly '\n'   = "newline"
+showKeyFriendly '\t'   = "tab"
+showKeyFriendly '\b'   = "backspace"
+showKeyFriendly '\ESC' = "escape"
+showKeyFriendly ch     = showKey ch
 
-showKeyFriendlyShort '\r' = "ret"
-showKeyFriendlyShort '\t' = "tab"
-showKeyFriendlyShort '\b' = "bksp"
-showKeyFriendlyShort ch   = showKey ch
+showKeyFriendlyShort '\r'   = "ret"
+showKeyFriendlyShort '\t'   = "tab"
+showKeyFriendlyShort '\b'   = "bsp"
+showKeyFriendlyShort '\ESC' = "esc"
+showKeyFriendlyShort ch     = showKey ch
 
 showKeyChar :: Char -> Char
 showKeyChar ch

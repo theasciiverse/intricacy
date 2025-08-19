@@ -1,5 +1,5 @@
 -- This file is part of Intricacy
--- Copyright (C) 2013 Martin Bays <mbays@sdf.org>
+-- Copyright (C) 2013-2025 Martin Bays <mbays@sdf.org>
 --
 -- This program is free software: you can redistribute it and/or modify
 -- it under the terms of version 3 of the GNU General Public License as
@@ -99,6 +99,7 @@ instance Binary Action where
     put (GetRetired name) = put (11::Word8) >> put name
     put (SetEmail address) = put (12::Word8) >> put address
     put GetPublicKey = put (13::Word8)
+    put UndefinedAction = error "Tried to put UndefinedAction"
     get = do
         tag <- get :: Get Word8
         case tag of
@@ -137,6 +138,7 @@ instance Binary ServerResponse where
     put ServerFresh                 = put (11::Word8)
     put (ServedRetired lss)         = put (12::Word8) >> put lss
     put (ServedPublicKey publicKey) = put (13::Word8) >> put (show publicKey)
+    put ServerUndefinedResponse = error "Tried to put ServerUndefinedResponse"
     get = do
         tag <- get :: Get Word8
         case tag of

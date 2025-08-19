@@ -47,18 +47,24 @@ flag game
     description: Build game
     manual:      True
 
-flag sdl1
-    description: Enable SDL UI
-    default: False
-
 flag sdl2
     description: Enable SDL2 UI
+
+flag embed
+    description: Embed font into executable (with Template Haskell) when using sdl2
 
 flag sound
     description: Enable sound
 
+flag sdl1
+    description: Enable SDL1 UI (deprecated)
+    manual: True
+    default: False
+
 flag curses
-    description: Enable Curses UI
+    description: Enable Curses UI (disables sdl2)
+    manual: True
+    default: False
 
 flag server
     description: Build server
@@ -100,14 +106,14 @@ executable intricacy
         Physics
         Protocol
         ServerAddr
+        SimpleCache
         Util
         Version
 
     default-language: Haskell2010
 
-    if !flag(game)
+    if !flag(game) || (!flag(sdl1) && !flag(sdl2) && !flag(curses))
         buildable: False
-
     else
         default-extensions: DoAndIfThenElse
         build-depends:
@@ -139,6 +145,12 @@ executable intricacy
                 SDL-ttf ==0.6.*,
                 SDL-gfx >=0.6 && <0.8,
                 random >=1.0 && <1.4
+            cpp-options:   -DMAIN_SDL1
+            other-modules:
+                SDLGlyph
+                SDLRender
+                SDLUI
+                SDLUIMInstance
 
             if flag(sound)
                 cpp-options:   -DSOUND
@@ -151,29 +163,43 @@ executable intricacy
                     SDL
                     SDL_gfx
                     freetype
-
                 ghc-options:     -optl-mwindows
-
                 if flag(sound)
                     extra-libraries: SDL_mixer
 
             if os(osx)
-                cpp-options:  -DAPPLE
+                cpp-options:  -DAPPLE_SDL1
                 c-sources:    c_main.c
                 include-dirs: /usr/include/SDL /usr/local/include/SDL
                 ghc-options:  -no-hs-main
 
-        if flag(sdl2)
+        if flag(sdl2) && !flag(sdl1) && !flag(curses)
+            -- compiling with curses causes sdl2 mode to crash; I'm not sure why.
             build-depends:
                 sdl2 >=2.3 && <2.6,
                 sdl2-ttf >=2.0 && <2.3,
                 sdl2-gfx >=0.2 && <0.4,
                 random >=1.0 && <1.4
+            cpp-options:   -DMAIN_SDL2
+            other-modules:
+                SDL2Glyph
+                SDL2Keys
+                SDL2Render
+                SDL2RenderCache
+                SDL2UI
+                SDL2UIMInstance
 
             if flag(sound)
                 cpp-options:   -DSOUND
                 build-depends:
                     sdl2-mixer <1.3
+
+            if flag(embed)
+                cpp-options: -DEMBED
+                other-modules:
+                    Font
+                build-depends:
+                    file-embed <0.1
 
             if os(windows)
                 extra-libraries:
@@ -181,9 +207,8 @@ executable intricacy
                     SDL2
                     SDL2_gfx
                     freetype
-
                 ghc-options:     -optl-mwindows
-
+                cpp-options: -DWINDOWS
                 if flag(sound)
                     extra-libraries: SDL2_mixer
 
@@ -193,41 +218,14 @@ executable intricacy
                 include-dirs: /usr/include/SDL2 /usr/local/include/SDL2
                 ghc-options:  -no-hs-main
 
-
         if flag(curses)
-            cpp-options:       -DMAIN_CURSES
+            cpp-options:       -DMAIN_CURSES -DCURSES
             pkgconfig-depends: ncursesw -any
             other-modules:
                 CursesRender
                 CursesUI
                 CursesUIMInstance
-
             build-depends:     hscurses <1.6
-
-        if flag(sdl1)
-            cpp-options:   -DMAIN_SDL
-            other-modules:
-                SDLGlyph
-                SDLRender
-                SDLUI
-                SDLUIMInstance
-
-        if flag(sdl2)
-            cpp-options:   -DMAIN_SDL2
-            other-modules:
-                SDL2Glyph
-                SDL2Keys
-                SDL2Render
-                SDL2UI
-                SDL2UIMInstance
-
-        if (flag(sdl1) && flag(sdl2))
-            buildable:     False
-            build-depends: base <0
-
-        if (!flag(sdl1) && !flag(sdl2) && !flag(curses))
-            buildable:     False
-            build-depends: base <0
 
 executable intricacy-server
     main-is:          Server.hs

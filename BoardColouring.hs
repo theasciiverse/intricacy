@@ -1,5 +1,5 @@
 -- This file is part of Intricacy
--- Copyright (C) 2013 Martin Bays <mbays@sdf.org>
+-- Copyright (C) 2013-2025 Martin Bays <mbays@sdf.org>
 --
 -- This program is free software: you can redistribute it and/or modify
 -- it under the terms of version 3 of the GNU General Public License as
@@ -70,8 +70,8 @@ boardColouring st coloured = fiveColour graph
                     (ns++ns')
         -- |march around the piece's boundary, returning positions visited and
         -- neighbouring pieces met (in order)
-        march idx startPos (pos,basedir) init
-            | not init && pos == startPos = ([],[])
+        march idx startPos (pos,basedir) isInit
+            | not isInit && pos == startPos = ([],[])
             | otherwise =
             let mn = do
                     (idx',_) <- Map.lookup pos board

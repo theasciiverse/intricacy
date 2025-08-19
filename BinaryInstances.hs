@@ -1,5 +1,5 @@
 -- This file is part of Intricacy
--- Copyright (C) 2013 Martin Bays <mbays@sdf.org>
+-- Copyright (C) 2013-2025 Martin Bays <mbays@sdf.org>
 --
 -- This program is free software: you can redistribute it and/or modify
 -- it under the terms of version 3 of the GNU General Public License as
@@ -7,6 +7,8 @@
 --
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
+
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module BinaryInstances where
 import           Control.Monad
@@ -88,6 +90,7 @@ instance Binary Piece where
             2 -> liftM2 Hook get get
             3 -> Wrench <$> get
             4 -> return Ball
+            _ -> error "bad tag to Piece"
 instance Binary Connection where
     put (Connection (ri,rp) (ei,ep) l) = putPackedInt ri >> put rp >> putPackedInt ei >> put ep >> put l
     get = do
@@ -104,6 +107,7 @@ instance Binary Link where
         case tag of
             0 -> Free <$> get
             1 -> liftM2 Spring get getPackedInt
+            _ -> error "bad tag to Link"
 instance Binary HookForce where
     put NullHF         = put (0::Word8)
     put (TorqueHF dir) = put (1::Word8) >> putPackedInt dir
@@ -114,6 +118,7 @@ instance Binary HookForce where
             0 -> return NullHF
             1 -> TorqueHF <$> getPackedInt
             2 -> PushHF <$> get
+            _ -> error "bad tag to HookForce"
 instance Binary Frame where
     put (BasicFrame s) = putPackedInt s
     get = BasicFrame <$> getPackedInt
@@ -130,3 +135,4 @@ instance Binary PlayerMove where
             1 -> HookPush <$> get
             2 -> HookTorque <$> getPackedInt
             3 -> WrenchPush <$> get
+            _ -> error "bad tag to PlayerMove"

@@ -1,5 +1,5 @@
 -- This file is part of Intricacy
--- Copyright (C) 2013 Martin Bays <mbays@sdf.org>
+-- Copyright (C) 2013-2025 Martin Bays <mbays@sdf.org>
 --
 -- This program is free software: you can redistribute it and/or modify
 -- it under the terms of version 3 of the GNU General Public License as
@@ -114,18 +114,20 @@ getRecordh (RecUserInfoLog _) h = (RCUserInfoDeltas <$>) . tryRead <$> hGetStric
 getRecordh (RecLock _) h = (RCLock <$>) . tryRead <$> hGetStrict h
 getRecordh (RecNote _) h = (RCSolution <$>) . tryRead <$> hGetStrict h
 getRecordh RecLockHashes h = (RCLockHashes <$>) . tryRead <$> hGetStrict h
-getRecordh (RecRetiredLocks name) h = (RCLockSpecs <$>) . tryRead <$> hGetStrict h
+getRecordh (RecRetiredLocks _) h = (RCLockSpecs <$>) . tryRead <$> hGetStrict h
 getRecordh RecServerInfo h = (RCServerInfo <$>) . tryRead <$> hGetStrict h
 getRecordh RecServerEmail h = (RCEmail <$>) . tryRead <$> hGetStrict h
 getRecordh RecPublicKey h = (RCPublicKey <$>) . tryRead <$> hGetStrict h
 getRecordh RecSecretKey h = (RCSecretKey <$>) . tryRead <$> hGetStrict h
 
 hGetStrict h = CS.unpack <$> concatMWhileNonempty (repeat $ CS.hGet h 1024)
-    where concatMWhileNonempty (m:ms) = do
-            bs <- m
-            if CS.null bs
-                then return bs
-                else (bs `CS.append`) <$> concatMWhileNonempty ms
+    where
+    concatMWhileNonempty (m:ms) = do
+        bs <- m
+        if CS.null bs
+            then return bs
+            else (bs `CS.append`) <$> concatMWhileNonempty ms
+    concatMWhileNonempty [] = pure CS.empty
 
 putRecord :: Record -> RecordContents -> DBM ()
 putRecord rec rc = do

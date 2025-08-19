@@ -1,5 +1,5 @@
 -- This file is part of Intricacy
--- Copyright (C) 2013 Martin Bays <mbays@sdf.org>
+-- Copyright (C) 2013-2025 Martin Bays <mbays@sdf.org>
 --
 -- This program is free software: you can redistribute it and/or modify
 -- it under the terms of version 3 of the GNU General Public License as
@@ -11,15 +11,11 @@
 module GraphColouring (fiveColour) where
 
 import           Data.List
-import           Data.Map    (Map)
-import qualified Data.Map    as Map
+import           Data.Map   (Map)
+import qualified Data.Map   as Map
 import           Data.Maybe
-import           Data.Set    (Set)
-import qualified Data.Set    as Set
-import qualified Data.Vector as Vector
 
 type Colouring a = Map a Int
-type Graph a = (Set a, Set (Set a))
 type PlanarGraph a = Map a [a]
 
 fiveColour :: Ord a => PlanarGraph a -> Colouring a -> Colouring a
@@ -42,7 +38,7 @@ isColouring g mapping = and
     , e <- g Map.! s ]
 
 fiveColour' :: Ord a => Colouring a -> PlanarGraph a -> Colouring a
-fiveColour' pref g | g == Map.empty = Map.empty
+fiveColour' _ g | g == Map.empty = Map.empty
 fiveColour' pref g =
     let adjsOf v = nub (g Map.! v) \\ [v]
         v0 = head $ filter ((<=5) . length . adjsOf) $ Map.keys g

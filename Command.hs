@@ -1,5 +1,5 @@
 -- This file is part of Intricacy
--- Copyright (C) 2013 Martin Bays <mbays@sdf.org>
+-- Copyright (C) 2013-2025 Martin Bays <mbays@sdf.org>
 --
 -- This program is free software: you can redistribute it and/or modify
 -- it under the terms of version 3 of the GNU General Public License as
@@ -39,9 +39,9 @@ data Command
     | CmdSolveInit (Maybe HexVec)
     | CmdSolve (Maybe LockIndex) | CmdDeclare (Maybe Undeclared)
     | CmdViewSolution (Maybe NoteInfo)
-    | CmdSelectLock | CmdNextLock | CmdPrevLock
+    | CmdSelectLock | CmdNextLock | CmdPrevLock | CmdDeleteLock
     | CmdEdit | CmdPlaceLock (Maybe LockIndex)
-    | CmdRegister Bool | CmdAuth
+    | CmdRegister | CmdAuth
     | CmdNextPage | CmdPrevPage
     | CmdToggleColourMode
     | CmdRedraw | CmdRefresh | CmdSuspend | CmdClear
@@ -53,59 +53,59 @@ data WrHoSel = WHSWrench | WHSHook | WHSSelected
     deriving (Eq, Ord, Show, Read)
 
 describeCommand :: Command -> String
-describeCommand (CmdDir whs dir) = "move " ++ whsStr whs ++ " " ++ dirStr dir
-describeCommand (CmdRotate whs dir) = "rotate " ++ whsStr whs
+describeCommand (CmdDir whs dir) = "Move " ++ whsStr whs ++ " " ++ dirStr dir
+describeCommand (CmdRotate whs dir) = "Rotate " ++ whsStr whs
         ++ " " ++ (if dir == 1 then "counter" else "") ++ "clockwise"
-describeCommand CmdWait = "nothing"
-describeCommand CmdToggle = "toggle tool"
-describeCommand CmdOpen = "open lock"
+describeCommand CmdWait = "Wait"
+describeCommand CmdToggle = "Toggle tool"
+describeCommand CmdOpen = "Open lock"
 describeCommand (CmdTile tile) = tileStr tile
-describeCommand CmdMerge = "merge with adjacent piece"
-describeCommand CmdMark = "mark state"
-describeCommand CmdJumpMark = "jump to marked state"
-describeCommand CmdReset = "jump to initial state"
-describeCommand CmdSelect = "select piece"
-describeCommand CmdUnselect = "unselect piece"
-describeCommand CmdDelete = "delete piece"
-describeCommand CmdPlay = "play lock"
-describeCommand CmdTest = "test lock"
-describeCommand CmdUndo = "undo"
-describeCommand CmdRedo = "redo"
-describeCommand (CmdReplayForward _) = "advance replay"
-describeCommand (CmdReplayBack _) = "rewind replay"
-describeCommand CmdWriteState = "write lock"
-describeCommand CmdInitiation = "revisit initiation"
-describeCommand CmdShowRetired = "toggle showing retired locks"
-describeCommand CmdSetServer = "set server"
-describeCommand CmdToggleCacheOnly = "toggle offline mode"
-describeCommand (CmdSelCodename mname) = "select player"
+describeCommand CmdMerge = "Merge with adjacent piece"
+describeCommand CmdMark = "Mark state"
+describeCommand CmdJumpMark = "Jump to marked state"
+describeCommand CmdReset = "Jump to initial state"
+describeCommand CmdSelect = "Select piece"
+describeCommand CmdUnselect = "Unselect piece"
+describeCommand CmdDelete = "Delete piece"
+describeCommand CmdPlay = "Play lock"
+describeCommand CmdTest = "Test lock"
+describeCommand CmdUndo = "Undo"
+describeCommand CmdRedo = "Redo"
+describeCommand (CmdReplayForward _) = "Advance replay"
+describeCommand (CmdReplayBack _) = "Rewind replay"
+describeCommand CmdWriteState = "Write lock"
+describeCommand CmdInitiation = "Revisit initiation"
+describeCommand CmdShowRetired = "Toggle showing retired locks"
+describeCommand CmdSetServer = "Set server"
+describeCommand CmdToggleCacheOnly = "Toggle offline mode"
+describeCommand (CmdSelCodename mname) = "Select player"
         ++ maybe "" (' ':) mname
-describeCommand CmdBackCodename = "select last player"
-describeCommand CmdHome = "select self"
-describeCommand (CmdSolveInit _) = "solve lock"
-describeCommand (CmdSolve mli) = "solve lock"
+describeCommand CmdBackCodename = "Select last player"
+describeCommand CmdHome = "Select self"
+describeCommand (CmdSolveInit _) = "Solve lock"
+describeCommand (CmdSolve mli) = "Solve lock"
         ++ maybe "" ((' ':).(:"").lockIndexChar) mli
 describeCommand (CmdPlayLockSpec mls) = "find lock by number"
         ++ maybe "" ((' ':).show) mls
-describeCommand (CmdDeclare mundecl) = "declare solution"
+describeCommand (CmdDeclare mundecl) = "Declare solution"
         ++ maybe "" (const " [specified solution]") mundecl
-describeCommand (CmdViewSolution mnote) = "view lock solution"
+describeCommand (CmdViewSolution mnote) = "View lock solution"
         ++ maybe "" (const " [specified solution]") mnote
-describeCommand CmdSelectLock = "choose lock by name"
-describeCommand CmdNextLock = "next lock"
-describeCommand CmdPrevLock = "previous lock"
-describeCommand CmdNextPage = "page forward through lists"
-describeCommand CmdPrevPage = "page back through lists"
-describeCommand CmdEdit = "edit lock"
-describeCommand (CmdPlaceLock mli) = "place lock"
+describeCommand CmdSelectLock = "Choose lock by name"
+describeCommand CmdNextLock = "Next lock"
+describeCommand CmdPrevLock = "Previous lock"
+describeCommand CmdDeleteLock = "Delete current lock"
+describeCommand CmdNextPage = "Page forward through lists"
+describeCommand CmdPrevPage = "Page back through lists"
+describeCommand CmdEdit = "Edit lock"
+describeCommand (CmdPlaceLock mli) = "Place lock"
         ++ maybe "" ((' ':).(:"").lockIndexChar) mli
-describeCommand (CmdRegister False) = "register codename"
-describeCommand (CmdRegister True) = "adjust registration details"
-describeCommand CmdAuth = "authenticate"
-describeCommand (CmdBind _) = "bind key"
-describeCommand CmdToggleColourMode = "toggle lock colour mode"
-describeCommand CmdQuit = "quit"
-describeCommand CmdHelp = "help"
+describeCommand CmdRegister = "Register codename"
+describeCommand CmdAuth = "Authenticate"
+describeCommand (CmdBind _) = "Bind key"
+describeCommand CmdToggleColourMode = "Toggle lock colour mode"
+describeCommand CmdQuit = "Quit"
+describeCommand CmdHelp = "Help"
 describeCommand _ = ""
 
 tileStr HookTile         = "hook"
@@ -117,7 +117,7 @@ tileStr (BlockTile _)    = "block"
 tileStr BallTile         = "ball"
 whsStr WHSWrench   = "wrench"
 whsStr WHSHook     = "hook"
-whsStr WHSSelected = "tool"
+whsStr WHSSelected = "selected"
 dirStr v
     | v == hu = "right"
     | v == neg hu = "left"

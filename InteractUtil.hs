@@ -1,5 +1,5 @@
 -- This file is part of Intricacy
--- Copyright (C) 2013 Martin Bays <mbays@sdf.org>
+-- Copyright (C) 2013-2025 Martin Bays <mbays@sdf.org>
 --
 -- This program is free software: you can redistribute it and/or modify
 -- it under the terms of version 3 of the GNU General Public License as
@@ -19,7 +19,6 @@ import           Data.Array
 import           Data.Char
 import           Data.Function             (on)
 import           Data.List
-import           Data.Map                  (Map)
 import qualified Data.Map                  as Map
 import           Data.Maybe
 import           System.Directory
@@ -72,12 +71,12 @@ paintTilePath frame tile from to = if from == to
 adjustSpringTension :: UIMonad uiM => PieceIdx -> Int -> MainStateT uiM ()
 adjustSpringTension p dl = do
     st <- gets esGameState
-    let updateConn c@(Connection r e@(p',_) (Spring d l))
+    let updateConn (Connection r e@(p',_) (Spring d l))
             | p' == p
             , let c' = Connection r e (Spring d $ l + dl)
             , springExtensionValid st c'
             = c'
-            | otherwise = c
+        updateConn c = c
     pushEState $ st { connections = updateConn <$> connections st }
 
 pushEState :: UIMonad uiM => GameState -> MainStateT uiM ()
@@ -97,9 +96,11 @@ modifyEState f = do
     pushEState $ f st
 
 doPhysicsTick :: UIMonad uiM => PlayerMove -> GameState -> uiM (GameState, [Alert])
-doPhysicsTick pm st =
-    let r@(st',alerts) = runWriter $ physicsTick pm st in
-    reportAlerts st' alerts >> return r
+doPhysicsTick pm st = do
+    let r@(st',alerts) = runWriter $ physicsTick pm st
+    reportAlerts st' alerts
+    onPhysicsTick
+    return r
 
 nextLock :: Bool -> FilePath -> IO FilePath
 nextLock newer path = do
@@ -123,7 +124,7 @@ setLockPath path = do
     lock <- liftIO $ fullLockPath path >>= readLock
     modify $ \ms -> ms {curLockPath = path, curLock = lock}
 
-declare undecl@(Undeclared soln ls al) = do
+declare (Undeclared soln ls al) = do
     ourName <- mgetOurName
     ourUInfo <- mgetUInfo ourName
     [pbdg,ebdg,hbdg] <- mapM (lift.lift . getUIBinding IMMeta)
@@ -179,8 +180,8 @@ setMark overwrite ch = get >>= \mst -> case mst of
     where insertMark = Map.insertWith $ \new old -> if overwrite then new else old
 
 askLockIndex :: UIMonad uiM => [Char] -> String -> (Int -> Bool) -> MaybeT (MainStateT uiM) Int
-askLockIndex prompt failMessage pred = do
-    let ok = filter pred [0,1,2]
+askLockIndex prompt failMessage p = do
+    let ok = filter p [0,1,2]
     case length ok of
         0 -> (lift.lift) (drawError failMessage) >> mzero
         1 -> return $ head ok
@@ -195,13 +196,13 @@ confirmOrBail :: UIMonad uiM => String -> MaybeT (MainStateT uiM) ()
 confirmOrBail prompt = (guard =<<) $ lift.lift $ confirm prompt
 confirm :: UIMonad uiM => String -> uiM Bool
 confirm prompt = do
-    drawPrompt False $ prompt ++ " [y/N] "
     setYNButtons
-    waitConfirm <* endPrompt
+    confirm'
     where
-        waitConfirm = do
-            cmds <- getInput IMTextInput
-            maybe waitConfirm return (msum $ ansOfCmd <$> cmds)
+        confirm' = do
+            drawPrompt False $ prompt ++ " [y/N] "
+            cmds <- getSomeInput IMTextInput
+            maybe confirm' ((endPrompt >>) . pure) (msum $ ansOfCmd <$> cmds)
         ansOfCmd (CmdInputChar 'y') = Just True
         ansOfCmd (CmdInputChar 'Y') = Just True
         ansOfCmd (CmdInputChar c)   = if isPrint c then Just False else Nothing
@@ -212,21 +213,21 @@ confirm prompt = do
 
 -- | TODO: draw cursor
 textInput :: UIMonad uiM => String -> Int -> Bool -> Bool -> Maybe [String] -> Maybe String -> uiM (Maybe String)
-textInput prompt maxlen hidden endOnMax mposss init = getText (fromMaybe "" init, Nothing) <* endPrompt
+textInput prompt maxlen hidden endOnMax mposss base = getText (fromMaybe "" base, Nothing) <* endPrompt
     where
         getText :: UIMonad uiM => (String, Maybe String) -> uiM (Maybe String)
-        getText (s,mstem) = do
-            drawPrompt (length s == maxlen) $ prompt ++ " " ++ if hidden then replicate (length s) '*' else s
-            if endOnMax && isNothing mstem && maxlen <= length s
-            then return $ Just $ take maxlen s
+        getText (s0,mstem0) = do
+            drawPrompt (length s0 == maxlen) $ prompt ++ " " ++ if hidden then replicate (length s0) '*' else s0
+            if endOnMax && isNothing mstem0 && maxlen <= length s0
+            then return $ Just $ take maxlen s0
             else do
-                cmds <- getInput IMTextInput
-                case foldM applyCmd (s,mstem) cmds of
-                    Left False        -> return Nothing
-                    Left True         -> return $ Just s
-                    Right (s',mstem') -> getText (s',mstem')
+                cmds <- getSomeInput IMTextInput
+                case foldM applyCmd (s0,mstem0) cmds of
+                    Left False      -> return Nothing
+                    Left True       -> return $ Just s0
+                    Right (s,mstem) -> getText (s,mstem)
             where
-                applyCmd (s,mstem) (CmdInputChar c) = case c of
+                applyCmd (s,mstem) (CmdInputChar ch) = case ch of
                     '\ESC' -> Left False
                     '\a' -> Left False -- ^G
                     '\ETX' -> Left False -- ^C
@@ -252,8 +253,8 @@ textInput prompt maxlen hidden endOnMax mposss init = getText (fromMaybe "" init
                                    | null later = head completions
                                    | otherwise = minimum later
                                 in Right (s',mstem)
-                    _ -> Right $ if isPrint c
-                            then ((if length s >= maxlen then id else (++[c])) s, Nothing)
+                    _ -> Right $ if isPrint ch
+                            then ((if length s >= maxlen then id else (++[ch])) s, Nothing)
                             else (s,mstem)
                 applyCmd x (CmdInputSelLock idx) =
                     setTextOrSubmit x [lockIndexChar idx]
@@ -266,3 +267,7 @@ textInput prompt maxlen hidden endOnMax mposss init = getText (fromMaybe "" init
                 applyCmd _ _ = Left False
         completes s s' = take (length s) s' == s
         setTextOrSubmit (s,_) t = if s == t then Left True else Right (t,Nothing)
+
+getSomeInput im = do
+    cmds <- getInput im
+    if null cmds then getSomeInput im else return cmds

@@ -1,5 +1,5 @@
 -- This file is part of Intricacy
--- Copyright (C) 2013 Martin Bays <mbays@sdf.org>
+-- Copyright (C) 2013-2025 Martin Bays <mbays@sdf.org>
 --
 -- This program is free software: you can redistribute it and/or modify
 -- it under the terms of version 3 of the GNU General Public License as
@@ -25,7 +25,6 @@ import           Data.Maybe
 import           Network.Simple.TCP         (connect, recv, send)
 import           System.Directory
 import           System.FilePath
-import           System.IO
 
 import           Database
 import           Metagame
@@ -42,9 +41,9 @@ getRecordCached saddr _ _ _ _ | nullSaddr saddr = do
     newTVarIO (FetchedRecord True (Just "No server set.") Nothing)
 getRecordCached saddr auth mflag cOnly rec = do
     fromCache <- withCache saddr $ getRecord rec
-    let fresh = isJust fromCache && invariantRecord rec
-    tvar <- newTVarIO (FetchedRecord fresh Nothing fromCache)
-    unless (cOnly || fresh) $ void $ forkIO $ getRecordFromServer fromCache tvar
+    let isFresh = isJust fromCache && invariantRecord rec
+    tvar <- newTVarIO (FetchedRecord isFresh Nothing fromCache)
+    unless (cOnly || isFresh) $ void $ forkIO $ getRecordFromServer fromCache tvar
     return tvar
     where
         getRecordFromServer fromCache tvar = do
@@ -79,9 +78,9 @@ waitFetchedFresh tvar = atomically $ readTVar tvar >>= check.fresh
 makeRequest :: ServerAddr -> ClientRequest -> IO ServerResponse
 makeRequest saddr _ | nullSaddr saddr =
     return $ ServerError "No server set."
-makeRequest saddr@(ServerAddr host port) request =
+makeRequest saddr@(ServerAddr host prt) request =
     handle (return . ServerError . (show::SomeException -> String)) $ do
-        connect host (show port) makeRequest'
+        connect host (show prt) makeRequest'
             `catchIO` const (return $ ServerError $ "Cannot connect to "++saddrStr saddr++"!")
     where
         makeRequest' (sock,_) = do

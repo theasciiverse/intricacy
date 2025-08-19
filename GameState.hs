@@ -1,5 +1,5 @@
 -- This file is part of Intricacy
--- Copyright (C) 2013 Martin Bays <mbays@sdf.org>
+-- Copyright (C) 2013-2025 Martin Bays <mbays@sdf.org>
 --
 -- This program is free software: you can redistribute it and/or modify
 -- it under the terms of version 3 of the GNU General Public License as
@@ -22,7 +22,7 @@ import qualified Data.Map            as Map
 import           Data.Maybe
 import           Data.Set            (Set)
 import qualified Data.Set            as Set
-import           Data.Vector         (Vector, (!), (//))
+import           Data.Vector         ((!), (//))
 import qualified Data.Vector         as Vector
 
 import           GameStateTypes
@@ -62,15 +62,15 @@ components patt
         in ( (c, Set.map (+^ neg c) comp) : components patt' )
 
 floodfill :: HexVec -> Set HexVec -> (Set HexVec, Set HexVec)
-floodfill start patt = floodfill' start `execState` (patt, Set.empty)
+floodfill start initPatt = floodfill' start `execState` (initPatt, Set.empty)
     where
         floodfill' :: HexVec -> State (Set HexVec, Set HexVec) ()
-        floodfill' start = do
+        floodfill' base = do
               (patt, dels) <- get
-              let patt' = Set.delete start patt
+              let patt' = Set.delete base patt
               unless (Set.size patt' == Set.size patt) $ do
-                  put (patt', Set.insert start dels)
-                  sequence_ [ floodfill' (dir+^start) | dir <- hexDirs ]
+                  put (patt', Set.insert base dels)
+                  sequence_ [ floodfill' (dir+^base) | dir <- hexDirs ]
 
 delPiece :: PieceIdx -> GameState -> GameState
 delPiece idx (GameState pps conns) =
@@ -195,7 +195,7 @@ componentify idx st = let PlacedPiece ppos p = getpp st idx
     in case p of
         Block patt ->
             let comps = components $ Set.fromList patt
-                ppOfComp (v,patt) = PlacedPiece (v+^ppos) $ Block $ Set.toList patt
+                ppOfComp (v,patt') = PlacedPiece (v+^ppos) $ Block $ Set.toList patt'
             in case comps of
                 [] -> (delPiece idx st, Nothing)
                 zeroComp:newComps ->
@@ -303,7 +303,7 @@ connectionFootPrint s c = Map.keys $ connectionBoard s c
 
 castRay :: HexPos -> HexDir -> GameBoard -> Maybe (PieceIdx, HexPos)
 castRay start dir board =
-    castRay' 30 start
+    castRay' (30::Int) start
     where castRay' 0 _ = Nothing
           castRay' n pos =
               case Map.lookup pos board of
@@ -324,7 +324,7 @@ validGameState st@(GameState pps conns) = and
             && springExtensionValid st c
             && validRoot st root
             && validEnd st end
-            | c@(Connection root@(ridx,_) end@(eidx,_) (Spring dir _)) <- conns
+            | c@(Connection root@(_,_) end@(eidx,_) (Spring dir _)) <- conns
             , let [rpos,epos] = locusPos st <$> [root,end] ]
     , and [ 1 == length (components $ Set.fromList patt)
             | Block patt <- placedPiece <$> Vector.toList pps ]

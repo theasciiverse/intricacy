@@ -1,5 +1,5 @@
 -- This file is part of Intricacy
--- Copyright (C) 2013 Martin Bays <mbays@sdf.org>
+-- Copyright (C) 2013-2025 Martin Bays <mbays@sdf.org>
 --
 -- This program is free software: you can redistribute it and/or modify
 -- it under the terms of version 3 of the GNU General Public License as
@@ -8,14 +8,12 @@
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
 
--- |SDLRender: generic wrapper around sdl-gfx for drawing on hex grids
-module SDLRender where
+-- |SDL2Render: generic wrapper around sdl2-gfx for drawing on hex grids
+module SDL2Render where
 
 import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.IO.Class
-import           Control.Monad.Trans.Class
-import           Control.Monad.Trans.Maybe
 import           Control.Monad.Trans.Reader
 import           Data.Function              (on)
 import           Data.List                  (maximumBy)
@@ -23,16 +21,18 @@ import           Data.Map                   (Map)
 import qualified Data.Map                   as Map
 import           Data.Monoid
 import           Data.Semigroup             as Sem
-import           GHC.Int                    (Int16)
-import           Graphics.UI.SDL
-import           Graphics.UI.SDL.Primitives
-import qualified Graphics.UI.SDL.TTF        as TTF
+import           Data.Vector.Storable       (fromList)
+import           Data.Word                  (Word8)
+import           Foreign.C.Types            (CInt)
+import           SDL                        hiding (perp, zero)
+import qualified SDL.Font                   as TTF
+import           SDL.Primitive
 
 import           Hex
 import           Util
 
 -- |SVec: screen vectors, in pixels
-data SVec = SVec { cx, cy :: Int }
+data SVec = SVec { cx, cy :: CInt }
     deriving (Eq, Ord, Show)
 instance Sem.Semigroup SVec where
     (SVec x y) <> (SVec x' y') = SVec (x+x') (y+y')
@@ -61,50 +61,54 @@ instance Grp FVec where
 (**^) :: Float -> FVec -> FVec
 r **^ FVec x y = FVec (r*x) (r*y)
 
+ylen :: Float
+ylen = 1 / sqrt 3
 
-hexVec2SVec :: Int -> HexVec -> SVec
+hexVec2SVec :: CInt -> HexVec -> SVec
 hexVec2SVec size (HexVec x y z) =
-    SVec ((x-z) * size) (-y * 3 * ysize size)
+    SVec (fi (x-z) * size) (fi (-y) * 3 * ysize size)
 
 hexVec2FVec :: HexVec -> FVec
 hexVec2FVec (HexVec x y z) =
     FVec (fi $ x-z) (-fi y * 3 * ylen)
 
-fVec2SVec :: Int -> FVec -> SVec
+fVec2SVec :: CInt -> FVec -> SVec
 fVec2SVec size (FVec x y) = SVec
     (round $ fi size * x)
     (round $ fi size * y)
 
-sVec2dHV :: Int -> SVec -> (Double,Double,Double)
+sVec2dHV :: CInt -> SVec -> (Double,Double,Double)
 sVec2dHV size (SVec sx sy) =
     let sx',sy',size' :: Double
-        [sx',sy',size',ysize'] = map fi [sx,sy,size,ysize size]
+        [sx',sy'] = map fi [sx,sy]
+        [size',ysize'] = map fi [size,ysize size]
         y' = -sy' / ysize' / 3
         x' = ((sx' / size') - y') / 2
         z' = -((sx' / size') + y') / 2
     in (x',y',z')
 
-sVec2HexVec :: Int -> SVec -> HexVec
+sVec2HexVec :: CInt -> SVec -> HexVec
 sVec2HexVec size sv =
     let (x',y',z') = sVec2dHV size sv
-        unrounded = Map.fromList [(1,x'),(2,y'),(3,z')]
+        unrounded = Map.fromList [(1::Int,x'),(2,y'),(3,z')]
         rounded = Map.map round unrounded
         maxdiff = fst $ maximumBy (compare `on` snd) $
             [ (i, abs $ c'-c) | i <- [1..3],
                 let c' = unrounded Map.! i, let c = fi $ rounded Map.! i]
         [x,y,z] = map snd $ Map.toList $
-            Map.adjust (\x -> x - sum (Map.elems rounded)) maxdiff rounded
+            Map.adjust (\u -> u - sum (Map.elems rounded)) maxdiff rounded
     in HexVec x y z
 
 
 data RenderContext = RenderContext
-    { renderSurf    :: Surface
-    , renderBGSurf  :: Maybe Surface
-    , renderHCentre :: HexPos
-    , renderSCentre :: SVec
-    , renderOffset  :: FVec
-    , renderSize    :: Int
-    , renderFont    :: Maybe TTF.Font
+    { renderer        :: Renderer
+    , renderBGTexture :: Maybe Texture
+    , renderHCentre   :: HexPos
+    , renderSCentre   :: SVec
+    , renderOffset    :: FVec
+    , renderSize      :: CInt
+    , renderFont      :: Maybe TTF.Font
+    , renderWidth     :: CInt
     }
 type RenderT = ReaderT RenderContext
 
@@ -130,13 +134,13 @@ rescaleRender r = local $ (\rc -> rc
 withFont :: Monad m => Maybe TTF.Font -> RenderT m a -> RenderT m a
 withFont font = local $ \rc -> rc { renderFont = font }
 
-renderPos :: Monad m => Integral i => FVec -> RenderT m (i,i)
+renderPos :: Monad m => Integral i => FVec -> RenderT m (V2 i)
 renderPos v = do
     size <- asks renderSize
     c <- asks renderSCentre
     off <- asks renderOffset
     let SVec x y = c +^ fVec2SVec size (v +^ off)
-    return (fi x, fi y)
+    return $ V2 (fi x) (fi y)
 renderLen :: Monad m => Integral i => Float -> RenderT m i
 renderLen l = do
     size <- asks renderSize
@@ -145,43 +149,40 @@ renderLen l = do
 
 -- wrappers around sdl-gfx functions
 pixelR v col = do
-    (x,y) <- renderPos v
-    surf <- asks renderSurf
-    void.liftIO $ pixel surf x y col
+    p <- renderPos v
+    rend <- asks renderer
+    void.liftIO $ pixel rend p col
 
 aaLineR v v' col = do
-    (x,y) <- renderPos v
-    (x',y') <- renderPos v'
-    surf <- asks renderSurf
-    void.liftIO $ aaLine surf x y x' y' col
+    p <- renderPos v
+    p' <- renderPos v'
+    rend <- asks renderer
+    void.liftIO $ smoothLine rend p p' col
 
-filledPolygonR verts fillCol = do
+polygonR :: MonadIO m => Bool -> [FVec] -> Color -> RenderT m ()
+polygonR fill verts col = do
     ps <- mapM renderPos verts
-    surf <- asks renderSurf
-    void.liftIO $ filledPolygon surf ps fillCol
+    rend <- asks renderer
+    let (xs,ys) = unzip [(x,y) | V2 x y <- ps]
+    void.liftIO $ (if fill then fillPolygon else smoothPolygon) rend (fromList xs) (fromList ys) col
 
 arcR v rad a1 a2 col = do
-    (x,y) <- renderPos v
+    p <- renderPos v
     r <- renderLen rad
-    surf <- asks renderSurf
-    void.liftIO $ arc surf x y r a1 a2 col
+    rend <- asks renderer
+    void.liftIO $ arc rend p r a1 a2 col
 
 filledCircleR v rad col = do
-    (x,y) <- renderPos v
+    p <- renderPos v
     r <- renderLen rad
-    surf <- asks renderSurf
-    void.liftIO $ filledCircle surf x y r col
+    rend <- asks renderer
+    void.liftIO $ fillCircle rend p r col
 
--- aaPolygon seems to be a bit buggy in sdl-gfx-0.6.0
-aaPolygonR verts = aaLinesR (verts ++ take 1 verts)
-
--- aaCircle too
 aaCircleR v rad col = do
-    (x,y) <- renderPos v
+    p <- renderPos v
     r <- renderLen rad
-    surf <- asks renderSurf
-    if r <= 1 then void.liftIO $ pixel surf x y col
-    else void.liftIO $ aaCircle surf x y r col
+    rend <- asks renderer
+    void.liftIO $ smoothCircle rend p r col
 
 
 aaLinesR verts col =
@@ -189,19 +190,21 @@ aaLinesR verts col =
         (v,v') <- zip (take (length verts - 1) verts) (drop 1 verts) ]
 
 rimmedPolygonR verts fillCol rimCol = do
-    filledPolygonR verts fillCol
-    aaPolygonR verts $ opaquify rimCol
-    return ()
+    polygonR True verts fillCol
+    polygonR False verts $ opaquify rimCol
+
+filledPolygonR :: MonadIO m => [FVec] -> Color -> RenderT m ()
+filledPolygonR = polygonR True
 
 rimmedCircleR v rad fillCol rimCol = void $ do
     filledCircleR v rad fillCol
     aaCircleR v rad $ opaquify rimCol
 
-thickLineR :: (Functor m, MonadIO m) => FVec -> FVec -> Float -> Pixel -> RenderT m ()
+thickLineR :: (Functor m, MonadIO m) => FVec -> FVec -> Float -> Color -> RenderT m ()
 thickLineR from to thickness col =
     let FVec dx dy = to -^ from
         baseThickness = (1/16)
-        s = baseThickness * thickness / sqrt (dx^2 + dy^2)
+        s = baseThickness * thickness / sqrt (dx*dx + dy*dy)
         perp = (s/2) **^ FVec dy (-dx)
     in rimmedPolygonR
         [ from +^ perp, to +^ perp
@@ -215,18 +218,17 @@ thickLinesR verts thickness col =
 thickPolygonR verts = thickLinesR (verts ++ take 1 verts)
 
 
-ylen = 1 / sqrt 3
-ysize :: Int -> Int
-ysize = (map (\size -> round $ fi size * ylen) [0..] !!)
+ysize :: CInt -> CInt
+ysize = fi . (map (\size -> round $ fi size * ylen :: Int) [0::Int ..] !!) . fi
 
 corner :: Int -> FVec
-corner hextant = FVec x y
+corner hextnt = FVec x y
     where
-        [x,y] = f hextant
+        [x,y] = f hextnt
         f 0 = [1, -ylen]
         f 1 = [0, -2*ylen]
         f 2 = [-1, -ylen]
-        f n | n < 6 = let [x,y] = f (5-n) in [x,-y]
+        f n | n < 6 = let [x',y'] = f (5-n) in [x',-y']
             | n < 0 = f (6-n)
             | otherwise = f (n`mod`6)
 
@@ -236,14 +238,13 @@ outerCorners = map corner [0..5]
 innerCorner :: HexDir -> FVec
 innerCorner dir = FVec x y
     where
-        [x,y] = f dir
-        f dir
-            | dir == hu = [2/3, 0]
-            | dir == hv = [-1/3, -ylen]
-            | dir == hw = [-1/3, ylen]
-            | dir == zero = [0,0]
-            | not (isHexDir dir) = error "innerCorner: not a hexdir"
-            | otherwise = map (\z -> -z) $ f $ neg dir
+    [x,y] = f dir
+    f d     | d == hu = [2/3, 0]
+            | d == hv = [-1/3, -ylen]
+            | d == hw = [-1/3, ylen]
+            | d == zero = [0,0]
+            | not (isHexDir d) = error "innerCorner: not a hexdir"
+            | otherwise = map (\z -> -z) $ f $ neg d
 
 innerCorners :: [FVec]
 innerCorners = map innerCorner hexDirs
@@ -251,35 +252,36 @@ innerCorners = map innerCorner hexDirs
 edge :: HexDir -> FVec
 edge dir = FVec x y
     where
-        [x,y] = f dir
-        f dir
-            | dir == hu = [1, 0]
-            | dir == hv = [-1/2, -3*ylen/2]
-            | dir == hw = [-1/2, 3*ylen/2]
-            | not (isHexDir dir) = error "edge: not a hexdir"
-            | otherwise = map (\z -> -z) $ f $ neg dir
+    [x,y] = f dir
+    f d     | d == hu = [1, 0]
+            | d == hv = [-1/2, -3*ylen/2]
+            | d == hw = [-1/2, 3*ylen/2]
+            | not (isHexDir d) = error "edge: not a hexdir"
+            | otherwise = map (\z -> -z) $ f $ neg d
 
 rotFVec :: Float -> FVec -> FVec -> FVec
-rotFVec th (FVec cx cy) v@(FVec x y)
+rotFVec th (FVec bx by) v@(FVec x y)
     | th == 0 = v
-    | otherwise = FVec (cx + c*dx-s*dy) (cy + s*dx+c*dy)
+    | otherwise = FVec (bx + c*dx-s*dy) (by + s*dx+c*dy)
     where
-        dx = x-cx
-        dy = y-cy
+        dx = x-bx
+        dy = y-by
         c = cos th
         s = sin th
 
-black = Pixel 0x01000000
-white = Pixel 0xffffff00
-orange = Pixel 0xff7f0000
+black, white, orange :: Color
+-- FIXME: why not actually black?
+black = V4 0x01 0 0 0
+white = V4 0xff 0xff 0xff 0
+orange = V4 0xff 0x7f 0 0
 
-colourWheel :: Int -> Pixel
-colourWheel n = Pixel $ (((((r * 0x100) + g) * 0x100) + b) * 0x100) + a
-    where [r,g,b] = map (\on -> if on then 0xff else 0) $ colourWheel' n
+colourWheel :: Int -> Color
+colourWheel n = V4 r g b a
+    where [r,g,b] = map (\ok -> if ok then 0xff else 0) $ colourWheel' n
           a = 0x00
-          colourWheel' 0 = [True, False, False]
-          colourWheel' 1 = [True, True, False]
-          colourWheel' n = let [a,b,c] = colourWheel' $ n-2 in [c,a,b]
+          colourWheel' 0  = [True, False, False]
+          colourWheel' 1  = [True, True, False]
+          colourWheel' n' = let [r',g',b'] = colourWheel' $ n'-2 in [b',r',g']
 
 red = colourWheel 0
 yellow = colourWheel 1
@@ -288,91 +290,56 @@ cyan = colourWheel 3
 blue = colourWheel 4
 purple = colourWheel 5
 
-colourOf :: Ord i => Map i Int -> i -> Pixel
+colourOf :: Ord i => Map i Int -> i -> Color
 colourOf colouring idx =
     maybe white colourWheel (Map.lookup idx colouring)
 
-setPixelAlpha alpha (Pixel v) = Pixel $ v `div` 0x100 * 0x100 + alpha
-bright = setPixelAlpha 0xff
-brightish = setPixelAlpha 0xc0
-dim = setPixelAlpha 0xa0
-obscure = setPixelAlpha 0x80
-faint = setPixelAlpha 0x40
-invisible = setPixelAlpha 0x00
+setColorAlpha :: Word8 -> Color -> Color
+setColorAlpha a (V4 r g b _) = V4 r g b a
+bright = setColorAlpha 0xff
+brightish = setColorAlpha 0xc0
+dim = setColorAlpha 0xa0
+obscure = setColorAlpha 0x80
+faint = setColorAlpha 0x40
+invisible = setColorAlpha 0x00
 
-pixelToRGBA (Pixel v) =
-    let (r,v') = divMod v 0x1000000
-        (g,v'') = divMod v' 0x10000
-        (b,a) = divMod v'' 0x100
-    in (r,g,b,a)
-rgbaToPixel (r,g,b,a) = Pixel $ a+0x100*(b+0x100*(g+0x100*r))
-opaquify p =
-    let (r,g,b,a) = pixelToRGBA p
-        [r',g',b'] = map (\v -> (v*a)`div`0xff) [r,g,b]
-    in rgbaToPixel (r',g',b',0xff)
+opaquify (V4 r g b a) =
+    let scale :: Int -> Int
+        scale v = (v * fi a) `div` 0xff
+        [r',g',b'] = fi . scale . fi <$> [r,g,b]
+    in V4 r' g' b' 0xff
 
+messageCol, dimWhiteCol, buttonTextCol, errorCol :: Color
 messageCol = white
-dimWhiteCol = Pixel 0xa0a0a000
+dimWhiteCol = V4 0xa0 0xa0 0xa0 0
 buttonTextCol = white
 errorCol = red
-
-
-pixelToColor p =
-    let (r,g,b,_) = pixelToRGBA p
-    in Color (fi r) (fi g) (fi b)
-
-data Alignment = Centred | LeftAligned | ScreenCentred
-renderStrColAt,renderStrColAtLeft,renderStrColAtCentre ::
-    (Functor m, MonadIO m) => Pixel -> String -> HexVec -> RenderT m ()
-renderStrColAt = renderStrColAt' Centred
-renderStrColAtLeft = renderStrColAt' LeftAligned
-renderStrColAtCentre = renderStrColAt' ScreenCentred
-renderStrColAt' :: (Functor m, MonadIO m) => Alignment -> Pixel -> String -> HexVec -> RenderT m ()
-renderStrColAt' align c str v = void $ runMaybeT $ do
-    font <- MaybeT $ asks renderFont
-    fsurf <- MaybeT $ liftIO $ TTF.tryRenderTextBlended font str $ pixelToColor c
-    (surf, scrCentre, off, size) <- lift $ asks $ liftM4 (,,,) renderSurf renderSCentre renderOffset renderSize
-    let SVec x y = scrCentre +^ fVec2SVec size (off +^ hexVec2FVec v)
-            +^ neg (SVec 0 ((surfaceGetHeight fsurf-1)`div`2) +^
-                case align of
-                    Centred -> SVec (surfaceGetWidth fsurf`div`2) 0
-                    _       -> SVec 0 0)
-        x' = case align of
-            ScreenCentred -> cx scrCentre - (surfaceGetWidth fsurf `div` 2)
-            _             -> x
-    void $ liftIO $ blitSurface fsurf Nothing surf (Just $ Rect x' y 0 0)
-
-renderStrColAbove,renderStrColBelow :: (Functor m, MonadIO m) => Pixel -> String -> HexVec -> RenderT m ()
-renderStrColAbove = renderStrColVShifted True
-renderStrColBelow = renderStrColVShifted False
-renderStrColVShifted :: (Functor m, MonadIO m) => Bool -> Pixel -> String -> HexVec -> RenderT m ()
-renderStrColVShifted up c str v =
-    displaceRender (FVec 1 0) $ renderStrColAt c str $ v +^ (if up then hv else hw)
 
 erase :: (Functor m, MonadIO m) => RenderT m ()
 erase = fillRectBG Nothing
 
-fillRectBG :: (Functor m, MonadIO m) => Maybe Rect -> RenderT m ()
+fillRectBG :: (Functor m, MonadIO m) => Maybe (Rectangle CInt) -> RenderT m ()
 fillRectBG mrect = do
-    surf <- asks renderSurf
-    mbgsurf <- asks renderBGSurf
+    rend <- asks renderer
+    mbgt <- asks renderBGTexture
     void $ liftIO $ maybe
-        (fillRect surf mrect black)
-        (\bgsurf -> blitSurface bgsurf mrect surf mrect)
-        mbgsurf
+        ((rendererDrawColor rend $= black) >> fillRect rend mrect)
+        (\bgt -> copy rend bgt mrect mrect)
+        mbgt
 
 blankRow v = do
-    (surf, scrCentre, off, size) <- asks $ liftM4 (,,,) renderSurf renderSCentre renderOffset renderSize
+    (scrCentre, off, size, w) <- asks $ liftM4 (,,,) renderSCentre renderOffset renderSize renderWidth
     let SVec _ y = scrCentre +^ fVec2SVec size (off +^ hexVec2FVec v)
-        w = surfaceGetWidth surf
-        h = ceiling $ fi (size * 3 `div` 2) * 2 / sqrt 3
-    fillRectBG $ Just $ Rect 0 (y-h`div`2) w h
+        h = ceiling (fi (size * 3 `div` 2) * 2 / sqrt 3 :: Float)
+    fillRectBG $ Just $ Rectangle (P $ V2 0 (fi $ y-h`div`2)) (V2 (fi w) (fi h))
 
-blitAt :: (Functor m, MonadIO m) => Surface -> HexVec -> RenderT m ()
-blitAt surface v = do
-    (surf, scrCentre, off, size) <- asks $ liftM4 (,,,) renderSurf renderSCentre renderOffset renderSize
-    let SVec x y = scrCentre +^ fVec2SVec size (off +^ hexVec2FVec v)
-        w = surfaceGetWidth surface
-        h = surfaceGetHeight surface
-    void $ liftIO $ blitSurface surface Nothing surf $ Just $
-        Rect (x-w`div`2) (y-h`div`2) (w+1) (h+1)
+blitAt :: (Functor m, MonadIO m) => Texture -> HexVec -> RenderT m ()
+blitAt texture v = do
+    (scrCentre, off, size) <- asks $ liftM3 (,,) renderSCentre renderOffset renderSize
+    blitAtSVec texture $ scrCentre +^ fVec2SVec size (off +^ hexVec2FVec v)
+blitAtSVec :: (Functor m, MonadIO m) => Texture -> SVec -> RenderT m ()
+blitAtSVec texture (SVec x y) = do
+    rend <- asks renderer
+    TextureInfo _ _ w h <- queryTexture texture
+    liftIO . copy rend texture Nothing . Just $
+        Rectangle (P $ V2 (fi x - w`div`2) (fi y - h`div`2)) (V2 w h)

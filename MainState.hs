@@ -1,5 +1,5 @@
 -- This file is part of Intricacy
--- Copyright (C) 2013 Martin Bays <mbays@sdf.org>
+-- Copyright (C) 2013-2025 Martin Bays <mbays@sdf.org>
 --
 -- This program is free software: you can redistribute it and/or modify
 -- it under the terms of version 3 of the GNU General Public License as
@@ -20,16 +20,10 @@ import           Control.Monad.State
 import           Control.Monad.Trans.Maybe
 import           Control.Monad.Writer
 import           Data.Array
-import           Data.Char
-import           Data.Function             (on)
-import           Data.List
 import           Data.Map                  (Map)
 import qualified Data.Map                  as Map
 import           Data.Maybe
 import           Data.Time.Clock
-import qualified Data.Vector               as Vector
-import           Safe
-import           System.Directory
 import           System.FilePath
 
 import           AsciiLock
@@ -55,6 +49,7 @@ class (Applicative m, MonadIO m) => UIMonad m where
     endUI :: m ()
     drawMainState :: MainStateT m ()
     reportAlerts :: GameState -> [Alert] -> m ()
+    onPhysicsTick :: m ()
     clearMessage :: m ()
     drawMessage :: String -> m ()
     drawPrompt :: Bool -> String -> m ()
@@ -156,26 +151,24 @@ ms2im mainSt = case mainSt of
     InitState {}   -> IMInit
     MetaState {}   -> IMMeta
 
-newPlayState (frame,st) pms title tutLevel sub saved = PlayState st frame [] False False [] pms title tutLevel sub saved Map.empty
+newPlayState (frame,st) pms title tutLev sub saved = PlayState st frame [] False False [] pms title tutLev sub saved Map.empty
 newReplayState st soln title = ReplayState st [] soln [] title Map.empty
 newEditState (frame,st) msoln mpath = EditState st [] [] frame mpath
     ((st,)<$>msoln) (Just (st, isJust msoln)) Nothing (PHS zero) (PHS zero) Map.empty
-initInitState = do
-    (tut,initLocks) <- readInitProgress
-    return $ InitState tut initLocks
+initInitState = uncurry InitState <$> readInitProgress
 initMetaState = do
     flag <- newTVarIO False
     errtvar <- newTVarIO Nothing
     invaltvar <- newTVarIO Nothing
     rnamestvar <- newTVarIO []
     counttvar <- newTVarIO 0
-    (initiated, saddr', auth, path) <- confFilePath "metagame.conf" >>=
+    (inited, saddr', auth, path) <- confFilePath "metagame.conf" >>=
         fmap (fromMaybe (False, defaultServerAddr, Nothing, "")) . readReadFile
     let saddr = updateDefaultSAddr saddr'
     let names = maybeToList $ authUser <$> auth
     (undecls,partials) <- readServerSolns saddr
     mlock <- fullLockPath path >>= readLock
-    return $ MetaState saddr undecls partials False auth names flag counttvar errtvar invaltvar rnamestvar Map.empty Map.empty Nothing path mlock 0 True initiated
+    return $ MetaState saddr undecls partials False auth names flag counttvar errtvar invaltvar rnamestvar Map.empty Map.empty Nothing path mlock 0 True inited
 
 type PartialSolutions = Map LockSpec SavedPlayState
 data SavedPlayState = SavedPlayState [PlayerMove] (Map Char [PlayerMove])
@@ -202,13 +195,13 @@ data InitLock = InitLock
 type InitLocks = Map HexVec InitLock
 
 accessibleInitLocks :: Bool -> InitLocks -> InitLocks
-accessibleInitLocks tutSolved initLocks =
-    Map.filterWithKey (\v _ -> initLockAccessible v) initLocks
+accessibleInitLocks isTutSolved locks =
+    Map.filterWithKey (\v _ -> initLockAccessible v) locks
     where
     initLockAccessible :: HexVec -> Bool
     initLockAccessible v = or
-        [ (v' == zero && tutSolved) ||
-            (Just True == (initLockSolved <$> Map.lookup v' initLocks))
+        [ (v' == zero && isTutSolved) ||
+            (Just True == (initLockSolved <$> Map.lookup v' locks))
         | v' <- (v +^) <$> hexDirs ]
 
 isLastInitLock :: InitLock -> Bool
@@ -219,14 +212,14 @@ savePlayState ps = SavedPlayState (getMoves ps) $ Map.map getMoves $ psMarks ps
     where getMoves = reverse . map snd . psGameStateMoveStack
 
 restorePlayState :: SavedPlayState -> Lock -> [PlayerMove] -> Maybe String -> Maybe Int -> Bool -> Bool -> MainState
-restorePlayState (SavedPlayState pms markPMs) (frame,st) redoPms title tutLevel sub saved =
+restorePlayState (SavedPlayState pms markPMs) (frame,st) redoPms title tutLev sub saved =
     (stateAfterMoves pms) { psMarks = Map.map stateAfterMoves markPMs }
     where
-        stateAfterMoves pms = let (stack,st') = applyMoves st pms
-            in (newPlayState (frame, st') redoPms title tutLevel sub saved) { psGameStateMoveStack = stack }
-        applyMoves st = foldl tick ([],st)
+        stateAfterMoves pms' = let (stack,st') = applyMoves st pms'
+            in (newPlayState (frame, st') redoPms title tutLev sub saved) { psGameStateMoveStack = stack }
+        applyMoves st' = foldl tick ([],st')
         tick :: ([(GameState,PlayerMove)],GameState) -> PlayerMove -> ([(GameState,PlayerMove)],GameState)
-        tick (stack,st) pm = ((st,pm):stack,fst . runWriter $ physicsTick pm st)
+        tick (stack,st') pm = ((st',pm):stack,fst . runWriter $ physicsTick pm st')
 
 readServerSolns :: ServerAddr -> IO ([Undeclared],PartialSolutions)
 readServerSolns saddr = if nullSaddr saddr then return ([],Map.empty) else do
@@ -254,14 +247,14 @@ readInitProgress = do
             solved <- lift . (fromMaybe False <$>) . readReadFile $ initConfDir </> name ++ ".solved"
             partial <- lift . (fromMaybe Nothing <$>) . readReadFile $ initConfDir </> name ++ ".partial"
             return $ InitLock name desc lock solved partial
-    initLocks <- Map.mapMaybe id <$> mapM readInitLock namesMap
-    return (tut,initLocks)
+    (tut,) . Map.mapMaybe id <$> mapM readInitLock namesMap
 
 writeServerSolns :: ServerAddr -> MainState -> IO ()
 writeServerSolns saddr MetaState { undeclareds=undecls,
         partialSolutions=partials } = unless (nullSaddr saddr) $ do
     confFilePath ("undeclared" ++ [pathSeparator] ++ saddrPath saddr) >>= flip writeReadFile undecls
     confFilePath ("partialSolutions" ++ [pathSeparator] ++ saddrPath saddr) >>= flip writeReadFile partials
+writeServerSolns _ _ = error "writeServerSolns: tried to write non-meta state"
 
 readLock :: FilePath -> IO (Maybe (Lock, Maybe Solution))
 readLock path = runMaybeT $ msum
@@ -274,19 +267,19 @@ readLock path = runMaybeT $ msum
 -- writeLock path lock = fullLockPath path >>= flip writeReadFile lock
 
 writeInitState :: MainState -> IO ()
-writeInitState InitState { tutProgress = tut, initLocks = initLocks } = do
+writeInitState InitState { tutProgress = tut, initLocks = locks } = do
     initConfDir <- confFilePath "initiation"
     writeReadFile (initConfDir </> "tutProgress") tut
     let writeInitLockInfo :: InitLock -> IO ()
         writeInitLockInfo (InitLock name _ _ solved partial) = do
             writeReadFile (initConfDir </> name ++ ".solved") solved
             writeReadFile (initConfDir </> name ++ ".partial") partial
-    mapM_ writeInitLockInfo initLocks
+    mapM_ writeInitLockInfo locks
 writeInitState _ = return ()
 
 writeMetaState :: MainState -> IO ()
-writeMetaState ms@MetaState { curServer=saddr, curAuth=auth, curLockPath=path, initiated=initiated } = do
-    confFilePath "metagame.conf" >>= flip writeReadFile (initiated, saddr, auth, path)
+writeMetaState ms@MetaState { curServer=saddr, curAuth=auth, curLockPath=path, initiated=inited } = do
+    confFilePath "metagame.conf" >>= flip writeReadFile (inited, saddr, auth, path)
     writeServerSolns saddr ms
 writeMetaState _ = return ()
 
@@ -477,8 +470,8 @@ getFreshRecBlocking rec = do
     tvar <- getRecordCachedFromCur False rec
     cOnly <- gets cacheOnly
     mfetched <- lift $ withImpatience $ atomically $ do
-        fetched@(FetchedRecord fresh _ _) <- readTVar tvar
-        check $ fresh || cOnly
+        fetched@(FetchedRecord isFresh _ _) <- readTVar tvar
+        check $ isFresh || cOnly
         return fetched
     case mfetched of
         Nothing -> lift (drawError "Request aborted") >> return Nothing
@@ -491,15 +484,15 @@ getFreshRecBlocking rec = do
 withImpatience :: UIMonad uiM => IO a -> uiM (Maybe a)
 withImpatience m = do
     finishedTV <- liftIO $ newTVarIO Nothing
-    id <- liftIO $ forkIO $ m >>= atomically . writeTVar finishedTV . Just
+    tid <- liftIO $ forkIO $ m >>= atomically . writeTVar finishedTV . Just
     let waitImpatiently ticks = do
             finished <- liftIO $ readTVarIO finishedTV
             if isJust finished
                 then return finished
                 else do
-                    abort <- impatience ticks
-                    if abort
-                        then liftIO $ killThread id >> return Nothing
+                    cancel <- impatience ticks
+                    if cancel
+                        then liftIO $ killThread tid >> return Nothing
                         else waitImpatiently $ ticks+1
     waitImpatiently 0
 
@@ -513,10 +506,10 @@ getRelScoreDetails name = runMaybeT $ do
     ourUInfo <- mgetUInfo ourName
     -- Note that this is inverted when communicated in the interface: we show
     -- the number accessed rather than the number unaccessed.
-    let (pos,neg) = (countUnaccessedBy ourUInfo name, countUnaccessedBy uinfo ourName)
-    return (pos-neg,(pos,neg))
+    let (posve,negve) = (countUnaccessedBy ourUInfo name, countUnaccessedBy uinfo ourName)
+    return (posve-negve,(posve,negve))
     where
-        countUnaccessedBy ui name = length $ filter isNothing $ getAccessInfo ui name
+        countUnaccessedBy ui name' = length $ filter isNothing $ getAccessInfo ui name'
 
 accessedAL :: (UIMonad uiM) => ActiveLock -> MainStateT uiM Bool
 accessedAL (ActiveLock name idx) = (isJust <$>) $ runMaybeT $ do
@@ -539,7 +532,7 @@ testAuth = isJust <$> gets curAuth >>? do
         ServerMessage msg -> lift $ drawMessage $ "Server: " ++ msg
         ServerError err -> do
             lift $ drawMessage err
-            modify $ \ms -> ms {curAuth = Nothing}
+            -- modify $ \ms -> ms {curAuth = Nothing}
         _ -> return ()
 
 initiationHelpText :: [String]
@@ -572,7 +565,7 @@ metagameHelpText =
     , "The game judges players relative to each of their peers. There are no absolute rankings."
     , "You win a point of esteem against another player for one of their locks"
     , "if you have declared a solution to it, or if you have read three notes on it."
-    , "You also win a point for each empty lock slot if you can unlock all full slots."
+    , "You also win a point for each of their empty lock slots if you can unlock all full slots."
     , "Relative esteem is the points you win minus the points they win; +3 is best, -3 is worst."
     , ""
     , "If the secrets to one of your locks become widely disseminated, you may wish to replace it."
@@ -599,8 +592,9 @@ initiationCompleteText 2 =
     , "As for those who unauthorisedly discover, and even try to profit from, said secrets..."
     , "you come to us."
     , ""
-    , "\"Our task, you see, is to produce the superficially secure locks necessary for this system:"
-    , "locks pickable with minimal tools, but with this fact obscured by their mechanical complexity."
+    , "\"Our task is to produce the apparently secure locks necessary for this system:"
+    , "locks which can in fact be picked with only minimal tools once you know the trick,"
+    , "but with enough mechanical complexity to obscure this fact from the foolishly curious."
     , ""
     , "\"To push the designs to ever new extremes of intricacy, we run a ritual game."
     , "Today, we welcome you as its newest player."

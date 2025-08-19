@@ -99,8 +99,8 @@ which is not at its relaxed length results in a push on the end piece.
 
 To _resolve_ these initial forces:
     * each initial force is 'propagated to a force group'
-    * if a group is 'inconsistent' with another group: if one of the group is
-	'dominated' by the other, it is 'blocked'; else both are blocked
+    * if a group is 'inconsistent' with another group: if one of the groups is
+        'dominated' by the other, it is 'blocked'; else both are blocked
     * each force in each unblocked force group is 'applied'
 
 To _apply_ a push: move the piece in the given direction.

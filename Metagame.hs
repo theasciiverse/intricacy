@@ -1,5 +1,5 @@
 -- This file is part of Intricacy
--- Copyright (C) 2013 Martin Bays <mbays@sdf.org>
+-- Copyright (C) 2013-2025 Martin Bays <mbays@sdf.org>
 --
 -- This program is free software: you can redistribute it and/or modify
 -- it under the terms of version 3 of the GNU General Public License as
@@ -23,6 +23,7 @@ import           Data.Maybe
 import           GameStateTypes
 import           Lock
 
+notesNeeded, maxLocks :: Int
 notesNeeded = 3
 maxLocks = 3
 
@@ -49,7 +50,7 @@ data AccessedReason = AccessedPrivy | AccessedEmpty | AccessedPub
 getAccessInfo :: UserInfo -> Codename -> [Maybe AccessedReason]
 getAccessInfo ui name =
     let mlinfos = elems $ userLocks ui
-        accessedSlot = maybe accessedAllExisting accessedLock
+        --accessedSlot = maybe accessedAllExisting accessedLock
         accessedAllExisting = all (maybe True accessedLock) mlinfos
         accessedLock linfo = public linfo || name `elem` accessedBy linfo
     in map (maybe
@@ -132,6 +133,7 @@ instance Binary UserInfoDelta where
             1 -> DelRead <$> get
             2 -> PutLock <$> get <*> get
             3 -> LockDelta <$> get <*> get
+            _ -> error "bad tag to UserInfoDelta"
 
 instance Binary LockDelta where
     put (SetPubNote note)  = put (0::Word8) >> put note
@@ -149,6 +151,7 @@ instance Binary LockDelta where
             3 -> AddSolution <$> get
             4 -> AddAccessed <$> get
             5 -> return SetPublic
+            _ -> error "bad tag to LockDelta"
 
 instance Binary LockInfo where
     put (LockInfo spec pk notes solved accessed) = put spec >> put pk >> put notes >> put solved >> put accessed

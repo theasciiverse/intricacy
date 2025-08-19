@@ -1,5 +1,5 @@
 -- This file is part of Intricacy
--- Copyright (C) 2013 Martin Bays <mbays@sdf.org>
+-- Copyright (C) 2013-2025 Martin Bays <mbays@sdf.org>
 --
 -- This program is free software: you can redistribute it and/or modify
 -- it under the terms of version 3 of the GNU General Public License as
@@ -36,10 +36,10 @@ deframe = delTools . liftLock (setpp 0 nullpp)
 nullpp = PlacedPiece (PHS zero) (Block [])
 
 reframe :: Lock -> Lock
-reframe l@(f, st) = addTools $ delTools $ liftLock (setpp 0 (framePiece f)) l
+reframe l@(f, _) = addTools $ delTools $ liftLock (setpp 0 (framePiece f)) l
 
 validLock :: Lock -> Bool
-validLock lock@(f,st) = (st == stepPhysics st) && (lock == reframe lock) && validGameState st
+validLock lock@(_, st) = (st == stepPhysics st) && (lock == reframe lock) && validGameState st
 
 type Solution = [PlayerMove]
 
@@ -47,7 +47,7 @@ checkSolution :: Lock -> Solution -> Bool
 checkSolution lock pms =
     let (frame,st) = reframe lock
         tick :: GameState -> PlayerMove -> GameState
-        tick st pm = fst . runWriter $ physicsTick pm st
+        tick st' pm = fst . runWriter $ physicsTick pm st'
     in any (\st' -> checkSolved (frame,st')) $ scanl tick st pms
 
 checkSolved :: Lock -> Bool

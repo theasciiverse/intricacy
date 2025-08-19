@@ -155,7 +155,7 @@ scaleToLength n v@(HexVec x y z) =
         l = hexLen v
         lv' = (`div`l) . (n*) <$> [x,y,z]
         minI = fst $ minimumBy (compare `on` snd) $
-            zip [0..] $ abs <$> lv'
+            zip [0::Int ..] $ abs <$> lv'
         [x'',y'',z''] = zipWith (-) lv' [ d
                 | i <- [0..2]
                 , let d = if i == minI then sum lv' else 0 ]

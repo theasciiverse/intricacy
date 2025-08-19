@@ -1,5 +1,5 @@
 -- This file is part of Intricacy
--- Copyright (C) 2013 Martin Bays <mbays@sdf.org>
+-- Copyright (C) 2013-2025 Martin Bays <mbays@sdf.org>
 --
 -- This program is free software: you can redistribute it and/or modify
 -- it under the terms of version 3 of the GNU General Public License as
@@ -49,8 +49,8 @@ stateToAscii st =
     in boardToAscii colouring . stateBoard $ st
 
 lockOfAscii :: AsciiLock -> Maybe Lock
-lockOfAscii lines = do
-    board <- asciiToBoard lines
+lockOfAscii ls = do
+    board <- asciiToBoard ls
     let size = maximumBound 0 $ hx . (-^origin) <$> Map.keys board
         frame = BasicFrame size
     guard $ size > 0
@@ -70,10 +70,10 @@ boardToAscii colouring board =
         | y <- [0..(maxy-miny)] ]
 
 asciiToBoard :: AsciiLock -> Maybe GameBoard
-asciiToBoard lines =
+asciiToBoard ls =
     let asciiBoard :: Map CVec Char
         asciiBoard = Map.fromList [(CVec y x,ch)
-            | (line,y) <- zip lines [0..]
+            | (line,y) <- zip ls [0..]
             , (ch,x) <- zip line [0..]
             , ch `notElem` "\t\r\n "]
         (miny,maxy) = minmax $ cy <$> Map.keys asciiBoard
@@ -278,9 +278,9 @@ pmOfAscii _   = Nothing
 
 readAsciiLockFile :: FilePath -> IO (Maybe Lock, Maybe Solution)
 readAsciiLockFile path = fromLines <$> readStrings path
-    where fromLines lines = fromMaybe (lockOfAscii lines, Nothing) $ do
-            guard $ length lines > 2
-            let (locklines, [header,solnLine]) = splitAt (length lines - 2) lines
+    where fromLines ls = fromMaybe (lockOfAscii ls, Nothing) $ do
+            guard $ length ls > 2
+            let (locklines, [header,solnLine]) = splitAt (length ls - 2) ls
             guard $ isPrefixOf "Solution:" header
             return (lockOfAscii locklines,
                 solutionOfAscii solnLine `mplus` tryRead solnLine)

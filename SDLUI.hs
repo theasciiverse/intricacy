@@ -1,5 +1,5 @@
 -- This file is part of Intricacy
--- Copyright (C) 2013 Martin Bays <mbays@sdf.org>
+-- Copyright (C) 2013-2025 Martin Bays <mbays@sdf.org>
 --
 -- This program is free software: you can redistribute it and/or modify
 -- it under the terms of version 3 of the GNU General Public License as
@@ -786,7 +786,7 @@ initVideo w h = do
     fs <- gets (fullscreen . uiOptions)
     liftIO $ do
         (w',h') <- if fs || (w,h)/=(0,0) then return (w,h) else
-#ifdef APPLE
+#ifdef APPLE_SDL1
             -- use smaller dimensions than the screen's, to work around a bug
             -- seen on mac, whereby a resizable window created with
             -- (w,h)=(0,0), or even with the (w,h) given by getHardwareDimensions
@@ -912,7 +912,7 @@ sayError = setMsgLine errorCol
 miniLockPos = (-9)*^hw +^ hu
 lockLinePos = 4*^hu +^ miniLockPos
 serverPos = 12*^hv +^ 7*^neg hu
-serverWaitPos = serverPos +^ hw +^ neg hu
+serverWaitPos = serverPos +^ hw +^ hu
 randomNamesPos = 9*^hv +^ 2*^ neg hu
 codenamePos = (-6)*^hw +^ 6*^hv
 undeclsPos = 13*^neg hu

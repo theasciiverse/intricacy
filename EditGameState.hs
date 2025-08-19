@@ -1,5 +1,5 @@
 -- This file is part of Intricacy
--- Copyright (C) 2013 Martin Bays <mbays@sdf.org>
+-- Copyright (C) 2013-2025 Martin Bays <mbays@sdf.org>
 --
 -- This program is free software: you can redistribute it and/or modify
 -- it under the terms of version 3 of the GNU General Public License as
@@ -12,9 +12,7 @@ module EditGameState (modTile, mergeTiles) where
 
 import           Control.Applicative
 import           Control.Monad
-import           Data.Function       (on)
 import           Data.List
-import           Data.Map            (Map)
 import qualified Data.Map            as Map
 import           Data.Maybe
 

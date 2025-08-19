@@ -1,5 +1,5 @@
 -- This file is part of Intricacy
--- Copyright (C) 2013 Martin Bays <mbays@sdf.org>
+-- Copyright (C) 2013-2025 Martin Bays <mbays@sdf.org>
 --
 -- This program is free software: you can redistribute it and/or modify
 -- it under the terms of version 3 of the GNU General Public License as
@@ -7,6 +7,8 @@
 --
 -- You should have received a copy of the GNU General Public License
 -- along with this program.  If not, see http://www.gnu.org/licenses/.
+
+{-# LANGUAGE CPP #-}
 
 module Mundanities where
 import           Control.Applicative
@@ -31,6 +33,9 @@ ignoreIOErr = handle ((\_ -> return mempty) :: (Monad m, Monoid a) => IOError ->
 
 ignoreIOErrAlt :: (MonadIO m, MonadMask m, Alternative f) => m (f a) -> m (f a)
 ignoreIOErrAlt = handle ((\_ -> return empty) :: (Monad m, Alternative f) => IOError -> m (f a))
+
+nothingOnIOErr :: (MonadIO m, MonadMask m) => m a -> m (Maybe a)
+nothingOnIOErr = ignoreIOErrAlt . (Just <$>)
 
 warnIOErrAlt :: (MonadIO m, MonadMask m, Alternative f) => m (f a) -> m (f a)
 warnIOErrAlt = handle ((\e -> liftIO (print e) >> return empty) :: (MonadIO m, Alternative f) => IOError -> m (f a))
@@ -63,7 +68,11 @@ confFilePath str = (++(pathSeparator:str)) <$>
         (const $ getAppUserDataDirectory "intricacy")
 
 getDataPath :: FilePath -> IO FilePath
+#ifdef WINDOWS
+getDataPath = pure
+#else
 getDataPath = getDataFileName
+#endif
 
 makeConfDir :: IO ()
 makeConfDir = confFilePath "" >>= createDirectoryIfMissing False

@@ -1,5 +1,5 @@
 -- This file is part of Intricacy
--- Copyright (C) 2013 Martin Bays <mbays@sdf.org>
+-- Copyright (C) 2013-2025 Martin Bays <mbays@sdf.org>
 --
 -- This program is free software: you can redistribute it and/or modify
 -- it under the terms of version 3 of the GNU General Public License as
@@ -77,6 +77,7 @@ instance UIMonad (StateT UIState IO) where
     drawError = sayError
 
     reportAlerts = playAlertSounds
+    onPhysicsTick = pure ()
 
     getChRaw = resetMouseButtons >> getChRaw'
         where
@@ -556,7 +557,7 @@ drawMainState' MetaState {curServer=saddr, undeclareds=undecls,
                 when (fresh && (isNothing ourName || isNothing muirc || home)) $
                     let reg = isNothing muirc || isJust ourName
                     in registerButton (codenamePos +^ 2*^hu)
-                        (if reg then CmdRegister $ isJust ourName else CmdAuth)
+                        (if reg then CmdRegister else CmdAuth)
                         (if isNothing ourName then 2 else 0)
                         [(if reg then "reg" else "auth", 3*^hw)]
             (if isJust muirc then drawName else drawNullName) name codenamePos
