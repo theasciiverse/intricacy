@@ -19,6 +19,11 @@ import qualified SDLUI             (UIM)
 import           SDLUIMInstance    ()
 #endif
 
+#ifdef MAIN_SDL2
+import qualified SDL2UI             (UIM)
+import           SDL2UIMInstance    ()
+#endif
+
 #ifdef MAIN_CURSES
 import qualified CursesUI          (UIM)
 import           CursesUIMInstance ()
@@ -38,10 +43,20 @@ main = main'
 #ifdef MAIN_SDL
     (Just (doUI::SDLUI.UIM MainState -> IO (Maybe MainState)))
 #else
+#ifdef MAIN_SDL2
+    (Just (doUI::SDL2UI.UIM MainState -> IO (Maybe MainState)))
+#else
     (Nothing :: (Maybe (CursesUI.UIM MainState -> IO (Maybe MainState))))
+#endif
 #endif
 #ifdef MAIN_CURSES
     (Just (doUI::CursesUI.UIM MainState -> IO (Maybe MainState)))
 #else
+#ifdef MAIN_SDL
     (Nothing :: (Maybe (SDLUI.UIM MainState -> IO (Maybe MainState))))
+#else
+#ifdef MAIN_SDL2
+    (Nothing :: (Maybe (SDL2UI.UIM MainState -> IO (Maybe MainState))))
+#endif
+#endif
 #endif
