@@ -14,7 +14,10 @@ import           Control.Applicative
 import           Control.Monad
 import           Control.Monad.IO.Class
 import           Control.Monad.Trans.Reader
+import qualified Data.Binary                as B
+import qualified Data.ByteString            as BS
 import qualified Data.ByteString.Char8      as CS
+import qualified Data.ByteString.Lazy       as BL
 import qualified Data.ByteString.Lazy.Char8 as CL
 import           Data.Char                  (toUpper)
 import           Data.Maybe
@@ -100,6 +103,28 @@ withDB = flip runReaderT
 recordExists :: Record -> DBM Bool
 recordExists rec = recordPath rec >>= liftIO . doesFileExist
 
+-- |try to decode binary format, falling back to legacy Read format on failure
+tryGetBinary :: (B.Binary a, Read a) => Handle -> IO (Maybe a)
+tryGetBinary h = tryDecode . BL.fromStrict <$> hGetContentsNoClose h
+    where
+    tryDecode :: (B.Binary a, Read a) => BL.ByteString -> Maybe a
+    tryDecode c =
+        case B.decodeOrFail c of
+            Right (_,_,a) -> Just a
+            Left _        -> tryRead $ CS.unpack $ BL.toStrict c
+
+hGetStrict h = CS.unpack <$> hGetContentsNoClose h
+
+hGetContentsNoClose :: Handle -> IO BS.ByteString
+hGetContentsNoClose h = concatMWhileNonempty (repeat $ BS.hGet h 1024)
+    where
+    concatMWhileNonempty (m:ms) = do
+        bs <- m
+        if BS.null bs
+            then return bs
+            else (bs `BS.append`) <$> concatMWhileNonempty ms
+    concatMWhileNonempty [] = pure BS.empty
+
 getRecord :: Record -> DBM (Maybe RecordContents)
 getRecord rec = do
     path <- recordPath rec
@@ -109,8 +134,8 @@ getRecord rec = do
 getRecordh (RecPasswordLegacy _) h = (RCPasswordLegacy <$>) . tryRead <$> hGetStrict h
 getRecordh (RecPasswordArgon2 _) h = (RCPasswordArgon2 <$>) . tryRead <$> hGetStrict h
 getRecordh (RecEmail _) h = (RCEmail <$>) . tryRead <$> hGetStrict h
-getRecordh (RecUserInfo _) h = (RCUserInfo <$>) . tryRead <$> hGetStrict h
-getRecordh (RecUserInfoLog _) h = (RCUserInfoDeltas <$>) . tryRead <$> hGetStrict h
+getRecordh (RecUserInfo _) h = (RCUserInfo <$>) <$> tryGetBinary h
+getRecordh (RecUserInfoLog _) h = (RCUserInfoDeltas <$>) <$> tryGetBinary h
 getRecordh (RecLock _) h = (RCLock <$>) . tryRead <$> hGetStrict h
 getRecordh (RecNote _) h = (RCSolution <$>) . tryRead <$> hGetStrict h
 getRecordh RecLockHashes h = (RCLockHashes <$>) . tryRead <$> hGetStrict h
@@ -119,15 +144,6 @@ getRecordh RecServerInfo h = (RCServerInfo <$>) . tryRead <$> hGetStrict h
 getRecordh RecServerEmail h = (RCEmail <$>) . tryRead <$> hGetStrict h
 getRecordh RecPublicKey h = (RCPublicKey <$>) . tryRead <$> hGetStrict h
 getRecordh RecSecretKey h = (RCSecretKey <$>) . tryRead <$> hGetStrict h
-
-hGetStrict h = CS.unpack <$> concatMWhileNonempty (repeat $ CS.hGet h 1024)
-    where
-    concatMWhileNonempty (m:ms) = do
-        bs <- m
-        if CS.null bs
-            then return bs
-            else (bs `CS.append`) <$> concatMWhileNonempty ms
-    concatMWhileNonempty [] = pure CS.empty
 
 putRecord :: Record -> RecordContents -> DBM ()
 putRecord rec rc = do
@@ -140,8 +156,8 @@ putRecord rec rc = do
 putRecordh (RCPasswordLegacy hpw) h    = hPutStr h $ show hpw
 putRecordh (RCPasswordArgon2 hpw) h    = hPutStr h $ show hpw
 putRecordh (RCEmail addr) h            = hPutStr h $ show addr
-putRecordh (RCUserInfo info) h         = hPutStr h $ show info
-putRecordh (RCUserInfoDeltas deltas) h = hPutStr h $ show deltas
+putRecordh (RCUserInfo info) h         = BL.hPut h $ B.encode info
+putRecordh (RCUserInfoDeltas deltas) h = BL.hPut h $ B.encode deltas
 putRecordh (RCLock lock) h             = hPutStr h $ show lock
 putRecordh (RCSolution solution) h     = hPutStr h $ show solution
 putRecordh (RCLockHashes hashes) h     = hPutStr h $ show hashes

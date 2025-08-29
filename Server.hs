@@ -83,7 +83,7 @@ import           Version
 
 defaultPort = 27001 -- 27001 == ('i'<<8) + 'y'
 
-data Opt = RequestDelay Int | Daemon | LogFile FilePath | Port Int | DBDir FilePath | ServerLockSize Int | FeedPath FilePath | Help | Version
+data Opt = RequestDelay Int | Daemon | LogFile FilePath | Port Int | DBDir FilePath | ServerLockSize Int | FeedPath FilePath | Rewrite | Help | Version
     deriving (Eq, Ord, Show)
 options =
     [ Option ['p'] ["port"] (ReqArg (Port . read) "PORT") $ "TCP port to listen on (default: " ++ show defaultPort ++ ")"
@@ -91,6 +91,7 @@ options =
     -- , Option ['d'] ["daemon"] (NoArg Daemon) "Run as daemon"
     , Option ['l'] ["logfile"] (ReqArg LogFile "PATH") "Log to file"
     , Option ['d'] ["dir"] (ReqArg DBDir "PATH") "directory for server database [default: intricacydb]"
+    , Option ['r'] ["refresh"] (NoArg Rewrite) "rewrite database (to convert from legacy formats)"
     , Option ['s'] ["locksize"] (ReqArg (ServerLockSize . read) "SIZE") "size of locks (only takes effect when creating a new database) [default: 8]"
     , Option ['f'] ["feed"] (ReqArg FeedPath "PATH") "write news feed to this path"
     , Option ['h'] ["help"] (NoArg Help) "show usage information"
@@ -128,6 +129,7 @@ main = do
     logh <- case listToMaybe [ f | LogFile f <- opts ] of
         Nothing   -> return stdout
         Just path -> openFile path AppendMode
+    when (Rewrite `elem` opts) $ rewriteDB dbpath logh
     streamServer serverSpec{address = IPv4 "" port, threading=Threaded} $ handler dbpath delay logh mfeedPath
     sleepForever
 
@@ -585,3 +587,12 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
 #else
         mailDeclaration _ _ = pure ()
 #endif
+
+rewriteDB :: FilePath -> Handle -> IO ()
+rewriteDB dbpath logh = do
+    logit logh "Rewriting DB"
+    withDBLock dbpath WriteMode $ withDB dbpath $ do
+        users <- listUsers
+        forM_ users $ \name -> modifyRecord (RecUserInfo name) id
+        forM_ users $ \name -> modifyRecord (RecUserInfoLog name) id
+    logit logh "DB rewriting complete"

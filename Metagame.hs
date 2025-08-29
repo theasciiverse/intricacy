@@ -133,7 +133,7 @@ instance Binary UserInfoDelta where
             1 -> DelRead <$> get
             2 -> PutLock <$> get <*> get
             3 -> LockDelta <$> get <*> get
-            _ -> error "bad tag to UserInfoDelta"
+            _ -> fail "bad tag to UserInfoDelta"
 
 instance Binary LockDelta where
     put (SetPubNote note)  = put (0::Word8) >> put note
@@ -151,7 +151,7 @@ instance Binary LockDelta where
             3 -> AddSolution <$> get
             4 -> AddAccessed <$> get
             5 -> return SetPublic
-            _ -> error "bad tag to LockDelta"
+            _ -> fail "bad tag to LockDelta"
 
 instance Binary LockInfo where
     put (LockInfo spec pk notes solved accessed) = put spec >> put pk >> put notes >> put solved >> put accessed
