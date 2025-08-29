@@ -578,7 +578,7 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
                 [plainPart $ TL.pack $ "A solution to your lock " ++ alockStr target ++ " has been declared by " ++ solverName ++
                     " and secured behind " ++ alockStr behind ++ "." ++
                     "\n\n-----\n\nYou received this email from the game Intricacy" ++
-                    "\n\thttp://sdf.org/~mbays/intricacy ." ++
+                    "\n\thttp://mbays.sdf.org/intricacy ." ++
                     "\nYou can disable notifications in-game by pressing 'R' on your home" ++
                     "\nscreen and setting an empty address." ++
                     "\nAlternatively, just reply to this email with the phrase \"stop bugging me\"." ]
