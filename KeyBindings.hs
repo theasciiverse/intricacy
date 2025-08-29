@@ -197,6 +197,7 @@ metaBindings = lowerToo
     , ('V', CmdViewSolution Nothing)
     , ('R', CmdRegister)
     , ('P', CmdPlaceLock Nothing)
+    , (ctrl 'R', CmdRetireLock)
     , ('E', CmdEdit)
     , ('L', CmdSelectLock)
     , ('O', CmdPrevLock)

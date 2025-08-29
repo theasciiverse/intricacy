@@ -42,6 +42,7 @@ data Action
     | DeclareSolution Solution LockSpec ActiveLock LockIndex
     | SetLock Lock LockIndex Solution
     | GetRandomNames Int
+    | RetireLock ActiveLock
     | UndefinedAction
     deriving (Eq, Ord, Show, Read)
 
@@ -99,6 +100,7 @@ instance Binary Action where
     put (GetRetired name) = put (11::Word8) >> put name
     put (SetEmail address) = put (12::Word8) >> put address
     put GetPublicKey = put (13::Word8)
+    put (RetireLock alock) = put (14::Word8) >> put alock
     put UndefinedAction = error "Tried to put UndefinedAction"
     get = do
         tag <- get :: Get Word8
@@ -117,6 +119,7 @@ instance Binary Action where
             11 -> GetRetired <$> get
             12 -> SetEmail <$> get
             13 -> return GetPublicKey
+            14 -> RetireLock <$> get
             _  -> return UndefinedAction
 
 instance Binary Auth where

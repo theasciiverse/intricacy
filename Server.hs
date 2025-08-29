@@ -31,6 +31,7 @@ import           Data.Bifunctor             (bimap)
 import qualified Data.Binary                as B
 import qualified Data.ByteString.Char8      as CS
 import qualified Data.ByteString.Lazy       as BL
+import           Data.Either                (fromRight)
 import           Data.Foldable              (for_)
 import           Data.Function              (on)
 import           Data.List
@@ -275,6 +276,13 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
                         Nothing -> unless (checkSolution lock soln) $ throwE "Bad solution"
                         Just lock' -> unless (lock == lock') $ throwE "Lock changed!"
                     return $ Just lock
+                RetireLock target -> do
+                    tinfo <- getALock target
+                    name <- codename <$> getUserInfoOfAuth auth
+                    RCIsSuperuser isSuper <- lift . (fromRight (RCIsSuperuser False) <$>) . runExceptT $ getRecordErrored (RecIsSuperuser name)
+                    when (not isSuper && name /= lockOwner target) $ throwE "That isn't your lock!"
+                    when (public tinfo) $ throwE "Lock already public."
+                    pure Nothing
                 _ -> return Nothing
         handleRequest' =
             case action of
@@ -373,6 +381,10 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
                         >-> P.take n -- try to take as many as we were asked for
                     liftIO newStdGen
                     return $ ServedRandomNames shuffled
+                RetireLock target -> do
+                    lockInfo <- getALock target
+                    execStateT (publiciseLock target lockInfo) [] >>= applyDeltasToRecords
+                    return ServerAck
                 _ -> throwE "BUG: bad request"
         erroredIO :: IO a -> ExceptT String IO a
         erroredIO c = do

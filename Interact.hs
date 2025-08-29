@@ -486,6 +486,15 @@ processCommand' IMMeta (CmdPlaceLock midx) = void.runMaybeT $ do
         (SetLock lock idx soln)
         (Just (SomeCodenames [ourName]))
 
+processCommand' IMMeta CmdRetireLock = void.runMaybeT $ do
+    name <- mgetCurName
+    uinfo <- mgetUInfo name
+    idx <- askLockIndex "Retire which lock?" "No lock to retire!" (isJust . (userLocks uinfo !))
+    confirmOrBail $ "Really retire " ++ name ++ ":" ++ [lockIndexChar idx] ++ "?"
+    lift $ curServerActionAsyncThenInvalidate
+        (RetireLock $ ActiveLock name idx)
+        (Just (SomeCodenames [name]))
+
 processCommand' IMMeta CmdSelectLock = void.runMaybeT $ do
     lockdir <- liftIO $ confFilePath "locks"
     paths <- liftIO $ map (drop (length lockdir + 1)) <$> getDirContentsRec lockdir

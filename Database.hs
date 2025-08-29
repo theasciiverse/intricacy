@@ -55,6 +55,7 @@ data Record
     | RecServerEmail
     | RecPublicKey
     | RecSecretKey
+    | RecIsSuperuser Codename
     deriving (Eq, Ord, Show)
 data RecordContents
     = RCPasswordLegacy Password
@@ -69,6 +70,7 @@ data RecordContents
     | RCEmail CS.ByteString
     | RCPublicKey PublicKey
     | RCSecretKey PrivateKey
+    | RCIsSuperuser Bool
     deriving (Eq, Show)
 
 rcOfServerResp (ServedServerInfo x) = RCServerInfo x
@@ -144,6 +146,7 @@ getRecordh RecServerInfo h = (RCServerInfo <$>) . tryRead <$> hGetStrict h
 getRecordh RecServerEmail h = (RCEmail <$>) . tryRead <$> hGetStrict h
 getRecordh RecPublicKey h = (RCPublicKey <$>) . tryRead <$> hGetStrict h
 getRecordh RecSecretKey h = (RCSecretKey <$>) . tryRead <$> hGetStrict h
+getRecordh (RecIsSuperuser _) h = (RCIsSuperuser <$>) . tryRead <$> hGetStrict h
 
 putRecord :: Record -> RecordContents -> DBM ()
 putRecord rec rc = do
@@ -165,6 +168,7 @@ putRecordh (RCLockSpecs lss) h         = hPutStr h $ show lss
 putRecordh (RCServerInfo sinfo) h      = hPutStr h $ show sinfo
 putRecordh (RCPublicKey publicKey) h   = hPutStr h $ show publicKey
 putRecordh (RCSecretKey secretKey) h   = hPutStr h $ show secretKey
+putRecordh (RCIsSuperuser super) h     = hPutStr h $ show super
 
 modifyRecord :: Record -> (RecordContents -> RecordContents) -> DBM ()
 modifyRecord rec f = do
@@ -216,6 +220,7 @@ recordPath rec =
         recordPath' RecServerEmail = "serverEmail"
         recordPath' RecPublicKey = "publicKey"
         recordPath' RecSecretKey = "secretKey"
+        recordPath' (RecIsSuperuser name) = userDir name ++ "superuser"
 
         userDir name = "users" ++ [pathSeparator] ++ pathifyName name ++ [pathSeparator]
         alockFN (ActiveLock name idx) = pathifyName name ++":"++ show idx
