@@ -1,5 +1,12 @@
 This is an abbreviated summary; see the git log for gory details.
 
+0.9:
+    Switch from SDL1 to SDL2.
+    Show force conflicts through animation.
+    Rework default keybindings and movement by clicking mouse buttons.
+    Allow adjusting sound volume.
+    Add tutorial lock and 3 initiation locks.
+    Replace inefficient Read-based serialisation of user info with Binary.
 0.8.2:
     Show esteem with symbols as well as colour (thanks Locria Cyber)
     Fix relative esteem calculation display
