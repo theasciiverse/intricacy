@@ -30,9 +30,9 @@ data-files:
     initiation/*.lock
     initiation/*.text
     sounds/*.ogg
-
 extra-source-files:
     Main_stub.h
+extra-doc-files:
     README
     BUILD
     NEWS

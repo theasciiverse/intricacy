@@ -3,12 +3,12 @@ Compiling Intricacy
 
 Dependencies:
     EITHER
-	sdl version 1.2
-	sdl-ttf
-	sdl-gfx
-        sdl-mixer
+        sdl2
+        sdl2-ttf
+        sdl2-gfx
+        sdl2-mixer
     OR
-	curses
+        curses
 
 To compile the game on *nix with SDL graphics:
     Install ghc, cabal, and development packages for the SDL dependencies
@@ -19,10 +19,10 @@ To compile the game on *nix with SDL graphics:
     Running cabal install as root should install it somewhere global.
 
 To compile a curses-only (ascii graphics) build:
-	cabal install -f -SDL
+	cabal install -f curses
 
 To compile the server:
-	cabal install -f Server -f -Game
+	cabal install -f server -f -game
 
     The server will be installed as e.g.
 	~/.cabal/bin/intricacy-server
@@ -33,8 +33,7 @@ To compile the server:
 
 To compile for windows:
     This should work as above once you have the dependencies installed
-    properly. Good luck with that. The mingw32-compiled libraries in winlibs
-    may or may not help.
+    properly. Good luck with that.
 
 To compile for OSX, or android or whatever other wacky system:
     No idea, sorry. But please tell me if you manage!
