@@ -12,6 +12,7 @@ module CursesUI where
 
 import           Control.Applicative
 import           Control.Concurrent.STM
+import           Control.Monad
 import           Control.Monad.State
 import           Control.Monad.Trans.Maybe
 import           Data.Array
