@@ -1,0 +1,9 @@
+# Bug with SDL2+curses
+If curses is compiled (seems to be exactly a question of whether ncurses is 
+linked in), drawing filled polygons or filled circles with sdl2-gfx crashes, 
+with e.g.:
+intricacy: SDLCallFailed {sdlExceptionCaller = "SDL.Primitive.fillPolygon", sdlFunction = "filledPolygonRGBA", sdlExceptionError = ""}
+
+Very bizarre, some low-level bug beyond my ability to debug.
+Tested with ghc-9.0 and 9.6.
+
