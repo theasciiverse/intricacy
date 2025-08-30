@@ -365,7 +365,7 @@ handleRequest dbpath mfeedPath req@(ClientRequest pv auth action) = do
                     return ServerAck
                 GetRandomNames n -> do
                     names <- erroredDB listUsers
-                    gen <- erroredIO getStdGen
+                    gen <- erroredIO newStdGen
                     let l = length names
                         namesArray = listArray (0,l-1) names
                         negligible name = do
