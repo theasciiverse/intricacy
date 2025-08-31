@@ -479,8 +479,12 @@ processCommand' IMMeta (CmdPlaceLock midx) = void.runMaybeT $ do
     ourUInfo <- mgetUInfo ourName
     idx <- (liftMaybe midx `mplus`) $
         askLockIndex ("Place " ++ show lockpath ++ " in which slot?") "bug" $ const True
-    when (isJust $ userLocks ourUInfo ! idx) $
-        confirmOrBail "Really retire existing lock?"
+    case userLocks ourUInfo ! idx of
+        Nothing -> pure ()
+        Just lockInfo
+            -> confirmOrBail . concat $ ["Really retire existing lock?"] <>
+                [ " Your " <> show n <> " notes would become public."
+                | let n = length (notesSecured lockInfo), n > 0 ]
     soln <- (liftMaybe msoln `mplus`) $ solveLock lock Nothing $ Just "Testing lock"
     lift $ curServerActionAsyncThenInvalidate
         (SetLock lock idx soln)
@@ -490,7 +494,12 @@ processCommand' IMMeta CmdRetireLock = void.runMaybeT $ do
     name <- mgetCurName
     uinfo <- mgetUInfo name
     idx <- askLockIndex "Retire which lock?" "No lock to retire!" (isJust . (userLocks uinfo !))
-    confirmOrBail $ "Really retire " ++ name ++ ":" ++ [lockIndexChar idx] ++ "?"
+    case userLocks uinfo ! idx of
+        Nothing -> mzero
+        Just lockInfo ->
+            confirmOrBail . concat $ ["Really retire " ++ name ++ ":" ++ [lockIndexChar idx] ++ "?"] <>
+                [ " " <> show n <> " notes would become public."
+                | let n = length (notesSecured lockInfo), n > 0 ]
     lift $ curServerActionAsyncThenInvalidate
         (RetireLock $ ActiveLock name idx)
         (Just (SomeCodenames [name]))
