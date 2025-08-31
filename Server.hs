@@ -84,7 +84,7 @@ import           Version
 
 defaultPort = 27001 -- 27001 == ('i'<<8) + 'y'
 
-data Opt = RequestDelay Int | Daemon | LogFile FilePath | Port Int | DBDir FilePath | ServerLockSize Int | FeedPath FilePath | Rewrite | Help | Version
+data Opt = RequestDelay Int | Daemon | LogFile FilePath | Port Int | DBDir FilePath | ServerLockSize Int | FeedPath FilePath | Rewrite | CheckNotes | Help | Version
     deriving (Eq, Ord, Show)
 options =
     [ Option ['p'] ["port"] (ReqArg (Port . read) "PORT") $ "TCP port to listen on (default: " ++ show defaultPort ++ ")"
@@ -93,6 +93,7 @@ options =
     , Option ['l'] ["logfile"] (ReqArg LogFile "PATH") "Log to file"
     , Option ['d'] ["dir"] (ReqArg DBDir "PATH") "directory for server database [default: intricacydb]"
     , Option ['r'] ["refresh"] (NoArg Rewrite) "rewrite database (to convert from legacy formats)"
+    , Option ['c'] ["check-notes"] (NoArg CheckNotes) "confirm solutions in notes (in case of rule changes)"
     , Option ['s'] ["locksize"] (ReqArg (ServerLockSize . read) "SIZE") "size of locks (only takes effect when creating a new database) [default: 8]"
     , Option ['f'] ["feed"] (ReqArg FeedPath "PATH") "write news feed to this path"
     , Option ['h'] ["help"] (NoArg Help) "show usage information"
@@ -131,6 +132,7 @@ main = do
         Nothing   -> return stdout
         Just path -> openFile path AppendMode
     when (Rewrite `elem` opts) $ rewriteDB dbpath logh
+    when (CheckNotes `elem` opts) $ checkNotes dbpath logh
     streamServer serverSpec{address = IPv4 "" port, threading=Threaded} $ handler dbpath delay logh mfeedPath
     sleepForever
 
@@ -608,3 +610,25 @@ rewriteDB dbpath logh = do
         forM_ users $ \name -> modifyRecord (RecUserInfo name) id
         forM_ users $ \name -> modifyRecord (RecUserInfoLog name) id
     logit logh "DB rewriting complete"
+
+checkNotes :: FilePath -> Handle -> IO ()
+checkNotes dbpath logh = do
+    logit logh "Checking notes"
+    withDBLock dbpath WriteMode $ withDB dbpath $ do
+        users <- listUsers
+        forM_ users $ \name -> do
+            RCUserInfo (_,uinfo) <- getRecordUnsafe $ RecUserInfo name
+            sequence_ [ do
+                RCSolution soln <- getRecordUnsafe $ RecNote note
+                RCLock lock <- getRecordUnsafe $ RecLock ls
+                unless (checkSolution lock soln) $
+                    liftIO . putStrLn $ "Bad note on " <> show name <> ":" <> [lockIndexChar idx]
+                | idx <- [0,1,2]
+                , Just lockinfo <- [userLocks uinfo ! idx]
+                , let ls = lockSpec lockinfo
+                , note <- lockSolutions lockinfo
+                ]
+    logit logh "Finished checking notes"
+    where
+    getRecordUnsafe :: Record -> DBM RecordContents
+    getRecordUnsafe = (fromJust <$>) . getRecord
