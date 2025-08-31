@@ -1,4 +1,4 @@
-VERSION=0.8.2.1
+VERSION := $(shell sed -n 's/^version: *//p' < intricacy.cabal)
 
 sources=$(filter-out Paths_intricacy.hs,$(wildcard *.hs *.lhs))
 
