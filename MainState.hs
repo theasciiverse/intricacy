@@ -291,7 +291,7 @@ getTitle = get >>= title . ms2im
         unsaved <- editStateUnsaved
         isTested <- isJust <$> getCurTestSoln
         height <- gets $ aboveFrame . esFrame
-        return $ Just ("editing " ++ fromMaybe "[unnamed lock]" mpath ++
+        return $ Just ("Editing " ++ fromMaybe "[unnamed lock]" mpath ++
                 (if isTested then " (Tested)" else "") ++
                 (if unsaved then " [+]" else "    "),
             height

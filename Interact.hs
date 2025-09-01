@@ -141,8 +141,11 @@ processCommand im CmdQuit = do
     title <- lift getTitle
     (lift . lift . confirm) ("Really quit"
             ++ (if im == IMEdit then " without saving" else "")
-            ++ maybe "" ((" from "++) . fst) title ++ "?")
+            ++ maybe "" ((" from "++) . lowerFirstChar . fst) title ++ "?")
         >>? throwE $ InteractSuccess False
+    where
+    lowerFirstChar (c:cs) = toLower c : cs
+    lowerFirstChar ""     = ""
 processCommand _ CmdForceQuit = throwE $ InteractSuccess False
 processCommand IMPlay CmdOpen = do
     st <- gets psCurrentState
@@ -389,7 +392,7 @@ processCommand' IMMeta (CmdSolve midx) = void.runMaybeT $ do
             RCLock lock <- MaybeT $ getFreshRecBlocking $ RecLock ls
             mpartial <- gets (Map.lookup ls . partialSolutions)
             msoln <- lift $ solveLockSaving ls mpartial Nothing lock $ Just $
-                "solving " ++ name ++ ":" ++ [lockIndexChar idx] ++ "  (#" ++ show ls ++")"
+                "Solving " ++ name ++ ":" ++ [lockIndexChar idx] ++ "  (#" ++ show ls ++")"
             lift $ liftIO . writeMetaState =<< get
             soln <- MaybeT $ pure msoln
             mourName <- lift $ gets ((authUser <$>) . curAuth)
