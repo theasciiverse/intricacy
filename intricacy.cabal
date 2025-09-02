@@ -33,9 +33,9 @@ data-files:
 extra-source-files:
     Main_stub.h
 extra-doc-files:
-    README
+    README.md
     BUILD
-    NEWS
+    NEWS.md
     tutorial-extra/*.lock
     tutorial-extra/README
 

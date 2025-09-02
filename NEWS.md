@@ -1,0 +1,118 @@
+This is an abbreviated summary; see the git log for gory details.
+
+# 0.9
+* Switch from SDL1 to SDL2.
+* Animate force conflicts.
+* Rework default keybindings and click-to-move.
+* Allow adjusting sound volume.
+* Add tutorial lock and 3 initiation locks.
+* Replace inefficient Read-based serialisation of user info with Binary.
+
+# 0.8.2
+* Show esteem with symbols as well as colour (thanks Locria Cyber)
+* Fix relative esteem calculation display
+
+# 0.8.1
+* Revise tutorial and initiation levels REP and GAP
+* Disallow overextended/compressed springs
+* Allow editing spring tension by turning
+* Add compact solution format
+* Revert scoring change introduced in 0.6
+* Add --datadir option
+* Fix loading partial initiation solutions
+* Fix server locking
+
+# 0.8
+* Add single-player introductory subgame ("initiation").
+* Improve UI variously.
+
+# 0.7.2.3
+* Hopefully work around curses build failures
+
+# 0.7.2.1
+* Support >=ghc-8.6.5
+
+# 0.7.2
+* Support ghc-8.0
+* Use Argon2 for server-side password hashing
+* Tweak graphics and text
+
+# 0.7.1.1
+* Make server compatible with feed-1.0.0 (thanks constatinus)
+* Avoid DOS-reserved codenames (thanks constatinus)
+
+# 0.7.1
+* Rework tutorial and intro.
+* Animate movement.
+* Prevent dragging wrench off-path from generating a move.
+* Various UI improvements.
+
+# 0.7.0.1
+* Fix compile error on older ghc versions.
+
+# 0.7
+* Encrypt passwords when communicating with server
+    (in previous versions, they were salted and hashed but not encrypted).
+* Clean out solutions when a lock becomes public.
+* Various UI improvements, particularly for curses mode.
+
+# 0.6.2
+* Fix obscure but actual bug in core game physics:
+    wrenches were being blocked when they shouldn't be.
+    See TST:C on the main server for an example - it can be solved only in
+    intricacy versions prior to this one.
+* Extra help text screen for editing first lock.
+* Cycle through all possibilities when placing blocks in editor.
+
+# 0.6.1
+* Fix stupid bug preventing registration via keyboard command.
+
+# 0.6
+* New scoring system - you don't get the point for a solution if the lock
+owner has read your note.
+* Server optionally notifies users by email when their locks are solved.
+* Server produces RSS feeds.
+* Save solutions-in-progress of locks and tutorial.
+* Indicate when there's a pending network request, and allow cancellation.
+* Support ghc-7.10.
+* Support OS X (thanks Kevin Eaves).
+* Further tweaks to UI and tutorials.
+
+# 0.5
+* Adjustments to graphics, tutorial, and metagame UI, to increase clarity.
+* Concurrency on server; no more freezes while it checks a solution.
+* Misc optimisations.
+* Fix sound lag on Windows.
+
+# 0.4
+* Sound effects (thanks linley).
+* Animate to show the two physics phases (thanks dormir).
+* Help screens.
+* Help text for buttons and metagame.
+* Deneutralised metagame terminology.
+* Tutorial tweaked.
+* Various UI improvements (thanks Quicksand-S and dormir)
+
+# 0.3
+* Mouse control.
+* Improvements to curses UI - handle resizing; show keys; allow rebinding.
+* Shortened tutorial drastically. Other levels now in 'tutorial-extra/'.
+* Improve handling inaccessible servers.
+* Added background.
+* First version uploaded to hackage.
+* Scoring tweak: empty slots are accessed iff all non-empty slots are.
+* Detailed game info in README.
+* Hover text for UI buttons.
+* Marks.
+* Lock testing in edit mode.
+* Significant bugs fixed:
+* editor, lockfile reader, and validity checker were not in accordance
+    on what is allowed as the root of a spring.
+* SDL UI was redrawing the screen on every mouse movement.
+* curses UI wasn't refreshing properly on async flag.
+* stale notes weren't getting refreshed.
+* retired display got stuck on changing codename.
+* you couldn't move into the bolthole with keyboard commands.
+
+# 0.2
+* First public release
