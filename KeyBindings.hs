@@ -16,7 +16,6 @@ module KeyBindings (KeyBindings, bindings, findBindings, findBinding, showKey,
 import           Data.Bits      (xor)
 import           Data.Char
 import           Data.List
-import           Data.Maybe
 
 import           Command
 import           GameStateTypes
@@ -108,13 +107,14 @@ dvorakMidHex =
 
 miscLockGlobal = lowerToo
     [ ('\b', CmdUndo)
-    , ('R', CmdRedo)
+    , ('\r', CmdRedo)
+    , ('\n', CmdRedo)
     , (ctrl 'R', CmdRedo)
     , (ctrl 'Y', CmdRedo)
 #ifndef CURSES
     , (ctrl 'Z', CmdUndo)
 #endif
-    , ('^', CmdReset)
+    , ('R', CmdReset)
     , ('.', CmdWait)
     , ('M', CmdMark)
     , ('\'', CmdJumpMark)
@@ -155,7 +155,6 @@ editMisc = lowerToo
     [ ('W', CmdWriteState)
     , (ctrl 'S', CmdWriteState)
     , (' ', CmdSelect)
-    , ('\r', CmdSelect)
     , ('=', CmdMerge)
     , ('0', CmdDelete)
     ]
