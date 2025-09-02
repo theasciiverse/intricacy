@@ -4,7 +4,7 @@ _licensefile=COPYING
 
 # PKGBUILD options/directives
 pkgname=intricacy
-pkgver=0.8.2.1
+pkgver=0.9.0.0
 pkgrel=1
 pkgdesc="A game of competitive puzzle-design"
 url="http://mbays.freeshell.org/intricacy"
@@ -30,7 +30,7 @@ build() {
     cd "${srcdir}/${_hkgname}-${pkgver}"
     
     runhaskell Setup configure -O --prefix=/usr --docdir="/usr/share/doc/${pkgname}" \
-        -f-server -fgame -fcurses -fsdl
+        -f-server -fgame
     runhaskell Setup build
 }
 
