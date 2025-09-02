@@ -73,8 +73,6 @@ flag server
 
 flag sendmail
     description: Include support for sending mail
-    default:     False
-    manual:      True
 
 executable intricacy
     main-is:          Intricacy.hs
@@ -288,6 +286,6 @@ executable intricacy-server
         if flag(sendmail)
             cpp-options:   -DSENDMAIL
             build-depends:
-                smtp-mail >=0.1.4.1 && <0.4
+                smtp-mail >=0.1.4.1 && <0.6
     else
         buildable: False
