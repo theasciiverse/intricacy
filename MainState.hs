@@ -56,6 +56,7 @@ class (Applicative m, MonadIO m) => UIMonad m where
     endPrompt :: m ()
     drawError :: String -> m ()
     showHelp :: InputMode -> HelpPage -> m Bool
+    getInputNoBlock :: InputMode -> m [ Command ]
     getInput :: InputMode -> m [ Command ]
     getChRaw :: m ( Maybe Char )
     unblockInput :: m (IO ())

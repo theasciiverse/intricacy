@@ -505,6 +505,8 @@ instance UIMonad (StateT UIState IO) where
         cmds <- getInput IMImpatience
         return $ CmdQuit `elem` cmds
 
+    getInputNoBlock _ = pure []
+
     getInput mode = do
         let userResizeCode = 1337  -- XXX: chosen not to conflict with HSCurses codes
         key <- liftIO $ CursesH.getKey (Curses.ungetCh userResizeCode) >>=

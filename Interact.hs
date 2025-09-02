@@ -71,7 +71,7 @@ interactUI = (fromMaybe (InteractSuccess False) <$>) . runMaybeT $ do
             _ <- spawnUnblockerThread
 
             -- process resizes and draw before testing auth, lest a timeout mean a blank screen
-            cmds <- lift $ getSomeInput im
+            cmds <- lift $ getInputNoBlock im
             _ <- runExceptT (mapM_ (processCommand im) cmds)
             drawMainState
 

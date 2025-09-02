@@ -177,6 +177,8 @@ instance UIMonad (StateT UIState IO) where
     toggleColourMode = modify $ \s -> s {uiOptions = (uiOptions s){
         useFiveColouring = not $ useFiveColouring $ uiOptions s}}
 
+    getInputNoBlock = getInput
+
     getInput mode = do
         aimFPS <- gets fps
         events <- liftIO $ getEventsTimeout (10^6`div`aimFPS)
