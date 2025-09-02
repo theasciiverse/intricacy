@@ -1,7 +1,7 @@
-cabal-version:      >=1.10
+cabal-version:      2.2
 name:               intricacy
 version:            0.9.0.0
-license:            GPL-3
+license:            GPL-3.0-or-later
 license-file:       COPYING
 maintainer:         mbays@sdf.org
 author:             Martin Bays
@@ -76,6 +76,8 @@ flag sendmail
 
 executable intricacy
     main-is:          Intricacy.hs
+    autogen-modules:
+        Paths_intricacy
     other-modules:
         AsciiLock
         BinaryInstances
@@ -227,6 +229,8 @@ executable intricacy
 
 executable intricacy-server
     main-is:          Server.hs
+    autogen-modules:
+        Paths_intricacy
     other-modules:
         AsciiLock
         BinaryInstances
