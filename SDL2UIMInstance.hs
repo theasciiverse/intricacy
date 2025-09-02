@@ -183,7 +183,7 @@ instance UIMonad (StateT UIState IO) where
         aimFPS <- gets fps
         events <- liftIO $ getEventsTimeout (10^6`div`aimFPS)
         unblockEvent <- maybe (pure False)
-            (\(RegisteredEventType _ getReg) -> not . null . catMaybes <$> sequence (liftIO . getReg <$> events))
+            (\(RegisteredEventType _ getReg) -> not . null . catMaybes <$> mapM (liftIO . getReg) events)
             =<< gets unblockEventType
         let payloads = nubMouseMotions $ eventPayload <$> events
         (cmds,uiChanged) <- if null events then return ([],False) else do

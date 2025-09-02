@@ -452,8 +452,8 @@ uiOB6 = UIOptButton soundVolume (\v o -> o {soundVolume=v}) [64,0,16,32]
         (\case
             v | v >= 64 -> "Sound effects at full volume"
             v | v >= 32 -> "Sound effects at medium volume"
-            0 -> "Sound effects disabled"
-            _ -> "Sound effects at low volume")
+            0           -> "Sound effects disabled"
+            _           -> "Sound effects at low volume")
         [IMPlay, IMEdit, IMReplay] $ Just (`setVolume` AllChannels)
 
 drawUIOptionButtons :: InputMode -> UIM ()
