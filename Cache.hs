@@ -81,7 +81,7 @@ makeRequest saddr _ | nullSaddr saddr =
 makeRequest saddr@(ServerAddr host prt) request =
     handle (return . ServerError . (show::SomeException -> String)) $ do
         connect host (show prt) makeRequest'
-            `catchIO` const (return $ ServerError $ "Cannot connect to "++saddrStr saddr++"!")
+            `catchIO` (\e -> return $ ServerError $ "Cannot connect to "++saddrStr saddr++"! "++show e)
     where
         makeRequest' (sock,_) = do
             send sock . BL.toStrict $ encode request
