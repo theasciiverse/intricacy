@@ -298,9 +298,9 @@ renderGlyph (ShowButtonTextButton showing) = do
         sequence_ [ pixelR (FVec (1/3 + i/4) (-1/4)) (bright white) | i <- [-1..1] ]
 
 renderGlyph (VolumeButton vol) = do
-    sequence_ [ arcR (FVec (-2/3) 0) r (-20) 20
-            (if vol > 0 then bright green else dim red)
-        | r <- [1/3] <> [2/3 | vol > 16 || vol == 0] <> [1 | vol > 32 || vol == 0 ] ]
+    sequence_ [ arcR (FVec (-2/3) 0) ((fi r+1)/3) (-20) 20
+            (if vol > 16*r then bright green else dim red)
+        | r <- [0..2] ]
     unless (vol > 0) $
         aaLineR (innerCorner hw) (innerCorner $ neg hw) $ dim red
 
