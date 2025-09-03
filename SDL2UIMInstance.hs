@@ -61,12 +61,13 @@ instance UIMonad (StateT UIState IO) where
         lift $ clearButtons >> clearSelectables
         s <- get
         let mode = ms2im s
+            tutLev = getTutLevel s
         lift waitFrame
         drawMainState' s
         lift . drawTitle =<< getTitle
         lift $ do
             drawButtons mode
-            drawUIOptionButtons mode
+            drawUIOptionButtons mode tutLev
             updateHoverStr mode
             drawMsgLine
             drawShortMouseHelp mode s

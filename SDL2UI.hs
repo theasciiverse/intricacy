@@ -53,6 +53,7 @@ import           Hex
 import           InputMode
 import           KeyBindings
 import           Lock
+import           MainState
 import           Maxlocksize
 import           Metagame
 import           Mundanities
@@ -403,9 +404,16 @@ helpAtMousePos (mPos,_) _ = do
     helpOfSelectableFiltered _ s                    = helpOfSelectable s
 
 
-data UIOptButton a = UIOptButton { getUIOpt :: UIOptions->a, setUIOpt :: a->UIOptions->UIOptions,
-    uiOptVals :: [a], uiOptPos :: HexVec, uiOptGlyph :: a->Glyph, uiOptDescr :: a->String,
-    uiOptModes :: [InputMode], onSet :: Maybe (a -> UIM ()) }
+data UIOptButton a = UIOptButton
+    { getUIOpt      :: UIOptions->a
+    , setUIOpt      :: a->UIOptions->UIOptions
+    , uiOptVals     :: [a]
+    , uiOptPos      :: HexVec
+    , uiOptGlyph    :: a->Glyph
+    , uiOptDescr    :: a->String
+    , uiOptModes    :: [InputMode]
+    , uiOptSideText :: a -> TutorialLevel -> Maybe (String, HexVec)
+    , onSet         :: Maybe (a -> UIM ()) }
 
 -- non-uniform type, so can't use a list...
 uiOB1 = UIOptButton useFiveColouring (\v o -> o {useFiveColouring=v}) [True,False]
@@ -413,6 +421,7 @@ uiOB1 = UIOptButton useFiveColouring (\v o -> o {useFiveColouring=v}) [True,Fals
         (\v -> if v then "Adjacent pieces get different colours" else
         "Pieces are coloured according to type")
         [] -- disabled
+        (const $ const Nothing)
         Nothing
 uiOB2 = UIOptButton showBlocks (\v o -> o {showBlocks=v}) [ShowBlocksBlocking,ShowBlocksAll,ShowBlocksNone]
         (periphery 0 +^ 2 *^ hu +^ 2 *^ neg hv) ShowBlocksButton
@@ -420,7 +429,9 @@ uiOB2 = UIOptButton showBlocks (\v o -> o {showBlocks=v}) [ShowBlocksBlocking,Sh
             ShowBlocksBlocking -> "Showing conflicting forces"
             ShowBlocksAll      -> "Showing conflicting forces and movements they prevent"
             ShowBlocksNone     -> "Not showing conflicts")
-        [IMPlay, IMReplay] Nothing
+        [IMPlay, IMReplay]
+        (\a tutLev -> if a == ShowBlocksNone && conflictsTutLev tutLev then Just ("Conflicts -->", 14*^neg hu) else Nothing)
+        Nothing
 uiOB3P = UIOptButton ((!? IMPlay) . whsButtons) (\v o -> o { whsButtons = Map.alter (const v) IMPlay $ whsButtons o })
         [Nothing, Just WHSSelected, Just WHSHook, Just WHSWrench]
         (periphery 3 +^ 3 *^ hv) WhsButtonsButton
@@ -430,23 +441,25 @@ uiOB3P = UIOptButton ((!? IMPlay) . whsButtons) (\v o -> o { whsButtons = Map.al
                 WHSSelected -> "selected piece; right-click on buttons to rebind"
                 WHSWrench   -> "wrench; right-click on buttons to rebind"
                 WHSHook     -> "hook; right-click on buttons to rebind")
-        [IMPlay] Nothing
+        [IMPlay]
+        (\a tutLev -> if isNothing a && keysTutLevel tutLev then Just ("<-- KEYS", 3*^hu) else Nothing)
+        Nothing
 uiOB3E = UIOptButton ((!? IMEdit) . whsButtons) (\v o -> o { whsButtons = Map.alter (const v) IMEdit $ whsButtons o })
         [Nothing, Just WHSSelected]
         (periphery 3 +^ 3 *^ hv) WhsEditButtonsButton
         (\case
             Nothing -> "Click to show (and rebind) keyboard control buttons."
             Just _ -> "Showing buttons for controlling cursor / selected piece; right-click on buttons to rebind")
-        [IMEdit] Nothing
+        [IMEdit] (const $ const Nothing) Nothing
 uiOB4 = UIOptButton showButtonText (\v o -> o {showButtonText=v}) [True,False]
         (periphery 0 +^ 2 *^ hu +^ 3 *^ hv) ShowButtonTextButton
         (\v -> if v then "Help text enabled" else
         "Help text disabled")
-        [IMPlay, IMEdit, IMReplay, IMMeta, IMInit] Nothing
+        [IMPlay, IMEdit, IMReplay, IMMeta, IMInit] (const $ const Nothing) Nothing
 uiOB5 = UIOptButton fullscreen (\v o -> o {fullscreen=v}) [True,False]
         (periphery 0 +^ 4 *^ hu +^ 2 *^ hv) FullscreenButton
         (\v -> if v then "Fullscreen mode active" else "Windowed mode active")
-        [IMPlay, IMEdit, IMReplay, IMMeta, IMInit] (Just onFullScreenChange)
+        [IMPlay, IMEdit, IMReplay, IMMeta, IMInit] (const $ const Nothing) (Just onFullScreenChange)
 uiOB6 = UIOptButton soundVolume (\v o -> o {soundVolume=v}) [64,0,16,32]
         (periphery 0 +^ 4 *^ hu +^ hv) VolumeButton
         (\case
@@ -454,29 +467,36 @@ uiOB6 = UIOptButton soundVolume (\v o -> o {soundVolume=v}) [64,0,16,32]
             v | v >= 32 -> "Sound effects at medium volume"
             0           -> "Sound effects disabled"
             _           -> "Sound effects at low volume")
-        [IMPlay, IMEdit, IMReplay] $ Just (`setVolume` AllChannels)
+        [IMPlay, IMEdit, IMReplay] (const $ const Nothing) $ Just (`setVolume` AllChannels)
 
-drawUIOptionButtons :: InputMode -> UIM ()
-drawUIOptionButtons mode = do
-    drawUIOptionButton mode uiOB1
-    drawUIOptionButton mode uiOB2
-    drawUIOptionButton mode uiOB3P
-    drawUIOptionButton mode uiOB3E
-    drawUIOptionButton mode uiOB4
-    drawUIOptionButton mode uiOB5
+drawUIOptionButtons :: InputMode -> TutorialLevel -> UIM ()
+drawUIOptionButtons mode tutLev = do
+    drawUIOptionButton mode tutLev uiOB1
+    drawUIOptionButton mode tutLev uiOB2
+    drawUIOptionButton mode tutLev uiOB3P
+    drawUIOptionButton mode tutLev uiOB3E
+    drawUIOptionButton mode tutLev uiOB4
+    drawUIOptionButton mode tutLev uiOB5
 #ifdef SOUND
-    drawUIOptionButton mode uiOB6
+    drawUIOptionButton mode tutLev uiOB6
 #endif
-drawUIOptionButton im b = when (im `elem` uiOptModes b) $ do
+drawUIOptionButton im tutLev b = when (im `elem` uiOptModes b) $ do
     value <- gets $ getUIOpt b . uiOptions
     renderToMain $ mapM_ (\g -> drawAtRel g (uiOptPos b))
         [HollowGlyph $ obscure purple, uiOptGlyph b value]
+    maybe (pure ()) drawSideText $ uiOptSideText b value tutLev
+    where
+    drawSideText (s,dv) = do
+        smallFont <- gets dispFontSmall
+        renderToMain $ withFont smallFont $ recentreAt (uiOptPos b) $ rescaleRender (1/4) $
+            renderStrColAtLeft white s dv
+
 describeUIOptionButton :: UIOptButton a -> MaybeT UIM String
 describeUIOptionButton b = do
     value <- gets $ getUIOpt b . uiOptions
     return $ uiOptDescr b value
 -- XXX: hand-hacking lenses...
-toggleUIOption (UIOptButton getopt setopt vals _ _ _ _ monSet) = do
+toggleUIOption (UIOptButton getopt setopt vals _ _ _ _ _ monSet) = do
     value <- gets $ getopt . uiOptions
     let value' = cycle vals !! max 0 (1 + fromMaybe 0 (elemIndex value vals))
     modifyUIOptions $ setopt value'

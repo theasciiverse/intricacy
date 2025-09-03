@@ -1,1 +1,1 @@
-adjust noUndoTutLevel and wrenchOnlyTutLevel is MainState.hs if numbering/order changes!
+adjust noUndoTutLevel, wrenchOnlyTutLevel, keysTutLevel, conflictsTutLevel in MainState.hs if numbering/order changes!

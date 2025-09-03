@@ -76,6 +76,8 @@ class (Applicative m, MonadIO m) => UIMonad m where
         ok <- initUI
         if ok then m >>= (endUI >>).return.Just else return Nothing
 
+type TutorialLevel = Maybe Int
+
 -- | this could be neatened using GADTs
 data MainState
     = PlayState
@@ -87,7 +89,7 @@ data MainState
         , psGameStateMoveStack :: [(GameState, PlayerMove)]
         , psUndoneStack        :: [PlayerMove]
         , psTitle              :: Maybe String
-        , psTutLevel           :: Maybe Int
+        , psTutLevel           :: TutorialLevel
         , psIsSub              :: Bool
         , psSaved              :: Bool
         , psMarks              :: Map Char MainState
@@ -152,6 +154,10 @@ ms2im mainSt = case mainSt of
     InitState {}   -> IMInit
     MetaState {}   -> IMMeta
 
+getTutLevel :: MainState -> TutorialLevel
+getTutLevel s@(PlayState {}) = psTutLevel s
+getTutLevel _                = Nothing
+
 newPlayState (frame,st) pms title tutLev sub saved = PlayState st frame [] False False [] pms title tutLev sub saved Map.empty
 newReplayState st soln title = ReplayState st [] soln [] title Map.empty
 newEditState (frame,st) msoln mpath = EditState st [] [] frame mpath
@@ -182,9 +188,13 @@ data TutProgress = TutProgress
     } deriving (Eq, Ord, Show, Read)
 initTutProgress = TutProgress False 1 Nothing
 
-wrenchOnlyTutLevel, noUndoTutLevel :: Maybe Int -> Bool
+wrenchOnlyTutLevel, noUndoTutLevel, keysTutLevel, conflictsTutLev :: TutorialLevel -> Bool
 wrenchOnlyTutLevel = (`elem` (Just <$> [1..4]))
 noUndoTutLevel = (`elem` (Just <$> [1..7]))
+keysTutLevel (Just n) = n >= 5
+keysTutLevel _        = False
+conflictsTutLev (Just n) = n == 11
+conflictsTutLev _        = False
 
 data InitLock = InitLock
     { initLockName    :: String
