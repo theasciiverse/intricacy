@@ -1,6 +1,6 @@
 cabal-version:      2.2
 name:               intricacy
-version:            0.9.1.0
+version:            0.9.1.1
 license:            GPL-3.0-or-later
 license-file:       COPYING
 maintainer:         mbays@sdf.org
