@@ -22,7 +22,8 @@ import           Data.List
 import           Data.Maybe
 import           Paths_intricacy
 import           System.Directory
-import           System.Environment     (getEnv)
+import           System.Environment     (getEnv, getExecutablePath,
+                                         lookupEnv)
 import           System.FilePath
 
 catchIO :: IO a -> (IOError -> IO a) -> IO a
@@ -64,18 +65,51 @@ writeStrings file x = do
 
 confFilePath :: FilePath -> IO FilePath
 confFilePath str = (++(pathSeparator:str)) <$>
-    catchIO (getEnv "INTRICACY_PATH")
-        (const $ getAppUserDataDirectory "intricacy")
+    catchIO (getEnv "INTRICACY_PATH") (const defaultConfDir)
 
-getDataPath :: FilePath -> IO FilePath
-#ifdef WINDOWS
-getDataPath = pure
+-- | The player's own folder: ~/.intricacy when it is already there (older
+-- versions put everything in it), else the platform's state folder:
+-- $XDG_STATE_HOME/intricacy or ~/.local/state/intricacy on Linux and other
+-- unixes, ~/Library/Application Support/intricacy on macOS, and
+-- %LocalAppData%\intricacy on Windows.
+defaultConfDir :: IO FilePath
+defaultConfDir = do
+    old <- getAppUserDataDirectory "intricacy"
+    oldExists <- unlessIOErr $ doesDirectoryExist old
+    if oldExists then return old else stateDir
+  where
+    stateDir = do
+#if defined(WINDOWS) || defined(mingw32_HOST_OS)
+        base <- lookupEnv "LOCALAPPDATA"
+        maybe (getAppUserDataDirectory "intricacy") (return . (</> "intricacy")) base
+#elif defined(darwin_HOST_OS)
+        home <- getHomeDirectory
+        return $ home </> "Library" </> "Application Support" </> "intricacy"
 #else
-getDataPath = getDataFileName
+        xdg <- lookupEnv "XDG_STATE_HOME"
+        case xdg of
+            Just d | isAbsolute d -> return $ d </> "intricacy"
+            _ -> (</> ".local" </> "state" </> "intricacy") <$> getHomeDirectory
+#endif
+
+-- | Game data (tutorial, initiation, sounds, font): beside the executable
+-- when it is there, so an unpacked archive runs from any folder; otherwise
+-- where cabal installed it.
+getDataPath :: FilePath -> IO FilePath
+getDataPath name = do
+    exeDir <- takeDirectory <$> catchIO getExecutablePath (const $ return "")
+    let beside = exeDir </> name
+    here <- unlessIOErr $ (||) <$> doesDirectoryExist beside <*> doesFileExist beside
+    if not (null exeDir) && here then return beside else installed
+  where
+#ifdef WINDOWS
+    installed = pure name
+#else
+    installed = getDataFileName name
 #endif
 
 makeConfDir :: IO ()
-makeConfDir = confFilePath "" >>= createDirectoryIfMissing False
+makeConfDir = confFilePath "" >>= createDirectoryIfMissing True
 
 fileExists :: FilePath -> IO Bool
 fileExists = unlessIOErr . doesFileExist
